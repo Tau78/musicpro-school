@@ -1,0 +1,29 @@
+{
+  "name": "@musicpro/web",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@musicpro/database": "*",
+    "@musicpro/shared": "*",
+    "@supabase/ssr": "^0.6.1",
+    "next": "15.3.4",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.10",
+    "@types/node": "^22.15.32",
+    "@types/react": "~18.3.23",
+    "@types/react-dom": "~18.3.7",
+    "eslint": "^9.29.0",
+    "eslint-config-next": "^15.3.4",
+    "tailwindcss": "^4.1.10",
+    "typescript": "^5.8.3"
+  }
+}

@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Area Personale Associato</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary-orange: #FF5722;
+      --primary-orange-dark: #E64A19;
+      --accent-orange: #FFAB91;
+      --text-dark: #333;
+      --text-light: #f4f4f4;
+      --bg-light: #f4f4f4;
+      --border-color: #ddd;
+      --success-color: #4CAF50;
+      --error-color: #F44336;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Poppins', sans-serif;
+    }
+    body {
+      background-color: var(--bg-light);
+      color: var(--text-dark);
+      padding: 20px;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background-color: #fff;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    h2 {
+      color: var(--primary-orange-dark);
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    .loading-container {
+        text-align: center;
+        padding: 50px;
+    }
+    .loading-spinner {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid var(--primary-orange);
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 15px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    /* --- Stili per Modulo Iscrizione --- */
+.form-section-title {
+    margin-top: 35px;
+    margin-bottom: 20px;
+    color: var(--primary-orange);
+    font-size: 1.2em;
+    border-bottom: 1px solid var(--accent-orange);
+    padding-bottom: 8px;
+}
+.form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-bottom: 15px;
+}
+.form-group {
+  flex: 1;
+  min-width: 200px;
+}
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 500;
+  font-size: 0.9em;
+  color: #555;
+}
+.form-group input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 1em;
+}
+.form-group input:read-only {
+    background-color: #f0f0f0;
+    cursor: not-allowed;
+}
+.signature-wrapper {
+    position: relative;
+    width: 100%;
+    max-width: 400px;
+    height: 150px;
+    border: 2px dashed var(--border-color);
+    border-radius: 8px;
+    margin-top: 10px;
+}
+#signature-pad {
+    width: 100%;
+    height: 100%;
+}
+.signature-actions {
+    margin-top: 10px;
+}
+.button {
+  display: inline-block;
+  padding: 10px 20px;
+  background-color: var(--primary-orange);
+  color: var(--text-light);
+  border: none;
+  border-radius: 8px;
+  font-size: 1em;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  margin-top: 10px;
+  margin-right: 10px;
+}
+.button.secondary {
+    background-color: #6c757d;
+}
+
+/* --- Stili per Notifiche Toast e Pulsante di Successo --- */
+.toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: var(--text-dark);
+  color: var(--text-light);
+  padding: 12px 20px;
+  border-radius: 8px;
+  opacity: 0;
+  transition: opacity 0.3s, transform 0.3s;
+  z-index: 100;
+  transform: translateY(20px);
+  pointer-events: none;
+}
+.toast.show { 
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.toast.success { background-color: var(--success-color); }
+.toast.error { background-color: var(--error-color); }
+.toast.info { background-color: #333; }
+
+.button.success {
+    background-color: var(--success-color);
+    cursor: default;
+}
+.button.success:hover {
+    background-color: var(--success-color);
+}
+
+/* --- Stili per pulsanti di azione del form --- */
+.form-actions {
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid #eee;
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+  </style>
+
+  <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
+
+</head>
+<body>
+
+  <div class="container" id="main-container">
+    <div id="loading-view" class="loading-container">
+      <div class="loading-spinner"></div>
+      <p>Verifica del link di accesso in corso...</p>
+    </div>
+
+<div id="data-view" style="display: none;">
+        <h2>Ciao, <span id="associate-name"></span>!</h2>
+        <p style="text-align: center; margin-top: -20px; margin-bottom: 30px;">Da qui potrai aggiornare i tuoi dati e generare il modulo d'iscrizione.</p>
+        
+        <h3 class="form-section-title">I Tuoi Dati</h3>
+        <form id="associate-data-form">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Nome</label>
+                    <input type="text" id="field-nome" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Cognome</label>
+                    <input type="text" id="field-cognome" readonly>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Nato/a a</label>
+                    <input type="text" id="field-luogoNascita">
+                </div>
+                <div class="form-group">
+                    <label>Prov. Nascita (es. GE)</label>
+                    <input type="text" id="field-provinciaNascita" maxlength="2">
+                </div>
+                <div class="form-group">
+                    <label>il</label>
+                    <input type="date" id="field-dataNascita">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Indirizzo di Residenza (Via e Numero Civico)</label>
+                <input type="text" id="field-indirizzo">
+            </div>
+             <div class="form-row">
+                <div class="form-group">
+                    <label>CAP</label>
+                    <input type="text" id="field-cap" maxlength="5">
+                </div>
+                <div class="form-group">
+                    <label>Città</label>
+                    <input type="text" id="field-citta">
+                </div>
+                <div class="form-group">
+                    <label>Provincia (es. GE)</label>
+                    <input type="text" id="field-provinciaResidenza" maxlength="2">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Codice Fiscale</label>
+                    <input type="text" id="field-codiceFiscale">
+                </div>
+                <div class="form-group">
+                    <label>Cellulare</label>
+                    <input type="text" id="field-cellulare">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Email (le comunicazioni verranno inviate qui)</label>
+                <input type="email" id="field-email">
+            </div>
+        </form>
+        
+        <h3 class="form-section-title">Dati Tutore (se applicabile)</h3>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Nome e Cognome Tutore</label>
+                <input type="text" id="field-nomeTutore" readonly>
+            </div>
+            <div class="form-group">
+                <label>Email Tutore</label>
+                <input type="text" id="field-emailTutore" readonly>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button id="save-changes-btn" class="button">Salva Modifiche Anagrafiche</button>
+        </div>
+
+        <h3 class="form-section-title">Firma il Modulo</h3>
+        <p>Apponi la tua firma nel riquadro sottostante per confermare la domanda d'iscrizione e l'accettazione del trattamento dati.</p>
+        <div class="signature-wrapper">
+            <canvas id="signature-pad"></canvas>
+        </div>
+        <div class="signature-actions">
+            <button id="clear-signature-btn" class="button secondary">Pulisci Firma</button>
+        </div>
+        
+        <div class="form-actions">
+            <button id="generate-pdf-btn" class="button">Genera e Invia Modulo via Email</button>
+        </div>
+    </div>
+    
+  <div id="toast" class="toast"></div>
+
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // Riferimenti agli elementi della pagina
+      const loadingView = document.getElementById('loading-view');
+      const dataView = document.getElementById('data-view');
+      const errorView = document.getElementById('error-view');
+      const errorMessageEl = document.getElementById('error-message');
+      const signaturePadCanvas = document.getElementById('signature-pad');
+      const clearSignatureBtn = document.getElementById('clear-signature-btn');
+      const generatePdfBtn = document.getElementById('generate-pdf-btn');
+      const toastEl = document.getElementById('toast');
+      
+      let signaturePad;
+      let currentAssociateData = {}; // Memorizziamo i dati completi qui
+
+      // Funzione per mostrare notifiche personalizzate
+      function showToast(message, type = 'info', duration = 3000) {
+        toastEl.textContent = message;
+        toastEl.className = 'toast show ' + type;
+        setTimeout(() => { toastEl.className = 'toast ' + type; }, duration);
+      }
+
+      function resizeCanvas() {
+        const ratio = Math.max(window.devicePixelRatio || 1, 1);
+        signaturePadCanvas.width = signaturePadCanvas.offsetWidth * ratio;
+        signaturePadCanvas.height = signaturePadCanvas.offsetHeight * ratio;
+        signaturePadCanvas.getContext("2d").scale(ratio, ratio);
+        if (signaturePad) {
+          signaturePad.clear();
+        }
+      }
+
+      const token = '<?!= token ?>';
+
+      if (!token || token === 'null') {
+        loadingView.style.display = 'none';
+        errorMessageEl.textContent = "Token di accesso mancante. Assicurati di aver usato il link completo ricevuto via email.";
+        errorView.style.display = 'block';
+        return;
+      }
+
+      google.script.run
+        .withSuccessHandler(associateData => {
+          loadingView.style.display = 'none';
+          currentAssociateData = associateData; // Salva i dati ricevuti
+          
+          // Popola i dati dell'associato nel form
+          document.getElementById('associate-name').textContent = associateData.nome;
+          document.getElementById('field-nome').value = associateData.nome || '';
+          document.getElementById('field-cognome').value = associateData.cognome || '';
+          document.getElementById('field-luogoNascita').value = associateData.luogoNascita || '';
+          document.getElementById('field-dataNascita').value = associateData.dataNascita || '';
+          document.getElementById('field-indirizzo').value = associateData.indirizzo || '';
+          document.getElementById('field-codiceFiscale').value = associateData.codiceFiscale || '';
+          document.getElementById('field-cellulare').value = associateData.cellulare || '';
+          document.getElementById('field-email').value = associateData.email || '';
+          
+          dataView.style.display = 'block';
+
+          signaturePad = new SignaturePad(signaturePadCanvas);
+          window.addEventListener("resize", resizeCanvas);
+          resizeCanvas();
+
+          clearSignatureBtn.addEventListener('click', () => {
+            signaturePad.clear();
+          });
+
+          generatePdfBtn.addEventListener('click', () => {
+            if (signaturePad.isEmpty()) {
+              showToast("Per favore, apponi la tua firma prima di generare il modulo.", 'error');
+              return;
+            }
+
+            // Raccogli tutti i dati dal form e aggiungi quelli del tutore
+            const formData = {
+              nome: document.getElementById('field-nome').value,
+              cognome: document.getElementById('field-cognome').value,
+              luogoNascita: document.getElementById('field-luogoNascita').value,
+              dataNascita: document.getElementById('field-dataNascita').value,
+              indirizzo: document.getElementById('field-indirizzo').value,
+              codiceFiscale: document.getElementById('field-codiceFiscale').value,
+              cellulare: document.getElementById('field-cellulare').value,
+              email: document.getElementById('field-email').value,
+              numero: currentAssociateData.numero,
+              // --- INIZIO MODIFICA: Aggiunta dati tutore al payload ---
+              nomeTutore: currentAssociateData.nomeCompletoTutore || `${currentAssociateData.tutoreNomeManuale} ${currentAssociateData.tutoreCognomeManuale}`.trim(),
+              emailTutore: currentAssociateData.tutoreEmailManuale || ''
+              // --- FINE MODIFICA ---
+            };
+
+            const signatureDataUrl = signaturePad.toDataURL("image/png");
+
+            generatePdfBtn.textContent = 'Generazione in corso...';
+            generatePdfBtn.disabled = true;
+
+            google.script.run
+              .withSuccessHandler(response => {
+                showToast(response.message, 'success');
+                generatePdfBtn.innerHTML = '<span>Modulo Inviato ✓</span>';
+                generatePdfBtn.disabled = true;
+                generatePdfBtn.classList.add('success');
+              })
+              .withFailureHandler(error => {
+                showToast(`Si è verificato un errore: ${error.message}`, 'error');
+                generatePdfBtn.textContent = 'Genera e Invia Modulo via Email';
+                generatePdfBtn.disabled = false;
+              })
+              .generateSignedModule(formData, signatureDataUrl);
+          });
+        })
+        .withFailureHandler(error => {
+          loadingView.style.display = 'none';
+          errorMessageEl.textContent = error.message;
+          errorView.style.display = 'block';
+        })
+        .validateTokenAndGetData(token);
+    });
+  </script>
+  
+  
+    </body>
+</html>

@@ -1,0 +1,37 @@
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+musicpro/.env
+musicpro/.env.*
+!musicpro/.env.example
+
+# Google Cloud service account keys
+musicpro/*-*.json
+*-*.json
+!package.json
+!package-lock.json
+!tsconfig*.json
+!**/vercel.json
+
+# Dependencies
+node_modules/
+musicpro/node_modules/
+
+# Next.js / Turbo / Expo build artifacts
+.next/
+out/
+.turbo/
+dist/
+.expo/
+web-build/
+
+# OS / editor
+.DS_Store
+*.log
+npm-debug.log*
+.idea/
+.vscode/
+
+# Vercel local
+.vercel/

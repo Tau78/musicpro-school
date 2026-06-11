@@ -1,0 +1,5046 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Gestione Associati e Rimborsi</title>
+  
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+
+  <style>
+    /* -------------------- */
+    /* SEZIONE CSS */
+    /* -------------------- */
+    :root {
+      --primary-orange: #FF5722; /* Arancione vivace */
+      --primary-orange-dark: #E64A19; /* Arancione più scuro per hover/active */
+      --accent-orange: #FFAB91; /* Arancione più chiaro */
+      --text-dark: #333;
+      --text-light: #f4f4f4;
+      --bg-light: #f4f4f4;
+      --bg-dark: #222;
+      --shadow-light: rgba(0, 0, 0, 0.1);
+      --border-color: #ddd;
+      --success-color: #4CAF50;
+      --error-color: #F44336;
+      --info-color: #2196F3;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Poppins', sans-serif;
+      -webkit-tap-highlight-color: transparent; /* Rimuove l'ombra al tocco su iOS */
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden; /* Gestito dallo scrolling interno del content */
+      background-color: var(--bg-light);
+      color: var(--text-dark);
+    }
+
+    #app-container {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
+    /* Header Bar */
+    .header {
+      background-color: var(--primary-orange);
+      color: var(--text-light);
+      padding: 12px 16px;
+      text-align: center;
+      font-weight: 600;
+      font-size: 1.2em;
+      box-shadow: 0 2px 4px var(--shadow-light);
+      position: relative;
+      z-index: 10;
+    }
+    .header-deploy {
+      display: block;
+      font-size: 0.65em;
+      font-weight: 500;
+      opacity: 0.9;
+      margin-top: 4px;
+      line-height: 1.3;
+    }
+
+    /* Banner migrazione → nuovo admin Supabase (Next.js) */
+    .gas-migration-banner {
+      background: #1e3a5f;
+      color: #fff;
+      padding: 10px 16px;
+      font-size: 0.85em;
+      line-height: 1.45;
+      text-align: center;
+      border-bottom: 3px solid #ffb300;
+    }
+    .gas-migration-banner a {
+      color: #ffb300;
+      font-weight: 600;
+      text-decoration: underline;
+    }
+    .gas-migration-banner strong {
+      font-weight: 600;
+    }
+
+    /* Content Area with Swipe */
+    #content-wrapper {
+      flex-grow: 1;
+      overflow: hidden; /* Important for swipe effect */
+      position: relative;
+    }
+
+   .page-container {
+  display: flex;
+  height: 100%;
+  width: 400%; /* 4 pages, 100% each */
+  transition: transform 0.3s ease-out;
+}
+
+    .page {
+      width: 100vw; /* Each page takes full viewport width */
+      flex-shrink: 0; /* Prevents pages from shrinking */
+      padding: 20px;
+      overflow-y: auto; /* Enable scrolling within each page */
+      -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+      padding-bottom: 80px; /* Space for fixed bottom bar */
+    }
+
+    /* Forms & Inputs */
+    .form-group {
+      margin-bottom: 15px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+      color: var(--text-dark);
+    }
+
+    .form-group input[type="text"],
+    .form-group input[type="number"],
+    .form-group input[type="email"],
+    .form-group input[type="date"],
+    .form-group select,
+    .form-group textarea {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      font-size: 1em;
+      color: var(--text-dark);
+      background-color: #fff;
+      box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    
+    .form-group input[type="text"]:focus,
+    .form-group input[type="number"]:focus,
+    .form-group input[type="email"]:focus,
+    .form-group input[type="date"]:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+      outline: none;
+      border-color: var(--primary-orange);
+      box-shadow: 0 0 0 3px var(--accent-orange);
+    }
+
+    .form-group input[type="checkbox"] {
+      margin-right: 10px;
+      transform: scale(1.2);
+    }
+
+    .button {
+      display: block;
+      width: 100%;
+      padding: 12px 20px;
+      background-color: var(--primary-orange);
+      color: var(--text-light);
+      border: none;
+      border-radius: 8px;
+      font-size: 1.1em;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.2s, transform 0.1s;
+      margin-top: 20px;
+    }
+
+    .button:hover {
+      background-color: var(--primary-orange-dark);
+    }
+
+    .button:active {
+      transform: scale(0.98);
+    }
+
+    .button.secondary {
+      background-color: #6c757d;
+    }
+    .button.secondary:hover {
+      background-color: #5a6268;
+    }
+
+    .button.outline {
+        background-color: transparent;
+        color: var(--primary-orange);
+        border: 2px solid var(--primary-orange);
+    }
+    .button.outline:hover {
+        background-color: var(--primary-orange);
+        color: var(--text-light);
+    }
+    
+    .button-group {
+        display: flex;
+        gap: 10px;
+        margin-top: 20px;
+    }
+    .button-group .button {
+        flex: 1;
+        margin-top: 0;
+    }
+
+    /* List Styles (for Rubrica and Rimborsi View) */
+    .list-container {
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px var(--shadow-light);
+      margin-top: 20px;
+    }
+
+    .list-item {
+      padding: 15px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: flex-start;
+      align-items: center;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .list-item:last-child {
+      border-bottom: none;
+    }
+
+    .list-item:hover {
+      background-color: #f9f9f9;
+    }
+    
+    .list-item-content {
+        flex-grow: 1;
+    }
+
+    .list-item h4 {
+      margin: 0;
+      color: var(--primary-orange-dark);
+      font-weight: 600;
+      font-size: 1.1em;
+    }
+
+    .list-item p {
+      margin: 5px 0 0;
+      font-size: 0.9em;
+      color: #666;
+    }
+
+    .list-item .material-icons {
+        color: #999;
+        font-size: 24px;
+    }
+
+.receipt-status-line {
+    font-size: 0.85em;
+    color: #555;
+    margin-top: 5px;
+    font-weight: 500;
+}
+.status-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.8em;
+    font-weight: 600;
+    color: #fff;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+.status-badge.completo { background-color: var(--success-color); }
+.status-badge.parziale { background-color: #FFA000; } /* Arancione/Ambra */
+.status-badge.mancante { background-color: var(--error-color); }
+
+    .list-controls {
+        display: flex;
+        gap: 8px;
+    }
+    .list-controls button {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 5px;
+        border-radius: 50%;
+        transition: background-color 0.2s;
+    }
+    .list-controls button:hover {
+        background-color: var(--accent-orange);
+    }
+    .list-controls button .material-icons {
+        font-size: 20px;
+        color: var(--primary-orange);
+    }
+    .list-controls button.delete-btn .material-icons {
+        color: var(--error-color);
+    }
+
+
+    /* Search Bar */
+    .search-bar {
+      margin-bottom: 20px;
+      position: sticky;
+      top: 0;
+      background-color: var(--bg-light);
+      padding: 10px 0;
+      z-index: 5;
+    }
+
+    .search-bar input {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid var(--border-color);
+      border-radius: 25px; /* Pill shape */
+      font-size: 1em;
+      padding-left: 45px; /* Space for icon */
+      background-color: #fff;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    
+    .search-bar .material-icons {
+        position: absolute;
+        left: 15px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #888;
+        font-size: 20px;
+    }
+
+    /* Fixed Bottom Navigation Bar */
+    .bottom-nav {
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      background-color: #fff;
+      border-top: 1px solid #e0e0e0;
+      box-shadow: 0 -2px 8px var(--shadow-light);
+      position: sticky; /* Sticky or fixed depending on desired behavior */
+      bottom: 0;
+      width: 100%;
+      height: 60px; /* Fixed height for navigation */
+      z-index: 1000;
+    }
+
+    .nav-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      color: #666;
+      font-size: 0.75em;
+      font-weight: 500;
+      text-decoration: none;
+      padding: 8px 0;
+      transition: color 0.2s, background-color 0.2s;
+      cursor: pointer;
+    }
+
+    .nav-item .material-icons {
+      font-size: 24px;
+      margin-bottom: 4px;
+    }
+
+    .nav-item.active {
+      color: var(--primary-orange-dark);
+      background-color: var(--accent-orange);
+    }
+
+    .nav-item:hover:not(.active) {
+      background-color: #f0f0f0;
+      color: var(--primary-orange);
+    }
+
+    /* Toast Notifications */
+    #toast-container {
+      position: fixed;
+      bottom: 80px; /* Sopra la nav bar */
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1001;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      max-width: 90%;
+      pointer-events: none; /* Permette di cliccare attraverso se non ci sono toast */
+    }
+
+    .toast {
+      background-color: var(--text-dark);
+      color: var(--text-light);
+      padding: 12px 20px;
+      border-radius: 8px;
+      margin-bottom: 10px;
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      min-width: 200px;
+      text-align: center;
+      font-size: 0.9em;
+      pointer-events: auto; /* Riabilita i click per il toast */
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    
+    .toast.success { background-color: var(--success-color); }
+    .toast.error { background-color: var(--error-color); }
+    .toast.info { background-color: var(--info-color); }
+
+    /* Modal / Popup */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.6);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1002;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s ease-in-out, visibility 0.3s;
+    }
+
+    .modal-overlay.show {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .modal-content {
+      background-color: #fff;
+      padding: 25px;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+      max-width: 90%;
+      max-height: 90%;
+      overflow-y: auto;
+      transform: translateY(20px);
+      transition: transform 0.3s ease-in-out;
+      position: relative;
+    }
+    
+    .modal-overlay.show .modal-content {
+        transform: translateY(0);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .modal-header h3 {
+      margin: 0;
+      color: var(--primary-orange-dark);
+      font-size: 1.3em;
+    }
+
+    .modal-close-button {
+      background: none;
+      border: none;
+      font-size: 1.8em;
+      color: #999;
+      cursor: pointer;
+      padding: 5px;
+      border-radius: 50%;
+      transition: background-color 0.2s;
+    }
+    .modal-close-button:hover {
+        background-color: #f0f0f0;
+    }
+
+    .modal-body {
+        margin-top: 20px;
+    }
+    
+    /* Utility classes */
+    .hidden {
+      display: none !important;
+    }
+    .text-center {
+        text-align: center;
+    }
+    .loading-indicator {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      padding: 20px;
+      font-size: 1.1em;
+      color: var(--primary-orange);
+    }
+    .loading-spinner {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid var(--primary-orange);
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .info-box {
+      background-color: #fff3e0;
+      border: 1px solid #ffcc80;
+      color: #e65100;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      font-size: 0.9em;
+      line-height: 1.4;
+    }
+
+    /* Dropdown specific styles */
+    .custom-dropdown-container {
+        position: relative;
+    }
+
+    .custom-dropdown-button {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        font-size: 1em;
+        background-color: #fff;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: pointer;
+        transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .custom-dropdown-button:focus {
+        outline: none;
+        border-color: var(--primary-orange);
+        box-shadow: 0 0 0 3px var(--accent-orange);
+    }
+
+    .custom-dropdown-list {
+        position: absolute;
+        width: 100%;
+        background-color: #fff;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        max-height: 200px;
+        overflow-y: auto;
+        z-index: 10;
+        margin-top: 5px;
+        display: none; /* Hidden by default */
+    }
+
+    .custom-dropdown-list.show {
+        display: block;
+    }
+
+    .custom-dropdown-item {
+        padding: 10px 12px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+
+    .custom-dropdown-item:hover {
+        background-color: #f0f0f0;
+    }
+
+    .custom-dropdown-item.selected {
+        background-color: var(--accent-orange);
+        color: var(--primary-orange-dark);
+        font-weight: 500;
+    }
+
+    /* Styles for the "Impostazioni Quote" page */
+    #quota-settings-list {
+        margin-top: 20px;
+    }
+    .quota-setting-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--border-color);
+    }
+    .quota-setting-item:last-child {
+        border-bottom: none;
+    }
+    .quota-setting-item span {
+        font-size: 1.1em;
+        color: var(--text-dark);
+    }
+    .quota-setting-item .controls {
+        display: flex;
+        gap: 10px;
+    }
+    .quota-setting-item .controls button {
+        background: none;
+        border: none;
+        cursor: pointer;
+    }
+    .quota-setting-item .controls button .material-icons {
+        font-size: 20px;
+        color: var(--primary-orange);
+    }
+    .quota-setting-item .controls button.delete .material-icons {
+        color: var(--error-color);
+    }
+
+    .form-section-title {
+        margin-top: 25px;
+        margin-bottom: 15px;
+        color: var(--primary-orange);
+        font-size: 1.2em;
+        border-bottom: 1px solid var(--accent-orange);
+        padding-bottom: 5px;
+    }
+
+    /* Report Generation page specific styles */
+    #report-output {
+        margin-top: 20px;
+        background-color: #fff;
+        padding: 15px;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px var(--shadow-light);
+        text-align: center;
+    }
+    #report-output a {
+        color: var(--primary-orange);
+        text-decoration: none;
+        font-weight: 600;
+    }
+    #report-output a:hover {
+        text-decoration: underline;
+    }
+
+    /* No data message */
+    .no-data-message {
+        text-align: center;
+        padding: 40px 20px;
+        color: #777;
+        font-style: italic;
+    }
+    /* Stili per la nuova intestazione con pulsanti */
+.page-header-actions {
+  display: flex;
+  gap: 10px; /* Spazio tra i pulsanti */
+  margin-bottom: 15px;
+}
+
+.page-header-actions .button {
+  flex: 1; /* Fa in modo che i pulsanti occupino lo spazio disponibile */
+  margin-top: 0;
+  padding: 10px; /* Un po' meno padding per stare meglio in alto */
+  font-size: 0.9em; /* Testo leggermente più piccolo */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.page-header-actions .button .material-icons {
+  font-size: 20px;
+}
+
+/* Aggiustamento per la barra di ricerca */
+.search-bar {
+  top: -10px; /* Leggero aggiustamento per lo sticky */
+}
+
+/* Stili per il popup di registrazione quote massive */
+#bulk-quota-modal .modal-content {
+  max-width: 95%;
+  width: 800px; /* Larghezza maggiore per contenere le righe */
+}
+
+.quota-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--border-color);
+}
+.quota-row:last-child {
+  border-bottom: none;
+}
+
+.quota-row .form-group {
+  margin-bottom: 0;
+}
+
+/* Gruppo per la ricerca associato */
+.associate-search-group {
+  flex: 3; /* Più largo degli altri campi */
+  position: relative;
+}
+.search-results {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background-color: #fff;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  max-height: 150px;
+  overflow-y: auto;
+  z-index: 1005; /* Sopra il contenuto del modal */
+  display: none; /* Nascosto di default */
+}
+.search-results div {
+  padding: 8px 12px;
+  cursor: pointer;
+}
+.search-results div:hover {
+  background-color: #f0f0f0;
+}
+
+.quota-row .quota-year-select {
+  width: 100px;
+}
+.quota-row .quota-amount-input {
+  width: 100px;
+}
+.quota-row .quota-date-input {
+  width: 150px;
+}
+
+.quota-row-delete {
+  padding-bottom: 5px;
+}
+
+.quota-row-delete button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--error-color);
+}
+.quota-row-delete .material-icons {
+  font-size: 24px;
+}
+/* Stili per le righe con più campi affiancati */
+.form-row {
+  display: flex;
+  flex-wrap: wrap; /* Permette di andare a capo su schermi piccoli */
+  gap: 15px;      /* Spazio tra i campi */
+  align-items: flex-end; /* Allinea le etichette in basso */
+}
+
+.form-row .form-group {
+  flex: 1; /* Fa in modo che i campi riempiano lo spazio */
+  min-width: 150px; /* Evita che i campi diventino troppo piccoli */
+  margin-bottom: 0; /* Rimuove il margine inferiore dei gruppi nel form-row */
+}
+
+/* Stile specifico per la riga dei checkbox */
+.checkbox-row {
+  align-items: center;
+  padding-top: 10px;
+}
+
+.checkbox-row .form-group {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-color);
+  background-color: #fff;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.checkbox-row .form-group label {
+  margin: 0 10px 0 0;
+}
+
+
+
+/* Stile per i pulsanti di azione principali */
+.main-action-buttons {
+  display: flex;
+  gap: 15px;
+  margin-top: 0;
+}
+.main-action-buttons .button {
+  margin-top: 0;
+}
+
+/* Stile per il pulsante "Genera" per renderlo più evidente */
+#generate-reimbursement-btn {
+  font-size: 1.2em; /* Testo più grande */
+  padding: 15px;    /* Più alto */
+}
+#generate-reimbursement-btn .material-icons {
+  margin-right: 8px; /* Spazio tra icona e testo */
+  vertical-align: middle; /* Allineamento verticale */
+}
+
+/* Stile per il separatore di sezione */
+.section-divider {
+  margin: 40px 0;
+  border: none;
+  border-top: 2px solid var(--accent-orange);
+}
+
+.button.disabled {
+  background-color: #ccc;
+  border-color: #ccc;
+  color: #888;
+  cursor: not-allowed;
+}
+.button.disabled:hover {
+  background-color: #ccc;
+  color: #888;
+}
+
+/* Stili per le azioni massive dei rimborsi */
+#reimbursements-bulk-actions {
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+  background-color: #fff8e1;
+  border: 1px solid #ffecb3;
+  border-radius: 8px;
+  margin-top: 15px;
+}
+#reimbursements-bulk-actions .button {
+  margin-top: 0;
+  width: auto; /* Larghezza automatica */
+  flex-grow: 1; /* Occupa lo spazio disponibile */
+}
+.reimbursement-item-checkbox {
+  margin-right: 15px;
+  transform: scale(1.3);
+}
+
+.button.danger {
+  background-color: var(--error-color);
+}
+.button.danger:hover {
+  background-color: #D32F2F;
+}
+.recent-associates-container {
+  margin-bottom: 15px;
+}
+.recent-associates-container label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+.recent-associates-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.recent-associates-buttons button {
+  background-color: #e0e0e0;
+  color: #333;
+  border: none;
+  border-radius: 15px;
+  padding: 5px 10px;
+  font-size: 0.8em;
+  cursor: pointer;
+}
+.recent-associates-buttons button:hover {
+  background-color: var(--accent-orange);
+}
+/* Stili per il checkbox "Seleziona Tutti" */
+.list-header-controls {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  margin-bottom: 10px;
+}
+#select-all-associati-checkbox {
+  margin-right: 10px;
+  transform: scale(1.3);
+}
+
+/* --- NUOVA GRAFICA PER LE RIGHE DEGLI ASSOCIATI --- */
+.list-item {
+  display: flex;
+  justify-content: flex-start; /* Allinea tutto a sinistra */
+  align-items: center;
+}
+
+/* Checkbox a sinistra */
+.list-item-selector {
+  padding-top: 8px;
+  margin-right: 12px;
+}
+.associate-item-checkbox {
+  transform: scale(1.4);
+}
+
+/* Contenuto principale al centro */
+.list-item-content h4 {
+  display: flex;
+  align-items: center;
+  margin-bottom: 5px;
+}
+.associate-number-badge {
+  background-color: var(--accent-orange);
+  color: var(--primary-orange-dark);
+  font-size: 0.8em;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-right: 10px;
+}
+.contact-info {
+  font-size: 0.85em;
+  color: #666;
+  display: flex;
+  align-items: center;
+  gap: 15px; /* Spazio tra telefono e email */
+}
+.contact-info span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.contact-info .material-icons {
+  font-size: 16px;
+}
+
+/* Pulsanti di azione a destra */
+.list-controls {
+  gap: 0; /* Riduciamo lo spazio per compattare */
+}
+.list-controls button {
+  padding: 8px;
+}
+.list-controls button .material-icons {
+  font-size: 22px;
+}
+/* Colori distinti per i pulsanti di azione rapida */
+.list-controls .email-btn .material-icons {
+  color: #0277bd; /* Blu */
+}
+.list-controls .telegram-btn .material-icons {
+  color: #29b6f6; /* Azzurro Telegram */
+}
+body.is-loading .page-container {
+  visibility: hidden;
+  opacity: 0;
+}
+/* Stili per la nuova barra di controllo della rubrica */
+.list-header-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 10px;
+  margin-bottom: 10px;
+}
+.list-header-controls > div { /* Contenitore del checkbox */
+  display: flex;
+  align-items: center;
+}
+#select-all-associati-checkbox {
+  margin-right: 10px;
+  transform: scale(1.3);
+}
+#selection-counter {
+  color: var(--primary-orange-dark);
+}
+
+/* Stili per il checkbox in ogni riga */
+.list-item-selector {
+  padding-top: 8px; /* Allinea meglio con la grafica del nome */
+  margin-right: 12px;
+}
+.associate-item-checkbox {
+  transform: scale(1.4);
+}
+
+/* Stili per i pulsanti di selezione canale (Email/Telegram) */
+.channel-toggle-btn {
+  background-color: #e0e0e0;
+  color: #333;
+  border: 2px solid #e0e0e0;
+}
+.channel-toggle-btn.active {
+  background-color: var(--primary-orange);
+  border-color: var(--primary-orange-dark);
+  color: var(--text-light);
+}
+
+/* --- Correzioni per Smartphone --- */
+.list-item-content {
+  min-width: 0; /* Previene problemi di overflow nei layout flex */
+}
+.list-item-content h4 span:last-of-type {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis; /* Aggiunge i puntini (...) se il nome è troppo lungo */
+}
+/* --- NUOVI STILI PER BARRA DI NAVIGAZIONE A 6 PULSANTI --- */
+.bottom-nav {
+  padding: 0 5px;
+}
+.nav-item span:last-of-type {
+  font-size: 0.7em; /* Riduci leggermente il testo per coerenza */
+  display: none; /* Nascondi il testo di default su mobile */
+}
+.nav-item.active span:last-of-type {
+  display: block; /* Mostra il testo solo per l'icona attiva */
+}
+.nav-item .material-icons {
+  margin-bottom: 0; /* Rimuovi il margine inferiore quando il testo è nascosto */
+}
+.nav-item.active .material-icons {
+  margin-bottom: 4px; /* Ripristina il margine per l'icona attiva */
+}
+.nav-action.disabled {
+  color: #bbb;
+  pointer-events: none; /* Disabilita il click */
+}
+.nav-separator {
+  width: 1px;
+  height: 60%;
+  background-color: var(--border-color);
+}
+
+/* Stili per schermi più grandi (tablet/desktop) */
+@media (min-width: 600px) {
+  .nav-item span:last-of-type {
+    display: block; /* Mostra sempre il testo */
+  }
+  .nav-item .material-icons {
+    margin-bottom: 4px; /* Ripristina sempre il margine */
+  }
+}
+
+/* Stile per il nuovo pulsante di modifica ricevute */
+.list-controls .update-receipts-btn .material-icons {
+    color: #0277bd; /* Blu */
+}
+
+/* --- Stili definitivi per la pagina Impostazioni --- */
+.settings-card {
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px var(--shadow-light);
+  margin-top: 25px;
+  overflow: hidden; /* Per contenere i bordi degli item */
+}
+.settings-item {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border-color);
+  transition: background-color 0.2s;
+}
+.settings-item:last-child {
+  border-bottom: none;
+}
+.settings-item:hover {
+  background-color: #f9f9f9;
+}
+.settings-item .icon {
+  color: var(--primary-orange);
+  margin-right: 16px;
+  font-size: 28px;
+}
+.settings-item-text h4 {
+  margin: 0;
+  font-weight: 500;
+  font-size: 1.05em;
+  color: var(--text-dark);
+}
+.settings-item-text p {
+  margin: 2px 0 0;
+  font-size: 0.85em;
+  color: #777;
+}
+.settings-item .chevron {
+  margin-left: auto;
+  color: #bbb;
+}
+.settings-card .form-group {
+  padding: 16px;
+  margin-bottom: 0;
+}
+.settings-card .button {
+  border-radius: 0;
+  margin-top: 0;
+  border-top: 1px solid var(--border-color);
+}
+
+.quota-row {
+  align-items: flex-end; /* Allinea gli elementi in basso */
+}
+.quota-row-controls {
+  display: flex;
+  padding-bottom: 5px; /* Allinea i pulsanti con i campi input */
+}
+.quota-row-controls button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 5px;
+}
+.quota-row-controls .edit-quota-row-btn .material-icons {
+  color: var(--info-color);
+}
+.quota-row-controls .delete-quota-row-btn .material-icons {
+  color: var(--error-color);
+}
+/* Stile per i campi disabilitati */
+.quota-row input[readonly], .quota-row select[disabled] {
+    background-color: #f0f0f0;
+    cursor: not-allowed;
+}
+
+/* --- NUOVI STILI PER LAYOUT RIMBORSI A CARD --- */
+.reimbursement-page-layout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.reimbursement-forms-column {
+  flex: 3; /* Occupa più spazio */
+  min-width: 300px;
+}
+
+.reimbursement-add-column {
+  flex: 1; /* Occupa meno spazio */
+  min-width: 150px;
+}
+
+#add-reimbursement-form-btn {
+  width: 100%;
+  position: sticky;
+  top: 10px; /* Rimane visibile scrollando */
+  padding: 15px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  font-size: 1em;
+}
+
+#add-reimbursement-form-btn .material-icons {
+  font-size: 28px;
+}
+
+.main-action-area {
+  position: sticky;
+  bottom: 0;
+  width: 100%;
+  background-color: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(5px);
+  padding: 15px;
+  border-top: 1px solid var(--border-color);
+  box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-top: 25px;
+  /* Assicura che la barra sia sopra il contenuto quando si scrolla */
+  left: 0; 
+  z-index: 10;
+}
+
+.main-action-area .button {
+  flex-grow: 1;
+  margin-top: 0;
+  font-size: 1.2em;
+  padding: 15px;
+}
+
+.main-action-area .form-group {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.main-action-area .form-group label {
+  margin-bottom: 0;
+  font-weight: 500;
+}
+.main-action-area .form-group input[type="checkbox"] {
+    transform: scale(1.4);
+}
+
+
+/* --- Stili completi e corretti per card rimborso --- */
+.reimbursement-form-instance {
+  position: relative; /* Necessario per posizionare il pulsante X */
+  padding: 20px;
+  padding-top: 45px; /* Aggiunge spazio in alto per il pulsante X */
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  margin-bottom: 20px;
+  background-color: #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+
+.delete-reimbursement-instance-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #aaa;
+    padding: 0;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+}
+.delete-reimbursement-instance-btn:hover {
+    color: var(--error-color);
+}
+.delete-reimbursement-instance-btn .material-icons {
+    font-size: 24px;
+}
+
+.card-bottom-actions {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    justify-content: flex-end; /* Allinea il contenuto a destra */
+}
+
+.card-bottom-actions .form-group {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.card-bottom-actions .form-group label {
+    margin-bottom: 0;
+    font-weight: 500;
+    font-size: 0.9em;
+}
+.card-bottom-actions .form-group input[type="checkbox"] {
+    transform: scale(1.2);
+    margin: 0;
+}
+
+/* --- Stili corretti per Modal con Footer Fisso --- */
+.modal-content {
+  display: flex;
+  flex-direction: column;
+  padding: 0; /* Rimuoviamo il padding generale */
+}
+
+.modal-header {
+  padding: 25px; /* Spostiamo il padding qui */
+  padding-bottom: 10px;
+  flex-shrink: 0; /* Impedisce che l'header si rimpicciolisca */
+}
+
+.modal-body {
+  overflow-y: auto; /* Abilita lo scroll solo per quest'area */
+  padding: 20px 25px; /* Aggiunge padding laterale e verticale */
+  flex-grow: 1; 
+}
+
+.modal-footer {
+  flex-shrink: 0; 
+  padding: 15px 25px;
+  border-top: 1px solid var(--border-color);
+  background-color: #f7f7f7;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  /* Assicura che sia disegnato sopra il contenuto che scorre, se necessario */
+  position: relative; 
+  z-index: 5;
+}
+
+.modal-footer .button {
+  margin-top: 0;
+}
+
+/* --- Stili per Popup Risoluzione Duplicati --- */
+.conflict-table {
+  display: table;
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+.conflict-header, .conflict-row {
+  display: table-row;
+}
+.conflict-header > div, .conflict-row > div {
+  display: table-cell;
+  padding: 10px;
+  border-bottom: 1px solid var(--border-color);
+  vertical-align: middle;
+}
+.conflict-header > div {
+  font-weight: 600;
+  background-color: #f9f9f9;
+}
+.conflict-row > div:nth-child(1) { /* Campo */
+  font-weight: 500;
+  width: 15%;
+}
+.conflict-row > div:nth-child(2), /* Valore Originale */
+.conflict-row > div:nth-child(3) { /* Valore Duplicato */
+  width: 30%;
+  word-break: break-all;
+}
+.conflict-row > div:nth-child(4) { /* Azione */
+  width: 25%;
+}
+.conflict-row.is-conflict {
+  background-color: #fff3e0; /* Evidenzia le righe con conflitti */
+}
+.conflict-row.is-merge {
+  background-color: #e8f5e9; /* Evidenzia le righe con unione automatica */
+}
+.conflict-row.is-conflict > div:nth-child(1) {
+  color: var(--primary-orange-dark);
+}
+.conflict-row label {
+  display: block;
+  cursor: pointer;
+  margin-bottom: 5px;
+}
+
+/* --- Stile per il box del Surplus (Credito Scontrini) --- */
+.surplus-box {
+    margin-top: 8px;
+    padding: 8px;
+    background-color: #e3f2fd; /* Azzurro chiaro */
+    border: 1px solid #90caf9;
+    border-radius: 6px;
+    font-size: 0.9em;
+    color: #0d47a1;
+}
+.surplus-box label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    font-weight: 500;
+    cursor: pointer;
+}
+.surplus-box input[type="checkbox"] {
+    transform: scale(1.2);
+    margin: 0;
+}
+
+/* Stile per quando c'è un debito (box rosso/arancione) */
+.surplus-box.debt {
+    background-color: #fff3e0;
+    border-color: #ffb74d;
+    color: #e65100;
+}
+
+  </style>
+</head>
+<body class="is-loading">
+  <div id="app-container">
+    <div class="header">
+      <span id="header-title">Caricamento...</span>
+      <span class="header-deploy">v<?= deployVersion ?> · <?= deployDate ?> · <?= deployDescription ?></span>
+    </div>
+
+    <div id="gas-migration-banner" class="gas-migration-banner" role="status">
+      <strong>Nuovo pannello admin</strong> — Rubrica e rimborsi sono disponibili su Supabase:
+      <a id="new-admin-link" href="https://school.musicproeventi.it/admin" target="_blank" rel="noopener">Apri amministrazione Next.js</a>.
+      Questa interfaccia GAS resta attiva fino al cutover; i nuovi dati vanno registrati nel pannello Next.js.
+    </div>
+
+    <div id="content-wrapper">
+<div class="page-container" id="page-container">
+
+    <div class="page" id="rubrica-associati">
+      <div id="list-header-controls" class="list-header-controls">
+        <div>
+          <input type="checkbox" id="select-all-associati-checkbox">
+          <label for="select-all-associati-checkbox">Seleziona Tutti</label>
+          <span id="selection-counter" style="margin-left: 10px; font-weight: 600;"></span>
+        </div>
+        <button class="button hidden" id="open-bulk-message-modal-btn" style="margin: 0; width: auto;">
+          <span class="material-icons">send</span>
+          <span>Invia Messaggio Massivo</span>
+        </button>
+      </div>
+      <div class="search-bar">
+        <span class="material-icons">search</span>
+        <input type="text" id="associati-search" placeholder="Cerca per nome o cognome...">
+      </div>
+      <div id="associati-list" class="list-container">
+        <div class="loading-indicator" id="associati-loading"></div>
+      </div>
+      <div class="no-data-message hidden" id="no-associati-message">Nessun associato trovato.</div>
+      <h2 class="hidden">Rubrica Associati</h2>
+    </div>
+
+    <div class="page" id="gestione-quote">
+      <h2 class="hidden">Gestione Quote</h2>
+      <h3 class="form-section-title" style="margin-top:0;">Registrazione Quote Massive</h3>
+      <div id="bulk-quota-rows-container"></div>
+      <div class="button-group" style="margin-top: 20px;">
+        <button class="button outline" id="add-quota-row-btn">
+          <span class="material-icons">add</span>Aggiungi Riga
+        </button>
+        <button class="button" id="save-bulk-quotas-btn">
+          <span class="material-icons">save</span>Salva Tutto
+        </button>
+      </div>
+    </div>
+
+<div class="page" id="generazione-rimborsi">
+      <h2 class="hidden">Gestione Rimborsi</h2>
+      
+      <div class="reimbursement-page-layout">
+        <div class="reimbursement-forms-column">
+          <div id="reimbursement-forms-container">
+             </div>
+        </div>
+
+        <div class="reimbursement-add-column">
+          <button class="button outline" id="add-reimbursement-form-btn">
+            <span class="material-icons">add</span>
+            <span>Aggiungi Rimborso</span>
+          </button>
+        </div>
+      </div>
+      
+<div class="main-action-area">
+        <button class="button" id="generate-reimbursement-btn">
+          <span class="material-icons">send</span>
+          <span>Genera Rimborsi</span>
+        </button>
+        <div class="form-group">
+            <input type="checkbox" id="master-send-email-checkbox" checked>
+            <label for="master-send-email-checkbox">Invia tutti via email</label>
+        </div>
+      </div>
+
+      <hr class="section-divider">
+      <h3>Report Rimborsi</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="report-year">Anno Report:</label>
+          <select id="report-year"></select>
+        </div>
+        <div class="form-group">
+          <label for="report-associate">Associato (Opzionale):</label>
+          <select id="report-associate">
+            <option value="">Tutti gli Associati</option>
+          </select>
+        </div>
+      </div>
+      <div class="button-group">
+        <button class="button" id="generate-summary-report-btn">Report Totale</button>
+        <button class="button" id="generate-detailed-report-btn">Report Dettagliato</button>
+      </div>
+      <div id="report-output" class="hidden"></div>
+      <hr class="section-divider">
+      <h3>Rimborsi Registrati</h3>
+      <div class="info-box">
+        Qui puoi visualizzare e gestire i rimborsi registrati per l'anno selezionato.
+      </div>
+      <div id="reimbursements-bulk-actions" class="hidden">
+        <button class="button secondary" id="bulk-email-btn"><span class="material-icons">email</span> Invia Email</button>
+        <button class="button danger" id="bulk-delete-btn"><span class="material-icons">delete</span> Elimina</button>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="reimbursements-display-year">Anno:</label>
+          <select id="reimbursements-display-year"></select>
+        </div>
+        <div class="form-group">
+          <label for="reimbursements-display-associate">Associato (Opzionale):</label>
+          <select id="reimbursements-display-associate">
+            <option value="">Tutti gli Associati</option>
+          </select>
+        </div>
+      </div>
+      <div id="reimbursements-list-container" class="list-container" style="margin-top: 10px;">
+        <div class="loading-indicator" id="reimbursements-list-loading"></div>
+        <div id="reimbursements-list"></div>
+      </div>
+    </div>
+
+    <div class="page" id="impostazioni">
+        <h2 class="hidden">Impostazioni</h2>
+
+        <div class="settings-card">
+            <div id="manage-quota-settings-item" class="settings-item">
+            <span class="material-icons icon">request_quote</span>
+            <div class="settings-item-text">
+                <h4>Impostazioni Quote Annuali</h4>
+                <p>Aggiungi o modifica gli importi delle quote per ogni anno.</p>
+            </div>
+            <span class="material-icons chevron">chevron_right</span>
+            </div>
+            <div id="manage-templates-item" class="settings-item">
+            <span class="material-icons icon">source</span>
+            <div class="settings-item-text">
+                <h4>Gestione Modelli Messaggio</h4>
+                <p>Crea e modifica i template per le comunicazioni massive.</p>
+            </div>
+            <span class="material-icons chevron">chevron_right</span>
+            </div>
+        </div>
+        
+        <div class="settings-card">
+            <div id="generate-associates-book-btn" class="settings-item">
+            <span class="material-icons icon">book</span>
+            <div class="settings-item-text">
+                <h4>Genera Libro Associati</h4>
+                <p>Crea un PDF con l'elenco completo di tutti gli associati.</p>
+            </div>
+            <span class="material-icons chevron">chevron_right</span>
+            </div>
+            <div class="settings-item" onclick="document.getElementById('import-associates-btn').click();">
+            <span class="material-icons icon">upload_file</span>
+            <div class="settings-item-text">
+                <h4>Importazione Dati Storici</h4>
+                <p>Avvia la procedura di importazione da file esterni.</p>
+            </div>
+            <span class="material-icons chevron">chevron_right</span>
+            </div>
+            <div id="format-all-sheets-btn" class="settings-item">
+            <span class="material-icons icon">cleaning_services</span>
+            <div class="settings-item-text">
+                <h4>Formatta Fogli Dati</h4>
+                <p>Applica la formattazione corretta alle colonne dei fogli di lavoro.</p>
+            </div>
+            <span class="material-icons chevron">chevron_right</span>
+            </div>
+                <div id="compact-duplicates-btn" class="settings-item">
+              <span class="material-icons icon">cleaning_services</span>
+              <div class="settings-item-text">
+                <h4>Compatta Duplicati</h4>
+                <p>Trova e unisci i record degli associati duplicati.</p>
+              </div>
+              <span class="material-icons chevron">chevron_right</span>
+            </div>
+        </div>
+
+
+
+        <div class="settings-card">
+            <div class="form-group">
+            <label for="reimbursements-folder-id">ID Cartella Rimborsi Principale:</label>
+            <input type="text" id="reimbursements-folder-id" placeholder="ID Cartella Google Drive">
+            <button class="button outline disabled" style="margin-top: 10px;" onclick="selectFolder('ROOT_REIMBURSEMENTS_FOLDER_ID', 'reimbursements-folder-id')">Seleziona da Drive</button>
+            </div>
+            <div class="form-group" style="border-top: 1px solid var(--border-color);">
+            <label for="associates-book-folder-id">ID Cartella Libro Associati:</label>
+            <input type="text" id="associates-book-folder-id" placeholder="ID Cartella Google Drive">
+            <button class="button outline disabled" style="margin-top: 10px;" onclick="selectFolder('ASSOCIATES_BOOK_FOLDER_ID', 'associates-book-folder-id')">Seleziona da Drive</button>
+            </div>
+            <button class="button" id="save-drive-settings-btn">Salva Impostazioni Drive</button>
+        </div>
+        
+        <div class="hidden">
+            <button id="add-quota-setting-btn"></button>
+            <button id="import-associates-btn"></button>
+        </div>
+    </div>
+
+  </div>
+
+  <nav class="bottom-nav">
+      <a class="nav-item nav-action" id="add-associato-nav-btn" title="Aggiungi Associato">
+        <span class="material-icons">person_add</span>
+        <span>Aggiungi</span>
+      </a>
+      <a class="nav-item nav-action disabled" id="open-bulk-message-nav-btn" title="Invia Messaggio Massivo">
+        <span class="material-icons">send</span>
+        <span>Invia</span>
+      </a>
+      <div class="nav-separator"></div>
+      <a class="nav-item active" data-page="rubrica-associati" title="Rubrica">
+        <span class="material-icons">contacts</span>
+        <span>Rubrica</span>
+      </a>
+      <a class="nav-item" data-page="gestione-quote" title="Gestione Quote">
+        <span class="material-icons">request_quote</span>
+        <span>Quote</span>
+      </a>
+      <a class="nav-item" data-page="generazione-rimborsi" title="Rimborsi">
+        <span class="material-icons">receipt_long</span>
+        <span>Rimborsi</span>
+      </a>
+      <a class="nav-item" data-page="impostazioni" title="Impostazioni">
+        <span class="material-icons">settings</span>
+        <span>Impostazioni</span>
+      </a>
+  </nav>
+  
+    
+    </div>
+  </div>
+</div>
+
+<template id="quota-row-template">
+  <div class="quota-row">
+    <div class="form-group associate-search-group">
+      <label>Associato</label>
+      <input type="text" class="associate-search-input" placeholder="Cerca...">
+      <div class="search-results"></div>
+      <input type="hidden" class="selected-associate-name">
+    </div>
+    <div class="form-group">
+      <label>Anno</label>
+      <select class="quota-year-select"></select>
+    </div>
+    <div class="form-group">
+      <label>Quota (€)</label>
+      <input type="number" class="quota-amount-input" readonly>
+    </div>
+    <div class="form-group">
+      <label>Data Pag.</label>
+      <input type="date" class="quota-date-input">
+    </div>
+    <div class="quota-row-controls">
+      <button type="button" class="edit-quota-row-btn" style="display: none;" title="Modifica Quota Esistente">
+        <span class="material-icons">edit</span>
+      </button>
+      <button class="delete-quota-row-btn"><span class="material-icons">delete_outline</span></button>
+    </div>
+  </div>
+</template>
+
+  <div id="toast-container"></div>
+
+<div id="associato-modal" class="modal-overlay">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 id="associato-modal-title">Aggiungi Associato</h3>
+      <button class="modal-close-button" id="close-associato-modal-btn">&times;</button>
+    </div>
+    <div class="modal-body">
+      <form id="associato-form">
+        <input type="hidden" id="associato-row-number">
+        <input type="hidden" id="original-full-name">
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="associato-numero">N. Associato:</label>
+            <input type="text" id="associato-numero">
+          </div>
+          <div class="form-group">
+            <label for="associato-data-iscrizione">Data Iscrizione:</label>
+            <input type="date" id="associato-data-iscrizione">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="associato-nome">Nome:</label>
+            <input type="text" id="associato-nome" required>
+          </div>
+          <div class="form-group">
+            <label for="associato-cognome">Cognome:</label>
+            <input type="text" id="associato-cognome" required>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="associato-luogo-nascita">Luogo Nascita:</label>
+            <input type="text" id="associato-luogo-nascita">
+          </div>
+          <div class="form-group">
+            <label for="associato-data-nascita">Data Nascita:</label>
+            <input type="date" id="associato-data-nascita">
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label for="associato-indirizzo">Indirizzo:</label>
+          <input type="text" id="associato-indirizzo">
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="associato-cf">Codice Fiscale:</label>
+            <input type="text" id="associato-cf">
+          </div>
+          <div class="form-group">
+            <label for="associato-cellulare">Cellulare:</label>
+            <input type="text" id="associato-cellulare">
+          </div>
+        </div>
+        
+        <div class="form-row">
+            <div class="form-group">
+              <label for="associato-email">Email:</label>
+              <input type="email" id="associato-email">
+            </div>
+            <div class="form-group">
+              <label for="associato-telegram-id">Telegram Chat ID:</label>
+              <input type="text" id="associato-telegram-id">
+            </div>
+        </div>
+
+        <h4 class="form-section-title">Dati Tutore</h4>
+        <div class="info-box">
+            Se il tutore è già un associato, cercalo nel primo campo. Altrimenti, compila i campi sottostanti.
+        </div>
+        
+        <div class="form-group associate-search-group">
+            <label for="tutore-search-input">Cerca e Seleziona Tutore Esistente:</label>
+            <input type="text" id="tutore-search-input" placeholder="Cerca per nome/cognome...">
+            <div class="search-results"></div>
+            <input type="hidden" id="tutore-numero-associato">
+            <input type="hidden" id="tutore-nome-completo-associato">
+        </div>
+
+        <p class="text-center" style="margin: 15px 0;"><strong>OPPURE INSERISCI MANUALMENTE</strong></p>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="tutore-nome-manuale">Nome Tutore:</label>
+                <input type="text" id="tutore-nome-manuale" class="manual-tutor-field">
+            </div>
+            <div class="form-group">
+                <label for="tutore-cognome-manuale">Cognome Tutore:</label>
+                <input type="text" id="tutore-cognome-manuale" class="manual-tutor-field">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label for="tutore-cellulare-manuale">Cellulare Tutore:</label>
+                <input type="text" id="tutore-cellulare-manuale" class="manual-tutor-field">
+            </div>
+            <div class="form-group">
+                <label for="tutore-email-manuale">Email Tutore:</label>
+                <input type="email" id="tutore-email-manuale" class="manual-tutor-field">
+            </div>
+        </div>
+        <div class="form-group">
+          <label for="tutore-cf-manuale">Codice Fiscale Tutore:</label>
+          <input type="text" id="tutore-cf-manuale" class="manual-tutor-field">
+        </div>
+
+        <h4 class="form-section-title">Quota Associativa</h4>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="quota-year">Anno Quota:</label>
+            <select id="quota-year"></select>
+          </div>
+          <div class="form-group">
+            <label for="quota-data">Data Pagamento:</label>
+            <input type="date" id="quota-data">
+          </div>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button type="submit" form="associato-form" class="button" id="save-associato-btn">Salva Associato</button>
+      <button type="button" class="button secondary hidden" id="delete-associato-btn">Elimina Associato</button>
+    </div>
+  </div>
+</div>
+
+  <div id="confirmation-modal" class="modal-overlay">
+  <div class="modal-content" style="max-width: 400px;">
+    <div class="modal-header">
+      <h3 id="confirmation-modal-title">Conferma Azione</h3>
+      <button class="modal-close-button" id="close-confirmation-modal-btn">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p id="confirmation-modal-body" style="line-height: 1.6;"></p>
+      <div class="button-group">
+        <button class="button secondary" id="cancel-action-btn">Annulla</button>
+        <button class="button" id="confirm-action-btn">Conferma</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="quota-setting-modal" class="modal-overlay">
+  <div class="modal-content" style="width: 90%; max-width: 500px;">
+      <div class="modal-header">
+        <h3 id="quota-setting-modal-title">Aggiungi Quota</h3>
+        <button class="modal-close-button" id="close-quota-setting-modal-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="quota-setting-form">
+          <input type="hidden" id="original-quota-year">
+          <div class="form-group">
+            <label for="quota-setting-year">Anno:</label>
+            <input type="number" id="quota-setting-year" min="2000" max="2100" required>
+          </div>
+          <div class="form-group">
+            <label for="quota-setting-amount">Importo (€):</label>
+            <input type="number" id="quota-setting-amount" step="0.01" min="0" required>
+          </div>
+          <button type="submit" class="button" id="save-quota-setting-btn">Salva Impostazione</button>
+        </form>
+        
+        <h4 class="form-section-title" style="margin-top: 30px;">Quote Esistenti</h4>
+        <div id="quota-settings-list" class="list-container" style="max-height: 200px; overflow-y: auto;">
+          <div class="loading-indicator"></div>
+        </div>
+        <div class="no-data-message hidden" id="no-quota-settings-message">Nessuna impostazione quota.</div>
+        </div>
+    </div>
+  </div>
+      </div>
+    </div>
+  </div>
+
+<div id="new-payment-method-modal" class="modal-overlay">
+  <div class="modal-content" style="max-width: 400px;">
+    <div class="modal-header">
+      <h3>Aggiungi Metodo di Pagamento</h3>
+      <button class="modal-close-button" id="cancel-new-payment-method-btn">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label for="new-payment-method-input">Nome del nuovo metodo:</label>
+        <input type="text" id="new-payment-method-input" placeholder="Es. Assegno, Satispay...">
+      </div>
+      <div class="button-group">
+        <button class="button" id="save-new-payment-method-btn">Salva</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="bulk-message-modal" class="modal-overlay">
+  <div class="modal-content" style="max-width: 600px;">
+    <div class="modal-header">
+      <h3 id="bulk-message-modal-title">Invia Messaggio Massivo</h3>
+      <button class="modal-close-button" id="close-bulk-message-modal-btn">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p id="bulk-message-recipient-count" style="margin-bottom: 15px; font-weight: 500;"></p>
+      
+      <div class="form-group">
+        <label for="template-select">Carica Modello (Opzionale):</label>
+        <select id="template-select">
+          <option value="">-- Seleziona un modello --</option>
+        </select>
+      </div>
+      
+      <div class="form-group">
+        <label>Canale di Invio:</label>
+        <div class="button-group" style="gap: 5px;">
+          <button class="button channel-toggle-btn active" data-channel="email">
+            <span class="material-icons">email</span> Email
+          </button>
+          <button class="button channel-toggle-btn" data-channel="telegram">
+            <span class="material-icons">telegram</span> Telegram
+          </button>
+        </div>
+        <input type="hidden" id="bulk-message-channel" value="email">
+      </div>
+      
+      <div class="form-group">
+        <label for="bulk-message-subject">Oggetto (solo per Email):</label>
+        <input type="text" id="bulk-message-subject" placeholder="Oggetto dell'email">
+      </div>
+      
+      <div class="form-group">
+        <label for="bulk-message-body">Testo del Messaggio:</label>
+        <textarea id="bulk-message-body" rows="8" placeholder="Scrivi qui il tuo messaggio..."></textarea>
+        <p style="font-size: 0.8em; color: #777; margin-top: 5px;">
+          Usa <code>{{nome}}</code>, <code>{{cognome}}</code> o <code>{{numero}}</code> per personalizzare il messaggio.
+        </p>
+      </div>
+      
+      <div class="form-group" style="display: flex; align-items: center;">
+        <input type="checkbox" id="save-as-template-checkbox" style="transform: scale(1.3); margin-right: 10px;">
+        <label for="save-as-template-checkbox" style="margin: 0;">Salva come nuovo modello prima di inviare</label>
+      </div>
+
+      <button class="button" id="send-bulk-message-btn">
+        <span class="material-icons">send</span> Invia Messaggio
+      </button>
+    </div>
+  </div>
+</div>
+
+<div id="prompt-modal" class="modal-overlay">
+  <div class="modal-content" style="max-width: 450px;">
+    <div class="modal-header">
+      <h3 id="prompt-modal-title">Inserisci Testo</h3>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label id="prompt-modal-label" for="prompt-modal-input">Valore:</label>
+        <input type="text" id="prompt-modal-input" placeholder="">
+      </div>
+      <div class="button-group">
+        <button class="button secondary" id="cancel-prompt-btn">Annulla</button>
+        <button class="button" id="confirm-prompt-btn">Conferma</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="edit-template-modal" class="modal-overlay">
+  <div class="modal-content" style="width: 90%; max-width: 750px;">
+    <div class="modal-header">
+      <h3 id="template-form-title">Gestione Modelli</h3>
+      <button class="modal-close-button" id="close-edit-template-modal-btn">&times;</button>
+    </div>
+    <div class="modal-body">
+      <form id="template-form">
+        <input type="hidden" id="original-template-name">
+        <div class="form-group">
+          <label for="template-name">Nome Modello:</label>
+          <input type="text" id="template-name" required placeholder="Es. Promemoria Quota Annuale">
+        </div>
+        <div class="form-group">
+          <label for="template-subject">Oggetto (solo per Email):</label>
+          <input type="text" id="template-subject">
+        </div>
+        <div class="form-group">
+          <label for="template-body">Testo del Messaggio:</label>
+          <textarea id="template-body" rows="6"></textarea>
+          <p style="font-size: 0.8em; color: #777; margin-top: 5px;">
+            Usa <code>{{nome}}</code>, <code>{{cognome}}</code> o <code>{{numero}}</code> per personalizzare.
+          </p>
+        </div>
+        <button type="submit" class="button" id="save-template-btn">Salva Template</button>
+        <button type="button" class="button outline hidden" id="cancel-edit-template-btn" style="margin-top: 10px;">Annulla Modifica</button>
+      </form>
+
+      <h4 class="form-section-title" style="margin-top: 30px;">Template Esistenti</h4>
+      <div id="template-list" class="list-container" style="max-height: 200px; overflow-y: auto;">
+          <div class="loading-indicator"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="duplicate-resolution-modal" class="modal-overlay">
+  <div class="modal-content" style="max-width: 95%; width: 800px;">
+    <div class="modal-header">
+      <h3 id="duplicate-modal-title">Risoluzione Duplicati</h3>
+      <button class="modal-close-button" id="close-duplicate-modal-btn">&times;</button>
+    </div>
+    <div class="modal-body" id="duplicate-cards-container">
+      </div>
+  </div>
+</div>
+
+<template id="duplicate-card-template">
+  <div class="duplicate-card">
+    <h4 class="form-section-title" style="margin-top: 0;"></h4>
+    <div class="conflict-table">
+      <div class="conflict-header">
+        <div>Campo</div>
+        <div>Record Originale (più vecchio)</div>
+        <div>Record Duplicato (più recente)</div>
+        <div>Azione</div>
+      </div>
+      </div>
+    <div class="button-group" style="margin-top: 25px;">
+      <button class="button secondary skip-conflict-btn">Ignora per Ora</button>
+      <button class="button" id="resolve-merge-btn">Applica Unione e Prosegui</button>
+    </div>
+  </div>
+</template>
+
+<template id="reimbursement-form-template">
+  <div class="reimbursement-form-instance">
+    <button class="delete-reimbursement-instance-btn" title="Rimuovi questo rimborso">
+        <span class="material-icons">close</span>
+    </button>
+    <div class="recent-associates-container">
+      <label>Recenti:</label>
+      <div class="recent-associates-buttons"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Anno:</label>
+        <select class="rimborso-year"></select>
+      </div>
+      <div class="form-group associate-search-group" style="flex: 2;">
+        <label>Associato:</label>
+        <input type="text" class="reimbursement-associate-search" placeholder="Cerca per nome/cognome...">
+        <div class="search-results"></div>
+        <input type="hidden" class="selected-reimbursement-associate-name">
+      </div>
+      <div class="form-group">
+        <label>Progressivo:</label>
+        <input type="text" class="rimborso-progressive" readonly>
+      </div>
+    </div>
+
+    <div class="form-row" style="margin-top: 15px;">
+        <div class="form-group">
+            <label>Importo Lordo (€):</label>
+            <input type="number" class="rimborso-amount" step="0.01" min="0" value="">
+        </div>
+        <div class="form-group">
+            <label>Importo Ricevute (€):</label>
+            <input type="number" class="rimborso-receipts-amount" step="0.01" min="0" placeholder="Uguale al lordo">
+            
+            <div class="surplus-box hidden">
+                <label>
+                    <input type="checkbox" class="use-surplus-checkbox">
+                    <span>Disponibili <b class="surplus-amount-text">0,00</b>€ di scontrini precedenti. Usali ora.</span>
+                </label>
+                <input type="hidden" class="surplus-value" value="0">
+            </div>
+            </div>
+        <div class="form-group">
+            <label>Data Pagamento:</label>
+            <input type="date" class="rimborso-payment-date">
+        </div>
+    </div>
+
+    <h5 class="form-section-title" style="font-size: 1em; margin-top: 20px; margin-bottom: 10px;">Dettagli Pagamento</h5>
+    <div class="payment-lines-container">
+    </div>
+    <div id="payment-total-mismatch-warning" class="hidden" style="color: var(--error-color); font-weight: 500; font-size: 0.9em; text-align: right; margin-top: 5px;">
+        La somma dei parziali non corrisponde al totale.
+    </div>
+
+    <div class="card-bottom-actions">
+        <div class="form-group">
+            <label>Invia Email:</label>
+            <input type="checkbox" class="rimborso-send-email" checked>
+        </div>
+    </div>
+  </div>
+</template>
+
+<template id="payment-line-template">
+    <div class="form-row payment-line-row" style="margin-bottom: 10px;">
+        <div class="form-group" style="flex: 3;">
+            <select class="rimborso-payment-method">
+                <option value="Bonifico Bancario">Bonifico Bancario</option>
+                <option value="Contanti">Contanti</option>
+                <option value="PayPal">PayPal</option>
+                <option value="Simplia">Simplia</option>
+                <option value="Acquisti per c/ associato">Acquisti per c/ associato</option>
+                <option value="add-new" style="font-weight: bold; color: var(--primary-orange);">Aggiungi Altro...</option>
+            </select>
+        </div>
+        <div class="form-group" style="flex: 2;">
+            <input type="number" class="rimborso-partial-amount" step="0.01" min="0" placeholder="Importo">
+        </div>
+        <div class="payment-line-controls" style="display: flex; gap: 5px; padding-bottom: 5px;">
+            <button type="button" class="add-payment-line-btn button outline" style="padding: 8px; margin: 0; min-width: 40px;">
+                <span class="material-icons">add</span>
+            </button>
+            <button type="button" class="remove-payment-line-btn button danger" style="padding: 8px; margin: 0; min-width: 40px;">
+                <span class="material-icons">remove</span>
+            </button>
+        </div>
+    </div>
+</template>
+
+  <script>
+    // --------------------
+    // SEZIONE JAVASCRIPT
+    // --------------------
+
+    /** URL base nuovo admin Next.js + Supabase — aggiornare al cutover (vedi docs/INDEX_HTML_MIGRATION_STATUS.md) */
+    const NEW_ADMIN_URL = 'https://school.musicproeventi.it/admin';
+
+    const app = {}; // Oggetto globale per lo stato dell'applicazione e le funzioni
+    app.currentPage = 'rubrica-associati'; // Pagina iniziale
+    app.swipeStartX = 0;
+    app.swipeEndX = 0;
+    app.isSwiping = false;
+    app.associatiList = []; // Cache degli associati
+    app.quotaSettings = []; // Cache delle impostazioni quote
+    app.bulkQuotasToSave = []; // Array per le quote massive da salvare
+    
+    // Flag per indicare se il Picker è stato caricato con successo
+    app.pickerLoaded = false; 
+
+// ===================================================================
+// BLOCCO VARIABILI GLOBALI (CORRETTO E COMPLETO)
+// ===================================================================
+
+    // Elementi UI comuni
+    const pageContainer = document.getElementById('page-container');
+    const navItems = document.querySelectorAll('.nav-item[data-page]');
+    const headerTitle = document.getElementById('header-title');
+    const toastContainer = document.getElementById('toast-container');
+    const associatoModal = document.getElementById('associato-modal');
+    const associatoModalTitle = document.getElementById('associato-modal-title');
+    const closeAssociatoModalBtn = document.getElementById('close-associato-modal-btn');
+    const associatoForm = document.getElementById('associato-form');
+    const associatoRowNumber = document.getElementById('associato-row-number');
+    const originalFullNameInput = document.getElementById('original-full-name');
+    const deleteAssociatoBtn = document.getElementById('delete-associato-btn');
+    const quotaSettingModal = document.getElementById('quota-setting-modal');
+    const closeQuotaSettingModalBtn = document.getElementById('close-quota-setting-modal-btn');
+    const quotaSettingForm = document.getElementById('quota-setting-form');
+    const originalQuotaYearInput = document.getElementById('original-quota-year');
+    const selectAllCheckbox = document.getElementById('select-all-associati-checkbox');
+    const rubricaHeaderControls = document.getElementById('list-header-controls');
+    const openBulkMessageModalBtn = document.getElementById('open-bulk-message-nav-btn');
+    const selectionCounter = document.getElementById('selection-counter');
+    const editTemplateModal = document.getElementById('edit-template-modal');
+    const editTemplateForm = document.getElementById('template-form');
+
+    // Costanti per i popup di conferma e prompt
+    const confirmationModal = document.getElementById('confirmation-modal');
+    const confirmActionBtn = document.getElementById('confirm-action-btn');
+    const cancelActionBtn = document.getElementById('cancel-action-btn');
+    const confirmationModalTitle = document.getElementById('confirmation-modal-title');
+    const confirmationModalBody = document.getElementById('confirmation-modal-body');
+    const promptModal = document.getElementById('prompt-modal');
+    const promptModalTitle = document.getElementById('prompt-modal-title');
+    const promptModalLabel = document.getElementById('prompt-modal-label');
+    const promptModalInput = document.getElementById('prompt-modal-input');
+    const confirmPromptBtn = document.getElementById('confirm-prompt-btn');
+    const cancelPromptBtn = document.getElementById('cancel-prompt-btn');
+
+    // Elementi per il popup Quote Massive
+    const bulkQuotaModal = document.getElementById('bulk-quota-modal');
+    const bulkQuotaRowsContainer = document.getElementById('bulk-quota-rows-container');
+    const quotaRowTemplate = document.getElementById('quota-row-template');
+    const templateListDiv = document.getElementById('template-list'); // Spostato qui per coerenza
+
+// Nuovi elementi UI per Rimborsi Registrati
+const reimbursementsDisplayYearSelect = document.getElementById('reimbursements-display-year');
+const reimbursementsDisplayAssociateSelect = document.getElementById('reimbursements-display-associate');
+const reimbursementsListContainer = document.getElementById('reimbursements-list-container');
+const reimbursementsListDiv = document.getElementById('reimbursements-list');
+
+// Elementi per la sezione Report (AGGIUNGI QUESTO BLOCCO)
+const reportYearSelect = document.getElementById('report-year');
+const reportAssociateSelect = document.getElementById('report-associate');
+const reportOutputDiv = document.getElementById('report-output');
+
+app.duplicateResolutionPlans = []; // Aggiungi questa riga
+
+
+// Listener unificato per le azioni sulla lista dei rimborsi registrati
+reimbursementsListDiv.addEventListener('click', e => {
+    const target = e.target;
+    const viewBtn = target.closest('.view-pdf-btn');
+    const deleteBtn = target.closest('.delete-reimbursement-btn');
+    const updateBtn = target.closest('.update-receipts-btn');
+
+    if (viewBtn) {
+        if (viewBtn.dataset.url) {
+            window.open(viewBtn.dataset.url, '_blank');
+        }
+        return;
+    }
+
+    if (deleteBtn) {
+        const rowIndex = parseInt(deleteBtn.dataset.rowIndex);
+        confirmDeleteReimbursement(rowIndex);
+        return;
+    }
+    
+    if (updateBtn) {
+        const rowIndex = parseInt(updateBtn.dataset.rowIndex);
+        const currentAmount = updateBtn.dataset.currentAmount;
+        
+        showPromptModal(
+            'Aggiorna Importo Ricevute',
+            'Nuovo importo totale delle ricevute consegnate:',
+            `Valore attuale: € ${parseFloat(currentAmount).toFixed(2)}`,
+            'Salva',
+            (newAmount) => {
+                // Controlla se l'input è un numero valido
+                if (isNaN(parseFloat(newAmount))) {
+                    showToast('Per favore, inserisci un importo numerico valido.', 'error');
+                    return;
+                }
+                
+                showToast('Aggiornamento in corso...', 'info');
+                google.script.run
+                    .withSuccessHandler(res => {
+                        showToast(res.message, 'success');
+                        // Ricarica la lista per mostrare il nuovo stato
+                        loadReimbursementsList(reimbursementsDisplayYearSelect.value, reimbursementsDisplayAssociateSelect.value);
+                    })
+                    .withFailureHandler(err => {
+                        showToast(`Errore: ${err.message}`, 'error');
+                    })
+                    .updateReceiptsAmount(rowIndex, newAmount);
+            }
+        );
+    }
+});
+
+// Gestisce il cambio dell'anno della quota nel popup associato
+document.getElementById('quota-year').addEventListener('change', (e) => {
+    const selectedYear = e.target.value;
+    const paymentDateInput = document.getElementById('quota-data');
+    
+    // Controlla se abbiamo i dati dei pagamenti per l'associato corrente
+    if (app.currentAssociateDetails && app.currentAssociateDetails.quotaPagamenti) {
+        const paymentDate = app.currentAssociateDetails.quotaPagamenti[selectedYear] || '';
+        paymentDateInput.value = paymentDate;
+    }
+});
+
+// Listener per il checkbox "Invia tutti via email"
+    document.getElementById('master-send-email-checkbox').addEventListener('change', function() {
+        const individualCheckboxes = document.querySelectorAll('#reimbursement-forms-container .rimborso-send-email');
+        individualCheckboxes.forEach(checkbox => {
+            checkbox.checked = this.checked;
+        });
+    });
+
+    // Funzioni di utilità UI
+    function showToast(message, type = 'info', duration = 3000) {
+      const toast = document.createElement('div');
+      toast.classList.add('toast', type);
+      toast.textContent = message;
+      toastContainer.appendChild(toast);
+
+      // Forza il reflow per l'animazione
+      void toast.offsetWidth; 
+      toast.classList.add('show');
+
+      setTimeout(() => {
+        toast.classList.remove('show');
+        toast.addEventListener('transitionend', () => toast.remove(), { once: true });
+      }, duration);
+    }
+
+    function showModal(modalElement) {
+        modalElement.classList.add('show');
+        document.body.style.overflow = 'hidden'; // Blocca lo scroll del body
+    }
+
+    function hideModal(modalElement) {
+        modalElement.classList.remove('show');
+        document.body.style.overflow = ''; // Ripristina lo scroll del body
+    }
+
+/**
+ * @version 1.1 - Mostra il popup di conferma personalizzato.
+ * @v_note Corretto un bug che causava un errore alla seconda apertura del popup (errore 'replaceChild').
+ */
+function showConfirmationModal(title, body, confirmText, onConfirm) {
+  confirmationModalTitle.textContent = title;
+  // Sostituiamo i ritorni a capo (\n) con <br> per una corretta visualizzazione in HTML
+  confirmationModalBody.innerHTML = body.replace(/\n/g, '<br>'); 
+  
+  // --- INIZIO CORREZIONE ---
+  // Recuperiamo il pulsante dal DOM *ogni volta* che la funzione viene chiamata.
+  // Questo evita di usare un riferimento a un elemento che non esiste più.
+  const currentConfirmBtn = document.getElementById('confirm-action-btn');
+  const newConfirmBtn = currentConfirmBtn.cloneNode(true);
+  newConfirmBtn.textContent = confirmText; // Aggiorna il testo del pulsante
+  
+  // Sostituisce il vecchio pulsante con il nuovo clone per pulire gli event listener precedenti
+  currentConfirmBtn.parentNode.replaceChild(newConfirmBtn, currentConfirmBtn);
+  // --- FINE CORREZIONE ---
+
+  // Aggiungiamo il nuovo event listener. L'opzione { once: true } assicura che venga eseguito solo una volta.
+  newConfirmBtn.addEventListener('click', () => {
+    onConfirm();
+    hideModal(confirmationModal);
+  }, { once: true });
+
+  showModal(confirmationModal);
+}
+
+// Funzione per mostrare il popup di inserimento testo personalizzato
+function showPromptModal(title, label, placeholder, confirmText, onConfirm) {
+    promptModalTitle.textContent = title;
+    promptModalLabel.textContent = label;
+    promptModalInput.placeholder = placeholder || '';
+    promptModalInput.value = ''; // Pulisce l'input precedente
+    confirmPromptBtn.textContent = confirmText;
+
+    const newConfirmBtn = confirmPromptBtn.cloneNode(true);
+    confirmPromptBtn.parentNode.replaceChild(newConfirmBtn, confirmPromptBtn);
+
+    const newCancelBtn = cancelPromptBtn.cloneNode(true);
+    cancelPromptBtn.parentNode.replaceChild(newCancelBtn, cancelPromptBtn);
+
+    newConfirmBtn.addEventListener('click', () => {
+        const value = promptModalInput.value.trim();
+        if (value) {
+            onConfirm(value);
+            hideModal(promptModal);
+        } else {
+            showToast('Il campo non può essere vuoto.', 'error');
+        }
+    });
+
+    newCancelBtn.addEventListener('click', () => hideModal(promptModal));
+    
+    showModal(promptModal);
+    setTimeout(() => promptModalInput.focus(), 200); // Mette a fuoco l'input
+}
+
+// Aggiungi i listener per chiudere il popup di conferma
+cancelActionBtn.addEventListener('click', () => hideModal(confirmationModal));
+document.getElementById('close-confirmation-modal-btn').addEventListener('click', () => hideModal(document.getElementById('confirmation-modal')));
+
+    function showLoading(elementId, message = 'Caricamento...') {
+        const targetElement = document.getElementById(elementId);
+        if (targetElement) {
+            // Check if it's a button, update its text content
+            if (targetElement.tagName === 'BUTTON') {
+                targetElement.setAttribute('data-original-html', targetElement.innerHTML); // Store original content
+                targetElement.innerHTML = `<div class="loading-spinner"></div> ${message}`;
+                targetElement.disabled = true; // Disable button while loading
+            } else {
+                targetElement.innerHTML = `<div class="loading-spinner"></div> ${message}`;
+                targetElement.classList.remove('hidden');
+            }
+        }
+    }
+
+    function hideLoading(elementId) {
+        const targetElement = document.getElementById(elementId);
+        if (targetElement) {
+             if (targetElement.tagName === 'BUTTON') {
+                // Restore original button text/content
+                const originalHtml = targetElement.getAttribute('data-original-html');
+                if (originalHtml) {
+                    targetElement.innerHTML = originalHtml;
+                } else {
+                    // Fallback if originalHtml not stored (shouldn't happen if showLoading is always used)
+                    targetElement.textContent = 'Azione Completata'; // Generic fallback
+                }
+                targetElement.disabled = false; // Enable button
+                targetElement.removeAttribute('data-original-html'); // Clean up attribute
+            } else {
+                targetElement.classList.add('hidden');
+            }
+        }
+    }
+
+
+    function clearForm(formId) {
+      const form = document.getElementById(formId);
+      form.reset();
+      // Resetta anche eventuali campi hidden o select custom
+      if (formId === 'associato-form') {
+        document.getElementById('associato-row-number').value = '';
+        document.getElementById('original-full-name').value = '';
+        document.getElementById('tutore-numero-associato').value = '';
+        document.getElementById('tutore-nome-completo-associato').value = '';
+    document.getElementById('tutore-search-input').value = '';
+        deleteAssociatoBtn.classList.add('hidden');
+      } else if (formId === 'quota-setting-form') {
+        document.getElementById('original-quota-year').value = '';
+      }
+    }
+
+    
+
+
+    // Gestione swipe
+    pageContainer.addEventListener('touchstart', (e) => {
+      app.swipeStartX = e.touches[0].clientX;
+      app.isSwiping = true;
+    });
+
+    pageContainer.addEventListener('touchmove', (e) => {
+      if (!app.isSwiping) return;
+      app.swipeEndX = e.touches[0].clientX;
+      const diffX = app.swipeStartX - app.swipeEndX;
+      // Applica una trasformazione "live" durante lo swipe
+      const currentTransform = parseInt(pageContainer.style.transform.replace(/[^0-9\-.]/g, '') || 0);
+      pageContainer.style.transform = `translateX(${currentTransform - diffX}px)`;
+      pageContainer.style.transition = 'none'; // Disabilita la transizione per swipe fluido
+    });
+
+    pageContainer.addEventListener('touchend', () => {
+    if (!app.isSwiping) return;
+    app.isSwiping = false;
+    pageContainer.style.transition = 'transform 0.3s ease-out'; // Riabilita l'animazione
+
+    const swipeThreshold = 75; // MODIFICA CHIAVE: Valore fisso in pixel, più reattivo
+    const diffX = app.swipeStartX - app.swipeEndX;
+
+    let currentPageIndex = Array.from(pageContainer.children).findIndex(page => page.id === app.currentPage);
+    let newPageIndex = currentPageIndex;
+
+    if (diffX > swipeThreshold && currentPageIndex < pageContainer.children.length - 1) {
+        // Swipe verso sinistra (avanti)
+        newPageIndex++;
+    } else if (diffX < -swipeThreshold && currentPageIndex > 0) {
+        // Swipe verso destra (indietro)
+        newPageIndex--;
+    }
+
+    showPage(pageContainer.children[newPageIndex].id);
+});
+
+    // Funzioni per la Rubrica Associati
+    const associatiListDiv = document.getElementById('associati-list');
+    const associatiSearchInput = document.getElementById('associati-search');
+
+
+// Event Listeners per la Rubrica
+associatiSearchInput.addEventListener('input', (e) => {
+    displayAssociati(app.associatiList, e.target.value);
+});
+
+
+
+ function showPage(pageId) {
+    if (app.currentPage === pageId) return; // Non fare nulla se si clicca sulla scheda già attiva
+    app.currentPage = pageId;
+
+    const pageElement = document.getElementById(pageId);
+    const h2Element = pageElement.querySelector('h2');
+    headerTitle.textContent = h2Element ? h2Element.textContent : pageId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+
+    const pageIndex = Array.from(pageContainer.children).findIndex(p => p.id === pageId);
+    if (pageIndex === -1) return; // Sicurezza: non fare nulla se la pagina non viene trovata
+
+    pageContainer.style.transform = `translateX(-${pageIndex * 100}vw)`;
+    
+    // Aggiorna lo stato attivo solo sui pulsanti di navigazione
+    document.querySelectorAll('.nav-item[data-page]').forEach(item => {
+        item.classList.toggle('active', item.dataset.page === pageId);
+    });
+    
+    updatePageData(pageId);
+}
+
+function updatePageData(pageId) {
+    switch (pageId) {
+        case 'rubrica-associati':
+            // Per la rubrica, mostra semplicemente i dati già caricati in memoria
+            displayAssociati(app.associatiList); 
+            break;
+        case 'gestione-quote':
+            // Quando si va sulla pagina delle quote, carica i suoi dati
+            loadQuotesPageData(); 
+            break;
+        case 'generazione-rimborsi':
+            // Per i rimborsi, ricarica sempre i dati per averli aggiornati
+            loadReimbursementInitialData();
+            break;
+        case 'impostazioni':
+            // Per le impostazioni, usa i dati in memoria e ricarica le altre info
+            displayQuotaSettings(app.quotaSettings);
+            loadDrivePathSettings();
+            loadAndDisplayTemplates();
+            break;
+    }
+}
+function loadQuotesPageData() {
+    const container = document.getElementById('bulk-quota-rows-container');
+    if (!container) return;
+
+    // Se la pagina è vuota, aggiungi la prima riga
+    if (container.children.length === 0) {
+        addQuotaRow();
+    }
+}
+
+function loadInitialAppData() {
+    showLoading('associati-loading', 'Caricamento dati...');
+    google.script.run
+        .withSuccessHandler(data => {
+            app.associatiList = data.associati;
+            app.quotaSettings = data.quotaSettings;
+            console.log(`Dati ricevuti: ${app.associatiList.length} associati e ${app.quotaSettings.length} impostazioni quote.`);
+            displayAssociati(app.associatiList);
+                        document.body.classList.remove('is-loading');
+
+        })
+        .withFailureHandler(error => {
+            console.error("Errore durante il caricamento dei dati iniziali:", error);
+            showToast(`Errore caricamento: ${error.message}`, 'error');
+            hideLoading('associati-loading');
+                        document.body.classList.remove('is-loading');
+
+        })
+        .getInitialAppData(); // Chiama la nuova funzione del server
+}
+
+function displayAssociati(associati, searchTerm = '') {
+  setTimeout(() => {
+    try {
+        const associatiListDiv = document.getElementById('associati-list');
+        const noAssociatiMessage = document.getElementById('no-associati-message');
+        const listHeaderControls = document.getElementById('list-header-controls');
+        if (!associatiListDiv || !noAssociatiMessage || !listHeaderControls) return;
+
+        hideLoading('associati-loading');
+        
+        const lowerCaseSearchTerm = searchTerm.toLowerCase();
+        const filteredAssociati = associati.filter(a => 
+            (a.nome && a.nome.toLowerCase().includes(lowerCaseSearchTerm)) ||
+            (a.cognome && a.cognome.toLowerCase().includes(lowerCaseSearchTerm)) ||
+            (a.numero && a.numero.toLowerCase().includes(lowerCaseSearchTerm))
+        );
+
+        if (filteredAssociati.length === 0) {
+            associatiListDiv.innerHTML = '';
+            noAssociatiMessage.classList.remove('hidden');
+            listHeaderControls.classList.add('hidden');
+        } else {
+            noAssociatiMessage.classList.add('hidden');
+            listHeaderControls.classList.remove('hidden');
+
+            const listHtml = filteredAssociati.map(associato => `
+                <div class="list-item" data-row-number="${associato.rowNumber}">
+                    <div class="list-item-selector">
+                        <input type="checkbox" class="associate-item-checkbox" 
+                               data-row-number="${associato.rowNumber}"
+                               data-email="${associato.email || ''}" 
+                               data-telegram-id="${associato.telegramChatId || ''}"
+                               data-nome="${associato.nome || ''}"
+                               data-cognome="${associato.cognome || ''}">
+                    </div>
+                    <div class="list-item-content">
+                        <h4>
+                            <span class="associate-number-badge">${associato.numero}</span>
+                            <span>${associato.nome} ${associato.cognome}</span>
+                        </h4>
+                        <div class="contact-info">
+                            <span><span class="material-icons">phone_iphone</span> ${associato.cellulare || 'N/D'}</span>
+                            <span><span class="material-icons">alternate_email</span> ${associato.email || 'N/D'}</span>
+                        </div>
+                    </div>
+                    <div class="list-controls">
+                        <button class="icon-btn email-btn" title="Invia Email" data-email="${associato.email || ''}"><span class="material-icons">email</span></button>
+                        <button class="icon-btn telegram-btn" title="Invia Telegram" data-telegram-id="${associato.telegramChatId || ''}"><span class="material-icons">telegram</span></button>
+                        <button class="icon-btn edit-associato-btn" title="Modifica" data-row-number="${associato.rowNumber}"><span class="material-icons">edit</span></button>
+                        <button class="icon-btn delete-associato-btn" title="Elimina" data-row-number="${associato.rowNumber}"><span class="material-icons">delete</span></button>
+                    </div>
+                </div>
+            `).join('');
+            associatiListDiv.innerHTML = listHtml;
+        }
+        updateBulkActionUI();
+    } catch (e) {
+        console.error("Errore durante la visualizzazione degli associati:", e);
+    }
+  }, 50); 
+}
+
+ 
+
+function populateQuotaYearsDropdown(selectElementId, years) {
+  const select = document.getElementById(selectElementId);
+  select.innerHTML = '';
+  
+  if (!years || years.length === 0) {
+      return; // Exit if there are no years to add
+  }
+
+  years.forEach(year => {
+      const option = document.createElement('option');
+      option.value = year;
+      option.textContent = year;
+      select.appendChild(option);
+  });
+
+  const currentYear = new Date().getFullYear().toString();
+
+  // Check if the current year exists in the provided list
+  if (years.includes(currentYear)) {
+      select.value = currentYear;
+  } else {
+      // Fallback: select the most recent year from the list
+      // Assumes the 'years' array is sorted or can be sorted numerically
+      select.value = years.sort((a, b) => b - a)[0]; 
+  }
+}
+
+// --- GESTORE UNIFICATO PER TUTTE LE AZIONI SULLA LISTA ASSOCIATI ---
+
+selectAllCheckbox.addEventListener('change', function() {
+    // Quando si clicca "Seleziona Tutti", aggiorna tutti i checkbox visibili
+    document.querySelectorAll('.associate-item-checkbox').forEach(checkbox => {
+        checkbox.checked = this.checked;
+    });
+    updateBulkActionUI();
+});
+
+associatiListDiv.addEventListener('click', (e) => {
+    const target = e.target;
+
+    // Se il click è su un checkbox, aggiorna l'UI e fermati
+    if (target.classList.contains('associate-item-checkbox')) {
+        updateBulkActionUI();
+        return;
+    }
+
+    // Cerca il pulsante o la riga più vicina su cui si è cliccato
+    const editBtn = target.closest('.edit-associato-btn');
+    const deleteBtn = target.closest('.delete-associato-btn');
+    const emailBtn = target.closest('.email-btn');
+    const telegramBtn = target.closest('.telegram-btn');
+    const listItem = target.closest('.list-item');
+
+    // Esegui l'azione corrispondente
+    if (editBtn) {
+        editAssociato(parseInt(editBtn.dataset.rowNumber));
+    } else if (deleteBtn) {
+        confirmDeleteAssociato(parseInt(deleteBtn.dataset.rowNumber));
+    } else if (emailBtn) {
+        const email = emailBtn.dataset.email;
+        if (email) {
+            window.location.href = 'mailto:' + email;
+        } else {
+            showToast('Nessun indirizzo email per questo associato.', 'info');
+        }
+    } else if (telegramBtn) {
+        const chatId = telegramBtn.dataset.telegramId;
+        if (chatId) {
+            showPromptModal( 'Invia Messaggio Telegram', 'Testo del messaggio:', 'Scrivi qui...', 'Invia',
+                (message) => {
+                    showToast('Invio in corso...', 'info');
+                    google.script.run
+                        .withSuccessHandler(() => showToast('Messaggio Telegram inviato!', 'success'))
+                        .withFailureHandler(() => showToast('Errore invio messaggio.', 'error'))
+                        .sendTelegramMessage(chatId, message);
+                }
+            );
+        } else {
+            showToast('Nessun Telegram Chat ID per questo associato.', 'info');
+        }
+    } else if (listItem) {
+        // Se si è cliccato sulla riga (ma non su un pulsante o checkbox), apri la modifica
+        editAssociato(parseInt(listItem.dataset.rowNumber));
+    }
+});
+
+/**
+ * @version 1.1 - Aggiunge la logica per prepopolare il numero associato.
+ * @v_note Chiama getNextAssociateNumber e popola il campo prima di mostrare il modal.
+ */
+document.getElementById('add-associato-nav-btn').addEventListener('click', () => {
+    clearForm('associato-form');
+    associatoModalTitle.textContent = 'Aggiungi Nuovo Associato';
+    document.getElementById('associato-data-iscrizione').valueAsDate = new Date(); // Popola la data di iscrizione
+    populateQuotaYearsDropdown('quota-year', app.quotaSettings.map(s => s.year));
+    document.getElementById('quota-data').valueAsDate = new Date();
+
+    const numeroInput = document.getElementById('associato-numero');
+    numeroInput.value = '...'; // Messaggio di attesa
+    showModal(associatoModal); // Mostra subito il modal
+
+    // Chiama il server per ottenere il prossimo numero
+    google.script.run
+        .withSuccessHandler(nextNumber => {
+            numeroInput.value = nextNumber; // Inserisce il numero nel campo
+        })
+        .withFailureHandler(err => {
+            showToast(`Errore nel calcolare il numero: ${err.message}`, 'error');
+            numeroInput.value = ''; // Pulisce il campo in caso di errore
+        })
+        .getNextAssociateNumber();
+});
+
+// Listener per chiudere il modal "associato" cliccando sull'area esterna
+document.getElementById('associato-modal').addEventListener('click', (e) => {
+    // Chiude il modal solo se si clicca sull'overlay stesso (lo sfondo)
+    if (e.target.id === 'associato-modal') {
+        hideModal(document.getElementById('associato-modal'));
+    }
+});
+
+
+
+
+    closeAssociatoModalBtn.addEventListener('click', () => hideModal(associatoModal));
+
+    associatoForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        saveAssociato();
+    });
+
+    deleteAssociatoBtn.addEventListener('click', () => {
+      const rowNumber = parseInt(associatoRowNumber.value);
+      confirmDeleteAssociato(rowNumber, true); // Chiamato dal modal, quindi chiudi il modal dopo
+    });
+
+
+    function editAssociato(rowNumber) {
+    clearForm('associato-form');
+    const associatoModalTitle = document.getElementById('associato-modal-title');
+    associatoModalTitle.textContent = 'Caricamento Dati...';
+    showModal(associatoModal);
+
+    google.script.run
+        .withSuccessHandler(details => {
+            app.currentAssociateDetails = details; // <-- RIGA AGGIUNTA: Memorizziamo i dettagli
+            
+            associatoModalTitle.textContent = 'Modifica Associato';
+
+            // Popola tutti i campi (il tuo codice esistente è corretto)
+            document.getElementById('associato-row-number').value = details.rowNumber;
+            document.getElementById('original-full-name').value = `${details.nome} ${details.cognome}`;
+            document.getElementById('associato-numero').value = details.numero;
+            document.getElementById('associato-data-iscrizione').value = details.dataIscrizione;
+            document.getElementById('associato-nome').value = details.nome;
+            document.getElementById('associato-cognome').value = details.cognome;
+            document.getElementById('associato-luogo-nascita').value = details.luogoNascita;
+            document.getElementById('associato-data-nascita').value = details.dataNascita;
+            document.getElementById('associato-indirizzo').value = details.indirizzo;
+            document.getElementById('associato-cf').value = details.codiceFiscale;
+            document.getElementById('associato-cellulare').value = details.cellulare;
+            document.getElementById('associato-email').value = details.email;
+            document.getElementById('associato-telegram-id').value = details.telegramChatId;
+
+            // Dati Tutore (il tuo codice esistente è corretto)
+            if (details.tutore.numeroTutore && details.tutore.nomeCompletoTutore) {
+                document.getElementById('tutore-search-input').value = details.tutore.nomeCompletoTutore;
+                document.getElementById('tutore-numero-associato').value = details.tutore.numeroTutore;
+                document.getElementById('tutore-nome-completo-associato').value = details.tutore.nomeCompletoTutore;
+            } else if (details.tutore.tutoreNomeManuale || details.tutore.tutoreCognomeManuale) {
+                document.getElementById('tutore-nome-manuale').value = details.tutore.tutoreNomeManuale;
+                document.getElementById('tutore-cognome-manuale').value = details.tutore.tutoreCognomeManuale;
+                document.getElementById('tutore-cellulare-manuale').value = details.tutore.tutoreCellulareManuale;
+                document.getElementById('tutore-email-manuale').value = details.tutore.tutoreEmailManuale;
+                document.getElementById('tutore-cf-manuale').value = details.tutore.tutoreCfManuale;
+            }
+
+            // Quote
+            populateQuotaYearsDropdown('quota-year', details.availableYears);
+            const currentYearQuotaDate = details.quotaPagamenti[details.currentYear] || '';
+            document.getElementById('quota-year').value = details.currentYear;
+            document.getElementById('quota-data').value = currentYearQuotaDate;
+
+            document.getElementById('delete-associato-btn').classList.remove('hidden');
+        })
+        .withFailureHandler(error => {
+            hideModal(associatoModal);
+            showToast(`Errore caricamento dettagli: ${error.message}`, 'error');
+        })
+        .getAssociatoDetails(rowNumber);
+}
+
+    function saveAssociato() {
+    const isEdit = !!document.getElementById('associato-row-number').value;
+    
+    // 1. Raccogli i dati dal form (come prima)
+    const associateData = {
+        rowNumber: isEdit ? parseInt(document.getElementById('associato-row-number').value) : null,
+        originalFullName: document.getElementById('original-full-name').value,
+        data: {
+            numero: document.getElementById('associato-numero').value.trim(),
+            dataIscrizione: document.getElementById('associato-data-iscrizione').value,
+            nome: document.getElementById('associato-nome').value.trim(),
+            cognome: document.getElementById('associato-cognome').value.trim(),
+            luogoNascita: document.getElementById('associato-luogo-nascita').value.trim(),
+            dataNascita: document.getElementById('associato-data-nascita').value,
+            indirizzo: document.getElementById('associato-indirizzo').value.trim(),
+            codiceFiscale: document.getElementById('associato-cf').value.trim(),
+            cellulare: document.getElementById('associato-cellulare').value.trim(),
+            email: document.getElementById('associato-email').value.trim(),
+            telegramChatId: document.getElementById('associato-telegram-id').value.trim(),
+            tutore: {
+                numeroTutore: document.getElementById('tutore-numero-associato').value.trim(),
+                nomeCompletoTutore: document.getElementById('tutore-nome-completo-associato').value.trim(),
+                tutoreNomeManuale: document.getElementById('tutore-nome-manuale').value.trim(),
+                tutoreCognomeManuale: document.getElementById('tutore-cognome-manuale').value.trim(),
+                tutoreCellulareManuale: document.getElementById('tutore-cellulare-manuale').value.trim(),
+                tutoreEmailManuale: document.getElementById('tutore-email-manuale').value.trim(),
+                tutoreCfManuale: document.getElementById('tutore-cf-manuale').value.trim()
+            },
+            quotaAnno: document.getElementById('quota-year').value,
+            quotaData: document.getElementById('quota-data').value
+        }
+    };
+
+    // 2. Chiudi subito il popup e mostra un messaggio di attesa
+    hideModal(associatoModal);
+    showToast('Salvataggio in corso...', 'info', 5000); // Messaggio che dura 5 secondi
+
+    // 3. Esegui la chiamata al server in background
+    const serverCall = isEdit ? 
+        google.script.run
+            .withSuccessHandler(res => {
+                showToast('Associato aggiornato con successo!', 'success');
+                loadInitialAppData(); // Ricarica i dati per mostrare le modifiche
+            })
+            .withFailureHandler(error => {
+                showToast(`Errore aggiornamento: ${error.message}`, 'error');
+            })
+            .updateAssociatoFromRubrica(associateData) 
+        : 
+        google.script.run
+            .withSuccessHandler(res => {
+                showToast('Nuovo associato aggiunto con successo!', 'success');
+                loadInitialAppData(); // Ricarica i dati per mostrare le modifiche
+            })
+            .withFailureHandler(error => {
+                showToast(`Errore aggiunta: ${error.message}`, 'error');
+            })
+            .addAssociato(associateData.data);
+}
+
+    function confirmDeleteAssociato(rowNumber, fromModal = false) {
+    const onConfirm = () => {
+        showLoading(fromModal ? 'delete-associato-btn' : 'associati-loading', 'Eliminazione...');
+        google.script.run
+            .withSuccessHandler(res => {
+                showToast('Associato eliminato con successo!', 'success');
+                if (fromModal) hideModal(document.getElementById('associato-modal'));
+                hideLoading(fromModal ? 'delete-associato-btn' : 'associati-loading');
+                loadInitialAppData();
+            })
+            .withFailureHandler(error => {
+                showToast(`Errore eliminazione: ${error.message}`, 'error');
+                hideLoading(fromModal ? 'delete-associato-btn' : 'associati-loading');
+            })
+            .deleteAssociato(rowNumber);
+    };
+
+    confirmActionBtn.className = 'button danger'; // Rende il pulsante di conferma rosso
+    showConfirmationModal(
+        'Conferma Eliminazione',
+        `Sei sicuro di voler eliminare l'associato? L'azione è irreversibile.`,
+        'Elimina',
+        onConfirm
+    );
+}
+
+/**
+ * @version 1.6 - Fix Anni (Corrente + Precedente) e Progressivo Dinamico.
+ * @v_note Ora il menu anni mostra sempre ALMENO l'anno corrente e quello passato.
+ * Il progressivo si ricalcola automaticamente al cambio dell'anno.
+ */
+function addReimbursementForm() {
+    const template = document.getElementById('reimbursement-form-template');
+    const newFormNode = template.content.cloneNode(true);
+    const container = document.getElementById('reimbursement-forms-container');
+    const formInstance = newFormNode.querySelector('.reimbursement-form-instance');
+    container.appendChild(formInstance); 
+
+    // --- Elementi del Form ---
+    const yearSelect = formInstance.querySelector('.rimborso-year');
+    const dateInput = formInstance.querySelector('.rimborso-payment-date');
+    const searchInput = formInstance.querySelector('.reimbursement-associate-search');
+    const grossAmountInput = formInstance.querySelector('.rimborso-amount');
+    const receiptsAmountInput = formInstance.querySelector('.rimborso-receipts-amount');
+    const surplusCheckbox = formInstance.querySelector('.use-surplus-checkbox');
+    const surplusValueInput = formInstance.querySelector('.surplus-value');
+    
+    // --- FIX ANNI: Garantire Anno Corrente e Precedente ---
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const previousYear = currentYear - 1;
+    
+    // Creiamo una lista base di anni necessari (es. [2026, 2025])
+    let availableYears = [currentYear.toString(), previousYear.toString()];
+
+    // Se il server ci ha dato altri anni (configurazione globale), li uniamo senza duplicati
+    if (app.reimbursementYears && app.reimbursementYears.length > 0) {
+        const serverYears = app.reimbursementYears.map(String);
+        // Unione array e rimozione duplicati (Set)
+        availableYears = [...new Set([...availableYears, ...serverYears])];
+    }
+
+    // Ordiniamo decrescente (dal più recente al più vecchio)
+    availableYears.sort((a, b) => b - a);
+
+    // Popola il menu a tendina
+    yearSelect.innerHTML = ''; 
+    availableYears.forEach(year => yearSelect.add(new Option(year, year)));
+    
+    // Seleziona di default l'anno corrente
+    yearSelect.value = currentYear.toString();
+    // --- FINE FIX ANNI ---
+
+    dateInput.valueAsDate = today;
+
+    // Inizializza righe pagamento
+    const paymentContainer = formInstance.querySelector('.payment-lines-container');
+    addPaymentLine(paymentContainer); 
+
+    // --- LOGICA SURPLUS E CALCOLI ---
+    let userHasManuallyEditedReceipts = false;
+
+    receiptsAmountInput.addEventListener('input', () => {
+        userHasManuallyEditedReceipts = true;
+    });
+
+    grossAmountInput.addEventListener('input', (e) => {
+        handlePartialAmountChange(e.target);
+        
+        const gross = parseFloat(e.target.value) || 0;
+        const surplus = parseFloat(surplusValueInput.value) || 0;
+        const useSurplus = surplusCheckbox.checked;
+
+        if (!userHasManuallyEditedReceipts) {
+            if (useSurplus) {
+                const calc = Math.max(0, gross - surplus);
+                receiptsAmountInput.value = calc.toFixed(2);
+            } else {
+                receiptsAmountInput.value = gross.toFixed(2);
+            }
+        }
+    });
+
+    surplusCheckbox.addEventListener('change', (e) => {
+        const gross = parseFloat(grossAmountInput.value) || 0;
+        const surplus = parseFloat(surplusValueInput.value) || 0;
+
+        if (e.target.checked) {
+            const calc = Math.max(0, gross - surplus);
+            receiptsAmountInput.value = calc.toFixed(2);
+            userHasManuallyEditedReceipts = false; 
+        } else {
+            receiptsAmountInput.value = gross.toFixed(2);
+            userHasManuallyEditedReceipts = false;
+        }
+    });
+
+    // --- GESTIONE ASSOCIATI ---
+    const recentButtonsContainer = formInstance.querySelector('.recent-associates-buttons');
+    google.script.run.withSuccessHandler(recentNames => {
+        recentButtonsContainer.innerHTML = '';
+        recentNames.forEach(name => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.textContent = name;
+            btn.onclick = () => {
+                searchInput.value = name;
+                formInstance.querySelector('.selected-reimbursement-associate-name').value = name;
+                
+                recalculateAllProgressives(); 
+                checkSurplusForAssociate(name, formInstance);
+            };
+            recentButtonsContainer.appendChild(btn);
+        });
+    }).getRecentAssociates();
+
+    searchInput.addEventListener('input', handleReimbursementAssociateSearch);
+    
+    searchInput.addEventListener('blur', () => {
+        setTimeout(() => {
+            formInstance.querySelector('.search-results').style.display = 'none';
+        }, 200);
+    });
+
+    // --- FIX PROGRESSIVO SU CAMBIO ANNO ---
+    // Quando cambio l'anno, devo ricalcolare il progressivo basandomi sull'anno nuovo
+    yearSelect.addEventListener('change', () => {
+        recalculateAllProgressives();
+        
+        // Verifica opzionale: il surplus potrebbe cambiare se dipendesse dall'anno (ora non dipende, ma è buona norma)
+        const selectedName = formInstance.querySelector('.selected-reimbursement-associate-name').value;
+        if (selectedName) {
+             checkSurplusForAssociate(selectedName, formInstance);
+        }
+    });
+    
+    formInstance.querySelector('.delete-reimbursement-instance-btn').addEventListener('click', () => {
+        if (container.children.length > 1) {
+            formInstance.remove();
+            recalculateAllProgressives();
+        } else {
+            showToast('Non puoi rimuovere l\'ultimo modulo.', 'info');
+        }
+    });
+
+    // Chiamata iniziale
+    recalculateAllProgressives();
+}
+
+
+
+function generateAllReimbursements() {
+    const forms = document.querySelectorAll('.reimbursement-form-instance');
+    const optionsArray = [];
+    let allFormsValid = true;
+
+    forms.forEach((form) => {
+        const associateName = form.querySelector('.selected-reimbursement-associate-name').value;
+        const grossAmount = parseFloat(form.querySelector('.rimborso-amount').value) || 0;
+        const year = form.querySelector('.rimborso-year').value;
+        const paymentDate = form.querySelector('.rimborso-payment-date').value;
+        const sendEmail = form.querySelector('.rimborso-send-email').checked; // <-- MODIFICA QUI
+
+        let receiptsAmount = parseFloat(form.querySelector('.rimborso-receipts-amount').value);
+        if (isNaN(receiptsAmount)) {
+            receiptsAmount = grossAmount;
+        }
+
+        const paymentParts = [];
+        let sumOfPartials = 0;
+        const paymentLines = form.querySelectorAll('.payment-line-row');
+        
+        paymentLines.forEach(line => {
+            const method = line.querySelector('.rimborso-payment-method').value;
+            const amount = parseFloat(line.querySelector('.rimborso-partial-amount').value) || 0;
+            if (method && amount > 0) {
+                paymentParts.push({ method: method, amount: amount });
+                sumOfPartials += amount;
+            }
+        });
+
+        if (!associateName || grossAmount <= 0 || !year || !paymentDate || paymentParts.length === 0 || sumOfPartials.toFixed(2) !== grossAmount.toFixed(2)) {
+            allFormsValid = false;
+            form.style.border = '2px solid var(--error-color)';
+        } else {
+            form.style.border = '1px solid var(--border-color)';
+            optionsArray.push({
+                associateName: associateName,
+                amount: grossAmount,
+                year: year,
+                sendEmail: sendEmail, // <-- MODIFICA QUI
+                paymentDate: paymentDate,
+                paymentParts: paymentParts,
+                receiptsAmount: receiptsAmount 
+            });
+        }
+    });
+
+    if (!allFormsValid) {
+        showToast('Alcuni moduli non sono completi o la somma dei pagamenti non corrisponde al totale.', 'error');
+        return;
+    }
+
+    if (optionsArray.length === 0) {
+        showToast('Nessun rimborso valido da generare.', 'info');
+        return;
+    }
+
+    showLoading('generate-reimbursement-btn', 'Generazione...');
+    google.script.run
+        .withSuccessHandler(res => {
+            hideLoading('generate-reimbursement-btn');
+            showToast(res.message, 'success');
+            document.getElementById('reimbursement-forms-container').innerHTML = '';
+            addReimbursementForm();
+            loadReimbursementsList(document.getElementById('reimbursements-display-year').value);
+        })
+        .withFailureHandler(err => {
+            hideLoading('generate-reimbursement-btn');
+            showToast(`Errore: ${err.message}`, 'error');
+        })
+        .generateMultipleDocuments(optionsArray);
+}
+
+
+document.getElementById('generate-associates-book-btn').addEventListener('click', () => {
+    const onConfirm = () => {
+        showLoading('generate-associates-book-btn', 'Generazione...');
+        google.script.run
+            .withSuccessHandler(res => {
+                showToast(res.message, 'success');
+                if (res.url) { setTimeout(() => window.open(res.url, '_blank'), 100); }
+                hideLoading('generate-associates-book-btn');
+            })
+            .withFailureHandler(error => {
+                showToast(`Errore: ${error.message}`, 'error');
+                hideLoading('generate-associates-book-btn');
+            })
+            .generateAssociatesBook();
+    };
+    confirmActionBtn.className = 'button secondary'; // Pulsante normale
+    showConfirmationModal(
+        'Conferma Generazione',
+        'Vuoi generare il "Libro Associati" in formato PDF? Verrà salvato nella cartella Drive configurata.',
+        'Conferma',
+        onConfirm
+    );
+});
+
+document.getElementById('format-all-sheets-btn').addEventListener('click', () => {
+    const onConfirm = () => {
+        showLoading('format-all-sheets-btn', 'Formattazione...');
+        google.script.run
+            .withSuccessHandler(res => {
+                showToast('Fogli formattati con successo!', 'success');
+                hideLoading('format-all-sheets-btn');
+            })
+            .withFailureHandler(error => {
+                showToast(`Errore: ${error.message}`, 'error');
+                hideLoading('format-all-sheets-btn');
+            })
+            .formatAllSheets();
+    };
+    confirmActionBtn.className = 'button danger'; // Pulsante di pericolo
+    showConfirmationModal(
+        'Conferma Formattazione',
+        'Questa azione riorganizza le intestazioni dei fogli "ASSOCIATI" e "NOTULE". I dati non verranno cancellati. Sei sicuro?',
+        'Formatta',
+        onConfirm
+    );
+});
+
+/**
+ * @version 1.3 - Carica i dati per la pagina Rimborsi e corregge un bug critico di caricamento.
+ * @v_note Corregge l'ordine di esecuzione per evitare errori, popola i menu e pre-seleziona l'anno corrente.
+ */
+function loadReimbursementInitialData() {
+    const container = document.getElementById('reimbursement-forms-container');
+    const reportYearSelect = document.getElementById('report-year');
+    const reimbursementsDisplayYearSelect = document.getElementById('reimbursements-display-year');
+    
+    if (container) {
+      container.innerHTML = `<div class="loading-indicator"><div class="loading-spinner"></div> Caricamento...</div>`;
+    }
+    reportYearSelect.innerHTML = '<option>Caricamento...</option>';
+    reimbursementsDisplayYearSelect.innerHTML = '<option>Caricamento...</option>';
+    
+    google.script.run
+        .withSuccessHandler(years => {
+            if (container) {
+                container.innerHTML = '';
+            }
+            reportYearSelect.innerHTML = '';
+            reimbursementsDisplayYearSelect.innerHTML = '';
+
+            years.forEach(year => {
+                reportYearSelect.add(new Option(year, year));
+                reimbursementsDisplayYearSelect.add(new Option(year, year));
+            });
+
+            const currentYear = new Date().getFullYear().toString();
+            if (years.includes(currentYear)) {
+                reportYearSelect.value = currentYear;
+                reimbursementsDisplayYearSelect.value = currentYear;
+            }
+
+            loadAssociatesForReportYear(reportYearSelect.value);
+            loadReimbursementsList(reimbursementsDisplayYearSelect.value);
+
+            if (container.children.length === 0) {
+                addReimbursementForm();
+            }
+        })
+        .withFailureHandler(error => {
+            showToast(`Errore caricamento anni: ${error.message}`, 'error');
+            if (container) {
+                container.innerHTML = '<p class="no-data-message">Errore nel caricamento.</p>';
+            }
+        })
+        .getReimbursementYears();
+}
+
+/**
+ * Calcola e aggiorna i numeri progressivi per tutti i moduli di rimborso presenti.
+ * Chiama il server per ottenere il prossimo numero disponibile per l'anno e l'associato selezionati.
+ */
+function recalculateAllProgressives() {
+    const forms = document.querySelectorAll('.reimbursement-form-instance');
+    const counts = {}; // Terrà traccia di quanti rimborsi per ogni associato/anno esistono già nella pagina
+
+    forms.forEach(form => {
+        const associateInput = form.querySelector('.selected-reimbursement-associate-name');
+        const yearInput = form.querySelector('.rimborso-year');
+        const progressiveInput = form.querySelector('.rimborso-progressive');
+
+        // Se i campi non esistono ancora (es. durante la creazione iniziale), salta
+        if (!associateInput || !yearInput || !progressiveInput) return;
+
+        const associateName = associateInput.value;
+        const year = yearInput.value;
+
+        // Se manca nome o anno, non possiamo calcolare il progressivo
+        if (!associateName || !year) {
+            progressiveInput.value = "";
+            return;
+        }
+
+        const key = `${associateName}-${year}`;
+        const existingCountOnPage = counts[key] || 0;
+
+        // Chiama il server per ottenere il prossimo numero
+        google.script.run
+            .withSuccessHandler(num => {
+                // Formatta il numero con lo zero iniziale (es. "05")
+                progressiveInput.value = ('0' + num).slice(-2); 
+            })
+            .withFailureHandler(err => {
+                console.error("Errore calcolo progressivo:", err);
+            })
+            .getNextProgressiveNumber(year, associateName, existingCountOnPage);
+
+        // Incrementa il contatore locale per gestire più card dello stesso associato nella stessa pagina
+        counts[key] = existingCountOnPage + 1;
+    });
+}
+
+/**
+ * Gestisce la ricerca e selezione dell'associato nel modulo rimborsi.
+ * Quando si seleziona un nome, aggiorna il campo nascosto e ricalcola il progressivo.
+ */
+function handleReimbursementAssociateSearch(event) {
+    const input = event.target;
+    const searchTerm = input.value.toLowerCase();
+    const resultsContainer = input.nextElementSibling;
+    const formInstance = input.closest('.reimbursement-form-instance');
+    
+    if (searchTerm.length < 2) {
+        resultsContainer.innerHTML = '';
+        resultsContainer.style.display = 'none';
+        return;
+    }
+
+    // Filtra la lista globale degli associati
+    const filtered = app.associatiList.filter(a => 
+        `${a.nome} ${a.cognome}`.toLowerCase().includes(searchTerm)
+    );
+
+    resultsContainer.innerHTML = '';
+    filtered.slice(0, 10).forEach(associate => {
+        const div = document.createElement('div');
+        const fullName = `${associate.nome} ${associate.cognome}`;
+        div.textContent = fullName;
+        
+        // Al click su un risultato
+        div.addEventListener('click', () => {
+            input.value = fullName;
+            formInstance.querySelector('.selected-reimbursement-associate-name').value = fullName;
+            resultsContainer.style.display = 'none';
+            
+            // --- AZIONI FONDAMENTALI ---
+            recalculateAllProgressives(); // 1. Calcola il nuovo progressivo
+            checkSurplusForAssociate(fullName, formInstance); // 2. Controlla se ha crediti/surplus
+        });
+        resultsContainer.appendChild(div);
+    });
+    resultsContainer.style.display = filtered.length > 0 ? 'block' : 'none';
+}
+
+/**
+ * Controlla il saldo (positivo o negativo) e aggiorna l'UI.
+ */
+function checkSurplusForAssociate(fullName, formInstance) {
+    const surplusBox = formInstance.querySelector('.surplus-box');
+    const surplusText = formInstance.querySelector('.surplus-amount-text');
+    const surplusInput = formInstance.querySelector('.surplus-value');
+    const checkbox = formInstance.querySelector('.use-surplus-checkbox');
+    const spanText = surplusBox.querySelector('span');
+
+    // Reset visuale
+    if(surplusBox) {
+        surplusBox.classList.add('hidden');
+        surplusBox.classList.remove('debt'); // Rimuove stile debito
+    }
+    if(checkbox) {
+        checkbox.checked = false;
+        checkbox.disabled = false; // Riabilita checkbox
+        checkbox.style.display = 'inline-block';
+    }
+    if(surplusInput) surplusInput.value = 0;
+
+    google.script.run
+        .withSuccessHandler(balance => {
+            if (!surplusBox) return;
+
+            if (balance > 0) {
+                // CASO 1: SURPLUS (Credito) - Visualizza checkbox blu
+                surplusInput.value = balance;
+                surplusText.textContent = balance.toFixed(2).replace('.', ',');
+                spanText.innerHTML = `Disponibili <b class="surplus-amount-text">${balance.toFixed(2).replace('.', ',')}</b>€ di scontrini precedenti. Usali ora.`;
+                surplusBox.classList.remove('hidden');
+            
+            } else if (balance < 0) {
+                // CASO 2: DEBITO (Mancano scontrini) - Visualizza alert arancione
+                const debt = Math.abs(balance);
+                surplusInput.value = 0; // Non c'è surplus da usare
+                
+                // Modifichiamo il testo e nascondiamo il checkbox perché non puoi "usare" un debito
+                spanText.innerHTML = `⚠️ Attenzione: Mancano <b style="color:#d32f2f;">${debt.toFixed(2).replace('.', ',')}</b>€ di ricevute da rimborsi passati.`;
+                checkbox.style.display = 'none'; // Nascondi checkbox
+                
+                surplusBox.classList.add('debt'); // Aggiungi stile rosso
+                surplusBox.classList.remove('hidden');
+            }
+        })
+        .withFailureHandler(err => console.error("Errore surplus:", err))
+        .getAssociateReceiptsSurplus(fullName);
+}
+
+
+
+    function loadReimbursementsList(year, associateName = '') {
+        showLoading('reimbursements-list-loading', 'Caricamento rimborsi...');
+        google.script.run
+            .withSuccessHandler(data => {
+                hideLoading('reimbursements-list-loading');
+                displayReimbursements(data.reimbursements);
+            })
+            .withFailureHandler(error => {
+                showToast(`Errore caricamento rimborsi: ${error.message}`, 'error');
+                hideLoading('reimbursements-list-loading');
+                reimbursementsListDiv.innerHTML = `<p class="no-data-message" style="padding: 20px;">Errore: ${error.message}</p>`;
+            })
+            .getReimbursementDataForDisplay(year, associateName);
+    }
+
+function displayReimbursements(reimbursements) {
+    reimbursementsListDiv.innerHTML = '';
+    if (reimbursements.length === 0) {
+        reimbursementsListDiv.innerHTML = '<p class="no-data-message">Nessun rimborso trovato.</p>';
+        return;
+    }
+
+    reimbursements.forEach(reimbursement => {
+        const item = document.createElement('div');
+        item.classList.add('list-item');
+        
+        item.innerHTML = `
+            <input type="checkbox" class="reimbursement-item-checkbox" 
+                   data-row-index="${reimbursement.rowIndex}"
+                   data-pdf-url="${reimbursement.pdfUrl}"
+                   data-associate-name="${reimbursement.associateName}">
+            <div class="list-item-content">
+                <h4>${reimbursement.associateName} - Rif: ${reimbursement.progressive}/${reimbursementsDisplayYearSelect.value}</h4>
+                <p>Importo: € ${reimbursement.amount} - Data: ${reimbursement.generationDate}</p>
+                <p class="receipt-status-line">
+                    Ricevute: € ${parseFloat(reimbursement.receiptsAmount).toFixed(2)} / € ${reimbursement.amount}
+                    <span class="status-badge ${reimbursement.receiptsStatus.toLowerCase()}">${reimbursement.receiptsStatus}</span>
+                </p>
+            </div>
+            <div class="list-controls">
+                <button class="view-pdf-btn" data-url="${reimbursement.pdfUrl}" title="Visualizza PDF">
+                    <span class="material-icons">picture_as_pdf</span>
+                </button>
+                <button class="update-receipts-btn" data-row-index="${reimbursement.rowIndex}" data-current-amount="${reimbursement.receiptsAmount}" title="Aggiorna Importo Ricevute">
+                    <span class="material-icons">edit_note</span>
+                </button>
+                <button class="delete-reimbursement-btn" data-row-index="${reimbursement.rowIndex}" title="Elimina Rimborso">
+                    <span class="material-icons">delete</span>
+                </button>
+            </div>
+        `;
+        reimbursementsListDiv.appendChild(item);
+    });
+}
+
+   function confirmDeleteReimbursement(rowIndex) {
+    const onConfirm = () => {
+        showLoading('reimbursements-list-loading', 'Eliminazione rimborso...');
+        google.script.run
+            .withSuccessHandler(res => {
+                showToast(res.message, 'success');
+                hideLoading('reimbursements-list-loading');
+                loadReimbursementsList(reimbursementsDisplayYearSelect.value, reimbursementsDisplayAssociateSelect.value);
+            })
+            .withFailureHandler(error => {
+                showToast(`Errore eliminazione rimborso: ${error.message}`, 'error');
+                hideLoading('reimbursements-list-loading');
+            })
+            .deleteReimbursement(rowIndex);
+    };
+
+    confirmActionBtn.className = 'button danger';
+    showConfirmationModal(
+        'Conferma Eliminazione',
+        `Sei sicuro di voler eliminare questo rimborso? L'azione cancellerà anche il PDF associato.`,
+        'Elimina',
+        onConfirm
+    );
+}
+
+// --- Listener per la sezione "Rimborsi Registrati" ---
+
+reimbursementsDisplayYearSelect.addEventListener('change', () => {
+    const selectedYear = reimbursementsDisplayYearSelect.value;
+    
+    // Esegui solo se è stato selezionato un anno valido
+    if (selectedYear) {
+        // Quando cambio l'anno, resetto la selezione dell'associato e carico le liste
+        reimbursementsDisplayAssociateSelect.value = "";
+        loadReimbursementsList(selectedYear);
+        loadAssociatesForReportYear(selectedYear); // Popola anche i menu degli associati
+    }
+});
+
+reimbursementsDisplayAssociateSelect.addEventListener('change', () => {
+    const selectedYear = reimbursementsDisplayYearSelect.value;
+    const selectedAssociate = reimbursementsDisplayAssociateSelect.value;
+    
+    // Esegui solo se l'anno è già stato selezionato
+    if (selectedYear) {
+        loadReimbursementsList(selectedYear, selectedAssociate);
+    }
+});
+
+
+    function loadAssociatesForReportYear(year) {
+    // Pulisce entrambi i menu a tendina
+    reportAssociateSelect.innerHTML = '<option value="">Tutti gli Associati</option>'; 
+    reimbursementsDisplayAssociateSelect.innerHTML = '<option value="">Tutti gli Associati</option>';
+    if (!year) return;
+
+    google.script.run
+        .withSuccessHandler(associates => {
+            associates.forEach(name => {
+                const option = new Option(name, name);
+                // Aggiunge l'opzione a entrambi i menu
+                reportAssociateSelect.appendChild(option.cloneNode(true));
+                reimbursementsDisplayAssociateSelect.appendChild(option.cloneNode(true));
+            });
+        })
+        .withFailureHandler(error => {
+            showToast(`Errore caricamento associati per report: ${error.message}`, 'error');
+        })
+        .getAssociatesWithReimbursementsForYear(year);
+}
+
+
+    // Helper per formattare data stringa YYYY-MM-DD per display (DD/MM/YYYY)
+    function formatDateDisplay(dateStringYMD) {
+        if (!dateStringYMD) return 'N/D';
+        const [year, month, day] = dateStringYMD.split('-');
+        return `${day}/${month}/${year}`;
+    }
+
+    // Funzioni per Impostazioni
+    const quotaSettingsListDiv = document.getElementById('quota-settings-list');
+    const addQuotaSettingBtn = document.getElementById('add-quota-setting-btn');
+
+    function loadQuotaSettings() {
+        showLoading('quota-settings-loading', 'Caricamento impostazioni quote...');
+        google.script.run
+            .withSuccessHandler(settings => {
+                hideLoading('quota-settings-loading');
+                app.quotaSettings = settings; // Cache
+                displayQuotaSettings(settings);
+                            })
+            .withFailureHandler(error => {
+                showToast(`Errore caricamento impostazioni quote: ${error.message}`, 'error');
+                hideLoading('quota-settings-loading');
+                document.getElementById('no-quota-settings-message').classList.remove('hidden'); // Mostra il messaggio in caso di errore
+            })
+            .getQuotaSettings();
+    }
+
+    function displayQuotaSettings(settings) {
+        const noQuotaSettingsMessage = document.getElementById('no-quota-settings-message'); // Ottieni il riferimento
+        quotaSettingsListDiv.innerHTML = '';
+        
+        if (settings.length === 0) {
+            noQuotaSettingsMessage.classList.remove('hidden'); // Mostra il messaggio
+            return;
+        } else {
+            noQuotaSettingsMessage.classList.add('hidden'); // Nascondi il messaggio
+        }
+
+        settings.forEach(setting => {
+            const item = document.createElement('div');
+            item.classList.add('quota-setting-item');
+            item.innerHTML = `
+                <span>Anno: ${setting.year} - Importo: € ${setting.amount.toFixed(2)}</span>
+                <div class="controls">
+                    <button class="edit-quota-setting-btn" data-year="${setting.year}" data-amount="${setting.amount}">
+                        <span class="material-icons">edit</span>
+                    </button>
+                    <button class="delete-quota-setting-btn delete" data-year="${setting.year}">
+                        <span class="material-icons">delete</span>
+                    </button>
+                </div>
+            `;
+            quotaSettingsListDiv.appendChild(item);
+        });
+
+        // Event listeners per modifica/eliminazione
+        quotaSettingsListDiv.querySelectorAll('.edit-quota-setting-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const year = parseInt(e.currentTarget.dataset.year);
+                const amount = parseFloat(e.currentTarget.dataset.amount);
+                editQuotaSetting(year, amount);
+            });
+        });
+        quotaSettingsListDiv.querySelectorAll('.delete-quota-setting-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const year = parseInt(e.currentTarget.dataset.year);
+                confirmDeleteQuotaSetting(year);
+            });
+        });
+    }
+
+    addQuotaSettingBtn.addEventListener('click', () => {
+        clearForm('quota-setting-form');
+        document.getElementById('quota-setting-modal-title').textContent = 'Aggiungi Nuova Quota';
+        document.getElementById('quota-setting-year').value = new Date().getFullYear();
+        document.getElementById('quota-setting-amount').value = '';
+        showModal(quotaSettingModal);
+    });
+
+    closeQuotaSettingModalBtn.addEventListener('click', () => hideModal(quotaSettingModal));
+
+    quotaSettingForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        saveQuotaSetting();
+    });
+
+
+    function editQuotaSetting(year, amount) {
+        clearForm('quota-setting-form');
+        document.getElementById('quota-setting-modal-title').textContent = 'Modifica Quota';
+        originalQuotaYearInput.value = year;
+        document.getElementById('quota-setting-year').value = year;
+        document.getElementById('quota-setting-amount').value = amount;
+        showModal(quotaSettingModal);
+    }
+
+    function saveQuotaSetting() {
+        const originalYear = originalQuotaYearInput.value ? parseInt(originalQuotaYearInput.value) : null;
+        const newYear = parseInt(document.getElementById('quota-setting-year').value);
+        const newAmount = parseFloat(document.getElementById('quota-setting-amount').value);
+
+        if (isNaN(newYear) || isNaN(newAmount) || newAmount < 0) {
+            showToast('Inserisci valori validi per Anno e Importo.', 'error');
+            return;
+        }
+
+        showLoading('save-quota-setting-btn', 'Salvataggio...');
+
+        const successHandler = res => {
+            showToast('Impostazione quota salvata con successo!', 'success');
+            hideModal(quotaSettingModal);
+            loadQuotaSettings();
+            hideLoading('save-quota-setting-btn');
+        };
+        const failureHandler = error => {
+            showToast(`Errore salvataggio quota: ${error.message}`, 'error');
+            hideLoading('save-quota-setting-btn');
+        };
+
+        if (originalYear) {
+            google.script.run
+                .withSuccessHandler(successHandler)
+                .withFailureHandler(failureHandler)
+                .updateQuotaSetting(originalYear, newYear, newAmount);
+        } else {
+            google.script.run
+                .withSuccessHandler(successHandler)
+                .withFailureHandler(failureHandler)
+                .addQuotaSetting(newYear, newAmount);
+        }
+    }
+
+    function confirmDeleteQuotaSetting(year) {
+    const onConfirm = () => {
+        showLoading('quota-settings-list', 'Eliminazione...'); 
+        google.script.run
+            .withSuccessHandler(res => {
+                showToast('Impostazione quota eliminata con successo!', 'success');
+                loadQuotaSettings();
+                hideLoading('quota-settings-list'); 
+            })
+            .withFailureHandler(error => {
+                showToast(`Errore eliminazione quota: ${error.message}`, 'error');
+                hideLoading('quota-settings-list'); 
+            })
+            .deleteQuotaSetting(year);
+    };
+
+    confirmActionBtn.className = 'button danger';
+    showConfirmationModal(
+        'Conferma Eliminazione',
+        `Sei sicuro di voler eliminare l'impostazione della quota per l'anno ${year}?`,
+        'Elimina',
+        onConfirm
+    );
+}
+
+
+
+    // Drive Folder Settings
+    const reimbursementsFolderIdInput = document.getElementById('reimbursements-folder-id');
+    const associatesBookFolderIdInput = document.getElementById('associates-book-folder-id');
+    const saveDriveSettingsBtn = document.getElementById('save-drive-settings-btn');
+
+    function loadDrivePathSettings() {
+        google.script.run
+            .withSuccessHandler(settings => {
+                reimbursementsFolderIdInput.value = settings.ROOT_REIMBURSEMENTS_FOLDER_ID || '';
+                associatesBookFolderIdInput.value = settings.ASSOCIATES_BOOK_FOLDER_ID || '';
+            })
+            .withFailureHandler(error => {
+                showToast(`Errore caricamento impostazioni Drive: ${error.message}`, 'error');
+            })
+            .getDrivePathSettings();
+    }
+
+    saveDriveSettingsBtn.addEventListener('click', () => {
+        const reimbursementsId = reimbursementsFolderIdInput.value.trim();
+        const associatesBookId = associatesBookFolderIdInput.value.trim();
+
+        showLoading('save-drive-settings-btn', 'Salvataggio...');
+
+        Promise.all([
+            google.script.run.withSuccessHandler(() => {}).withFailureHandler(e => { throw new Error(`Rimborsi: ${e.message}`); }).updateDrivePathSetting('ROOT_REIMBURSEMENTS_FOLDER_ID', reimbursementsId),
+            google.script.run.withSuccessHandler(() => {}).withFailureHandler(e => { throw new Error(`Libro Associati: ${e.message}`); }).updateDrivePathSetting('ASSOCIATES_BOOK_FOLDER_ID', associatesBookId)
+        ])
+        .then(() => {
+            showToast('Impostazioni Drive salvate con successo!', 'success');
+            hideLoading('save-drive-settings-btn');
+        })
+        .catch(error => {
+            showToast(`Errore salvataggio impostazioni Drive: ${error.message}`, 'error');
+            hideLoading('save-drive-settings-btn');
+        });
+    });
+
+// --- NUOVA SEZIONE PER CARICAMENTO GOOGLE PICKER API ---
+
+function onGapiLoad() {
+    console.log("Libreria Google API (gapi) caricata. Richiedo il modulo 'picker'...");
+    // Usiamo una sintassi più robusta per il caricamento
+    gapi.load('picker', { 'callback': onPickerApiLoad });
+}
+
+function onPickerApiLoad() {
+    console.log("Modulo 'picker' caricato con successo. Abilito i pulsanti.");
+    try {
+        app.pickerLoaded = true;
+        const pickerButtons = document.querySelectorAll('.page#impostazioni .button.outline');
+        
+        if (pickerButtons.length > 0) {
+            pickerButtons.forEach(btn => btn.classList.remove('disabled'));
+            console.log('Pulsanti Drive attivati.');
+        } else {
+            console.error('Nessun pulsante per il selettore di cartelle trovato.');
+        }
+    } catch (e) {
+        console.error('Errore durante l\'attivazione del Picker API:', e);
+        showToast('Errore critico nell\'attivazione del selettore Drive.', 'error');
+    }
+}
+
+let currentPickerTargetKey = '';
+let currentPickerTargetInputId = '';
+
+function selectFolder(targetKey, inputId) {
+    currentPickerTargetKey = targetKey;
+    currentPickerTargetInputId = inputId;
+    google.script.run.withSuccessHandler(createPicker).getOAuthToken();
+}
+
+/**
+ * @version 1.2 - Abilita la selezione delle cartelle nel picker.
+ * @v_note Corretto il bug che impediva l'attivazione del pulsante "Select" usando una DocsView configurata per le cartelle.
+ */
+function createPicker(oauthToken) {
+  if (!app.pickerLoaded || typeof google.picker === 'undefined') {
+    console.error('google.picker non è definito. Riprova tra poco.');
+    showToast('La libreria di selezione non è ancora pronta. Riprova.', 'error');
+    return;
+  }
+
+  // --- INIZIO MODIFICA ---
+  // Usiamo una DocsView configurata specificamente per permettere la SELEZIONE delle cartelle.
+  const view = new google.picker.DocsView();
+  view.setIncludeFolders(true); // Mostra le cartelle
+  view.setSelectFolderEnabled(true); // Rendi le cartelle selezionabili
+  view.setMimeTypes('application/vnd.google-apps.folder'); // Mostra SOLO le cartelle
+  // --- FINE MODIFICA ---
+
+  const picker = new google.picker.PickerBuilder()
+    .addView(view) // Usa la nuova vista corretta
+    .setOAuthToken(oauthToken)
+    .setOrigin(google.script.host.origin)
+    .setCallback(pickerCallback)
+    .setTitle("Seleziona una Cartella")
+    .build();
+  picker.setVisible(true);
+}
+
+function pickerCallback(data) {
+    if (data.action === google.picker.Action.PICKED) {
+        const folder = data.docs[0];
+        document.getElementById(currentPickerTargetInputId).value = folder.id;
+        showToast(`Cartella "${folder.name}" selezionata.`, 'success');
+    } else if (data.action === google.picker.Action.CANCEL) {
+        showToast('Selezione cartella annullata.', 'info');
+    }
+}
+// --- FINE SEZIONE GOOGLE PICKER ---
+
+
+// ===================================================================
+// INIZIALIZZAZIONE DELL'APPLICAZIONE (con attivazione pulsante report)
+// ===================================================================
+
+function openQuotaSettingsModal(){
+    const modal = document.getElementById('quota-setting-modal');
+    modal.querySelector('#quota-setting-modal-title').textContent = 'Gestione Quote Annuali';
+    modal.querySelector('#quota-setting-form').reset();
+    modal.querySelector('#original-quota-year').value = '';
+    showModal(modal);
+    loadQuotaSettings();
+}
+
+function openTemplateManagementModal() {
+    const modal = document.getElementById('edit-template-modal');
+    modal.querySelector('#template-form-title').textContent = 'Crea Nuovo Template';
+    modal.querySelector('#template-form').reset(); 
+    modal.querySelector('#original-template-name').value = '';
+    modal.querySelector('#save-template-btn').textContent = 'Salva Nuovo Template';
+    modal.querySelector('#cancel-edit-template-btn').classList.add('hidden');
+    showModal(modal);
+    loadAndDisplayTemplates();
+}
+
+// ===================================================================
+// INIZIALIZZAZIONE UNIFICATA DELL'APPLICAZIONE
+// ===================================================================
+
+document.addEventListener('DOMContentLoaded', () => {
+    const newAdminLink = document.getElementById('new-admin-link');
+    if (newAdminLink && typeof NEW_ADMIN_URL === 'string') {
+        newAdminLink.href = NEW_ADMIN_URL;
+    }
+
+    // Listener per la navigazione principale
+    document.querySelectorAll('.nav-item[data-page]').forEach(item => {
+        item.addEventListener('click', (e) => showPage(e.currentTarget.dataset.page));
+    });
+
+    // Listener per i pulsanti di base dei popup
+    document.getElementById('close-confirmation-modal-btn').addEventListener('click', () => hideModal(document.getElementById('confirmation-modal')));
+    document.getElementById('cancel-action-btn').addEventListener('click', () => hideModal(document.getElementById('confirmation-modal')));
+    document.getElementById('cancel-prompt-btn').addEventListener('click', () => hideModal(document.getElementById('prompt-modal')));
+
+    // Listener per il pulsante "Compatta Duplicati"
+    const compactBtn = document.getElementById('compact-duplicates-btn');
+    if (compactBtn) {
+        compactBtn.addEventListener('click', startDuplicateResolutionProcess);
+    }
+    
+    // Listener per i pulsanti specifici della pagina IMPOSTAZIONI
+    const settingsPage = document.getElementById('impostazioni');
+    if(settingsPage){
+        settingsPage.querySelector('#manage-quota-settings-item').addEventListener('click', openQuotaSettingsModal);
+        settingsPage.querySelector('#manage-templates-item').addEventListener('click', openTemplateManagementModal);
+        
+        settingsPage.querySelector('#generate-associates-book-btn').addEventListener('click', () => {
+            showConfirmationModal('Conferma Generazione', 'Generare il "Libro Associati" in PDF?', 'Genera', () => {
+                showToast('Generazione in corso...', 'info');
+                google.script.run.withSuccessHandler(res => {
+                    showToast(res.message, 'success');
+                    if (res.url) window.open(res.url, '_blank');
+                }).withFailureHandler(err => {
+                    showToast(err.message, 'error');
+                }).generateAssociatesBook();
+            });
+        });
+
+        settingsPage.querySelector('#format-all-sheets-btn').addEventListener('click', () => {
+            showConfirmationModal('Conferma Formattazione', 'Questa azione sistema i fogli dati. Continuare?', 'Formatta', () => {
+                showToast('Formattazione in corso...', 'info');
+                google.script.run.withSuccessHandler(() => showToast('Fogli formattati.', 'success'))
+                               .withFailureHandler(err => showToast(err.message, 'error'))
+                               .formatAllSheets();
+            });
+        });
+        
+        // Collega il pulsante nascosto per l'importazione alla sua funzione
+        const importBtn = document.getElementById('import-associates-btn');
+        if (importBtn) {
+            importBtn.addEventListener('click', startAssociateImport);
+        }
+    }
+
+    // Listener per i pulsanti della pagina RIMBORSI ora sono qui dentro
+    document.getElementById('generate-reimbursement-btn').addEventListener('click', generateAllReimbursements);
+    document.getElementById('add-reimbursement-form-btn').addEventListener('click', addReimbursementForm);
+
+    const generateSummaryReportBtn = document.getElementById('generate-summary-report-btn');
+    if(generateSummaryReportBtn){
+        generateSummaryReportBtn.addEventListener('click', () => {
+            const year = document.getElementById('report-year').value;
+            if (!year) { return showToast('Seleziona un anno per generare il report.', 'error'); }
+            showToast(`Generazione report totale per il ${year} in corso...`, 'info');
+            showLoading('generate-summary-report-btn', 'Creazione...');
+            google.script.run
+                .withSuccessHandler(response => {
+                    hideLoading('generate-summary-report-btn');
+                    showToast(response.message, 'success');
+                    const reportOutputDiv = document.getElementById('report-output');
+                    reportOutputDiv.innerHTML = `<a href="${response.url}" target="_blank">Apri il Report PDF</a>`;
+                    reportOutputDiv.classList.remove('hidden');
+                })
+                .withFailureHandler(err => {
+                    hideLoading('generate-summary-report-btn');
+                    showToast(`Errore: ${err.message}`, 'error');
+                })
+                .generateYearlyReport(year);
+        });
+    }
+
+    const generateDetailedReportBtn = document.getElementById('generate-detailed-report-btn');
+    if (generateDetailedReportBtn) {
+        generateDetailedReportBtn.addEventListener('click', () => {
+            const year = document.getElementById('report-year').value;
+            const associate = document.getElementById('report-associate').value;
+            if (!year) { return showToast('Seleziona un anno per generare il report.', 'error'); }
+            showToast(`Generazione report dettagliato per il ${year}...`, 'info');
+            showLoading('generate-detailed-report-btn', 'Creazione...');
+            google.script.run
+                .withSuccessHandler(response => {
+                    hideLoading('generate-detailed-report-btn');
+                    showToast(response.message, 'success');
+                    const reportOutputDiv = document.getElementById('report-output');
+                    reportOutputDiv.innerHTML = `<a href="${response.url}" target="_blank">Apri il Report Dettagliato PDF</a>`;
+                    reportOutputDiv.classList.remove('hidden');
+                })
+                .withFailureHandler(err => {
+                    hideLoading('generate-detailed-report-btn');
+                    showToast(`Errore: ${err.message}`, 'error');
+                })
+                .generateDetailedReimbursementsReport(year, associate);
+        });
+    }
+    
+    // Listener per i form dei popup
+    document.getElementById('quota-setting-form').addEventListener('submit', saveQuotaSetting);
+    document.getElementById('template-form').addEventListener('submit', handleTemplateSave);
+
+    const cancelEditBtn = document.getElementById('cancel-edit-template-btn');
+    if(cancelEditBtn){
+        cancelEditBtn.addEventListener('click', () => {
+            document.getElementById('template-form-title').textContent = 'Crea Nuovo Template';
+            document.getElementById('template-form').reset();
+            document.getElementById('original-template-name').value = '';
+            document.getElementById('save-template-btn').textContent = 'Salva Nuovo Template';
+            cancelEditBtn.classList.add('hidden');
+        });
+    }
+
+    const closeConflictBtn = document.getElementById('close-conflict-modal-btn');
+    if (closeConflictBtn) {
+        closeConflictBtn.addEventListener('click', () => {
+            hideModal(document.getElementById('conflict-resolution-modal'));
+            app.conflittiDaRisolvere = []; 
+        });
+    }
+    
+    // Caricamento dati iniziali
+    setTimeout(() => {
+        loadInitialAppData();
+        onGapiLoad(); 
+    }, 100);
+});
+
+// --- LOGICA PER POPUP QUOTE MASSIVE ---
+
+
+// Apre il popup, carica i dati necessari e aggiunge la prima riga
+function openBulkQuotaModal() {
+  if (app.quotaSettings.length === 0) {
+    // Se non abbiamo le impostazioni delle quote, le carichiamo prima
+    google.script.run.withSuccessHandler(settings => {
+      app.quotaSettings = settings;
+      setupAndShowBulkQuotaModal();
+    }).withFailureHandler(err => {
+      showToast('Errore nel caricare le impostazioni delle quote.', 'error');
+    }).getQuotaSettings();
+  } else {
+    setupAndShowBulkQuotaModal();
+  }
+}
+
+
+
+/**
+ * @version 1.3 - Aggiunge una nuova riga di quota, controllando prima che i dati necessari siano stati caricati.
+ * @v_note Aggiunto un controllo di sicurezza su app.quotaSettings per prevenire errori di caricamento.
+ */
+function addQuotaRow() {
+    // --- CONTROLLO DI SICUREZZA ---
+    // Se le impostazioni delle quote non sono ancora state caricate dal server, fermati e avvisa.
+    if (!app.quotaSettings || app.quotaSettings.length === 0) {
+        showToast('Impostazioni delle quote non ancora caricate. Riprova tra un istante.', 'info');
+        return; 
+    }
+
+    const newRowNode = document.getElementById('quota-row-template').content.cloneNode(true);
+    const appendedRow = newRowNode.querySelector('.quota-row');
+    document.getElementById('bulk-quota-rows-container').appendChild(appendedRow);
+
+    const yearSelect = appendedRow.querySelector('.quota-year-select');
+    const dateInput = appendedRow.querySelector('.quota-date-input');
+    
+    // 1. Popola il dropdown degli anni e seleziona l'anno corrente
+    app.quotaSettings.forEach(setting => {
+        yearSelect.add(new Option(setting.year, setting.year));
+    });
+    yearSelect.value = new Date().getFullYear().toString();
+    
+    // 2. Imposta la data di oggi come predefinita
+    dateInput.value = new Date().toISOString().slice(0, 10);
+    
+    // 3. Aggiorna l'importo della quota in base all'anno preselezionato
+    updateQuotaAmountForRow(appendedRow);
+
+    // 4. Assicura che la riga sia sbloccata all'inizio
+    toggleQuotaRowLock(appendedRow, false);
+
+    // 5. Collega tutti gli eventi necessari per la nuova riga
+    appendedRow.querySelector('.associate-search-input').addEventListener('input', handleAssociateSearch);
+    appendedRow.querySelector('.associate-search-input').addEventListener('blur', (e) => {
+        setTimeout(() => { 
+            const results = e.target.nextElementSibling;
+            if (results) results.style.display = 'none'; 
+        }, 200);
+    });
+    
+    yearSelect.addEventListener('change', () => {
+        updateQuotaAmountForRow(appendedRow);
+        const associateName = appendedRow.querySelector('.selected-associate-name').value;
+        if (associateName) {
+            google.script.run
+                .withSuccessHandler(paymentDate => {
+                    if (paymentDate) {
+                        dateInput.value = paymentDate;
+                        toggleQuotaRowLock(appendedRow, true);
+                    } else {
+                        dateInput.value = new Date().toISOString().slice(0, 10);
+                        toggleQuotaRowLock(appendedRow, false);
+                    }
+                })
+                .getQuotaStatus(associateName, yearSelect.value);
+        }
+    });
+
+    appendedRow.querySelector('.edit-quota-row-btn').addEventListener('click', (e) => {
+        const row = e.currentTarget.closest('.quota-row');
+        toggleQuotaRowLock(row, false);
+        row.querySelector('.quota-date-input').focus();
+    });
+
+    appendedRow.querySelector('.delete-quota-row-btn').addEventListener('click', (e) => {
+        e.currentTarget.closest('.quota-row').remove();
+    });
+}
+
+/**
+ * @version 1.1 - Gestisce la ricerca e, alla selezione, controlla lo stato della quota.
+ * @v_note Aggiunta la chiamata a getQuotaStatus per bloccare/sbloccare i campi in base al pagamento.
+ */
+function handleAssociateSearch(event) {
+  const input = event.target;
+  const searchTerm = input.value.toLowerCase();
+  const resultsContainer = input.nextElementSibling;
+  
+  if (searchTerm.length < 2) {
+    resultsContainer.innerHTML = '';
+    resultsContainer.style.display = 'none';
+    return;
+  }
+
+  const filtered = app.associatiList.filter(a => 
+    `${a.nome} ${a.cognome}`.toLowerCase().includes(searchTerm)
+  );
+
+  resultsContainer.innerHTML = '';
+  filtered.slice(0, 10).forEach(associate => {
+    const div = document.createElement('div');
+    div.textContent = `${associate.nome} ${associate.cognome}`;
+    div.addEventListener('click', () => {
+      const row = input.closest('.quota-row');
+      const yearSelect = row.querySelector('.quota-year-select');
+      const dateInput = row.querySelector('.quota-date-input');
+      
+      input.value = `${associate.nome} ${associate.cognome}`;
+      row.querySelector('.selected-associate-name').value = `${associate.nome} ${associate.cognome}`;
+      resultsContainer.style.display = 'none';
+
+      // --- INIZIO NUOVA LOGICA ---
+      const associateName = input.value;
+      const year = yearSelect.value;
+      
+      // Chiamata al server per verificare se la quota è già pagata
+      google.script.run
+        .withSuccessHandler(paymentDate => {
+          if (paymentDate) {
+            // Quota già pagata: popola la data e blocca i campi
+            dateInput.value = paymentDate;
+            toggleQuotaRowLock(row, true);
+          } else {
+            // Quota non pagata: sblocca i campi
+            dateInput.value = new Date().toISOString().slice(0, 10);
+            toggleQuotaRowLock(row, false);
+          }
+        })
+        .withFailureHandler(err => {
+          showToast('Errore nel controllo della quota.', 'error');
+          toggleQuotaRowLock(row, false); // Sblocca in caso di errore
+        })
+        .getQuotaStatus(associateName, year);
+      // --- FINE NUOVA LOGICA ---
+    });
+    resultsContainer.appendChild(div);
+  });
+  resultsContainer.style.display = filtered.length > 0 ? 'block' : 'none';
+}
+
+// Gestisce la ricerca del tutore nel popup associato
+function handleTutoreSearch(event) {
+    const input = event.target;
+    const searchTerm = input.value.toLowerCase();
+    const resultsContainer = input.nextElementSibling;
+    
+    if (searchTerm.length < 2) {
+        resultsContainer.innerHTML = '';
+        resultsContainer.style.display = 'none';
+        return;
+    }
+
+    // Filtra la lista degli associati in base al termine di ricerca
+    const filtered = app.associatiList.filter(a => 
+        `${a.nome} ${a.cognome}`.toLowerCase().includes(searchTerm)
+    );
+
+    resultsContainer.innerHTML = '';
+    filtered.slice(0, 5).forEach(associate => {
+        const div = document.createElement('div');
+        div.textContent = `${associate.nome} ${associate.cognome}`;
+        div.addEventListener('click', () => {
+            // Quando un tutore viene cliccato...
+            input.value = `${associate.nome} ${associate.cognome}`;
+            document.getElementById('tutore-numero-associato').value = associate.numero;
+            document.getElementById('tutore-nome-completo-associato').value = `${associate.nome} ${associate.cognome}`;
+            resultsContainer.style.display = 'none';
+            
+            // NUOVA LOGICA: Chiedi i dettagli completi del tutore al server
+            showToast('Caricamento dati tutore...', 'info', 1500);
+            google.script.run
+                .withSuccessHandler(details => {
+                    // Popola i campi manuali con i dati del tutore scelto
+                    document.getElementById('tutore-nome-manuale').value = details.nome || '';
+                    document.getElementById('tutore-cognome-manuale').value = details.cognome || '';
+                    document.getElementById('tutore-cellulare-manuale').value = details.cellulare || '';
+                    document.getElementById('tutore-email-manuale').value = details.email || '';
+                    document.getElementById('tutore-cf-manuale').value = details.codiceFiscale || '';
+                })
+                .withFailureHandler(err => showToast('Errore nel recuperare i dati del tutore.', 'error'))
+                .getAssociatoDetails(associate.rowNumber); // Usa il numero di riga per trovarlo
+        });
+        resultsContainer.appendChild(div);
+    });
+    resultsContainer.style.display = filtered.length > 0 ? 'block' : 'none';
+}
+
+// Aggiunge i listener per il nuovo campo di ricerca del tutore
+document.getElementById('tutore-search-input').addEventListener('input', handleTutoreSearch);
+
+// Pulisce la selezione del tutore se l'utente inizia a compilare i campi manuali
+document.querySelectorAll('.manual-tutor-field').forEach(field => {
+    field.addEventListener('focus', () => {
+        document.getElementById('tutore-search-input').value = '';
+        document.getElementById('tutore-numero-associato').value = '';
+        document.getElementById('tutore-nome-completo-associato').value = '';
+    });
+});
+
+// Aggiorna l'importo della quota quando l'anno cambia
+function updateQuotaAmountForRow(rowElement) {
+  const year = rowElement.querySelector('.quota-year-select').value;
+  const amountInput = rowElement.querySelector('.quota-amount-input');
+  const setting = app.quotaSettings.find(s => s.year.toString() === year);
+  amountInput.value = setting ? setting.amount.toFixed(2) : '';
+}
+
+// Raccoglie i dati e li invia al server per il salvataggio
+function saveAllQuotas() {
+  const rows = bulkQuotaRowsContainer.querySelectorAll('.quota-row');
+  const quotasToSave = [];
+  let hasError = false;
+
+  rows.forEach(row => {
+    const associateName = row.querySelector('.selected-associate-name').value;
+    const year = row.querySelector('.quota-year-select').value;
+    const paymentDate = row.querySelector('.quota-date-input').value;
+
+    if (associateName && year && paymentDate) {
+      quotasToSave.push({
+        associateName: associateName,
+        year: year,
+        paymentDate: paymentDate
+      });
+    } else if (row.querySelector('.associate-search-input').value) {
+      // Se l'utente ha scritto qualcosa ma non ha selezionato un associato valido
+      showToast(`Riga per "${row.querySelector('.associate-search-input').value}" incompleta. Verrà ignorata.`, 'info');
+    }
+  });
+
+  if (quotasToSave.length === 0) {
+    showToast('Nessuna riga valida da salvare.', 'error');
+    return;
+  }
+
+  showLoading('save-bulk-quotas-btn', 'Salvataggio...');
+  google.script.run
+    .withSuccessHandler(res => {
+      showToast(`${quotasToSave.length} quote salvate con successo!`, 'success');
+      hideLoading('save-bulk-quotas-btn');
+      hideModal(bulkQuotaModal);
+        loadInitialAppData(); // <-- CORRETTO
+    })
+    .withFailureHandler(err => {
+      showToast(`Errore nel salvataggio: ${err.message}`, 'error');
+      hideLoading('save-bulk-quotas-btn');
+    })
+    .saveBulkQuotas(quotasToSave);
+}
+
+/**
+ * @version 1.1 - Blocca o sblocca i campi Anno e Data di una riga di quota.
+ * @param {HTMLElement} rowElement L'elemento della riga da modificare.
+ * @param {boolean} lock Se 'true', blocca i campi; altrimenti li sblocca.
+ * @v_note Aggiunto il blocco/sblocco per il campo 'Anno' e corretto lo stile per rendere visibile l'icona di modifica.
+ */
+function toggleQuotaRowLock(rowElement, lock) {
+    const dateInput = rowElement.querySelector('.quota-date-input');
+    const yearSelect = rowElement.querySelector('.quota-year-select');
+    const editBtn = rowElement.querySelector('.edit-quota-row-btn');
+
+    // Applica lo stato di blocco/sblocco ai campi
+    dateInput.readOnly = lock;
+    yearSelect.disabled = lock; // 'disabled' è l'attributo corretto per i <select>
+    
+    // Gestisce la visibilità del pulsante di modifica
+    if (editBtn) {
+        editBtn.style.display = lock ? 'inline-block' : 'none';
+    }
+
+    // Aggiunge/rimuove una classe per lo stile "grigio" (opzionale ma pulito)
+    if (lock) {
+        dateInput.style.backgroundColor = '#f0f0f0';
+        yearSelect.style.backgroundColor = '#f0f0f0';
+    } else {
+        dateInput.style.backgroundColor = '#fff';
+        yearSelect.style.backgroundColor = '#fff';
+    }
+}
+
+// Collega i pulsanti della sezione Rimborsi alle nuove funzioni
+document.getElementById('generate-reimbursement-btn').addEventListener('click', generateAllReimbursements);
+document.getElementById('add-reimbursement-form-btn').addEventListener('click', addReimbursementForm);
+
+// --- LOGICA PER AZIONI MASSIVE RIMBORSI ---
+
+// Mostra/nasconde la barra delle azioni in base ai checkbox selezionati
+function toggleBulkActionsBar() {
+    const checkedBoxes = document.querySelectorAll('.reimbursement-item-checkbox:checked');
+    const actionBar = document.getElementById('reimbursements-bulk-actions');
+    actionBar.classList.toggle('hidden', checkedBoxes.length === 0);
+}
+
+// Aggiunge un listener al contenitore della lista per gestire i click sui checkbox
+reimbursementsListDiv.addEventListener('change', (e) => {
+    if (e.target.classList.contains('reimbursement-item-checkbox')) {
+        toggleBulkActionsBar();
+    }
+});
+
+// Logica del pulsante per l'invio massivo di email
+document.getElementById('bulk-email-btn').addEventListener('click', () => {
+    const checkedBoxes = document.querySelectorAll('.reimbursement-item-checkbox:checked');
+    if (checkedBoxes.length === 0) return;
+
+    const dataToSend = Array.from(checkedBoxes).map(box => ({
+        associateName: box.dataset.associateName,
+        pdfUrl: box.dataset.pdfUrl,
+    }));
+
+    showLoading('bulk-email-btn', 'Invio...');
+    google.script.run
+        .withSuccessHandler(res => {
+            hideLoading('bulk-email-btn');
+            showToast(res.message, 'success');
+            checkedBoxes.forEach(box => box.checked = false); // Deseleziona tutto
+            toggleBulkActionsBar();
+        })
+        .withFailureHandler(err => {
+            hideLoading('bulk-email-btn');
+            showToast(`Errore: ${err.message}`, 'error');
+        })
+        .sendMultipleReimbursementEmails(dataToSend);
+});
+
+// Sostituisci il vecchio listener 'bulk-delete-btn' con questo
+document.getElementById('bulk-delete-btn').addEventListener('click', () => {
+    const checkedBoxes = document.querySelectorAll('.reimbursement-item-checkbox:checked');
+    if (checkedBoxes.length === 0) return;
+
+    const onConfirmDelete = () => {
+        const rowIndexes = Array.from(checkedBoxes).map(box => parseInt(box.dataset.rowIndex));
+
+        showLoading('bulk-delete-btn', 'Eliminazione...');
+        google.script.run
+            .withSuccessHandler(res => {
+                hideLoading('bulk-delete-btn');
+                showToast(res.message, 'success');
+                toggleBulkActionsBar();
+                loadReimbursementsList(reimbursementsDisplayYearSelect.value, reimbursementsDisplayAssociateSelect.value);
+            })
+            .withFailureHandler(err => {
+                hideLoading('bulk-delete-btn');
+                showToast(`Errore: ${err.message}`, 'error');
+            })
+            .deleteMultipleReimbursements(rowIndexes);
+    };
+
+    // Usa il nuovo popup invece del 'confirm' del browser
+    confirmActionBtn.className = 'button danger'; // Colora il pulsante di rosso
+    showConfirmationModal(
+        'Conferma Eliminazione', 
+        `Sei sicuro di voler eliminare i ${checkedBoxes.length} rimborsi selezionati? L'azione è irreversibile.`, 
+        'Elimina',
+        onConfirmDelete
+    );
+});
+
+// --- LOGICA PER AGGIUNTA METODO DI PAGAMENTO ---
+
+const newPaymentMethodModal = document.getElementById('new-payment-method-modal');
+let activePaymentMethodSelect = null; // Per sapere quale select ha attivato il popup
+
+// Listener su tutto il contenitore dei rimborsi per intercettare il change
+document.getElementById('reimbursement-forms-container').addEventListener('change', e => {
+    if (e.target.classList.contains('rimborso-payment-method') && e.target.value === 'add-new') {
+        activePaymentMethodSelect = e.target; // Salva il riferimento al select
+        document.getElementById('new-payment-method-input').value = '';
+        showModal(newPaymentMethodModal);
+    }
+});
+
+document.getElementById('save-new-payment-method-btn').addEventListener('click', () => {
+    const input = document.getElementById('new-payment-method-input');
+    const newMethodName = input.value.trim();
+    if (newMethodName && activePaymentMethodSelect) {
+        const newOption = new Option(newMethodName, newMethodName, true, true); // Crea e seleziona la nuova opzione
+        
+        // Aggiunge la nuova opzione prima di "Aggiungi Altro..." in tutti i select
+        document.querySelectorAll('.rimborso-payment-method').forEach(select => {
+            select.insertBefore(newOption.cloneNode(true), select.querySelector('option[value="add-new"]'));
+        });
+
+        activePaymentMethodSelect.value = newMethodName; // Imposta il valore nel select che ha aperto il popup
+        hideModal(newPaymentMethodModal);
+    }
+});
+
+document.getElementById('cancel-new-payment-method-btn').addEventListener('click', () => {
+    if(activePaymentMethodSelect) activePaymentMethodSelect.selectedIndex = 0;
+    hideModal(newPaymentMethodModal);
+});
+
+// --- LOGICA PER CHECKBOX E AZIONI MASSIVE IN RUBRICA ---
+
+// Funzione che aggiorna l'UI (contatore, pulsante, checkbox "Seleziona Tutti")
+function updateBulkActionUI() {
+    const allCheckboxes = document.querySelectorAll('.associate-item-checkbox');
+    const checkedBoxes = document.querySelectorAll('.associate-item-checkbox:checked');
+    
+    // Aggiorna il contatore
+    selectionCounter.textContent = checkedBoxes.length > 0 ? `(${checkedBoxes.length} sel.)` : '';
+    
+    // Abilita/Disabilita il pulsante di invio massivo usando la variabile globale corretta
+    openBulkMessageModalBtn.classList.toggle('disabled', checkedBoxes.length === 0);
+
+    // Aggiorna lo stato del checkbox "Seleziona Tutti"
+    if (allCheckboxes.length === 0 || checkedBoxes.length === 0) {
+        selectAllCheckbox.checked = false;
+        selectAllCheckbox.indeterminate = false;
+    } else if (checkedBoxes.length === allCheckboxes.length) {
+        selectAllCheckbox.checked = true;
+        selectAllCheckbox.indeterminate = false;
+    } else {
+        selectAllCheckbox.checked = false;
+        selectAllCheckbox.indeterminate = true;
+    }
+}
+
+// --- LOGICA PER POPUP INVIO MESSAGGIO MASSIVO E TEMPLATE ---
+
+const bulkMessageModal = document.getElementById('bulk-message-modal');
+const closeBulkMessageModalBtn = document.getElementById('close-bulk-message-modal-btn');
+
+const recipientCountEl = document.getElementById('bulk-message-recipient-count');
+const channelToggleBtns = document.querySelectorAll('.channel-toggle-btn'); // <-- CORRETTO
+const channelInput = document.getElementById('bulk-message-channel');
+const subjectInput = document.getElementById('bulk-message-subject');
+const bodyInput = document.getElementById('bulk-message-body');
+const templateSelect = document.getElementById('template-select');
+const saveAsTemplateCheckbox = document.getElementById('save-as-template-checkbox');
+const sendBulkMessageBtn = document.getElementById('send-bulk-message-btn');
+
+let bulkMessageRecipients = []; // Per memorizzare i destinatari selezionati
+let availableTemplates = []; // Per memorizzare i modelli caricati
+
+// Apre il popup e lo prepara
+function openBulkMessageModal() {
+    const checkedBoxes = document.querySelectorAll('.associate-item-checkbox:checked');
+    if (checkedBoxes.length === 0) {
+        showToast('Seleziona almeno un associato.', 'info');
+        return;
+    }
+
+    bulkMessageRecipients = Array.from(checkedBoxes).map(box => ({
+        rowNumber: box.dataset.rowNumber,
+        email: box.dataset.email,
+        telegramChatId: box.dataset.telegramId,
+        nome: box.dataset.nome,
+        cognome: box.dataset.cognome
+    }));
+
+    recipientCountEl.textContent = `Stai per inviare un messaggio a ${bulkMessageRecipients.length} associati.`;
+    subjectInput.value = '';
+    bodyInput.value = '';
+    saveAsTemplateCheckbox.checked = false;
+
+    // Carica i modelli
+    google.script.run.withSuccessHandler(templates => {
+        availableTemplates = templates;
+        templateSelect.innerHTML = '<option value="">-- Seleziona un modello --</option>';
+        templates.forEach(t => {
+            templateSelect.add(new Option(t.name, t.name));
+        });
+    }).getTemplates();
+
+    showModal(bulkMessageModal);
+}
+
+// Gestisce il cambio di canale (Email/Telegram)
+channelToggleBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+        channelToggleBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const channel = btn.dataset.channel;
+        channelInput.value = channel;
+        // L'oggetto è solo per le email
+        subjectInput.parentElement.style.display = channel === 'email' ? 'block' : 'none';
+    });
+});
+
+// Gestisce la selezione di un modello
+templateSelect.addEventListener('change', () => {
+    const selectedTemplate = availableTemplates.find(t => t.name === templateSelect.value);
+    if (selectedTemplate) {
+        subjectInput.value = selectedTemplate.subject;
+        bodyInput.value = selectedTemplate.body;
+    } else {
+        subjectInput.value = '';
+        bodyInput.value = '';
+    }
+});
+
+// Listener per aprire il popup
+document.getElementById('open-bulk-message-nav-btn').addEventListener('click', openBulkMessageModal); // <-- ID AGGIORNATO
+
+// Listener per chiudere il popup
+closeBulkMessageModalBtn.addEventListener('click', () => hideModal(bulkMessageModal));
+
+// Listener per il pulsante di invio finale
+sendBulkMessageBtn.addEventListener('click', () => {
+    const subject = subjectInput.value;
+    const body = bodyInput.value;
+    const channel = channelInput.value;
+
+    if (!body.trim()) { return showToast('Il testo del messaggio non può essere vuoto.', 'error'); }
+    if (channel === 'email' && !subject.trim()) { return showToast('L\'oggetto dell\'email non può essere vuoto.', 'error'); }
+
+    const doSend = () => {
+        showLoading('send-bulk-message-btn', 'Invio in corso...');
+        const dataToSend = { recipients: bulkMessageRecipients, channel, subject, body };
+        google.script.run
+            .withSuccessHandler(response => {
+                hideLoading('send-bulk-message-btn');
+                hideModal(bulkMessageModal);
+                showToast(response.message, 'success');
+                document.querySelectorAll('.associate-item-checkbox:checked').forEach(c => c.checked = false);
+                updateBulkActionUI();
+            })
+            .withFailureHandler(err => {
+                hideLoading('send-bulk-message-btn');
+                showToast(`Errore: ${err.message}`, 'error');
+            })
+            .sendBulkMessages(dataToSend);
+    };
+
+    const saveAndSend = (templateName) => {
+        showLoading('send-bulk-message-btn', 'Salvataggio modello...');
+        google.script.run
+            .withSuccessHandler(response => {
+                hideLoading('send-bulk-message-btn');
+                showToast(response.message, 'success');
+                doSend(); // Invia solo dopo aver salvato
+            })
+            .withFailureHandler(err => {
+                hideLoading('send-bulk-message-btn');
+                showToast(err.message, 'error');
+            })
+            .saveOrUpdateTemplate(templateName, subject, body); // <-- Usa la nuova funzione
+    };
+
+    if (saveAsTemplateCheckbox.checked) {
+        showPromptModal('Salva Nuovo Modello', 'Nome del modello:', 'Es. Promemoria Quota', 'Salva e Invia',
+            (templateName) => {
+                const isExisting = availableTemplates.some(t => t.name.toLowerCase() === templateName.toLowerCase());
+                if (isExisting) {
+                    confirmActionBtn.className = 'button warning'; // Pulsante arancione
+                    showConfirmationModal(
+                        'Modello Esistente',
+                        `Un modello chiamato "${templateName}" esiste già. Vuoi sovrascriverlo?`,
+                        'Sovrascrivi e Invia',
+                        () => saveAndSend(templateName) // Se conferma, salva e invia
+                    );
+                } else {
+                    saveAndSend(templateName); // Se non esiste, salva e invia direttamente
+                }
+            }
+        );
+    } else {
+        doSend(); // Invia direttamente senza salvare
+    }
+});
+
+// Ripristina i comandi per i pulsanti della pagina Quote
+document.getElementById('add-quota-row-btn').addEventListener('click', addQuotaRow);
+document.getElementById('save-bulk-quotas-btn').addEventListener('click', saveAllQuotas);
+
+
+
+// Listener per il pulsante di chiusura del popup di modifica
+document.getElementById('close-edit-template-modal-btn').addEventListener('click', () => {
+    hideModal(editTemplateModal);
+});
+
+function addPaymentLine(container) {
+    const template = document.getElementById('payment-line-template');
+    const newRowNode = template.content.cloneNode(true);
+    const newRowElement = newRowNode.querySelector('.payment-line-row');
+    
+    const lastLine = container.querySelector('.payment-line-row:last-child');
+    if (lastLine) {
+        lastLine.querySelector('.add-payment-line-btn').classList.add('hidden');
+    }
+
+    container.appendChild(newRowNode);
+
+    if (container.children.length <= 1) {
+        newRowElement.querySelector('.remove-payment-line-btn').classList.add('hidden');
+    }
+
+    // --- INIZIO MODIFICA ---
+    // Aggiungiamo l'event listener al nuovo campo di importo parziale
+    const partialAmountInput = newRowElement.querySelector('.rimborso-partial-amount');
+    partialAmountInput.addEventListener('input', (e) => handlePartialAmountChange(e.target));
+    // --- FINE MODIFICA ---
+
+    newRowElement.querySelector('.add-payment-line-btn').addEventListener('click', (e) => {
+        addPaymentLine(container);
+        // Dopo aver aggiunto una nuova linea, ricalcoliamo per sicurezza
+        handlePartialAmountChange(e.currentTarget); 
+    });
+    
+    newRowElement.querySelector('.remove-payment-line-btn').addEventListener('click', (e) => {
+        const lineToRemove = e.currentTarget.closest('.payment-line-row');
+        const parentContainer = lineToRemove.parentElement;
+        lineToRemove.remove();
+        
+        const newLastLine = parentContainer.querySelector('.payment-line-row:last-child');
+        if (newLastLine) {
+            newLastLine.querySelector('.add-payment-line-btn').classList.remove('hidden');
+        }
+        // Dopo aver rimosso una linea, ricalcoliamo
+        handlePartialAmountChange(parentContainer.querySelector('.rimborso-partial-amount')); 
+    });
+
+    const paymentMethodSelect = newRowElement.querySelector('.rimborso-payment-method');
+    paymentMethodSelect.addEventListener('change', e => {
+        if (e.target.value === 'add-new') {
+            activePaymentMethodSelect = e.target;
+            document.getElementById('new-payment-method-input').value = '';
+            showModal(newPaymentMethodModal);
+        }
+    });
+}
+
+function handlePartialAmountChange(changedInput) {
+    const formInstance = changedInput.closest('.reimbursement-form-instance');
+    if (!formInstance) return;
+
+    const grossAmountInput = formInstance.querySelector('.rimborso-amount');
+    const grossAmount = parseFloat(grossAmountInput.value) || 0;
+    
+    const allPartialInputs = Array.from(formInstance.querySelectorAll('.rimborso-partial-amount'));
+    const warningDiv = formInstance.querySelector('#payment-total-mismatch-warning');
+
+    // Logica di auto-completamento: si attiva solo se c'è un importo lordo e ci sono esattamente 2 righe di pagamento
+    if (grossAmount > 0 && allPartialInputs.length === 2 && allPartialInputs.includes(changedInput)) {
+        const otherInput = allPartialInputs.find(input => input !== changedInput);
+        if (otherInput) {
+            const changedValue = parseFloat(changedInput.value) || 0;
+            const remaining = grossAmount - changedValue;
+            
+            // Aggiorna il secondo campo solo se il risultato non è negativo
+            if (remaining >= 0) {
+                otherInput.value = remaining.toFixed(2);
+            }
+        }
+    }
+
+    // Logica di avviso: controlla sempre se la somma dei parziali corrisponde al totale
+    let sumOfPartials = 0;
+    allPartialInputs.forEach(input => {
+        sumOfPartials += parseFloat(input.value) || 0;
+    });
+
+    if (sumOfPartials > 0 && sumOfPartials.toFixed(2) !== grossAmount.toFixed(2)) {
+        warningDiv.classList.remove('hidden');
+    } else {
+        warningDiv.classList.add('hidden');
+    }
+}
+
+// ===================================================================
+// NUOVE FUNZIONI PER L'IMPORTAZIONE ASSOCIATI
+// ===================================================================
+
+/**
+ * @version 1.0 - Inizia il processo di importazione file per gli associati.
+ * Attiva il selettore di Google Drive.
+ */
+function startAssociateImport() {
+  if (!app.pickerLoaded) {
+    showToast('Il selettore di file non è ancora pronto. Riprova tra un istante.', 'error');
+    return;
+  }
+  showToast('Apertura selettore file...', 'info');
+  // Chiama il server per ottenere il token OAuth e poi crea il picker
+  google.script.run
+    .withSuccessHandler(createFilePicker)
+    .withFailureHandler(err => {
+      showToast(`Errore Picker: ${err.message}`, 'error');
+    })
+    .getOAuthToken();
+}
+
+/**
+ * @version 1.2 - Aggiunge il supporto per i file .ods (OpenDocument Spreadsheet).
+ * @v_note Aggiunto il MIME type per i file .ods alla lista dei file visibili nel picker.
+ */
+function createFilePicker(oauthToken) {
+  const view = new google.picker.DocsView();
+  
+  // --- INIZIO MODIFICA ---
+  // Aggiungiamo il MIME type per i file .ods alla lista
+  view.setMimeTypes("application/vnd.google-apps.spreadsheet,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,application/vnd.oasis.opendocument.spreadsheet");
+  // --- FINE MODIFICA ---
+  
+  view.setIncludeFolders(true);
+  view.setSelectFolderEnabled(false);
+
+  const picker = new google.picker.PickerBuilder()
+    .addView(view)
+    .setOAuthToken(oauthToken)
+    .setOrigin(google.script.host.origin)
+    .setCallback(filePickerCallback)
+    .setTitle("Seleziona il file con l'elenco degli associati")
+    .build();
+  picker.setVisible(true);
+}
+
+/**
+ * @version 1.5 - Implementa il flusso integrato di importazione e risoluzione conflitti.
+ * @v_note La risoluzione dei conflitti viene avviata automaticamente dopo l'importazione.
+ */
+function filePickerCallback(data) {
+  if (data.action === google.picker.Action.PICKED) {
+    const file = data.docs[0];
+    const fileId = file.id;
+    showToast(`File "${file.name}" selezionato. Avvio analisi...`, 'info', 5000);
+    showLoading('import-associates-btn', 'Analisi in corso...');
+
+    google.script.run
+      .withSuccessHandler(response => {
+        hideLoading('import-associates-btn');
+        if (!response.success) {
+          showToast(response.message || 'Errore non specificato.', 'error');
+          return;
+        }
+
+        const piani = response.piani;
+        const message = `Analisi del file "${response.fileName}" completata.\n\n` +
+                        `✅ ${piani.daAggiungere.length} nuovi associati da AGGIUNGERE.\n` +
+                        `🔄 ${piani.daAggiornare.length} associati esistenti da AGGIORNARE.\n` +
+                        `⚠️ ${piani.conflitti.length} CONFLITTI trovati.\n\n` +
+                        `Vuoi procedere con l'importazione dei dati non conflittuali?`;
+
+        // Rimuoviamo il pulsante separato, non serve più
+        document.getElementById('resolve-conflicts-btn').classList.add('hidden');
+
+        confirmActionBtn.className = 'button';
+        showConfirmationModal('Piano di Importazione', message, 'Procedi', () => {
+              showToast('Importazione dati non conflittuali in corso...', 'info', 10000);
+              google.script.run
+                .withSuccessHandler(importResult => {
+                  showToast(importResult.message, 'success', 6000);
+                  loadInitialAppData(); // Aggiorna la lista associati in background
+
+                  // --- NUOVO FLUSSO INTEGRATO ---
+                  if (piani.conflitti && piani.conflitti.length > 0) {
+                    setTimeout(() => { // Diamo tempo al toast di essere visto
+                      app.conflittiDaRisolvere = piani.conflitti;
+                      startConflictResolution(); // Avvia la risoluzione
+                    }, 1500); 
+                  }
+                })
+                .withFailureHandler(err => {
+                  showToast(`ERRORE: ${err.message}`, 'error', 10000);
+                })
+                .executeImport(piani);
+            }
+        );
+      })
+      .withFailureHandler(err => {
+        hideLoading('import-associates-btn');
+        showToast(`Errore durante l'analisi: ${err.message}`, 'error', 6000);
+      })
+      .processImportFile(fileId);
+
+  } else if (data.action === google.picker.Action.CANCEL) {
+    showToast('Selezione file annullata.', 'info');
+  }
+}
+
+// --- LOGICA DI GESTIONE TEMPLATE (COMPLETA E OTTIMISTICA) ---
+
+function loadAndDisplayTemplates() {
+    const listDiv = document.getElementById('template-list');
+    if (!listDiv) return;
+    showLoading('template-list');
+    google.script.run
+        .withSuccessHandler(templates => {
+            hideLoading('template-list');
+            app.availableTemplates = templates;
+            listDiv.innerHTML = '';
+            if (templates.length === 0) {
+                listDiv.innerHTML = '<p class="no-data-message">Nessun modello salvato.</p>';
+                return;
+            }
+            templates.forEach(t => {
+                const item = document.createElement('div');
+                item.className = 'list-item';
+                item.setAttribute('data-template-name', t.name);
+                item.innerHTML = `
+                    <div class="list-item-content">
+                        <h4>${t.name}</h4>
+                        <p><strong>Oggetto:</strong> ${t.subject || '<em>Nessuno</em>'}</p>
+                    </div>
+                    <div class="list-controls">
+                        <button class="edit-template-btn" title="Modifica"><span class="material-icons">edit</span></button>
+                        <button class="delete-template-btn" title="Elimina"><span class="material-icons">delete</span></button>
+                    </div>`;
+                item.querySelector('.edit-template-btn').addEventListener('click', () => editTemplate(t.name));
+                item.querySelector('.delete-template-btn').addEventListener('click', () => confirmDeleteTemplate(t.name));
+                listDiv.appendChild(item);
+            });
+        })
+        .withFailureHandler(err => {
+            listDiv.innerHTML = '<p class="no-data-message">Errore nel caricare i modelli.</p>';
+        })
+        .getTemplates();
+}
+
+function editTemplate(templateName) {
+    const templateData = app.availableTemplates.find(t => t.name === templateName);
+    if (templateData) {
+        document.getElementById('template-form-title').textContent = 'Modifica Template';
+        document.getElementById('original-template-name').value = templateData.name;
+        document.getElementById('template-name').value = templateData.name;
+        document.getElementById('template-subject').value = templateData.subject;
+        document.getElementById('template-body').value = templateData.body;
+        document.getElementById('save-template-btn').textContent = 'Salva Modifiche';
+        document.getElementById('cancel-edit-template-btn').classList.remove('hidden');
+        document.querySelector('#edit-template-modal .modal-content').scrollTop = 0;
+    }
+}
+
+function handleTemplateSave(event) {
+    event.preventDefault();
+    const originalName = document.getElementById('original-template-name').value;
+    const newName = document.getElementById('template-name').value.trim();
+    const newSubject = document.getElementById('template-subject').value;
+    const newBody = document.getElementById('template-body').value;
+
+    if (!newName) { return showToast('Il nome del modello non può essere vuoto.', 'error'); }
+
+    showLoading('save-template-btn');
+
+    const handleSuccess = (response) => {
+        hideLoading('save-template-btn');
+        showToast(response.message, 'success');
+        document.getElementById('template-form').reset();
+        document.getElementById('original-template-name').value = '';
+        document.getElementById('template-form-title').textContent = 'Crea Nuovo Template';
+        document.getElementById('save-template-btn').textContent = 'Salva Nuovo Template';
+        document.getElementById('cancel-edit-template-btn').classList.add('hidden');
+        loadAndDisplayTemplates(); 
+    };
+    const handleFailure = (err) => {
+        hideLoading('save-template-btn');
+        showToast(err.message, 'error');
+    };
+
+    if (originalName) { // Modalità modifica
+        google.script.run.withSuccessHandler(handleSuccess).withFailureHandler(handleFailure).updateTemplate(originalName, newName, newSubject, newBody);
+    } else { // Modalità creazione
+        google.script.run.withSuccessHandler(handleSuccess).withFailureHandler(handleFailure).saveOrUpdateTemplate(newName, newSubject, newBody);
+    }
+}
+
+function confirmDeleteTemplate(templateName) {
+    showConfirmationModal('Conferma Eliminazione', `Sei sicuro di voler eliminare il modello "${templateName}"?`, 'Elimina', () => {
+        const itemToRemove = document.querySelector(`.list-item[data-template-name="${templateName}"]`);
+        if (itemToRemove) itemToRemove.remove();
+        
+        google.script.run
+            .withSuccessHandler(response => showToast(response.message, 'success'))
+            .withFailureHandler(err => {
+                showToast(err.message, 'error');
+                loadAndDisplayTemplates();
+            })
+            .deleteTemplate(templateName);
+    });
+}
+
+// ===================================================================
+// NUOVE FUNZIONI PER LA RISOLUZIONE DEI CONFLITTI (VERSIONE FINALE)
+// ===================================================================
+
+app.conflittiDaRisolvere = [];
+
+function startConflictResolution() {
+  const modal = document.getElementById('conflict-resolution-modal');
+  showModal(modal);
+  displayNextConflict();
+}
+
+function displayNextConflict() {
+  const container = document.getElementById('conflict-cards-container');
+  const modalTitle = document.getElementById('conflict-modal-title');
+
+  if (app.conflittiDaRisolvere.length === 0) {
+    showToast('Tutti i conflitti sono stati risolti!', 'success');
+    hideModal(document.getElementById('conflict-resolution-modal'));
+    return;
+  }
+
+  const conflict = app.conflittiDaRisolvere.shift();
+  modalTitle.textContent = `Risoluzione Conflitti (${app.conflittiDaRisolvere.length + 1} rimanenti)`;
+  container.innerHTML = ''; 
+
+  const template = document.getElementById('conflict-card-template');
+  const card = template.content.cloneNode(true);
+  const cardTitle = card.querySelector('.form-section-title');
+  const table = card.querySelector('.conflict-table');
+  
+  cardTitle.textContent = `Associato: ${conflict.importato.nome} ${conflict.importato.cognome}`;
+
+  const fieldsToShow = ['email', 'telefono', 'codiceFiscale', 'indirizzo'];
+
+  fieldsToShow.forEach(field => {
+    const row = document.createElement('div');
+    row.classList.add('conflict-row');
+    const isConflictField = conflict.conflitti.includes(field);
+    if (isConflictField) row.classList.add('is-conflict');
+
+    const valEsistente = conflict.esistente[field] || '<em>-- Vuoto --</em>';
+    const valImportato = conflict.importato[field] || '<em>-- Vuoto --</em>';
+    
+    let actionHtml = '<em>OK</em>';
+    if(isConflictField){
+      actionHtml = `
+        <label style="display: block; cursor: pointer;"><input type="radio" name="${field}" value="esistente" checked> Mantieni</label>
+        <label style="display: block; cursor: pointer;"><input type="radio" name="${field}" value="importato"> Usa Nuovo</label>
+      `;
+    }
+
+    row.innerHTML = `<div>${field.charAt(0).toUpperCase() + field.slice(1)}</div><div>${valEsistente}</div><div>${valImportato}</div><div>${actionHtml}</div>`;
+    table.appendChild(row);
+  });
+  
+  container.appendChild(card);
+
+  container.querySelector('.skip-conflict-btn').addEventListener('click', () => displayNextConflict());
+  container.querySelector('.keep-original-btn').addEventListener('click', () => handleConflictResolution(conflict, 'esistente'));
+  container.querySelector('.save-resolution-btn').addEventListener('click', () => handleConflictResolution(conflict, 'scelta'));
+}
+
+function handleConflictResolution(conflict, mode) {
+  let resolution = {
+    nome: conflict.importato.nome,
+    cognome: conflict.importato.cognome,
+    scelte: {},
+    valoriImportati: {}
+  };
+
+  if (mode === 'esistente') {
+    conflict.conflitti.forEach(field => {
+      resolution.scelte[field] = 'esistente';
+    });
+  } else { // mode === 'scelta'
+    conflict.conflitti.forEach(field => {
+      const choice = document.querySelector(`input[name="${field}"]:checked`).value;
+      resolution.scelte[field] = choice;
+      if (choice === 'importato') {
+        resolution.valoriImportati[field] = conflict.importato[field];
+      }
+    });
+  }
+
+  // Chiamata ottimistica: l'UI si aggiorna subito, il server salva in background
+  google.script.run
+    .withFailureHandler(err => {
+      console.error(`Salvataggio fallito per ${resolution.nome}:`, err);
+      showToast(`Salvataggio per ${resolution.nome} fallito in background.`, 'error');
+    })
+    .resolveConflict(resolution);
+
+  displayNextConflict();
+}
+
+// --- LOGICA PER LA RISOLUZIONE DEI DUPLICATI ---
+
+// Funzione principale che avvia il processo
+function startDuplicateResolutionProcess() {
+  showToast('Analisi dei duplicati in corso...', 'info');
+
+  const btn = document.getElementById('compact-duplicates-btn');
+  // Usiamo un piccolo trucco per mostrare il caricamento sull'icona
+  const icon = btn.querySelector('.icon');
+  const originalIcon = icon.textContent;
+  icon.innerHTML = `<div class="loading-spinner" style="width:20px; height:20px;"></div>`;
+
+  google.script.run
+    .withSuccessHandler(resolutionPlans => {
+      icon.textContent = originalIcon; // Ripristina l'icona
+      if (resolutionPlans && resolutionPlans.length > 0) {
+        app.duplicateResolutionPlans = resolutionPlans;
+        showToast(`Trovati ${resolutionPlans.length} duplicati da risolvere.`, 'success');
+        displayNextDuplicate(); // Mostra il primo duplicato
+      } else {
+        showToast('Nessun duplicato trovato. Ottimo lavoro!', 'success');
+      }
+    })
+    .withFailureHandler(err => {
+      icon.textContent = originalIcon; // Ripristina l'icona in caso di errore
+      showToast(`Errore durante l'analisi: ${err.message}`, 'error');
+    })
+    .findDuplicateAssociates();
+}
+
+/**
+ * @version 1.1 - Aggiunge la logica per la risoluzione e il salvataggio.
+ * @v_note Collega il pulsante "Applica Unione" alla funzione executeMerge lato server.
+ */
+function displayNextDuplicate() {
+  const modal = document.getElementById('duplicate-resolution-modal');
+  const container = document.getElementById('duplicate-cards-container');
+  const modalTitle = document.getElementById('duplicate-modal-title');
+
+  if (app.duplicateResolutionPlans.length === 0) {
+    showToast('Tutti i duplicati sono stati risolti!', 'success');
+    hideModal(modal);
+    loadInitialAppData(); // Ricarica la lista associati per mostrare i dati puliti
+    return;
+  }
+
+  showModal(modal);
+  const plan = app.duplicateResolutionPlans[0];
+  modalTitle.textContent = `Risoluzione Duplicato (${app.duplicateResolutionPlans.length} rimanenti)`;
+  container.innerHTML = '';
+
+  const template = document.getElementById('duplicate-card-template');
+  const card = template.content.cloneNode(true);
+  
+  card.querySelector('.form-section-title').textContent = `Associato: ${plan.fullName}`;
+  const table = card.querySelector('.conflict-table');
+
+  // Gestione fusioni automatiche
+  plan.merges.forEach(merge => {
+    const row = document.createElement('div');
+    row.className = 'conflict-row is-merge';
+    row.innerHTML = `
+        <div>${merge.field}</div>
+        <div><em>-- Vuoto --</em></div>
+        <div>${merge.value}</div>
+        <div>✅ <strong>Verrà aggiunto</strong></div>
+    `;
+    table.appendChild(row);
+  });
+
+  // Gestione conflitti manuali
+  plan.conflicts.forEach(conflict => {
+    const row = document.createElement('div');
+    row.className = 'conflict-row is-conflict';
+    row.innerHTML = `
+      <div>${conflict.field}</div>
+      <div>${conflict.masterValue}</div>
+      <div>${conflict.duplicateValue}</div>
+      <td>
+        <label><input type="radio" name="${conflict.field}" value="master" checked> Mantieni</label>
+        <label><input type="radio" name="${conflict.field}" value="duplicate"> Usa questo</label>
+      </td>
+    `;
+    table.appendChild(row);
+  });
+  
+  container.appendChild(card);
+  
+  // --- INIZIO COLLEGAMENTO FINALE ---
+  container.querySelector('.skip-conflict-btn').addEventListener('click', () => {
+      app.duplicateResolutionPlans.shift();
+      displayNextDuplicate();
+  });
+  
+  container.querySelector('#resolve-merge-btn').addEventListener('click', (e) => {
+      const updates = [];
+      // Raccoglie le fusioni automatiche
+      plan.merges.forEach(merge => {
+          updates.push({ field: merge.field, value: merge.value });
+      });
+      // Raccoglie le scelte manuali per i conflitti
+      plan.conflicts.forEach(conflict => {
+          const choice = document.querySelector(`input[name="${conflict.field}"]:checked`).value;
+          if (choice === 'duplicate') {
+              updates.push({ field: conflict.field, value: conflict.duplicateValue });
+          }
+      });
+
+      const finalPlan = {
+          fullName: plan.fullName,
+          master: plan.master,
+          duplicate: plan.duplicate,
+          updates: updates
+      };
+
+      showLoading('resolve-merge-btn', 'Unione...');
+      google.script.run
+          .withSuccessHandler(response => {
+              hideLoading('resolve-merge-btn');
+              showToast(response.message, 'success');
+              app.duplicateResolutionPlans.shift(); // Rimuove il duplicato appena risolto
+              displayNextDuplicate(); // Mostra il successivo
+          })
+          .withFailureHandler(err => {
+              hideLoading('resolve-merge-btn');
+              showToast(`Errore: ${err.message}`, 'error');
+          })
+          .executeMerge(finalPlan);
+  });
+  // --- FINE COLLEGAMENTO FINALE ---
+  
+  document.getElementById('close-duplicate-modal-btn').addEventListener('click', () => hideModal(modal));
+}
+
+  </script>
+<script async defer src="https://apis.google.com/js/api.js"></script>
+
+<div id="conflict-resolution-modal" class="modal-overlay">
+  <div class="modal-content" style="max-width: 95%; width: 700px;">
+    <div class="modal-header">
+      <h3 id="conflict-modal-title">Risoluzione Conflitti</h3>
+      <button class="modal-close-button" id="close-conflict-modal-btn">&times;</button>
+    </div>
+    <div class="modal-body" id="conflict-cards-container">
+      <div class="loading-indicator">
+        <div class="loading-spinner"></div> Caricamento conflitti...
+      </div>
+    </div>
+  </div>
+</div>
+
+<template id="conflict-card-template">
+  <div class="conflict-card">
+    <h4 class="form-section-title" style="margin-top: 0;"></h4>
+    <div class="conflict-table">
+      <div class="conflict-header">
+        <div>Campo</div>
+        <div>Dati Attuali nel Database</div>
+        <div>Dati Importati dal File</div>
+        <div>Azione</div>
+      </div>
+      </div>
+    <div class="button-group" style="margin-top: 25px;">
+      <button class="button secondary skip-conflict-btn">Ignora per Ora</button>
+      <button class="button danger keep-original-btn">Mantieni Originale</button>
+      <button class="button save-resolution-btn">Salva e Prosegui</button>
+    </div>
+  </div>
+</template>
+
+<style>
+  .conflict-table {
+    display: table;
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .conflict-header, .conflict-row {
+    display: table-row;
+  }
+  .conflict-header > div, .conflict-row > div {
+    display: table-cell;
+    padding: 10px;
+    border-bottom: 1px solid var(--border-color);
+    vertical-align: middle;
+  }
+  .conflict-header > div {
+    font-weight: 600;
+    background-color: #f9f9f9;
+  }
+  .conflict-row > div:nth-child(1) {
+    font-weight: 500;
+    width: 20%;
+  }
+.conflict-row > div:nth-child(2),
+  .conflict-row > div:nth-child(3) { /* <-- CORRETTO */
+    width: 35%;
+  }
+  .conflict-row > div:nth-child(4) {
+    width: 10%;
+    text-align: center;
+  }
+  .conflict-row.is-conflict {
+    background-color: #fff3e0; /* Evidenzia le righe con conflitti */
+  }
+  .conflict-row.is-conflict > div:nth-child(1) {
+    color: var(--primary-orange-dark);
+  }
+</style>
+
+</body>
+</html>

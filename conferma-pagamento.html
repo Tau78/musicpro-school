@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <base target="_top">
+    <title>Reindirizzamento...</title>
+    <script>
+        (function () {
+            var m = /[?&]idIscrizione=([^&]*)/.exec(window.location.search);
+            var id = m ? decodeURIComponent(m[1].replace(/\+/g, ' ')) : '';
+            var base = window.location.href.split('?')[0];
+            var params = new URLSearchParams(window.location.search);
+            params.set('page', 'iscrizione');
+            if (id) {
+                window.location.replace(base + '?' + params.toString());
+                return;
+            }
+        })();
+    </script>
+    <style>
+        body { font-family: system-ui, sans-serif; text-align: center; padding: 48px 20px; color: #555; }
+        a { color: #d35400; }
+    </style>
+</head>
+<body>
+    <p>Reindirizzamento al modulo di iscrizione...</p>
+    <p><a href="?page=iscrizione">Clicca qui se non vieni reindirizzato</a></p>
+</body>
+</html>

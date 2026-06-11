@@ -1,0 +1,10 @@
+**/**
+!**/*.js
+!**/*.html
+!**/*.json
+deploy-iscrizione.js
+node_modules/**
+.env
+.env.*
+.git/**
+.deploy-iscrizione/**

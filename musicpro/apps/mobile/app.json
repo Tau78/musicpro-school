@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "MusicPro School",
+    "slug": "musicpro-school",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "musicpro",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "it.musicproeventi.school"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#1e3a5f"
+      },
+      "package": "it.musicproeventi.school"
+    },
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

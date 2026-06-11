@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Accesso Area Associato</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary-orange: #FF5722;
+      --primary-orange-dark: #E64A19;
+      --accent-orange: #FFAB91;
+      --text-dark: #333;
+      --text-light: #f4f4f4;
+      --bg-light: #f4f4f4;
+      --border-color: #ddd;
+      --success-color: #4CAF50;
+      --error-color: #F44336;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Poppins', sans-serif;
+    }
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      background-color: var(--bg-light);
+      padding: 20px;
+    }
+    .login-container {
+      background-color: #fff;
+      padding: 30px 40px;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+      width: 100%;
+      max-width: 500px;
+      text-align: center;
+    }
+    h2 {
+      color: var(--primary-orange-dark);
+      margin-bottom: 15px;
+    }
+    p {
+      color: #666;
+      margin-bottom: 30px;
+    }
+    input {
+      width: 100%;
+      padding: 14px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      font-size: 1em;
+      margin-bottom: 20px;
+    }
+    input:focus {
+      outline: none;
+      border-color: var(--primary-orange);
+      box-shadow: 0 0 0 3px var(--accent-orange);
+    }
+    .button {
+      display: block;
+      width: 100%;
+      padding: 14px;
+      background-color: var(--primary-orange);
+      color: var(--text-light);
+      border: none;
+      border-radius: 8px;
+      font-size: 1.1em;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    .button:hover {
+      background-color: var(--primary-orange-dark);
+    }
+    .button:disabled {
+        background-color: #ccc;
+        cursor: not-allowed;
+    }
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: var(--text-dark);
+      color: var(--text-light);
+      padding: 12px 20px;
+      border-radius: 8px;
+      opacity: 0;
+      transition: opacity 0.3s;
+      z-index: 100;
+    }
+    .toast.show { opacity: 1; }
+    .toast.success { background-color: var(--success-color); }
+    .toast.error { background-color: var(--error-color); }
+  </style>
+</head>
+<body>
+
+  <div class="login-container">
+    <h2>Area Riservata Associato</h2>
+    <p>Inserisci la tua email, il tuo codice fiscale oppure nome e cognome per ricevere il link di accesso.</p>
+    <form id="login-form">
+      <input type="text" id="login-identifier" placeholder="Email, Codice Fiscale o Nome Cognome" required>
+      <button type="submit" id="submit-btn" class="button">Invia Link di Accesso</button>
+    </form>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script>
+    const form = document.getElementById('login-form');
+    const submitBtn = document.getElementById('submit-btn');
+    const identifierInput = document.getElementById('login-identifier');
+    const toast = document.getElementById('toast');
+
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      const identifier = identifierInput.value.trim();
+      if (!identifier) return;
+
+      submitBtn.textContent = 'Invio in corso...';
+      submitBtn.disabled = true;
+
+      google.script.run
+        .withSuccessHandler(response => {
+          showToast(response.message, 'success');
+          identifierInput.value = ''; // Pulisce l'input
+          submitBtn.textContent = 'Invia Link di Accesso';
+          submitBtn.disabled = false;
+        })
+        .withFailureHandler(error => {
+          showToast(error.message, 'error');
+          submitBtn.textContent = 'Invia Link di Accesso';
+          submitBtn.disabled = false;
+        })
+        // La funzione 'processLoginRequest' la creeremo nel prossimo passaggio
+        .processLoginRequest(identifier); 
+    });
+
+    function showToast(message, type) {
+        toast.textContent = message;
+        toast.className = 'toast show ' + type;
+        setTimeout(() => { toast.className = 'toast ' + type; }, 3000);
+    }
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        body { font-family: 'Roboto', sans-serif; background-color: #f4f4f9; padding: 0; margin: 0; }
+        .site-header { background: #fff; padding: 20px; text-align: center; border-bottom: 1px solid #e8e8e8; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
+        .site-header img { max-width: 320px; width: min(100%, 320px); height: auto; display: inline-block; }
+        .page-wrap { padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h2 { color: #d35400; text-align: center; margin-bottom: 5px; margin-top: 0; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: 500; color: #333; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        .section-title { margin-top: 25px; margin-bottom: 15px; border-bottom: 2px solid #eee; padding-bottom: 5px; color: #d35400; font-weight: bold;}
+        .signature-wrapper { border: 2px dashed #ccc; background: #fff; border-radius: 4px; position: relative; height: 180px; }
+        canvas { width: 100%; height: 100%; display: block; cursor: crosshair; }
+        .clear-btn { position: absolute; top: 5px; right: 5px; background: #eee; border: none; padding: 5px 10px; cursor: pointer; font-size: 0.8em; border-radius: 3px;}
+        button.submit-btn { width: 100%; padding: 15px; background-color: #d35400; color: white; border: none; border-radius: 4px; font-size: 1.1em; cursor: pointer; margin-top: 20px; font-weight: bold; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        .hidden { display: none; }
+        .pay-info { background: #fff8e1; border: 1px solid #ffe082; border-radius: 4px; padding: 14px; font-size: 0.92em; color: #5d4037; }
+        .pay-info strong { color: #d35400; }
+        .rinnovo-banner { background: #e3f2fd; border: 1px solid #90caf9; color: #1565c0; padding: 14px; border-radius: 4px; margin-bottom: 16px; font-size: 0.95em; }
+        .gia-associato-box { background: #fafafa; border: 1px solid #ddd; border-radius: 4px; padding: 16px; margin-bottom: 24px; }
+        .link-btn { background: none; border: none; color: #d35400; cursor: pointer; text-decoration: underline; padding: 0; font-size: inherit; }
+        .secondary-btn { width: 100%; padding: 12px; background: #fff; color: #d35400; border: 2px solid #d35400; border-radius: 4px; font-size: 1em; cursor: pointer; margin-top: 10px; font-weight: bold; }
+        .nuovo-associato-hint { text-align: center; color: #555; font-size: 0.95em; font-weight: 500; margin: 8px 0 20px; padding: 12px 0; border-top: 1px solid #eee; }
+        .nuovo-associato-hint strong { color: #d35400; display: block; margin-bottom: 4px; font-size: 1.02em; }
+        .site-footer { text-align: center; padding: 16px 20px 28px; color: #999; font-size: 0.78em; letter-spacing: 0.02em; }
+    </style>
+</head>
+<body>
+
+<header class="site-header">
+    <img src="/assets/music-pro-logo.png" alt="Music Pro — Associazione Culturale">
+</header>
+
+<div class="page-wrap">
+<div class="container" id="main-form">
+    <h2>Domanda di Iscrizione</h2>
+    <p style="text-align:center; margin-top:0; color:#666;">Associazione Culturale M.P. - MusicPro</p>
+
+    <div id="rinnovo-banner" class="rinnovo-banner hidden">
+        <strong>Rinnovo quota associativa.</strong> Verifica o aggiorna i tuoi dati, firma e procedi al pagamento.
+    </div>
+
+    <div class="gia-associato-box" id="gia-associato-box">
+        <div class="section-title" style="margin-top:0;">Sei già associato?</div>
+        <p style="font-size:0.92em; color:#555; margin-top:0;">
+            Inserisci la tua email o il codice fiscale: ti invieremo un link personalizzato per aggiornare i dati e pagare la quota.
+        </p>
+        <div class="form-group" style="margin-bottom:10px;">
+            <input type="text" id="link-identifier" placeholder="Email o Codice Fiscale">
+        </div>
+        <button type="button" class="secondary-btn" id="btn-richiedi-link">INVIA LINK PERSONALIZZATO</button>
+    </div>
+
+    <p class="nuovo-associato-hint" id="nuovo-associato-hint">
+        <strong>Non sei ancora associato?</strong>
+        Compila il form qua sotto
+    </p>
+
+    <form id="membershipForm">
+        <div class="section-title">Dati Socio</div>
+        <div class="form-group">
+            <label>Nome *</label>
+            <input type="text" name="nome" required>
+        </div>
+        <div class="form-group">
+            <label>Cognome *</label>
+            <input type="text" name="cognome" required>
+        </div>
+
+        <div class="form-group" style="display:flex; gap:10px;">
+            <div style="flex:2;"><label>Nato a (Citt&agrave;) *</label><input type="text" name="luogo_nascita" required></div>
+            <div style="flex:0.6;"><label>Prov. *</label><input type="text" name="prov_nascita" maxlength="2" style="text-transform:uppercase;" required></div>
+            <div style="flex:1;"><label>Il (Data) *</label><input type="date" name="data_nascita" id="data_nascita" required></div>
+        </div>
+
+        <div id="guardian-section" class="hidden" style="background:#fff3e0; padding:15px; border-radius:4px; margin-bottom:15px;">
+            <p style="color:#e65100; font-weight:bold; margin-top:0;">Dati Genitore/Tutore (Obbligatori per minorenni)</p>
+            <div style="display:flex; gap:10px; margin-bottom:15px;">
+                <div style="flex:1;"><label>Nome Genitore *</label><input type="text" name="tutore_nome"></div>
+                <div style="flex:1;"><label>Cognome Genitore *</label><input type="text" name="tutore_cognome"></div>
+            </div>
+            <div class="form-group">
+                <label>Codice Fiscale Genitore *</label>
+                <input type="text" name="tutore_cf" style="text-transform: uppercase;">
+            </div>
+            <div style="display:flex; gap:10px;">
+                <div style="flex:1;"><label>Telefono Genitore *</label><input type="tel" name="tutore_telefono"></div>
+                <div style="flex:1;"><label>Email Genitore *</label><input type="email" name="tutore_email"></div>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Codice Fiscale *</label>
+            <input type="text" name="cf" required style="text-transform: uppercase;">
+        </div>
+
+        <div class="section-title">Residenza e Contatti</div>
+        <div class="form-group"><label>Indirizzo *</label><input type="text" name="indirizzo" required></div>
+        <div class="form-group" style="display:flex; gap:10px;">
+            <div style="flex:1;"><label>CAP *</label><input type="text" name="cap" required></div>
+            <div style="flex:2;"><label>Citt&agrave; *</label><input type="text" name="citta" required></div>
+            <div style="flex:0.6;"><label>Prov *</label><input type="text" name="prov" maxlength="2" style="text-transform:uppercase;" required></div>
+        </div>
+        <div class="form-group"><label>Email *</label><input type="email" name="email" required></div>
+        <div class="form-group"><label>Cellulare *</label><input type="tel" name="telefono" required></div>
+        <div class="form-group"><label>Corso di interesse</label><input type="text" name="corso" placeholder="Es. Canto, Chitarra..."></div>
+
+        <div class="section-title">Firma Digitale</div>
+        <div class="form-group">
+            <label style="font-size:0.9em; display:flex; align-items:flex-start; gap:10px;">
+                <input type="checkbox" id="privacy-check" required style="width:auto; margin-top:3px;">
+                <span>Accetto lo statuto e dichiaro di aver letto l'<a href="http://www.musicproeventi.it/gdpr.pdf" target="_blank">Informativa Privacy</a>.</span>
+            </label>
+        </div>
+        <div class="signature-wrapper" id="sig-wrap">
+            <canvas id="signature-pad"></canvas>
+            <button type="button" class="clear-btn" id="clear-signature">Cancella</button>
+        </div>
+        <div id="sig-error" style="color:red; display:none; font-size:0.8em;">Firma obbligatoria.</div>
+
+        <div class="section-title">Pagamento Quota Associativa</div>
+        <div class="pay-info">
+            Quota annuale: <strong>&euro; 15,00</strong>.<br>
+            Compila il modulo, firma e paga con carta di credito.<br>
+            Al termine riceverai conferma e il PDF via email.
+        </div>
+
+        <button type="submit" class="submit-btn" id="submitBtn">PROCEDI AL PAGAMENTO</button>
+    </form>
+</div>
+</div>
+
+<footer class="site-footer">v__ISCRIZIONE_VERSION__ &middot; __ISCRIZIONE_DATE__</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
+<script>
+    var canvas = document.getElementById('signature-pad');
+    var signaturePad = new SignaturePad(canvas, { backgroundColor: 'rgba(255, 255, 255, 0)' });
+    var API_URL = '/api.php';
+    var isRinnovoAssociato = false;
+
+    function gasApiGet(op, params) {
+        params = params || {};
+        var qs = 'op=' + encodeURIComponent(op);
+        if (params.idIscrizione) qs += '&idIscrizione=' + encodeURIComponent(params.idIscrizione);
+        if (params.token) qs += '&token=' + encodeURIComponent(params.token);
+        return fetch(API_URL + '?' + qs)
+            .then(function(res) { return res.text(); })
+            .then(function(text) {
+                try { return JSON.parse(text); }
+                catch (e) { throw new Error(text || 'Risposta non valida dal server'); }
+            });
+    }
+
+    function gasApiPost(payload) {
+        return fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        })
+            .then(function(res) { return res.text(); })
+            .then(function(text) {
+                try { return JSON.parse(text); }
+                catch (e) { throw new Error(text || 'Risposta non valida dal server'); }
+            });
+    }
+
+    function qp(name) {
+        var m = new RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+        return m ? decodeURIComponent(m[1].replace(/\+/g, ' ')) : '';
+    }
+
+    function showLoading(title, html) {
+        Swal.fire({
+            title: title,
+            html: html,
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            didOpen: function() { Swal.showLoading(); }
+        });
+    }
+
+    function showFinaleOk(nome) {
+        Swal.fire({
+            icon: 'success',
+            title: 'Pagamento confermato',
+            html: '<strong>Iscrizione inviata!</strong><br><br>Grazie ' + (nome || '') + '.<br>Riceverai il modulo PDF via email entro pochi minuti.<br><small>Controlla anche lo spam.</small>',
+            confirmButtonText: 'OK',
+            confirmButtonColor: '#d35400'
+        }).then(function() {
+            window.location.href = window.location.pathname;
+        });
+    }
+
+    function inviaIscrizioneAutomatica(id, nome) {
+        showLoading('Pagamento confermato', 'Invio iscrizione in corso...');
+        return gasApiPost({ action: 'completaInvioIscrizione', idIscrizione: id })
+            .then(function(res) {
+                if (res && res.success === false) throw new Error(res.message || 'Invio non riuscito.');
+                showFinaleOk((res && res.name) ? res.name : nome);
+            });
+    }
+
+    function pollERinvia(id, nome, attempt) {
+        gasApiGet('sincronizzaPagamento', { idIscrizione: id })
+            .then(function(res) {
+                if (res && res.inviata) {
+                    showFinaleOk(res.nome || nome);
+                    return;
+                }
+                if (res && res.pagato) {
+                    inviaIscrizioneAutomatica(id, res.nome || nome);
+                    return;
+                }
+                if (attempt < 24) {
+                    setTimeout(function() { pollERinvia(id, nome, attempt + 1); }, 2000);
+                    return;
+                }
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Pagamento in elaborazione',
+                    html: 'Stripe sta ancora confermando il pagamento.<br>Ricarica questa pagina tra poco.',
+                    confirmButtonColor: '#d35400'
+                });
+            })
+            .catch(function() {
+                if (attempt < 15) {
+                    setTimeout(function() { pollERinvia(id, nome, attempt + 1); }, 3000);
+                } else {
+                    Swal.fire('Errore', 'Impossibile verificare il pagamento. Ricarica la pagina.', 'error');
+                }
+            });
+    }
+
+    function avviaRitornoPostPagamento(id) {
+        document.getElementById('main-form').style.display = 'none';
+        var nome = qp('nome') || '';
+        showLoading('Verifica pagamento...', 'Stiamo confermando il pagamento con Stripe.');
+        pollERinvia(id, nome, 0);
+    }
+
+    function resizeCanvas() {
+        var ratio = Math.max(window.devicePixelRatio || 1, 1);
+        canvas.width = canvas.offsetWidth * ratio;
+        canvas.height = canvas.offsetHeight * ratio;
+        canvas.getContext('2d').scale(ratio, ratio);
+        if (signaturePad) signaturePad.clear();
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+    document.getElementById('clear-signature').addEventListener('click', function() { signaturePad.clear(); });
+
+    document.getElementById('data_nascita').addEventListener('change', function() {
+        var age = Math.floor((new Date() - new Date(this.value)) / 31557600000);
+        var sec = document.getElementById('guardian-section');
+        sec.classList.toggle('hidden', age >= 18);
+        sec.querySelectorAll('input').forEach(function(i) { i.required = age < 18; });
+    });
+
+    function populateFormFromToken(dati) {
+        if (!dati || !dati.fields) return;
+        var fields = dati.fields;
+        Object.keys(fields).forEach(function(k) {
+            if (k === 'rinnovo_associato') return;
+            var el = document.querySelector('[name="' + k + '"]');
+            if (el && fields[k]) el.value = fields[k];
+        });
+        if (fields.data_nascita) {
+            document.getElementById('data_nascita').dispatchEvent(new Event('change'));
+        }
+        document.getElementById('privacy-check').checked = true;
+        isRinnovoAssociato = true;
+        document.getElementById('rinnovo-banner').classList.remove('hidden');
+        document.getElementById('gia-associato-box').classList.add('hidden');
+        document.getElementById('nuovo-associato-hint').classList.add('hidden');
+        document.getElementById('submitBtn').textContent = 'PROCEDI AL PAGAMENTO QUOTA';
+    }
+
+    var iscrizioneToken = qp('iscrizioneToken');
+    if (iscrizioneToken) {
+        showLoading('Accesso in corso...', 'Caricamento dei tuoi dati.');
+        gasApiGet('validateIscrizioneToken', { token: iscrizioneToken })
+            .then(function(res) {
+                Swal.close();
+                if (!res || !res.found) {
+                    Swal.fire('Link non valido', (res && res.message) ? res.message : 'Richiedi un nuovo link.', 'error');
+                    return;
+                }
+                populateFormFromToken(res);
+                history.replaceState(null, '', window.location.pathname);
+            })
+            .catch(function(err) {
+                Swal.fire('Errore', err.message || 'Impossibile validare il link.', 'error');
+            });
+    }
+
+    var returnIdIscrizione = qp('idIscrizione');
+    if (returnIdIscrizione) {
+        avviaRitornoPostPagamento(returnIdIscrizione);
+    }
+
+    document.getElementById('btn-richiedi-link').addEventListener('click', function() {
+        var id = (document.getElementById('link-identifier').value || '').trim();
+        if (!id) {
+            Swal.fire('Attenzione', 'Inserisci email o codice fiscale.', 'warning');
+            return;
+        }
+        var btn = this;
+        btn.disabled = true;
+        showLoading('Invio in corso...', 'Stiamo elaborando la richiesta.');
+        gasApiPost({ action: 'richiediLinkIscrizioneAssociato', identifier: id })
+            .then(function(res) {
+                Swal.fire({
+                    icon: 'info',
+                    title: 'Controlla la email',
+                    text: (res && res.message) ? res.message : 'Se i dati sono corretti, riceverai il link a breve.',
+                    confirmButtonColor: '#d35400'
+                });
+                document.getElementById('link-identifier').value = '';
+            })
+            .catch(function(err) {
+                Swal.fire('Errore', err.message || 'Richiesta non riuscita.', 'error');
+            })
+            .finally(function() { btn.disabled = false; });
+    });
+
+    document.getElementById('membershipForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        if (signaturePad.isEmpty()) {
+            document.getElementById('sig-error').style.display = 'block';
+            return;
+        }
+        document.getElementById('sig-error').style.display = 'none';
+
+        var btn = document.getElementById('submitBtn');
+        btn.disabled = true;
+
+        showLoading('Preparazione pagamento...', 'Attendi, verrai reindirizzato a Stripe.');
+
+        var formData = new FormData(this);
+        var data = {};
+        formData.forEach(function(v, k) { data[k] = v; });
+        data.privacy_accepted = document.getElementById('privacy-check').checked;
+        data.signatureData = signaturePad.toDataURL();
+        if (isRinnovoAssociato) data.rinnovo_associato = true;
+
+        gasApiPost(Object.assign({ action: 'inviaIscrizioneConPagamento' }, data))
+            .then(function(res) {
+                if (res && res.success && res.checkoutUrl) {
+                    Swal.update({ title: 'Reindirizzamento a Stripe...', html: 'Non chiudere questa finestra.' });
+                    window.location.href = res.checkoutUrl;
+                    return;
+                }
+                Swal.close();
+                var icon = (res && res.code === 'GIA_ASSOCIATO') ? 'info' : 'error';
+                Swal.fire((res && res.code === 'GIA_ASSOCIATO') ? 'Già registrato' : 'Errore', (res && res.message) ? res.message : 'Impossibile avviare il pagamento.', icon);
+                btn.disabled = false;
+            })
+            .catch(function(err) {
+                Swal.close();
+                Swal.fire('Errore', err.message || 'Errore di comunicazione con il server.', 'error');
+                btn.disabled = false;
+            });
+    });
+</script>
+</body>
+</html>

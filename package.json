@@ -1,0 +1,14 @@
+{
+  "name": "musicpro-iscrizione-deploy",
+  "private": true,
+  "scripts": {
+    "deploy:iscrizione": "node deploy-iscrizione.js",
+    "migrate:sheets": "node scripts/migrate-from-sheets/index.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.8",
+    "basic-ftp": "^5.0.5",
+    "dotenv": "^16.4.5",
+    "googleapis": "^148.0.0"
+  }
+}
