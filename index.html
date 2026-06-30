@@ -918,6 +918,37 @@
   border-radius: 10px;
   margin-right: 10px;
 }
+.iscrizione-status {
+  display: inline-block;
+  font-size: 0.72em;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 12px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+.iscrizione-status--attesa { background: #fff3e0; color: #e65100; }
+.iscrizione-status--pagata { background: #e3f2fd; color: #1565c0; }
+.iscrizione-status--errore { background: #ffebee; color: #c62828; }
+.iscrizione-status--corso { background: #f3e5f5; color: #6a1b9a; }
+.iscrizione-status--ok { background: #e8f5e9; color: #2e7d32; }
+.iscrizione-meta {
+  font-size: 0.85em;
+  color: #666;
+  margin-top: 4px;
+}
+.iscrizione-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.iscrizione-actions .button {
+  margin: 0;
+  padding: 6px 10px;
+  font-size: 0.78em;
+  width: auto;
+}
 .contact-info {
   font-size: 0.85em;
   color: #666;
@@ -1402,13 +1433,29 @@ body.is-loading .page-container {
       </div>
       <div class="search-bar">
         <span class="material-icons">search</span>
-        <input type="text" id="associati-search" placeholder="Cerca per nome o cognome...">
+        <input type="text" id="associati-search" placeholder="Cerca per nome, cognome, email o numero...">
       </div>
       <div id="associati-list" class="list-container">
         <div class="loading-indicator" id="associati-loading"></div>
       </div>
       <div class="no-data-message hidden" id="no-associati-message">Nessun associato trovato.</div>
       <h2 class="hidden">Rubrica Associati</h2>
+    </div>
+
+    <div class="page" id="iscrizioni-sospeso">
+      <h2 class="hidden">Iscrizioni in sospeso</h2>
+      <p style="font-size:0.9em;color:#666;margin:0 0 12px;">
+        Iscrizioni online dal form Stripe. Qui compaiono finché pagamento + PDF/email non sono completati.
+      </p>
+      <div class="button-group" style="margin-bottom:12px;">
+        <button class="button outline" id="refresh-iscrizioni-btn" type="button">
+          <span class="material-icons">refresh</span> Aggiorna
+        </button>
+      </div>
+      <div id="iscrizioni-list" class="list-container">
+        <div class="loading-indicator" id="iscrizioni-loading"></div>
+      </div>
+      <div class="no-data-message hidden" id="no-iscrizioni-message">Nessuna iscrizione in sospeso.</div>
     </div>
 
     <div class="page" id="gestione-quote">
@@ -1593,6 +1640,10 @@ body.is-loading .page-container {
       <a class="nav-item active" data-page="rubrica-associati" title="Rubrica">
         <span class="material-icons">contacts</span>
         <span>Rubrica</span>
+      </a>
+      <a class="nav-item" data-page="iscrizioni-sospeso" title="Iscrizioni online">
+        <span class="material-icons">how_to_reg</span>
+        <span>Iscrizioni</span>
       </a>
       <a class="nav-item" data-page="gestione-quote" title="Gestione Quote">
         <span class="material-icons">request_quote</span>
@@ -2443,6 +2494,9 @@ function updatePageData(pageId) {
             // Per la rubrica, mostra semplicemente i dati già caricati in memoria
             displayAssociati(app.associatiList); 
             break;
+        case 'iscrizioni-sospeso':
+            loadIscrizioniSospeso();
+            break;
         case 'gestione-quote':
             // Quando si va sulla pagina delle quote, carica i suoi dati
             loadQuotesPageData(); 
@@ -2469,6 +2523,134 @@ function loadQuotesPageData() {
     }
 }
 
+function _iscrizioneStatusClass(label) {
+    const l = String(label || '').toLowerCase();
+    if (l.indexOf('errore') >= 0) return 'iscrizione-status--errore';
+    if (l.indexOf('corso') >= 0) return 'iscrizione-status--corso';
+    if (l.indexOf('pagata') >= 0 || l.indexOf('finalizzare') >= 0) return 'iscrizione-status--pagata';
+    if (l.indexOf('completata') >= 0) return 'iscrizione-status--ok';
+    return 'iscrizione-status--attesa';
+}
+
+function loadIscrizioniSospeso() {
+    const listDiv = document.getElementById('iscrizioni-list');
+    const noMsg = document.getElementById('no-iscrizioni-message');
+    if (!listDiv) return;
+    if (noMsg) noMsg.classList.add('hidden');
+    showLoading('iscrizioni-loading', 'Caricamento iscrizioni...');
+    google.script.run
+        .withSuccessHandler(items => {
+            hideLoading('iscrizioni-loading');
+            displayIscrizioniSospeso(items || []);
+        })
+        .withFailureHandler(err => {
+            hideLoading('iscrizioni-loading');
+            showToast(err.message || 'Errore caricamento iscrizioni.', 'error');
+            displayIscrizioniSospeso([]);
+        })
+        .getIscrizioniInSospeso();
+}
+
+function displayIscrizioniSospeso(items) {
+    const listDiv = document.getElementById('iscrizioni-list');
+    const noMsg = document.getElementById('no-iscrizioni-message');
+    if (!listDiv || !noMsg) return;
+
+    if (!items.length) {
+        listDiv.innerHTML = '';
+        noMsg.classList.remove('hidden');
+        return;
+    }
+    noMsg.classList.add('hidden');
+
+    listDiv.innerHTML = items.map(item => {
+        const statusClass = _iscrizioneStatusClass(item.statoLabel);
+        const linkBtn = item.pagamentoLinkUrl
+            ? `<button type="button" class="button outline iscrizione-open-link" data-url="${item.pagamentoLinkUrl.replace(/"/g, '&quot;')}">Link pagamento</button>`
+            : '';
+        const pdfBtn = item.pdfUrl
+            ? `<button type="button" class="button outline iscrizione-open-link" data-url="${item.pdfUrl.replace(/"/g, '&quot;')}">PDF</button>`
+            : '';
+        const syncBtn = item.pagamentoStato !== 'PAGATO'
+            ? `<button type="button" class="button outline iscrizione-sync-btn" data-id="${item.id}">Sync Stripe</button>`
+            : '';
+        const showFinishBtn = item.pagamentoStato === 'PAGATO'
+            && !(item.emailConfermaInviata === 'SI' && item.pdfUrl);
+        const finishBtn = showFinishBtn
+            ? `<button type="button" class="button iscrizione-finish-btn" data-id="${item.id}">Completa / rigenera</button>`
+            : '';
+        const archivioTag = item.inArchivio ? ' · <em>archivio</em>' : '';
+        return `
+        <div class="list-item iscrizione-item" data-id="${item.id}">
+            <div class="list-item-content" style="flex:1;">
+                <h4>
+                    <span>${item.nome} ${item.cognome}</span>
+                    <span class="iscrizione-status ${statusClass}">${item.statoLabel}</span>
+                </h4>
+                <div class="iscrizione-meta">
+                    <span>${item.email || '—'}</span> · CF ${item.cf || '—'} · ${item.createdAt || ''}${archivioTag}
+                </div>
+                <div class="iscrizione-actions">
+                    ${syncBtn}${finishBtn}${linkBtn}${pdfBtn}
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function _bindIscrizioniSospesoActions() {
+    const listDiv = document.getElementById('iscrizioni-list');
+    if (!listDiv || listDiv.dataset.bound === '1') return;
+    listDiv.dataset.bound = '1';
+
+    listDiv.addEventListener('click', e => {
+        const syncBtn = e.target.closest('.iscrizione-sync-btn');
+        if (syncBtn) {
+            const id = syncBtn.dataset.id;
+            syncBtn.disabled = true;
+            showToast('Sincronizzazione Stripe...', 'info');
+            google.script.run
+                .withSuccessHandler(res => {
+                    showToast(res.message || 'Sync completata.', res.sync && res.sync.pagato ? 'success' : 'info');
+                    loadIscrizioniSospeso();
+                })
+                .withFailureHandler(err => {
+                    showToast(err.message || 'Errore sync.', 'error');
+                    syncBtn.disabled = false;
+                })
+                .adminSincronizzaIscrizione(id);
+            return;
+        }
+
+        const finishBtn = e.target.closest('.iscrizione-finish-btn');
+        if (finishBtn) {
+            const id = finishBtn.dataset.id;
+            finishBtn.disabled = true;
+            showToast('PDF, Drive ed email in corso...', 'info');
+            google.script.run
+                .withSuccessHandler(res => {
+                    showToast(
+                        res && res.alreadySent ? 'Già completata.' : 'Completata con successo.',
+                        'success'
+                    );
+                    loadInitialAppData();
+                    loadIscrizioniSospeso();
+                })
+                .withFailureHandler(err => {
+                    showToast(err.message || 'Errore completamento.', 'error');
+                    finishBtn.disabled = false;
+                })
+                .adminFinisciInvioIscrizione(id);
+            return;
+        }
+
+        const linkBtn = e.target.closest('.iscrizione-open-link');
+        if (linkBtn && linkBtn.dataset.url) {
+            window.open(linkBtn.dataset.url, '_blank');
+        }
+    });
+}
+
 function loadInitialAppData() {
     showLoading('associati-loading', 'Caricamento dati...');
     google.script.run
@@ -2490,6 +2672,19 @@ function loadInitialAppData() {
         .getInitialAppData(); // Chiama la nuova funzione del server
 }
 
+function associatoMatchesSearch(a, searchTerm) {
+  const t = String(searchTerm || '').toLowerCase().trim();
+  if (!t) return true;
+  const fullName = `${a.nome || ''} ${a.cognome || ''}`.toLowerCase();
+  return (
+    (a.nome && a.nome.toLowerCase().includes(t)) ||
+    (a.cognome && a.cognome.toLowerCase().includes(t)) ||
+    (a.numero && String(a.numero).toLowerCase().includes(t)) ||
+    (a.email && a.email.toLowerCase().includes(t)) ||
+    fullName.includes(t)
+  );
+}
+
 function displayAssociati(associati, searchTerm = '') {
   setTimeout(() => {
     try {
@@ -2500,12 +2695,7 @@ function displayAssociati(associati, searchTerm = '') {
 
         hideLoading('associati-loading');
         
-        const lowerCaseSearchTerm = searchTerm.toLowerCase();
-        const filteredAssociati = associati.filter(a => 
-            (a.nome && a.nome.toLowerCase().includes(lowerCaseSearchTerm)) ||
-            (a.cognome && a.cognome.toLowerCase().includes(lowerCaseSearchTerm)) ||
-            (a.numero && a.numero.toLowerCase().includes(lowerCaseSearchTerm))
-        );
+        const filteredAssociati = associati.filter(a => associatoMatchesSearch(a, searchTerm));
 
         if (filteredAssociati.length === 0) {
             associatiListDiv.innerHTML = '';
@@ -3209,9 +3399,7 @@ function handleReimbursementAssociateSearch(event) {
     }
 
     // Filtra la lista globale degli associati
-    const filtered = app.associatiList.filter(a => 
-        `${a.nome} ${a.cognome}`.toLowerCase().includes(searchTerm)
-    );
+    const filtered = app.associatiList.filter(a => associatoMatchesSearch(a, searchTerm));
 
     resultsContainer.innerHTML = '';
     filtered.slice(0, 10).forEach(associate => {
@@ -3724,6 +3912,12 @@ document.addEventListener('DOMContentLoaded', () => {
         item.addEventListener('click', (e) => showPage(e.currentTarget.dataset.page));
     });
 
+    const refreshIscrizioniBtn = document.getElementById('refresh-iscrizioni-btn');
+    if (refreshIscrizioniBtn) {
+        refreshIscrizioniBtn.addEventListener('click', () => loadIscrizioniSospeso());
+    }
+    _bindIscrizioniSospesoActions();
+
     // Listener per i pulsanti di base dei popup
     document.getElementById('close-confirmation-modal-btn').addEventListener('click', () => hideModal(document.getElementById('confirmation-modal')));
     document.getElementById('cancel-action-btn').addEventListener('click', () => hideModal(document.getElementById('confirmation-modal')));
@@ -3957,14 +4151,12 @@ function handleAssociateSearch(event) {
     return;
   }
 
-  const filtered = app.associatiList.filter(a => 
-    `${a.nome} ${a.cognome}`.toLowerCase().includes(searchTerm)
-  );
+  const filtered = app.associatiList.filter(a => associatoMatchesSearch(a, searchTerm));
 
   resultsContainer.innerHTML = '';
   filtered.slice(0, 10).forEach(associate => {
     const div = document.createElement('div');
-    div.textContent = `${associate.nome} ${associate.cognome}`;
+    div.textContent = `${associate.nome} ${associate.cognome}${associate.email ? ` (${associate.email})` : ''}`;
     div.addEventListener('click', () => {
       const row = input.closest('.quota-row');
       const yearSelect = row.querySelector('.quota-year-select');
@@ -4016,14 +4208,12 @@ function handleTutoreSearch(event) {
     }
 
     // Filtra la lista degli associati in base al termine di ricerca
-    const filtered = app.associatiList.filter(a => 
-        `${a.nome} ${a.cognome}`.toLowerCase().includes(searchTerm)
-    );
+    const filtered = app.associatiList.filter(a => associatoMatchesSearch(a, searchTerm));
 
     resultsContainer.innerHTML = '';
     filtered.slice(0, 5).forEach(associate => {
         const div = document.createElement('div');
-        div.textContent = `${associate.nome} ${associate.cognome}`;
+        div.textContent = `${associate.nome} ${associate.cognome}${associate.email ? ` (${associate.email})` : ''}`;
         div.addEventListener('click', () => {
             // Quando un tutore viene cliccato...
             input.value = `${associate.nome} ${associate.cognome}`;

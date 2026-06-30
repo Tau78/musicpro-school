@@ -219,8 +219,13 @@ async function main() {
   }
 
   const iscrizioneSrc = path.join(__dirname, "iscrizione.html");
+  const firmaSrc = path.join(__dirname, "firma.html");
   if (!fs.existsSync(iscrizioneSrc)) {
     console.error("File mancante: iscrizione.html");
+    process.exit(1);
+  }
+  if (!fs.existsSync(firmaSrc)) {
+    console.error("File mancante: firma.html");
     process.exit(1);
   }
 
@@ -229,11 +234,13 @@ async function main() {
 
   const indexPath = path.join(localDir, "index.html");
   const iscrizionePath = path.join(localDir, "iscrizione.html");
+  const firmaPath = path.join(localDir, "firma.html");
   const apiPath = path.join(localDir, "api.php");
 
   const htmlBuilt = injectBuildInfo(fs.readFileSync(iscrizioneSrc, "utf8"));
   fs.writeFileSync(indexPath, htmlBuilt, "utf8");
   fs.writeFileSync(iscrizionePath, htmlBuilt, "utf8");
+  fs.writeFileSync(firmaPath, fs.readFileSync(firmaSrc, "utf8"), "utf8");
   fs.writeFileSync(apiPath, buildApiPhp(GAS_URL, SUPABASE_API_URL), "utf8");
 
   const logoPath = path.join(localDir, "assets", "music-pro-logo.png");
@@ -264,6 +271,9 @@ async function main() {
     await client.uploadFrom(iscrizionePath, "iscrizione.html");
     console.log("Caricato: " + remoteDir + "/iscrizione.html");
 
+    await client.uploadFrom(firmaPath, "firma.html");
+    console.log("Caricato: " + remoteDir + "/firma.html");
+
     await client.uploadFrom(apiPath, "api.php");
     console.log("Caricato: " + remoteDir + "/api.php");
 
@@ -276,6 +286,7 @@ async function main() {
     }
 
     console.log("Deploy completato. Form statico su https://iscrizione.musicproeventi.it/");
+    console.log("Firma documento: https://iscrizione.musicproeventi.it/firma.html");
     console.log("Build: v" + ISCRIZIONE_SITE_VERSION + " · " + new Date().toISOString().slice(0, 10));
     if (ISCRIZIONE_BACKEND === "supabase") {
       console.log("API proxy → Supabase backend " + SUPABASE_API_URL);

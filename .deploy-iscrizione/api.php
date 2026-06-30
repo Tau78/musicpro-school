@@ -1,7 +1,7 @@
 <?php
 /**
- * Proxy API iscrizione → Next.js Supabase backend (generato da deploy-iscrizione.js)
- * Backend: supabase (ISCRIZIONE_BACKEND=supabase)
+ * Proxy API iscrizione → Google Apps Script (generato da deploy-iscrizione.js)
+ * Backend: gas (ISCRIZIONE_BACKEND=gas)
  */
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
@@ -13,9 +13,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
-$API_BASE = rtrim('https://school.musicproeventi.it/api/iscrizione', '/');
+$GAS_URL = 'https://script.google.com/a/macros/www.musicproeventi.it/s/AKfycbyJAM4hGYz_k9_rDFIEJDevdcYxIRrsi4VbZdYJ9Rk9VFUYkpHYMfAPHx1_g8DEL8oZOA/exec';
 
-function proxy_request($url, $method, $body) {
+function gas_request($url, $method, $body) {
     if (!function_exists('curl_init')) {
         http_response_code(500);
         echo json_encode(array('success' => false, 'message' => 'cURL non disponibile sul server'));
@@ -26,8 +26,7 @@ function proxy_request($url, $method, $body) {
     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
     curl_setopt($ch, CURLOPT_MAXREDIRS, 5);
     curl_setopt($ch, CURLOPT_TIMEOUT, 120);
-    $headers = array('Content-Type: application/json');
-    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type: text/plain;charset=utf-8'));
     if ($method === 'POST') {
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
@@ -43,7 +42,7 @@ function proxy_request($url, $method, $body) {
     }
     if ($code >= 400) {
         http_response_code(502);
-        echo json_encode(array('success' => false, 'message' => 'API HTTP ' . $code, 'body' => substr($resp, 0, 500)));
+        echo json_encode(array('success' => false, 'message' => 'GAS HTTP ' . $code, 'body' => substr($resp, 0, 500)));
         exit;
     }
     echo $resp;
@@ -55,11 +54,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $id = isset($_GET['idIscrizione']) ? $_GET['idIscrizione'] : '';
     $token = isset($_GET['token']) ? $_GET['token'] : '';
     $qs = http_build_query(array(
+        'action' => 'api',
         'op' => $op,
         'idIscrizione' => $id,
         'token' => $token,
     ));
-    proxy_request($API_BASE . '?' . $qs, 'GET', '');
+    gas_request($GAS_URL . '?' . $qs, 'GET', '');
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -69,7 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         echo json_encode(array('success' => false, 'message' => 'Body vuoto'));
         exit;
     }
-    proxy_request($API_BASE, 'POST', $body);
+    gas_request($GAS_URL, 'POST', $body);
 }
 
 http_response_code(405);

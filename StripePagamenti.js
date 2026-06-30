@@ -349,13 +349,20 @@ function createStripePaymentLinkQuotaAssociativa(opts) {
 
 function _ensureIscrizioneStripeDeferredTrigger() {
   try {
+    var hasPending = false;
     var triggers = ScriptApp.getProjectTriggers();
     for (var i = 0; i < triggers.length; i++) {
-      if (triggers[i].getHandlerFunction() === '_deferredIscrizioneStripeWork') return;
+      if (triggers[i].getHandlerFunction() === '_deferredIscrizioneStripeWork') {
+        hasPending = true;
+        break;
+      }
     }
-    ScriptApp.newTrigger('_deferredIscrizioneStripeWork').timeBased().after(12 * 1000).create();
+    if (!hasPending) {
+      ScriptApp.newTrigger('_deferredIscrizioneStripeWork').timeBased().after(12 * 1000).create();
+    }
   } catch (eTr) {
-    Logger.log('[_ensureIscrizioneStripeDeferredTrigger] ' + (eTr.message || eTr));
+    Logger.log('[_ensureIscrizioneStripeDeferredTrigger] esecuzione diretta: ' + (eTr.message || eTr));
+    _deferredIscrizioneStripeWork();
   }
 }
 
@@ -381,7 +388,7 @@ function _enqueueIscrizioneStripeDeferredWork(item) {
   }
 }
 
-/** @private trigger — disattiva Payment Link (PDF/email solo su invio utente dalla pagina iscrizione) */
+/** @private trigger — disattiva Payment Link + genera PDF/email post-pagamento */
 function _deferredIscrizioneStripeWork() {
   var props = PropertiesService.getScriptProperties();
   var q = props.getProperty('STRIPE_ISCR_WEBHOOK_DEFERRED_QUEUE') || '[]';
@@ -403,7 +410,18 @@ function _deferredIscrizioneStripeWork() {
         _stripeDeactivatePaymentLinkById(cfg.secret, plId);
       }
     } catch (itemErr) {
-      Logger.log('[_deferredIscrizioneStripeWork] id=' + item.id + ' ' + (itemErr.message || itemErr));
+      Logger.log('[_deferredIscrizioneStripeWork] link id=' + item.id + ' ' + (itemErr.message || itemErr));
+    }
+
+    try {
+      var needsEmail = typeof iscrizioneNeedsPostPaymentEmail === 'function'
+        ? iscrizioneNeedsPostPaymentEmail(item.id)
+        : false;
+      if (needsEmail && typeof _scheduleIscrizioneInvio === 'function') {
+        _scheduleIscrizioneInvio(item.id);
+      }
+    } catch (emailErr) {
+      Logger.log('[_deferredIscrizioneStripeWork] email id=' + item.id + ' ' + (emailErr.message || emailErr));
     }
   }
 }
@@ -575,6 +593,9 @@ function sincronizzaPagamentoIscrizioneStripe(idIscrizione) {
   if (!rec) return { found: false, pagato: false };
 
   if (String(rec.pagamentoStato || '').toUpperCase().trim() === 'PAGATO') {
+    if (typeof accodaInvioEmailIscrizioneSeNecessario === 'function') {
+      accodaInvioEmailIscrizioneSeNecessario(id);
+    }
     return { found: true, pagato: true, already: true, idIscrizione: id };
   }
 
@@ -621,6 +642,8 @@ function sincronizzaPagamentoIscrizioneStripe(idIscrizione) {
       var fin = _stripeFetchPaymentFinancials(cfg.secret, 'checkout.session.completed', s, piId);
       if (typeof aggiornaIscrizionePagamentoPagato === 'function') {
         aggiornaIscrizionePagamentoPagato(id, fin, piId || fin.piId);
+      } else if (typeof accodaInvioEmailIscrizioneSeNecessario === 'function') {
+        accodaInvioEmailIscrizioneSeNecessario(id);
       }
       return { found: true, pagato: true, synced: true, idIscrizione: id };
     }

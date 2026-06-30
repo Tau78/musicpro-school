@@ -45,7 +45,7 @@
     <p style="text-align:center; margin-top:0; color:#666;">Associazione Culturale M.P. - MusicPro</p>
 
     <div id="rinnovo-banner" class="rinnovo-banner hidden">
-        <strong>Rinnovo quota associativa.</strong> Verifica o aggiorna i tuoi dati, firma e procedi al pagamento.
+        <strong>Aggiornamento dati associato.</strong> Verifica o modifica i tuoi dati e firma il modulo.
     </div>
 
     <div class="gia-associato-box" id="gia-associato-box">
@@ -126,8 +126,8 @@
         </div>
         <div id="sig-error" style="color:red; display:none; font-size:0.8em;">Firma obbligatoria.</div>
 
-        <div class="section-title">Pagamento Quota Associativa</div>
-        <div class="pay-info">
+        <div class="section-title" id="pay-section-title">Pagamento Quota Associativa</div>
+        <div class="pay-info" id="pay-info-box">
             Quota annuale: <strong>&euro; 15,00</strong>.<br>
             Compila il modulo, firma e paga con carta di credito.<br>
             Al termine riceverai conferma e il PDF via email.
@@ -138,7 +138,7 @@
 </div>
 </div>
 
-<footer class="site-footer">v1.2.0 &middot; 2026-06-11</footer>
+<footer class="site-footer">v1.2.0 &middot; 2026-06-30</footer>
 
 <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
 <script>
@@ -146,6 +146,29 @@
     var signaturePad = new SignaturePad(canvas, { backgroundColor: 'rgba(255, 255, 255, 0)' });
     var API_URL = '/api.php';
     var isRinnovoAssociato = false;
+    var quotaGiaPagata = false;
+
+    function applyQuotaGiaPagataUi() {
+        var payTitle = document.getElementById('pay-section-title');
+        var payBox = document.getElementById('pay-info-box');
+        var banner = document.getElementById('rinnovo-banner');
+        var btn = document.getElementById('submitBtn');
+        if (quotaGiaPagata) {
+            if (payTitle) payTitle.classList.add('hidden');
+            if (payBox) payBox.classList.add('hidden');
+            if (banner) {
+                banner.innerHTML = '<strong>Quota già pagata per quest\'anno.</strong> Puoi aggiornare i tuoi dati anagrafici e salvare le modifiche — non ti verrà chiesto un nuovo pagamento.';
+            }
+            if (btn) btn.textContent = 'SALVA MODIFICHE';
+        } else if (isRinnovoAssociato) {
+            if (payTitle) payTitle.classList.remove('hidden');
+            if (payBox) payBox.classList.remove('hidden');
+            if (banner) {
+                banner.innerHTML = '<strong>Rinnovo quota associativa.</strong> Verifica o aggiorna i tuoi dati, firma e procedi al pagamento.';
+            }
+            if (btn) btn.textContent = 'PROCEDI AL PAGAMENTO QUOTA';
+        }
+    }
 
     function gasApiGet(op, params) {
         params = params || {};
@@ -278,10 +301,11 @@
         }
         document.getElementById('privacy-check').checked = true;
         isRinnovoAssociato = true;
+        quotaGiaPagata = !!dati.quotaGiaPagata;
         document.getElementById('rinnovo-banner').classList.remove('hidden');
         document.getElementById('gia-associato-box').classList.add('hidden');
         document.getElementById('nuovo-associato-hint').classList.add('hidden');
-        document.getElementById('submitBtn').textContent = 'PROCEDI AL PAGAMENTO QUOTA';
+        applyQuotaGiaPagataUi();
     }
 
     var iscrizioneToken = qp('iscrizioneToken');
@@ -344,7 +368,11 @@
         var btn = document.getElementById('submitBtn');
         btn.disabled = true;
 
-        showLoading('Preparazione pagamento...', 'Attendi, verrai reindirizzato a Stripe.');
+        var loadingTitle = (isRinnovoAssociato && quotaGiaPagata) ? 'Salvataggio in corso...' : 'Preparazione pagamento...';
+        var loadingHtml = (isRinnovoAssociato && quotaGiaPagata)
+            ? 'Stiamo aggiornando i tuoi dati in rubrica.'
+            : 'Attendi, verrai reindirizzato a Stripe.';
+        showLoading(loadingTitle, loadingHtml);
 
         var formData = new FormData(this);
         var data = {};
@@ -353,8 +381,22 @@
         data.signatureData = signaturePad.toDataURL();
         if (isRinnovoAssociato) data.rinnovo_associato = true;
 
-        gasApiPost(Object.assign({ action: 'inviaIscrizioneConPagamento' }, data))
+        var action = (isRinnovoAssociato && quotaGiaPagata)
+            ? 'salvaAggiornamentoAssociatoIscrizione'
+            : 'inviaIscrizioneConPagamento';
+
+        gasApiPost(Object.assign({ action: action }, data))
             .then(function(res) {
+                if (res && res.success && res.skipPayment) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Dati salvati',
+                        text: res.message || 'Le modifiche sono state registrate.',
+                        confirmButtonColor: '#d35400'
+                    });
+                    btn.disabled = false;
+                    return;
+                }
                 if (res && res.success && res.checkoutUrl) {
                     Swal.update({ title: 'Reindirizzamento a Stripe...', html: 'Non chiudere questa finestra.' });
                     window.location.href = res.checkoutUrl;

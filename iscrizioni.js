@@ -4,8 +4,10 @@
 
 const TEMPLATE_ISCRIZIONE_ID = "1CVxLAsEweuZD11N6V3CBkaNqegG6c2BeOT9WZLSw63I";
 const FOLDER_ISCRIZIONI_ID = "1XCo-t2VwgOr6Pu7cWiiNcSxz4CXgPe6T";
+/** Cartella Drive piatta "Iscrizioni" — moduli PDF dal form online (comportamento fino a giu 2025). */
 const EMAIL_SEGRETERIA = "musicproeventi@gmail.com";
 const ISCRIZIONI_SHEET_NAME = "ISCRIZIONI";
+const ISCRIZIONI_ARCHIVIO_SHEET_NAME = "ISCRIZIONI_ARCHIVIO";
 /** Stesso spreadsheet del foglio Associati (SPREADSHEET_ID in Codice.js). */
 const SPREADSHEET_ISCRIZIONI_ID = (typeof SPREADSHEET_ID !== "undefined")
   ? SPREADSHEET_ID
@@ -44,6 +46,60 @@ var ISCRIZIONI_HEADERS = [
   "Pagamento_Pagato_At", "Created_At", "Payload_JSON", "PDF_URL", "Email_Conferma_Inviata"
 ];
 
+function _getOrCreateIscrizioniArchivioSheet_(ss) {
+  var spreadsheet = ss || SpreadsheetApp.openById(SPREADSHEET_ISCRIZIONI_ID);
+  var sheet = spreadsheet.getSheetByName(ISCRIZIONI_ARCHIVIO_SHEET_NAME);
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(ISCRIZIONI_ARCHIVIO_SHEET_NAME);
+  }
+  if (sheet.getLastRow() === 0) {
+    var archivioHeaders = ISCRIZIONI_HEADERS.concat(["Archiviata_At"]);
+    sheet.getRange(1, 1, 1, archivioHeaders.length).setValues([archivioHeaders]).setFontWeight("bold");
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+/** Sposta una riga completata da ISCRIZIONI → ISCRIZIONI_ARCHIVIO (storico pagamenti Stripe). */
+function _archiviaRigaIscrizioneCompletata_(rowNum) {
+  if (!rowNum || rowNum < 2) return false;
+  var ss = SpreadsheetApp.openById(SPREADSHEET_ISCRIZIONI_ID);
+  var sheet = _getIscrizioniSheet();
+  if (rowNum > sheet.getLastRow()) return false;
+
+  var row = sheet.getRange(rowNum, 1, 1, ISCRIZIONI_HEADERS.length).getValues()[0];
+  if (!String(row[ISCR_COL.ID] || "").trim()) return false;
+
+  var archivio = _getOrCreateIscrizioniArchivioSheet_(ss);
+  var archivioRow = row.concat([new Date()]);
+  archivio.appendRow(archivioRow);
+  sheet.deleteRow(rowNum);
+  return true;
+}
+
+/** Archivia tutte le righe già completate ancora presenti in ISCRIZIONI (pulizia retroattiva). */
+function _archiviaIscrizioniCompletateInBatch_() {
+  var sheet = _getIscrizioniSheet();
+  var last = sheet.getLastRow();
+  if (last < 2) return 0;
+
+  var data = sheet.getRange(2, 1, last - 1, ISCRIZIONI_HEADERS.length).getValues();
+  var archived = 0;
+  for (var i = data.length - 1; i >= 0; i--) {
+    var rec = _iscrizioneRowToObject(data[i]);
+    if (!rec || !rec.id) continue;
+
+    var pag = String(rec.pagamentoStato || "").toUpperCase().trim();
+    var emailSt = String(rec.emailConfermaInviata || "").toUpperCase().trim();
+    var hasPdf = !!String(rec.pdfUrl || "").trim();
+    var completata = pag === "PAGATO" && emailSt === "SI" && hasPdf;
+    if (!completata) continue;
+
+    if (_archiviaRigaIscrizioneCompletata_(i + 2)) archived++;
+  }
+  return archived;
+}
+
 function ensureIscrizioniSheet() {
   var ss = SpreadsheetApp.openById(SPREADSHEET_ISCRIZIONI_ID);
   var sheet = ss.getSheetByName(ISCRIZIONI_SHEET_NAME);
@@ -73,8 +129,7 @@ function _getIscrizioniSheet() {
   return ensureIscrizioniSheet();
 }
 
-function _iscrizioneFindRowById(idIscrizione) {
-  var sheet = _getIscrizioniSheet();
+function _findRowInSheetById_(sheet, idIscrizione) {
   var last = sheet.getLastRow();
   if (last < 2) return -1;
   var ids = sheet.getRange(2, ISCR_COL.ID + 1, last - 1, 1).getValues();
@@ -83,6 +138,21 @@ function _iscrizioneFindRowById(idIscrizione) {
     if (String(ids[i][0] || "").trim() === target) return i + 2;
   }
   return -1;
+}
+
+function _locateIscrizioneRowById_(idIscrizione) {
+  var sheet = _getIscrizioniSheet();
+  var rowNum = _findRowInSheetById_(sheet, idIscrizione);
+  if (rowNum > 0) return { sheet: sheet, rowNum: rowNum, inArchivio: false };
+
+  var archivio = _getOrCreateIscrizioniArchivioSheet_();
+  rowNum = _findRowInSheetById_(archivio, idIscrizione);
+  if (rowNum > 0) return { sheet: archivio, rowNum: rowNum, inArchivio: true };
+  return null;
+}
+
+function _iscrizioneFindRowById(idIscrizione) {
+  return _findRowInSheetById_(_getIscrizioniSheet(), idIscrizione);
 }
 
 function _iscrizioneRowToObject(row) {
@@ -113,16 +183,17 @@ function _iscrizioneRowToObject(row) {
 }
 
 function getIscrizioneById(idIscrizione) {
-  var rowNum = _iscrizioneFindRowById(idIscrizione);
-  if (rowNum < 0) return null;
-  var row = _getIscrizioniSheet().getRange(rowNum, 1, 1, ISCRIZIONI_HEADERS.length).getValues()[0];
+  var located = _locateIscrizioneRowById_(idIscrizione);
+  if (!located) return null;
+  var row = located.sheet.getRange(located.rowNum, 1, 1, ISCRIZIONI_HEADERS.length).getValues()[0];
   return _iscrizioneRowToObject(row);
 }
 
 function getStatoIscrizione(idIscrizione) {
   var rec = getIscrizioneById(idIscrizione);
   if (!rec) return { found: false };
-  var inviata = !!String(rec.pdfUrl || "").trim();
+  var emailSt = String(rec.emailConfermaInviata || "").toUpperCase().trim();
+  var inviata = emailSt === "SI" || !!String(rec.pdfUrl || "").trim();
   return {
     found: true,
     idIscrizione: rec.id,
@@ -166,7 +237,279 @@ function iscrizioneNeedsPostPaymentEmail(idIscrizione) {
   var rec = getIscrizioneById(idIscrizione);
   if (!rec) return false;
   if (String(rec.pagamentoStato || "").toUpperCase().trim() !== "PAGATO") return false;
-  return String(rec.emailConfermaInviata || "").toUpperCase().trim() !== "SI";
+  var emailSt = String(rec.emailConfermaInviata || "").toUpperCase().trim();
+  if (emailSt === "IN_CORSO") return false;
+  var hasPdf = !!String(rec.pdfUrl || "").trim();
+  if (hasPdf && emailSt === "SI") return false;
+  return true;
+}
+
+/** Accoda PDF + email se pagamento ok ma invio non ancora partito. */
+function accodaInvioEmailIscrizioneSeNecessario(idIscrizione) {
+  if (!iscrizioneNeedsPostPaymentEmail(idIscrizione)) return false;
+  try {
+    _eseguiInvioIscrizioneSync(idIscrizione);
+    return true;
+  } catch (syncErr) {
+    Logger.log("[accodaInvioEmailIscrizioneSeNecessario] sync: " + (syncErr.message || syncErr));
+    _scheduleIscrizioneInvio(idIscrizione);
+    return true;
+  }
+}
+
+function _findAssociatoRowByCf_(sheetAssociati, cfSocio) {
+  var cf = String(cfSocio || "").toUpperCase().trim();
+  var last = sheetAssociati.getLastRow();
+  if (last < 2) return { rowIndex: -1, numeroSocio: null };
+
+  var data = sheetAssociati.getRange(2, 1, last - 1, sheetAssociati.getLastColumn()).getValues();
+  for (var i = 0; i < data.length; i++) {
+    var rowCf = data[i][12] ? data[i][12].toString().toUpperCase().trim() : "";
+    if (rowCf === cf) {
+      return { rowIndex: i + 2, numeroSocio: data[i][0] };
+    }
+  }
+  return { rowIndex: -1, numeroSocio: null };
+}
+
+function _nextNumeroAssociatoFromSheet_(sheetAssociati) {
+  var last = sheetAssociati.getLastRow();
+  if (last < 2) return 1;
+  var nums = sheetAssociati.getRange(2, 1, last - 1, 1).getValues();
+  var maxNum = 0;
+  for (var i = 0; i < nums.length; i++) {
+    var n = parseInt(String(nums[i][0] || ""), 10);
+    if (!isNaN(n) && n > maxNum) maxNum = n;
+  }
+  return maxNum + 1;
+}
+
+/** Destinazione PDF iscrizione online: cartella piatta "Iscrizioni" su Drive. */
+function _getIscrizionePdfFolder_(data) {
+  return DriveApp.getFolderById(FOLDER_ISCRIZIONI_ID);
+}
+
+/** Copia opzionale anche in ROOT_ISCRIZIONI/Cognome Nome (archivio per associato). */
+function _mirrorIscrizionePdfInRootFolder_(pdfFile, data) {
+  if (typeof ROOT_ISCRIZIONI_FOLDER_ID === "undefined" || !ROOT_ISCRIZIONI_FOLDER_ID) return;
+  if (typeof getOrCreateFolder !== "function") return;
+  try {
+    var rootFolder = DriveApp.getFolderById(ROOT_ISCRIZIONI_FOLDER_ID);
+    var folderName = ((data.cognome || "") + " " + (data.nome || "")).trim();
+    if (!folderName) return;
+    var subFolder = getOrCreateFolder(rootFolder, folderName);
+    pdfFile.makeCopy(pdfFile.getName(), subFolder);
+  } catch (mirrorErr) {
+    Logger.log("[_mirrorIscrizionePdfInRootFolder_] " + (mirrorErr.message || mirrorErr));
+  }
+}
+
+function _getAdminNotificaEmails_() {
+  var emails = [];
+  if (EMAIL_SEGRETERIA) emails.push(String(EMAIL_SEGRETERIA).trim());
+  if (typeof ADMIN_EMAIL !== "undefined" && ADMIN_EMAIL) {
+    var admin = String(ADMIN_EMAIL).trim();
+    if (emails.indexOf(admin) < 0) emails.push(admin);
+  }
+  return emails;
+}
+
+function _inviaEmailIscrizione_(data, pdfBlob) {
+  var emailTo = String(data.email || "").trim();
+  if (!emailTo) throw new Error("Email destinatario mancante.");
+
+  MailApp.sendEmail({
+    to: emailTo,
+    subject: "Conferma Iscrizione MusicPro - " + data.nome + " " + data.cognome,
+    body: "Ciao " + data.nome + ",\n\nin allegato trovi la tua domanda di iscrizione firmata.\n\nCordiali saluti,\nMusicPro Eventi",
+    attachments: [pdfBlob],
+    name: "MusicPro Eventi"
+  });
+
+  var adminEmails = _getAdminNotificaEmails_();
+  for (var a = 0; a < adminEmails.length; a++) {
+    try {
+      MailApp.sendEmail({
+        to: adminEmails[a],
+        subject: "ISCRIZIONE: " + data.cognome + " " + data.nome,
+        body: "Nuova iscrizione con pagamento Stripe.\nEmail socio: " + emailTo,
+        attachments: [pdfBlob],
+        name: "MusicPro Iscrizioni"
+      });
+    } catch (adminErr) {
+      Logger.log("ERRORE email admin " + adminEmails[a] + ": " + (adminErr.message || adminErr));
+    }
+  }
+}
+
+function _formatIscrizioneDateForUi_(value) {
+  if (!value) return "";
+  if (Object.prototype.toString.call(value) === "[object Date]" && !isNaN(value.getTime())) {
+    return Utilities.formatDate(value, Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm");
+  }
+  return String(value);
+}
+
+function _iscrizioneStatoLabel_(rec) {
+  var pag = String(rec.pagamentoStato || "").toUpperCase().trim();
+  var emailSt = String(rec.emailConfermaInviata || "").toUpperCase().trim();
+  var hasPdf = !!String(rec.pdfUrl || "").trim();
+  if (emailSt === "SI" && !hasPdf) return "PDF mancante";
+  if (emailSt === "SI" && hasPdf) return "Completata";
+  if (emailSt === "ERRORE") return "Errore invio";
+  if (emailSt === "IN_CORSO") return "Invio in corso";
+  if (pag === "PAGATO") return "Pagata — da finalizzare";
+  if (pag === "INVIATO") return "In attesa pagamento";
+  if (pag === "ERRORE") return "Errore Stripe";
+  if (pag === "PENDING") return "In elaborazione";
+  return pag || "Sconosciuto";
+}
+
+/**
+ * Registra o aggiorna il pagamento quota nel foglio QUOTE (chiave: Nome Cognome + anno).
+ */
+function _registraQuotaDaIscrizione_(ss, data, anno) {
+  if (typeof _getOrCreateQuoteSheet_ !== "function") return;
+  var nome = String(data.nome || "").trim();
+  var cognome = String(data.cognome || "").trim();
+  var fullName = (nome + " " + cognome).trim();
+  if (!fullName) return;
+
+  var year = parseInt(String(anno || new Date().getFullYear()), 10);
+  var quoteSheet = _getOrCreateQuoteSheet_(ss);
+  var paymentDate = new Date();
+  var importoEuro = (typeof QUOTA_ASSOCIATIVA_CENTESIMI !== "undefined" ? QUOTA_ASSOCIATIVA_CENTESIMI : 1500) / 100;
+
+  if (typeof getQuotaSettings === "function") {
+    var settings = getQuotaSettings();
+    for (var s = 0; s < settings.length; s++) {
+      if (parseInt(String(settings[s].year), 10) === year && settings[s].amount) {
+        importoEuro = settings[s].amount;
+        break;
+      }
+    }
+  }
+
+  var quoteData = quoteSheet.getDataRange().getValues();
+  var existingRowIndex = -1;
+  for (var i = 1; i < quoteData.length; i++) {
+    if (String(quoteData[i][0] || "").trim() === fullName
+      && String(quoteData[i][1] || "").trim() === String(year)) {
+      existingRowIndex = i + 1;
+      break;
+    }
+  }
+
+  if (existingRowIndex > -1) {
+    quoteSheet.getRange(existingRowIndex, 3).setValue(paymentDate);
+    quoteSheet.getRange(existingRowIndex, 4).setValue(importoEuro);
+  } else {
+    quoteSheet.appendRow([fullName, year, paymentDate, importoEuro]);
+  }
+}
+
+function _pushIscrizioneInSospesoItem_(out, rec, extra) {
+  var pag = String(rec.pagamentoStato || "").toUpperCase().trim();
+  var emailSt = String(rec.emailConfermaInviata || "").toUpperCase().trim();
+  var hasPdf = !!String(rec.pdfUrl || "").trim();
+  if (pag === "PAGATO" && emailSt === "SI" && hasPdf) return;
+
+  out.push(Object.assign({
+    id: rec.id,
+    nome: rec.nome,
+    cognome: rec.cognome,
+    email: rec.email,
+    cf: rec.cf,
+    telefono: rec.telefono,
+    pagamentoStato: pag,
+    emailConfermaInviata: emailSt,
+    createdAt: _formatIscrizioneDateForUi_(rec.createdAt),
+    pagamentoPagatoAt: _formatIscrizioneDateForUi_(rec.pagamentoPagatoAt),
+    pagamentoLinkUrl: rec.pagamentoLinkUrl,
+    pdfUrl: rec.pdfUrl,
+    statoLabel: _iscrizioneStatoLabel_(rec)
+  }, extra || {}));
+}
+
+/**
+ * Elenco iscrizioni online non ancora completate (admin GAS).
+ * Include anche righe in ISCRIZIONI_ARCHIVIO senza PDF/email.
+ */
+function getIscrizioniInSospeso() {
+  ensureIscrizioniSheet();
+  _archiviaIscrizioniCompletateInBatch_();
+
+  var out = [];
+  var sheets = [_getIscrizioniSheet(), _getOrCreateIscrizioniArchivioSheet_()];
+  for (var s = 0; s < sheets.length; s++) {
+    var sheet = sheets[s];
+    var inArchivio = sheet.getName() === ISCRIZIONI_ARCHIVIO_SHEET_NAME;
+    var last = sheet.getLastRow();
+    if (last < 2) continue;
+    var data = sheet.getRange(2, 1, last - 1, ISCRIZIONI_HEADERS.length).getValues();
+    for (var i = data.length - 1; i >= 0; i--) {
+      var rec = _iscrizioneRowToObject(data[i]);
+      if (!rec || !rec.id) continue;
+      _pushIscrizioneInSospesoItem_(out, rec, { inArchivio: inArchivio });
+    }
+  }
+  return out;
+}
+
+/** Admin: sincronizza pagamento Stripe per una iscrizione. */
+function adminSincronizzaIscrizione(idIscrizione) {
+  var sync = typeof sincronizzaPagamentoIscrizioneStripe === "function"
+    ? sincronizzaPagamentoIscrizioneStripe(idIscrizione)
+    : { found: false, pagato: false };
+  var stato = getStatoIscrizione(idIscrizione);
+  return {
+    success: true,
+    sync: sync,
+    stato: stato,
+    message: sync.pagato
+      ? "Pagamento confermato su Stripe."
+      : (sync.message || "Pagamento non ancora risulta completato su Stripe.")
+  };
+}
+
+/** Admin: avvia PDF + email + scrittura ASSOCIATI/QUOTE. */
+function adminCompletaInvioIscrizione(idIscrizione) {
+  return completaInvioIscrizione(idIscrizione);
+}
+
+/** Admin: rigenera PDF Drive + reinvia email (anche se già in archivio). */
+function adminRigeneraInvioIscrizione(idIscrizione) {
+  _eseguiInvioIscrizioneSync(idIscrizione, { force: true });
+  var rec = getIscrizioneById(idIscrizione);
+  return {
+    success: true,
+    idIscrizione: idIscrizione,
+    pdfUrl: rec ? rec.pdfUrl : "",
+    name: rec ? rec.nome : ""
+  };
+}
+
+/**
+ * Admin: unico pulsante — completa prima volta o rigenera se PDF/email mancanti o in errore.
+ */
+function adminFinisciInvioIscrizione(idIscrizione) {
+  var rec = getIscrizioneById(idIscrizione);
+  if (!rec) throw new Error("Iscrizione non trovata.");
+  if (String(rec.pagamentoStato || "").toUpperCase().trim() !== "PAGATO") {
+    throw new Error("Pagamento non ancora confermato. Usa Sync Stripe se necessario.");
+  }
+
+  var emailSt = String(rec.emailConfermaInviata || "").toUpperCase().trim();
+  var hasPdf = !!String(rec.pdfUrl || "").trim();
+  if (hasPdf && emailSt === "SI") {
+    return { success: true, alreadySent: true, name: rec.nome, pdfUrl: rec.pdfUrl || "" };
+  }
+
+  var needsForce = !hasPdf || emailSt === "ERRORE";
+  if (needsForce) {
+    return adminRigeneraInvioIscrizione(idIscrizione);
+  }
+  return completaInvioIscrizione(idIscrizione);
 }
 
 var ISCRIZIONE_TOKEN_SHEET = "_ISCRIZIONE_TOKENS";
@@ -231,13 +574,25 @@ function _findAssociatoByIdentifier_(identifier) {
   return null;
 }
 
-function _hasQuotaPagataAnnoCorrente_(cf) {
-  var target = String(cf || "").toUpperCase().trim();
-  if (!target) return false;
-  var anno = new Date().getFullYear();
-  var sheet = _getIscrizioniSheet();
+function _normalizeNameKey_(value) {
+  return String(value || "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+/** Confronto flessibile Nome/Cognome vs cella QUOTE (ordine, spazi, maiuscole). */
+function _quoteNameMatchesAssociato_(nome, cognome, quoteNameCell) {
+  var key = _normalizeNameKey_(quoteNameCell);
+  var n = _normalizeNameKey_(nome);
+  var c = _normalizeNameKey_(cognome);
+  if (!key || !n || !c) return false;
+  if (key === (n + " " + c) || key === (c + " " + n)) return true;
+  return key.indexOf(n) >= 0 && key.indexOf(c) >= 0;
+}
+
+function _scanIscrizioniPagatoPerCf_(cf, anno, sheet) {
+  if (!sheet) return false;
   var last = sheet.getLastRow();
   if (last < 2) return false;
+  var target = String(cf || "").toUpperCase().trim();
   var data = sheet.getRange(2, 1, last - 1, ISCRIZIONI_HEADERS.length).getValues();
   for (var i = 0; i < data.length; i++) {
     var row = data[i];
@@ -246,6 +601,135 @@ function _hasQuotaPagataAnnoCorrente_(cf) {
     if (String(row[ISCR_COL.PAGAMENTO_STATO] || "").toUpperCase().trim() === "PAGATO") return true;
   }
   return false;
+}
+
+function _hasQuotaPagataInQuoteSheet_(nome, cognome, anno) {
+  var ss = SpreadsheetApp.openById(SPREADSHEET_ISCRIZIONI_ID);
+  var quoteSheetName = typeof QUOTE_SHEET_NAME !== "undefined" ? QUOTE_SHEET_NAME : "QUOTE";
+  var quoteSheet = ss.getSheetByName(quoteSheetName);
+  if (!quoteSheet || quoteSheet.getLastRow() <= 1) return false;
+
+  var yearStr = String(anno);
+  var quoteData = quoteSheet.getDataRange().getValues();
+  for (var i = 1; i < quoteData.length; i++) {
+    var row = quoteData[i];
+    if (!_quoteNameMatchesAssociato_(nome, cognome, row[0])) continue;
+    if (String(row[1] || "").trim() !== yearStr) continue;
+    return true;
+  }
+  return false;
+}
+
+function _hasQuotaPagataAnnoCorrente_(cf, associatoOpt) {
+  var target = String(cf || "").toUpperCase().trim();
+  if (!target) return false;
+  var anno = new Date().getFullYear();
+
+  if (_scanIscrizioniPagatoPerCf_(target, anno, _getIscrizioniSheet())) return true;
+  if (_scanIscrizioniPagatoPerCf_(target, anno, _getOrCreateIscrizioniArchivioSheet_())) return true;
+
+  var associato = associatoOpt || _findAssociatoByCf_(target);
+  if (!associato) return false;
+
+  var C = typeof COL_INDEX !== "undefined" ? COL_INDEX : { NOME: 3, COGNOME: 4 };
+  var nome = String(associato.row[C.NOME] || "").trim();
+  var cognome = String(associato.row[C.COGNOME] || "").trim();
+
+  if (_hasQuotaPagataInQuoteSheet_(nome, cognome, anno)) return true;
+
+  var fullName = (nome + " " + cognome).trim();
+  if (fullName && typeof getQuotaStatus === "function") {
+    var quotaDate = getQuotaStatus(fullName, anno);
+    if (quotaDate) return true;
+    var quotaDateAlt = getQuotaStatus((cognome + " " + nome).trim(), anno);
+    if (quotaDateAlt) return true;
+  }
+
+  return false;
+}
+
+function _applicaAggiornamentoAssociatoDaForm_(associato, data) {
+  var sheet = _iscrizioneAssociatiSheet_();
+  var rowNum = associato.rowNum;
+  var C = typeof COL_INDEX !== "undefined" ? COL_INDEX : {
+    NOME: 3, COGNOME: 4, LUOGO_NASCITA: 5, PROVINCIA_NASCITA: 6, DATA_NASCITA: 7,
+    INDIRIZZO: 8, CAP: 9, CITTA: 10, PROVINCIA_RESIDENZA: 11, CODICE_FISCALE: 12,
+    TELEFONO: 13, EMAIL: 14, NOME_COMPLETO_TUTORE: 16,
+    TUTORE_NOME_MANUALE: 17, TUTORE_COGNOME_MANUALE: 18, TUTORE_CELLULARE_MANUALE: 19,
+    TUTORE_EMAIL_MANUALE: 20, TUTORE_CF_MANUALE: 21
+  };
+
+  sheet.getRange(rowNum, C.NOME + 1).setValue(String(data.nome || "").trim());
+  sheet.getRange(rowNum, C.COGNOME + 1).setValue(String(data.cognome || "").trim());
+  sheet.getRange(rowNum, C.LUOGO_NASCITA + 1).setValue(String(data.luogo_nascita || "").trim());
+  sheet.getRange(rowNum, C.PROVINCIA_NASCITA + 1).setValue(String(data.prov_nascita || "").toUpperCase().trim());
+  if (data.data_nascita) {
+    var dataNascitaVal = typeof parseDateFromInput === "function"
+      ? parseDateFromInput(data.data_nascita)
+      : data.data_nascita;
+    sheet.getRange(rowNum, C.DATA_NASCITA + 1).setValue(dataNascitaVal);
+  }
+  sheet.getRange(rowNum, C.INDIRIZZO + 1).setValue(String(data.indirizzo || "").trim());
+  sheet.getRange(rowNum, C.CAP + 1).setValue(String(data.cap || "").trim());
+  sheet.getRange(rowNum, C.CITTA + 1).setValue(String(data.citta || "").trim());
+  sheet.getRange(rowNum, C.PROVINCIA_RESIDENZA + 1).setValue(String(data.prov || "").toUpperCase().trim());
+  sheet.getRange(rowNum, C.CODICE_FISCALE + 1).setValue(String(data.cf || "").toUpperCase().trim());
+  sheet.getRange(rowNum, C.TELEFONO + 1).setValue(String(data.telefono || "").trim());
+  sheet.getRange(rowNum, C.EMAIL + 1).setValue(String(data.email || "").trim());
+
+  var tutoreNome = String(data.tutore_nome || "").trim();
+  var tutoreCognome = String(data.tutore_cognome || "").trim();
+  var tutoreNomeCompleto = (tutoreNome + " " + tutoreCognome).trim();
+  sheet.getRange(rowNum, C.NOME_COMPLETO_TUTORE + 1).setValue(tutoreNomeCompleto);
+  sheet.getRange(rowNum, C.TUTORE_NOME_MANUALE + 1).setValue(tutoreNome);
+  sheet.getRange(rowNum, C.TUTORE_COGNOME_MANUALE + 1).setValue(tutoreCognome);
+  sheet.getRange(rowNum, C.TUTORE_CELLULARE_MANUALE + 1).setValue(String(data.tutore_telefono || "").trim());
+  sheet.getRange(rowNum, C.TUTORE_EMAIL_MANUALE + 1).setValue(String(data.tutore_email || "").trim());
+  sheet.getRange(rowNum, C.TUTORE_CF_MANUALE + 1).setValue(String(data.tutore_cf || "").toUpperCase().trim());
+
+  SpreadsheetApp.flush();
+}
+
+/**
+ * Associato già in rubrica con quota pagata: aggiorna solo anagrafica (no Stripe).
+ */
+function salvaAggiornamentoAssociatoIscrizione(data) {
+  var isRinnovo = data.rinnovo_associato === true
+    || String(data.rinnovo_associato || "").toLowerCase() === "true";
+  if (!isRinnovo) {
+    throw new Error("Operazione riservata agli associati già registrati.");
+  }
+  if (!String(data.nome || "").trim() || !String(data.cognome || "").trim()) {
+    throw new Error("Nome e cognome obbligatori.");
+  }
+  if (!String(data.cf || "").trim()) {
+    throw new Error("Codice fiscale obbligatorio.");
+  }
+  if (!data.signatureData) {
+    throw new Error("Firma digitale obbligatoria.");
+  }
+
+  var cf = String(data.cf || "").toUpperCase().trim();
+  var associato = _findAssociatoByCf_(cf);
+  if (!associato) {
+    throw new Error("Associato non trovato in rubrica. Contatta la segreteria.");
+  }
+  if (!_hasQuotaPagataAnnoCorrente_(cf, associato)) {
+    return {
+      success: false,
+      code: "QUOTA_NON_PAGATA",
+      message: "La quota associativa per quest'anno non risulta ancora pagata. Procedi al pagamento."
+    };
+  }
+
+  _applicaAggiornamentoAssociatoDaForm_(associato, data);
+
+  return {
+    success: true,
+    skipPayment: true,
+    message: "Dati aggiornati con successo. La quota per quest'anno risulta già pagata.",
+    nome: String(data.nome || "").trim()
+  };
 }
 
 function _associatoRowToFormFields_(row) {
@@ -307,9 +791,13 @@ function _inviaMagicLinkIscrizionePerAssociato_(associato) {
   var link = _creaMagicLinkIscrizione_(associato.email);
   var fields = _associatoRowToFormFields_(associato.row);
   var nome = fields.nome || "Associato";
+  var quotaGiaPagata = _hasQuotaPagataAnnoCorrente_(fields.cf, associato);
+  var azioneLine = quotaGiaPagata
+    ? "Apri il link qui sotto per verificare o aggiornare i tuoi dati anagrafici:"
+    : "Apri il link qui sotto per verificare o aggiornare i tuoi dati e pagare la quota associativa:";
   var body = "Ciao " + nome + ",\n\n"
     + "hai richiesto l'accesso al modulo di iscrizione MusicPro.\n"
-    + "Apri il link qui sotto per verificare o aggiornare i tuoi dati e pagare la quota associativa:\n\n"
+    + azioneLine + "\n\n"
     + link + "\n\n"
     + "Il link è valido 24 ore.\n\nCordiali saluti,\nMusicPro Eventi";
   MailApp.sendEmail({
@@ -327,10 +815,13 @@ function _valutaDuplicatoIscrizione_(data) {
     || String(data.rinnovo_associato || "").toLowerCase() === "true";
 
   if (_hasQuotaPagataAnnoCorrente_(cf)) {
+    if (isRinnovo) {
+      return { blocked: false, skipPayment: true };
+    }
     return {
       blocked: true,
       code: "QUOTA_GIA_PAGATA",
-      message: "La quota associativa risulta già pagata per quest'anno. Controlla la email o scrivi a musicproeventi@gmail.com."
+      message: "La quota associativa risulta già pagata per quest'anno. Usa il link personalizzato per aggiornare i dati."
     };
   }
 
@@ -395,9 +886,11 @@ function validateIscrizioneTokenAndGetForm(token) {
   if (!associato) return { found: false, message: "Associato non trovato." };
 
   var fields = _associatoRowToFormFields_(associato.row);
+  var quotaGiaPagata = _hasQuotaPagataAnnoCorrente_(fields.cf, associato);
   return {
     found: true,
     rinnovo: true,
+    quotaGiaPagata: quotaGiaPagata,
     nome: fields.nome,
     cognome: fields.cognome,
     fields: fields,
@@ -426,6 +919,9 @@ function inviaIscrizioneConPagamento(data) {
   var dup = _valutaDuplicatoIscrizione_(data);
   if (dup.blocked) {
     return { success: false, code: dup.code, message: dup.message };
+  }
+  if (dup.skipPayment) {
+    return salvaAggiornamentoAssociatoIscrizione(data);
   }
 
   ensureIscrizioniSheet();
@@ -491,7 +987,10 @@ function aggiornaIscrizionePagamentoPagato(idIscrizione, finStripe, piId) {
 
   var sheet = _getIscrizioniSheet();
   var stato = String(sheet.getRange(rowNum, ISCR_COL.PAGAMENTO_STATO + 1).getValue() || "").toUpperCase().trim();
-  if (stato === "PAGATO") return 0;
+  if (stato === "PAGATO") {
+    accodaInvioEmailIscrizioneSeNecessario(idIscrizione);
+    return 0;
+  }
 
   sheet.getRange(rowNum, ISCR_COL.PAGAMENTO_STATO + 1).setValue("PAGATO");
   sheet.getRange(rowNum, ISCR_COL.PAGAMENTO_PAGATO_AT + 1).setValue(new Date());
@@ -508,6 +1007,7 @@ function aggiornaIscrizionePagamentoPagato(idIscrizione, finStripe, piId) {
   if (piId) {
     sheet.getRange(rowNum, ISCR_COL.PAGAMENTO_STRIPE_PI + 1).setValue(String(piId).substring(0, 64));
   }
+  accodaInvioEmailIscrizioneSeNecessario(idIscrizione);
   return 1;
 }
 
@@ -520,42 +1020,56 @@ function completaInvioIscrizione(idIscrizione) {
   if (String(rec.pagamentoStato || "").toUpperCase().trim() !== "PAGATO") {
     throw new Error("Pagamento non ancora confermato. Attendi qualche secondo e riprova.");
   }
-  if (rec.pdfUrl || String(rec.emailConfermaInviata || "").toUpperCase().trim() === "SI") {
+  var emailSt = String(rec.emailConfermaInviata || "").toUpperCase().trim();
+  var hasPdf = !!String(rec.pdfUrl || "").trim();
+  if (hasPdf && emailSt === "SI") {
     return { success: true, alreadySent: true, name: rec.nome, pdfUrl: rec.pdfUrl || "" };
   }
   if (!rec.payloadJson) throw new Error("Dati iscrizione mancanti.");
 
-  var emailSt = String(rec.emailConfermaInviata || "").toUpperCase().trim();
-  if (emailSt === "IN_CORSO") {
-    return { success: true, queued: true, name: rec.nome };
+  var located = _locateIscrizioneRowById_(idIscrizione);
+  if (located && !located.inArchivio) {
+    located.sheet.getRange(located.rowNum, ISCR_COL.EMAIL_CONFERMA_INVIATA + 1).setValue("IN_CORSO");
   }
 
-  var sheet = _getIscrizioniSheet();
-  var rowNum = _iscrizioneFindRowById(idIscrizione);
-  sheet.getRange(rowNum, ISCR_COL.EMAIL_CONFERMA_INVIATA + 1).setValue("IN_CORSO");
-  var sched = _scheduleIscrizioneInvio(idIscrizione);
-  return {
-    success: true,
-    queued: !sched.done,
-    alreadySent: !!sched.done,
-    name: rec.nome
-  };
+  try {
+    _eseguiInvioIscrizioneSync(idIscrizione);
+    rec = getIscrizioneById(idIscrizione);
+    return {
+      success: true,
+      queued: false,
+      alreadySent: false,
+      name: rec ? rec.nome : "",
+      pdfUrl: rec ? rec.pdfUrl : ""
+    };
+  } catch (err) {
+    if (located) {
+      try {
+        located.sheet.getRange(located.rowNum, ISCR_COL.EMAIL_CONFERMA_INVIATA + 1).setValue("ERRORE");
+      } catch (eMark) {}
+    }
+    throw err;
+  }
 }
 
 function _scheduleIscrizioneInvio(idIscrizione) {
   _enqueueIscrizioneInvioDeferred({ id: idIscrizione });
   try {
+    var hasPending = false;
     var triggers = ScriptApp.getProjectTriggers();
     for (var i = 0; i < triggers.length; i++) {
       if (triggers[i].getHandlerFunction() === "_deferredIscrizioneInvioWork") {
-        return { scheduled: true, done: false };
+        hasPending = true;
+        break;
       }
     }
-    ScriptApp.newTrigger("_deferredIscrizioneInvioWork").timeBased().after(3 * 1000).create();
+    if (!hasPending) {
+      ScriptApp.newTrigger("_deferredIscrizioneInvioWork").timeBased().after(3 * 1000).create();
+    }
     return { scheduled: true, done: false };
   } catch (triggerErr) {
     Logger.log("[_scheduleIscrizioneInvio] esecuzione diretta: " + (triggerErr.message || triggerErr));
-    _eseguiInvioIscrizioneSync(idIscrizione);
+    _deferredIscrizioneInvioWork();
     return { scheduled: false, done: true };
   }
 }
@@ -596,30 +1110,45 @@ function _deferredIscrizioneInvioWork() {
     } catch (itemErr) {
       Logger.log("[_deferredIscrizioneInvioWork] id=" + item.id + " " + (itemErr.message || itemErr));
       try {
-        var rowNum = _iscrizioneFindRowById(item.id);
-        if (rowNum > 0) {
-          _getIscrizioniSheet().getRange(rowNum, ISCR_COL.EMAIL_CONFERMA_INVIATA + 1).setValue("ERRORE");
+        var located = _locateIscrizioneRowById_(item.id);
+        if (located) {
+          located.sheet.getRange(located.rowNum, ISCR_COL.EMAIL_CONFERMA_INVIATA + 1).setValue("ERRORE");
         }
       } catch (eMark) {}
     }
   }
 }
 
-function _eseguiInvioIscrizioneSync(idIscrizione) {
-  var rec = getIscrizioneById(idIscrizione);
-  if (!rec) throw new Error("Iscrizione non trovata.");
-  if (rec.pdfUrl || String(rec.emailConfermaInviata || "").toUpperCase().trim() === "SI") return;
+function _eseguiInvioIscrizioneSync(idIscrizione, options) {
+  options = options || {};
+  var located = _locateIscrizioneRowById_(idIscrizione);
+  if (!located) throw new Error("Iscrizione non trovata.");
 
-  var sheet = _getIscrizioniSheet();
-  var rowNum = _iscrizioneFindRowById(idIscrizione);
+  var row = located.sheet.getRange(located.rowNum, 1, 1, ISCRIZIONI_HEADERS.length).getValues()[0];
+  var rec = _iscrizioneRowToObject(row);
+  if (!rec || !rec.payloadJson) throw new Error("Dati iscrizione mancanti.");
+
+  var emailSt = String(rec.emailConfermaInviata || "").toUpperCase().trim();
+  var hasPdf = !!String(rec.pdfUrl || "").trim();
+  if (!options.force && hasPdf && emailSt === "SI") {
+    if (!located.inArchivio) _archiviaRigaIscrizioneCompletata_(located.rowNum);
+    return;
+  }
+
   var data = JSON.parse(rec.payloadJson);
   data.metodo_pagamento = "Stripe";
 
   var pdfRes = processMembershipApplication(data);
-  if (pdfRes && pdfRes.pdfUrl) {
-    sheet.getRange(rowNum, ISCR_COL.PDF_URL + 1).setValue(pdfRes.pdfUrl);
+  if (!pdfRes || !pdfRes.pdfUrl) {
+    throw new Error("Generazione PDF non riuscita.");
   }
-  sheet.getRange(rowNum, ISCR_COL.EMAIL_CONFERMA_INVIATA + 1).setValue("SI");
+
+  located.sheet.getRange(located.rowNum, ISCR_COL.PDF_URL + 1).setValue(pdfRes.pdfUrl);
+  located.sheet.getRange(located.rowNum, ISCR_COL.EMAIL_CONFERMA_INVIATA + 1).setValue("SI");
+
+  if (!located.inArchivio) {
+    _archiviaRigaIscrizioneCompletata_(located.rowNum);
+  }
 }
 
 /**
@@ -628,6 +1157,11 @@ function _eseguiInvioIscrizioneSync(idIscrizione) {
 function processMembershipApplication(data) {
   Logger.log("--- INIZIO PROCESSO ISCRIZIONE ---");
 
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(120000)) {
+    throw new Error("Sistema occupato nella assegnazione numero associato. Riprova tra poco.");
+  }
+
   try {
     var ss = SpreadsheetApp.openById(SPREADSHEET_ISCRIZIONI_ID);
     var sheetAssociati = ss.getSheetByName("ASSOCIATI") || ss.getSheetByName("Associati");
@@ -635,23 +1169,17 @@ function processMembershipApplication(data) {
     var cfSocio = (data.cf || "").toUpperCase().trim();
     if (!cfSocio) throw new Error("Codice Fiscale non ricevuto dal form.");
 
-    var rows = sheetAssociati.getDataRange().getValues();
-    var rowIndex = -1;
-    for (var i = 1; i < rows.length; i++) {
-      if (rows[i][12] && rows[i][12].toString().toUpperCase().trim() === cfSocio) {
-        rowIndex = i + 1;
-        break;
-      }
-    }
+    var found = _findAssociatoRowByCf_(sheetAssociati, cfSocio);
+    var rowIndex = found.rowIndex;
+    var numeroSocio = rowIndex > 0 ? found.numeroSocio : _nextNumeroAssociatoFromSheet_(sheetAssociati);
 
     var docTemplate = DriveApp.getFileById(TEMPLATE_ISCRIZIONE_ID);
-    var folder = DriveApp.getFolderById(FOLDER_ISCRIZIONI_ID);
+    var folder = _getIscrizionePdfFolder_(data);
     var newFileName = "Iscrizione - " + data.cognome + " " + data.nome;
     var copyFile = docTemplate.makeCopy(newFileName, folder);
     var doc = DocumentApp.openById(copyFile.getId());
     var body = doc.getBody();
 
-    var numeroSocio = rowIndex > 0 ? rows[rowIndex - 1][0] : sheetAssociati.getLastRow();
     var dataNascitaFmt = data.data_nascita ? data.data_nascita.split("-").reverse().join("/") : "";
     var oggi = Utilities.formatDate(new Date(), "GMT+1", "dd/MM/yyyy");
 
@@ -700,6 +1228,7 @@ function processMembershipApplication(data) {
     var pdfBlob = copyFile.getAs(MimeType.PDF);
     var pdfFile = folder.createFile(pdfBlob).setName(newFileName + ".pdf");
     copyFile.setTrashed(true);
+    _mirrorIscrizionePdfInRootFolder_(pdfFile, data);
 
     var tutoreNome = data.tutore_nome || "";
     var tutoreCognome = data.tutore_cognome || "";
@@ -739,45 +1268,22 @@ function processMembershipApplication(data) {
       sheetAssociati.appendRow(rowData);
     }
 
-    var emailSubject = "Conferma Iscrizione MusicPro - " + data.nome + " " + data.cognome;
-    var emailBody = "Ciao " + data.nome + ",\n\nin allegato trovi la tua domanda di iscrizione firmata.\n\nCordiali saluti,\nMusicPro Eventi";
-    var pdfBlob = pdfFile.getAs(MimeType.PDF);
-
-    if (!String(data.email || "").trim()) {
-      throw new Error("Email destinatario mancante.");
-    }
-
+    var annoQuota = new Date().getFullYear();
     try {
-      MailApp.sendEmail({
-        to: String(data.email).trim(),
-        subject: emailSubject,
-        body: emailBody,
-        attachments: [pdfBlob],
-        name: "MusicPro Eventi"
-      });
-    } catch (mailErr) {
-      Logger.log("ERRORE email socio: " + mailErr);
-      throw new Error("PDF creato ma impossibile inviare l'email: " + (mailErr.message || mailErr));
+      _registraQuotaDaIscrizione_(ss, data, annoQuota);
+    } catch (quotaErr) {
+      Logger.log("[_registraQuotaDaIscrizione_] " + (quotaErr.message || quotaErr));
     }
 
-    if (EMAIL_SEGRETERIA) {
-      try {
-        MailApp.sendEmail({
-          to: EMAIL_SEGRETERIA,
-          subject: "ISCRIZIONE: " + data.cognome + " " + data.nome,
-          body: "Nuova iscrizione con pagamento Stripe.\nEmail socio: " + data.email,
-          attachments: [pdfBlob],
-          name: "MusicPro Iscrizioni"
-        });
-      } catch (mailSecErr) {
-        Logger.log("ERRORE email segreteria (non bloccante): " + mailSecErr);
-      }
-    }
+    var pdfBlob = pdfFile.getAs(MimeType.PDF);
+    _inviaEmailIscrizione_(data, pdfBlob);
 
-    return { success: true, name: data.nome, pdfUrl: pdfFile.getUrl() };
+    return { success: true, name: data.nome, pdfUrl: pdfFile.getUrl(), numeroSocio: numeroSocio };
   } catch (e) {
     Logger.log("ERRORE CRITICO: " + e.toString());
     throw new Error("Errore durante l'elaborazione: " + e.message);
+  } finally {
+    lock.releaseLock();
   }
 }
 
@@ -808,6 +1314,16 @@ function handleIscrizioneApiGet_(e) {
   if (op === "validateIscrizioneToken") {
     var tok = (e && e.parameter) ? String(e.parameter.token || "").trim() : "";
     return createIscrizioneJsonOutput(validateIscrizioneTokenAndGetForm(tok));
+  }
+  if (op === "getFirmaPdfForView") {
+    try {
+      return createIscrizioneJsonOutput(getFirmaPdfForView());
+    } catch (firmaErr) {
+      return createIscrizioneJsonOutput({ success: false, message: firmaErr.message || String(firmaErr) });
+    }
+  }
+  if (op === "getFirmaSignaturePositions") {
+    return createIscrizioneJsonOutput(getFirmaSignaturePositions());
   }
   return createIscrizioneJsonOutput({ success: false, message: "Operazione GET non valida: " + op });
 }
@@ -848,9 +1364,29 @@ function doPost(e) {
       return createIscrizioneJsonOutput(richiediLinkIscrizioneAssociato(data.identifier || data.email || data.cf));
     }
 
+    if (bodyAction === "salvaAggiornamentoAssociatoIscrizione") {
+      return createIscrizioneJsonOutput(salvaAggiornamentoAssociatoIscrizione(data));
+    }
+
     if (bodyAction === "inviaIscrizione" || bodyAction === "inviaIscrizioneConPagamento") {
       var result = inviaIscrizioneConPagamento(data);
       return createIscrizioneJsonOutput(result);
+    }
+
+    if (bodyAction === "salvaFirmaDocumento") {
+      try {
+        return createIscrizioneJsonOutput(salvaFirmaDocumento(data.pdfBase64));
+      } catch (firmaSaveErr) {
+        return createIscrizioneJsonOutput({ success: false, message: firmaSaveErr.message || String(firmaSaveErr) });
+      }
+    }
+
+    if (bodyAction === "inviaFirmaDocumentoAdmin") {
+      try {
+        return createIscrizioneJsonOutput(inviaFirmaDocumentoAdmin());
+      } catch (firmaInviaErr) {
+        return createIscrizioneJsonOutput({ success: false, message: firmaInviaErr.message || String(firmaInviaErr) });
+      }
     }
 
     var legacy = inviaIscrizioneConPagamento(data);

@@ -1,10 +1,14 @@
+# Solo sorgenti GAS (root) — escludere monorepo Next.js, script migrazione, node_modules
 **/**
-!**/*.js
-!**/*.html
-!**/*.json
-deploy-iscrizione.js
-node_modules/**
-.env
-.env.*
-.git/**
-.deploy-iscrizione/**
+!Codice.js
+!FirmaDocumento.js
+!FirmaPdfOriginale.js
+!iscrizioni.js
+!StripePagamenti.js
+!index.html
+!login.html
+!iscrizione.html
+!conferma-pagamento.html
+!firma.html
+!area-personale.html
+!appsscript.json

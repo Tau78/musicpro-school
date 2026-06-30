@@ -258,12 +258,37 @@ function formatNotuleSheet() {
 
 // --- Funzioni comuni / Helper ---
 
-/** Info deploy mostrata nell'header dell'app (aggiornare a ogni release). */
+/** Info deploy mostrata nell'header dell'app (aggiornare a ogni release clasp). v1.2.5 */
 var DEPLOY_INFO = {
-  version: '1.1.0',
-  date: '2026-06-11',
-  description: 'Stripe ritorno iscrizione'
+  version: '1.2.5',
+  date: '2026-06-26',
+  description: 'Pagina firma documento Estensione Associazione MP'
 };
+
+/** Legge info deploy da Script Properties (se impostate) altrimenti da DEPLOY_INFO. */
+function getDeployInfoForUi_() {
+  try {
+    var props = PropertiesService.getScriptProperties();
+    var version = String(props.getProperty('DEPLOY_VERSION') || '').trim();
+    if (version) {
+      return {
+        version: version,
+        date: String(props.getProperty('DEPLOY_DATE') || DEPLOY_INFO.date).trim(),
+        description: String(props.getProperty('DEPLOY_DESCRIPTION') || DEPLOY_INFO.description).trim()
+      };
+    }
+  } catch (e) {}
+  return DEPLOY_INFO;
+}
+
+/** Imposta info deploy visibile in header (es. da editor: registerGasDeployInfo('1.2.0','2026-06-17','...')). */
+function registerGasDeployInfo(version, date, description) {
+  var props = PropertiesService.getScriptProperties();
+  props.setProperty('DEPLOY_VERSION', String(version || '').trim());
+  props.setProperty('DEPLOY_DATE', String(date || '').trim());
+  props.setProperty('DEPLOY_DESCRIPTION', String(description || '').trim());
+  return getDeployInfoForUi_();
+}
 
 /**
  * @version 2.6 - Funzione doGet Unificata
@@ -311,12 +336,21 @@ function doGet(e) {
         .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
         .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 
+    case 'firma':
+      Logger.log("doGet: Servo la pagina firma documento associazione.");
+      return HtmlService.createTemplateFromFile('firma')
+        .evaluate()
+        .setTitle('Firma Documento — MusicPro')
+        .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+        .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+
     default:
       Logger.log("doGet: Servo la pagina di gestione principale (index).");
       var templateIndex = HtmlService.createTemplateFromFile('index');
-      templateIndex.deployVersion = DEPLOY_INFO.version;
-      templateIndex.deployDate = DEPLOY_INFO.date;
-      templateIndex.deployDescription = DEPLOY_INFO.description;
+      var deployUi = getDeployInfoForUi_();
+      templateIndex.deployVersion = deployUi.version;
+      templateIndex.deployDate = deployUi.date;
+      templateIndex.deployDescription = deployUi.description;
       return templateIndex.evaluate()
         .setTitle('Gestione Associati e Rimborsi')
         .addMetaTag('viewport', 'width=device-width, initial-scale=1');
@@ -496,6 +530,23 @@ function getInitialData() {
     Logger.log('getInitialData Error: ' + e.stack); // Changed to Logger.log
     throw new Error('Impossibile caricare i dati iniziali. Controlla l\'ID dello Spreadsheet e i nomi dei fogli: ' + e.message);
   }
+}
+
+/**
+ * Restituisce il foglio QUOTE, creandolo con intestazioni se manca.
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss
+ */
+function _getOrCreateQuoteSheet_(ss) {
+  let sheet = ss.getSheetByName(QUOTE_SHEET_NAME);
+  if (!sheet) {
+    Logger.log(`_getOrCreateQuoteSheet_: creazione foglio "${QUOTE_SHEET_NAME}".`);
+    sheet = ss.insertSheet(QUOTE_SHEET_NAME);
+    sheet.appendRow(['Nome Completo', 'Anno', 'Data Pagamento', 'Importo'])
+      .getRange(1, 1, 1, 4)
+      .setFontWeight('bold');
+    SpreadsheetApp.flush();
+  }
+  return sheet;
 }
 
 // --- Funzioni per la gestione delle Quote Associative (nel foglio IMPOSTAZIONI_QUOTE) ---
@@ -1365,7 +1416,7 @@ function updateAssociatoFromRubrica(rowDataObject) {
 
     // Esegui solo se sono stati forniti dati validi per la quota
     if (selectedYear && paymentDateYMD && fullName) {
-        const quoteSheet = ss.getSheetByName(QUOTE_SHEET_NAME);
+        const quoteSheet = _getOrCreateQuoteSheet_(ss);
         const quoteData = quoteSheet.getDataRange().getValues();
         let existingRowIndex = -1;
 
@@ -1430,8 +1481,12 @@ function addAssociato(newRecordData) {
     newRowArray[COL_INDEX.NOME] = newRecordData.nome || "";
     newRowArray[COL_INDEX.COGNOME] = newRecordData.cognome || "";
     newRowArray[COL_INDEX.LUOGO_NASCITA] = newRecordData.luogoNascita || "";
+    newRowArray[COL_INDEX.PROVINCIA_NASCITA] = (newRecordData.provinciaNascita || "").toUpperCase();
     newRowArray[COL_INDEX.DATA_NASCITA] = parseDateFromInput(newRecordData.dataNascita);
     newRowArray[COL_INDEX.INDIRIZZO] = newRecordData.indirizzo || "";
+    newRowArray[COL_INDEX.CAP] = newRecordData.cap || "";
+    newRowArray[COL_INDEX.CITTA] = newRecordData.citta || "";
+    newRowArray[COL_INDEX.PROVINCIA_RESIDENZA] = (newRecordData.provinciaResidenza || "").toUpperCase();
     newRowArray[COL_INDEX.CODICE_FISCALE] = newRecordData.codiceFiscale || "";
     newRowArray[COL_INDEX.TELEFONO] = newRecordData.cellulare || "";
     newRowArray[COL_INDEX.EMAIL] = newRecordData.email || "";
@@ -1454,7 +1509,7 @@ function addAssociato(newRecordData) {
     if (selectedYear && paymentDateYMD && fullName) {
       const paymentDateObj = parseDateFromInput(paymentDateYMD);
       if (paymentDateObj) {
-        const quoteSheet = ss.getSheetByName(QUOTE_SHEET_NAME);
+        const quoteSheet = _getOrCreateQuoteSheet_(ss);
         const quotaAmount = (getQuotaSettings().find(s => s.year.toString() === selectedYear) || {}).amount || 0;
         quoteSheet.appendRow([fullName, selectedYear, paymentDateObj, quotaAmount]);
       }
@@ -2788,24 +2843,30 @@ function getQuotaStatus(associateName, year) {
 
     const quoteData = quoteSheet.getDataRange().getValues();
     const yearString = String(year);
+    const targetName = String(associateName || '').trim().toLowerCase().replace(/\s+/g, ' ');
 
-    // Cerca una corrispondenza nel foglio delle quote
     for (let i = 1; i < quoteData.length; i++) {
       const row = quoteData[i];
-      const nameInSheet = (row[0] || '').trim();
-      const yearInSheet = (row[1] || '').toString().trim();
+      const nameInSheet = String(row[0] || '').trim().toLowerCase().replace(/\s+/g, ' ');
+      const yearInSheet = String(row[1] || '').trim();
 
-      if (nameInSheet === associateName && yearInSheet === yearString) {
-        // Trovato! Restituisci la data formattata.
-        return formatDateForInput(row[2]); 
+      if (yearInSheet !== yearString) continue;
+      if (nameInSheet !== targetName) {
+        const parts = targetName.split(' ').filter(Boolean);
+        if (parts.length < 2) continue;
+        const allPresent = parts.every(p => nameInSheet.indexOf(p) >= 0);
+        if (!allPresent) continue;
       }
+
+      const formatted = formatDateForInput(row[2]);
+      return formatted || 'paid';
     }
 
-    return null; // Nessuna corrispondenza trovata
+    return null;
 
   } catch (e) {
     Logger.log(`Errore in getQuotaStatus per ${associateName}, anno ${year}: ${e.message}`);
-    return null; // In caso di errore, consideriamo la quota come non pagata
+    return null;
   }
 }
 
@@ -2822,7 +2883,6 @@ function getNextAssociateNumber() {
       throw new Error(`Foglio "${ASSOCIATES_SHEET_NAME}" non trovato.`);
     }
 
-    // Se il foglio è vuoto o ha solo l'intestazione, il primo numero è 1.
     if (sheet.getLastRow() < 2) {
       Logger.log("Foglio vuoto, il prossimo numero è 1.");
       return 1;
@@ -2834,7 +2894,7 @@ function getNextAssociateNumber() {
     const maxNum = valuesNum.reduce((max, row) => {
       const currentNum = parseInt(row[0], 10);
       return (!isNaN(currentNum) && currentNum > max) ? currentNum : max;
-    }, 0); // Inizia da 0
+    }, 0);
 
     const nextNumber = maxNum + 1;
     Logger.log(`Numero massimo trovato: ${maxNum}. Prossimo numero: ${nextNumber}.`);

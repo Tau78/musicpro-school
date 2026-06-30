@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Firma Documento — MusicPro</title>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+  <style>
+    :root {
+      --accent: #d35400;
+      --bg: #f4f4f9;
+    }
+    * { box-sizing: border-box; }
+    html.sig-modal-open,
+    body.sig-modal-open {
+      overflow: hidden;
+      height: 100%;
+      width: 100%;
+      position: fixed;
+      touch-action: none;
+    }
+    body {
+      font-family: 'Roboto', sans-serif;
+      margin: 0;
+      background: var(--bg);
+      color: #333;
+    }
+    .site-header {
+      background: #fff;
+      padding: 16px 20px;
+      text-align: center;
+      border-bottom: 1px solid #e8e8e8;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    }
+    .site-header h1 { margin: 0; font-size: 1.15em; color: var(--accent); font-weight: 500; }
+    .site-header p { margin: 6px 0 0; font-size: 0.85em; color: #666; }
+    .page-wrap { max-width: 900px; margin: 0 auto; padding: 16px; }
+    .card {
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .section-title {
+      font-weight: 700;
+      color: var(--accent);
+      margin: 0 0 12px;
+      font-size: 0.95em;
+      border-bottom: 2px solid #eee;
+      padding-bottom: 6px;
+    }
+    .sig-hint {
+      font-size: 0.88em;
+      color: #555;
+      margin: 0 0 14px;
+      line-height: 1.45;
+    }
+    #pdf-viewer {
+      overflow-x: auto;
+      background: #e0e0e0;
+      border-radius: 4px;
+      padding: 12px;
+      min-height: 280px;
+    }
+    .pdf-page-wrap {
+      position: relative;
+      margin: 0 auto 16px;
+      background: #fff;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    }
+    .pdf-page-wrap:last-child { margin-bottom: 0; }
+    .pdf-page-wrap canvas.pdf-canvas {
+      display: block;
+      position: relative;
+      z-index: 1;
+    }
+    .sig-zone {
+      position: absolute;
+      border: 2px dashed #d35400;
+      background: rgba(255, 243, 224, 0.55);
+      z-index: 2;
+      cursor: pointer;
+      overflow: hidden;
+    }
+    .sig-zone.signed {
+      border-color: #2e7d32;
+      background: rgba(232, 245, 233, 0.45);
+    }
+    .sig-zone-label {
+      position: absolute;
+      top: -22px;
+      left: 0;
+      font-size: 0.72em;
+      font-weight: 700;
+      color: #d35400;
+      background: #fff;
+      padding: 2px 6px;
+      border-radius: 3px;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+    .sig-zone.signed .sig-zone-label { color: #2e7d32; }
+    .sig-zone-preview {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+      pointer-events: none;
+    }
+    .sig-zone-tap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      font-size: 0.7em;
+      font-weight: 600;
+      color: #d35400;
+      text-align: center;
+      padding: 4px;
+      line-height: 1.2;
+      pointer-events: none;
+    }
+    .sig-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      background: #fff;
+      display: none;
+      flex-direction: column;
+      touch-action: none;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+      max-height: 100dvh;
+    }
+    .sig-modal.open {
+      display: flex;
+    }
+    .sig-modal-header {
+      flex-shrink: 0;
+      padding: 10px 16px 8px;
+      padding-top: calc(10px + env(safe-area-inset-top));
+      border-bottom: 1px solid #eee;
+      background: #fff;
+    }
+    .sig-modal-header h2 {
+      margin: 0;
+      font-size: 0.95em;
+      color: var(--accent);
+      font-weight: 600;
+      line-height: 1.25;
+    }
+    .sig-modal-header p {
+      margin: 4px 0 0;
+      font-size: 0.78em;
+      color: #666;
+      line-height: 1.3;
+    }
+    .sig-rotate-hint {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 8px 14px;
+      background: #fff8e1;
+      border-bottom: 1px solid #ffe082;
+      font-size: 0.78em;
+      color: #6d4c00;
+      line-height: 1.3;
+      text-align: left;
+    }
+    .sig-rotate-hint p { margin: 0; flex: 1; max-width: 260px; }
+    .sig-rotate-phone {
+      flex-shrink: 0;
+      width: 22px;
+      height: 38px;
+      border: 2px solid var(--accent);
+      border-radius: 4px;
+      position: relative;
+      animation: sigRotatePhone 2.4s ease-in-out infinite;
+      transform-origin: center center;
+    }
+    .sig-rotate-phone::after {
+      content: '';
+      position: absolute;
+      bottom: 3px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+    @keyframes sigRotatePhone {
+      0%, 18% { transform: rotate(0deg); }
+      45%, 72% { transform: rotate(90deg); }
+      100% { transform: rotate(90deg); }
+    }
+    .sig-modal.landscape .sig-rotate-hint {
+      display: none;
+    }
+    .sig-modal-body {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: hidden;
+      padding: 10px 12px;
+      background: #f5f5f5;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .sig-modal-canvas-wrap {
+      flex-shrink: 0;
+      border: 2px dashed #d35400;
+      border-radius: 6px;
+      background: #fff;
+      touch-action: none;
+      overflow: hidden;
+      max-width: 100%;
+    }
+    #sig-modal-canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+    }
+    .sig-modal-actions {
+      flex-shrink: 0;
+      display: flex;
+      gap: 10px;
+      padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+      border-top: 1px solid #eee;
+      background: #fff;
+    }
+    .sig-modal-actions .btn {
+      flex: 1;
+      margin: 0;
+      padding: 12px 10px;
+      font-size: 0.95em;
+    }
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 16px;
+    }
+    .btn {
+      flex: 1;
+      min-width: 120px;
+      padding: 14px 16px;
+      border: none;
+      border-radius: 4px;
+      font-size: 1em;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 0.03em;
+    }
+    .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+    .btn-cancel { background: #fff; color: #555; border: 2px solid #bbb; }
+    .btn-save { background: var(--accent); color: #fff; }
+    .btn-send { background: #2e7d32; color: #fff; flex: 1 1 100%; }
+    .loading-box { text-align: center; padding: 48px 20px; color: #666; }
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid #eee;
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 14px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .toast {
+      position: fixed; bottom: 20px; left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: #333; color: #fff;
+      padding: 12px 20px; border-radius: 8px;
+      font-size: 0.9em; opacity: 0;
+      transition: opacity 0.25s, transform 0.25s;
+      z-index: 100; max-width: 90vw; text-align: center;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .toast.error { background: #c62828; }
+    .toast.success { background: #2e7d32; }
+    .hidden { display: none !important; }
+    #sig-error { color: #c62828; font-size: 0.82em; margin-top: 8px; display: none; }
+    .slot-info {
+      font-size: 0.85em;
+      color: #1565c0;
+      background: #e3f2fd;
+      border: 1px solid #90caf9;
+      border-radius: 4px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+    }
+  </style>
+</head>
+<body>
+
+<header class="site-header">
+  <h1>Estensione Associazione MP</h1>
+  <p>Leggi il documento e firma nell'area evidenziata</p>
+</header>
+
+<div class="page-wrap">
+  <div id="loading-view" class="card loading-box">
+    <div class="spinner"></div>
+    <p>Caricamento documento...</p>
+  </div>
+
+  <div id="main-view" class="hidden">
+    <div class="card">
+      <div class="section-title">Documento</div>
+      <p class="sig-hint">
+        Ogni firmatario ha il proprio <strong>riquadro arancione</strong> sulla riga corrispondente.
+        <strong>Tocca il riquadro</strong> per aprire il campo firma a schermo intero.
+        Potete firmare in qualsiasi ordine; al termine premete <strong>SALVA</strong>.
+      </p>
+      <div id="slot-info" class="slot-info">
+        Presidente, Vice Presidente e Consigliere: toccate il vostro riquadro per firmare, poi SALVA.
+      </div>
+      <div id="pdf-viewer"></div>
+      <div id="sig-error">Apponi la firma nell'area evidenziata prima di salvare.</div>
+
+      <div class="actions">
+        <button type="button" class="btn btn-cancel" id="btn-annulla">ANNULLA</button>
+        <button type="button" class="btn btn-save" id="btn-salva">SALVA</button>
+        <button type="button" class="btn btn-send" id="btn-invia">INVIA</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<div id="sig-modal" class="sig-modal" aria-hidden="true">
+  <div class="sig-modal-header">
+    <h2 id="sig-modal-title">Firma</h2>
+    <p>Apponi la firma nell'area tratteggiata, poi SALVA</p>
+  </div>
+  <div class="sig-rotate-hint" id="sig-rotate-hint">
+    <div class="sig-rotate-phone" aria-hidden="true"></div>
+    <p><strong>Ruota il telefono in orizzontale</strong> per firmare comodamente</p>
+  </div>
+  <div class="sig-modal-body">
+    <div class="sig-modal-canvas-wrap" id="sig-modal-canvas-wrap">
+      <canvas id="sig-modal-canvas"></canvas>
+    </div>
+  </div>
+  <div class="sig-modal-actions">
+    <button type="button" class="btn btn-cancel" id="sig-modal-cancel">ANNULLA</button>
+    <button type="button" class="btn btn-save" id="sig-modal-confirm">SALVA</button>
+  </div>
+</div>
+
+<script>
+(function() {
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+
+  var API_URL = '/api.php';
+  var useGasRun = (typeof google !== 'undefined' && google.script && google.script.run);
+
+  var currentPdfBase64 = '';
+  var signaturePositions = [];
+  var signatureEntries = [];
+  var fullscreenPad = null;
+  var activeSignIndex = -1;
+  var busy = false;
+
+  function gasApiGet(op) {
+    return fetch(API_URL + '?op=' + encodeURIComponent(op))
+      .then(function(res) { return res.text(); })
+      .then(function(text) {
+        var data;
+        try { data = JSON.parse(text); } catch (e) { throw new Error(text || 'Risposta non valida'); }
+        if (data && data.success === false) throw new Error(data.message || 'Errore server');
+        return data;
+      });
+  }
+
+  function gasApiPost(payload) {
+    return fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+      .then(function(res) { return res.text(); })
+      .then(function(text) {
+        var data;
+        try { data = JSON.parse(text); } catch (e) { throw new Error(text || 'Risposta non valida'); }
+        if (data && data.success === false) throw new Error(data.message || 'Errore server');
+        return data;
+      });
+  }
+
+  function callServer(method, arg) {
+    if (useGasRun) {
+      return new Promise(function(resolve, reject) {
+        var runner = google.script.run.withSuccessHandler(resolve).withFailureHandler(reject);
+        if (arg !== undefined) runner[method](arg);
+        else runner[method]();
+      });
+    }
+    if (method === 'getFirmaPdfForView') return gasApiGet('getFirmaPdfForView');
+    if (method === 'getFirmaSignaturePositions') return gasApiGet('getFirmaSignaturePositions');
+    if (method === 'salvaFirmaDocumento') return gasApiPost({ action: 'salvaFirmaDocumento', pdfBase64: arg });
+    if (method === 'inviaFirmaDocumentoAdmin') return gasApiPost({ action: 'inviaFirmaDocumentoAdmin' });
+    return Promise.reject(new Error('Operazione non supportata: ' + method));
+  }
+
+  function showToast(msg, type) {
+    var el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = 'toast show' + (type ? ' ' + type : '');
+    setTimeout(function() { el.className = 'toast'; }, 3500);
+  }
+
+  function setBusy(on) {
+    busy = on;
+    document.getElementById('btn-annulla').disabled = on;
+    document.getElementById('btn-salva').disabled = on;
+    document.getElementById('btn-invia').disabled = on;
+  }
+
+  function viewerWidth() {
+    var viewer = document.getElementById('pdf-viewer');
+    var w = viewer.clientWidth - 24;
+    if (w < 200) w = Math.min(860, window.innerWidth - 48);
+    return w;
+  }
+
+  function pdfToScreenRect(pos, pdfPageH, scale) {
+    return {
+      left: pos.x * scale,
+      top: (pdfPageH - pos.y - pos.height) * scale,
+      width: pos.width * scale,
+      height: pos.height * scale
+    };
+  }
+
+  function initSignatureEntries() {
+    signatureEntries = signaturePositions.map(function(pos, i) {
+      return { index: i, dataUrl: null, label: pos.label || ('Firma ' + (i + 1)) };
+    });
+  }
+
+  function getSignatureEntry(index) {
+    return signatureEntries[index] || null;
+  }
+
+  function buildZoneContent(zone, index) {
+    var entry = getSignatureEntry(index);
+    var pos = signaturePositions[index];
+    zone.innerHTML = '';
+    zone.className = 'sig-zone' + (entry && entry.dataUrl ? ' signed' : '');
+    zone.dataset.sigIndex = String(index);
+
+    var label = document.createElement('span');
+    label.className = 'sig-zone-label';
+    label.textContent = (pos && pos.label) || ('Firma ' + (index + 1));
+    zone.appendChild(label);
+
+    if (entry && entry.dataUrl) {
+      var img = document.createElement('img');
+      img.className = 'sig-zone-preview';
+      img.alt = 'Firma';
+      img.src = entry.dataUrl;
+      zone.appendChild(img);
+    } else {
+      var hint = document.createElement('span');
+      hint.className = 'sig-zone-tap';
+      hint.textContent = 'Tocca per firmare';
+      zone.appendChild(hint);
+    }
+
+    zone.onclick = function() { openFullscreenSign(index); };
+  }
+
+  function getSignatureFieldAspect(index) {
+    var pos = signaturePositions[index];
+    if (pos && pos.width > 0 && pos.height > 0) return pos.width / pos.height;
+    return 230 / 36;
+  }
+
+  function updateModalOrientation() {
+    var modal = document.getElementById('sig-modal');
+    if (!modal) return;
+    var vp = viewportSize();
+    modal.classList.toggle('landscape', vp.width > vp.height);
+  }
+
+  function onModalViewportChange() {
+    var modal = document.getElementById('sig-modal');
+    if (!modal.classList.contains('open') || activeSignIndex < 0) return;
+    var saved = fullscreenPad && !fullscreenPad.isEmpty() ? fullscreenPad.toDataURL('image/png') : null;
+    resizeFullscreenPad(saved);
+  }
+
+  function measureModalChrome() {
+    var modal = document.getElementById('sig-modal');
+    var header = modal.querySelector('.sig-modal-header');
+    var hint = document.getElementById('sig-rotate-hint');
+    var actions = modal.querySelector('.sig-modal-actions');
+    var body = modal.querySelector('.sig-modal-body');
+    var hintVisible = hint && window.getComputedStyle(hint).display !== 'none';
+    var bodyStyle = window.getComputedStyle(body);
+    var padX = parseFloat(bodyStyle.paddingLeft) + parseFloat(bodyStyle.paddingRight);
+    var padY = parseFloat(bodyStyle.paddingTop) + parseFloat(bodyStyle.paddingBottom);
+    return {
+      header: header ? header.offsetHeight : 0,
+      hint: hintVisible ? hint.offsetHeight : 0,
+      actions: actions ? actions.offsetHeight : 0,
+      bodyPadX: padX,
+      bodyPadY: padY
+    };
+  }
+
+  function viewportSize() {
+    var vv = window.visualViewport;
+    return {
+      width: vv ? vv.width : window.innerWidth,
+      height: vv ? vv.height : window.innerHeight
+    };
+  }
+
+  function computePadLayout(index) {
+    updateModalOrientation();
+    var aspect = getSignatureFieldAspect(index);
+    var chrome = measureModalChrome();
+    var vp = viewportSize();
+    var availW = vp.width - chrome.bodyPadX;
+    var availH = vp.height - chrome.header - chrome.hint - chrome.actions - chrome.bodyPadY;
+    if (availW < 40) availW = 40;
+    if (availH < 20) availH = 20;
+
+    var padW = availW;
+    var padH = padW / aspect;
+    if (padH > availH) {
+      padH = availH;
+      padW = padH * aspect;
+    }
+    return {
+      width: Math.max(1, Math.floor(padW)),
+      height: Math.max(1, Math.floor(padH)),
+      aspect: aspect
+    };
+  }
+
+  function resizeFullscreenPad(preserveDataUrl) {
+    var canvas = document.getElementById('sig-modal-canvas');
+    var wrap = document.getElementById('sig-modal-canvas-wrap');
+    if (!canvas || !wrap || activeSignIndex < 0) return;
+
+    var layout = computePadLayout(activeSignIndex);
+    wrap.style.width = layout.width + 'px';
+    wrap.style.height = layout.height + 'px';
+
+    var ratio = Math.max(window.devicePixelRatio || 1, 1);
+    var w = layout.width;
+    var h = layout.height;
+    canvas.width = Math.max(1, Math.floor(w * ratio));
+    canvas.height = Math.max(1, Math.floor(h * ratio));
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+
+    var ctx = canvas.getContext('2d');
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    fullscreenPad = new SignaturePad(canvas, {
+      backgroundColor: 'rgb(255, 255, 255)',
+      penColor: '#111'
+    });
+
+    if (preserveDataUrl) {
+      try { fullscreenPad.fromDataURL(preserveDataUrl); } catch (e) {}
+    }
+  }
+
+  function openFullscreenSign(index) {
+    if (busy) return;
+    activeSignIndex = index;
+    var entry = getSignatureEntry(index);
+    var modal = document.getElementById('sig-modal');
+    document.getElementById('sig-modal-title').textContent = entry ? entry.label : 'Firma';
+    updateModalOrientation();
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    document.documentElement.classList.add('sig-modal-open');
+    document.body.classList.add('sig-modal-open');
+
+    requestAnimationFrame(function() {
+      resizeFullscreenPad(entry && entry.dataUrl ? entry.dataUrl : null);
+    });
+  }
+
+  function closeFullscreenSign() {
+    var modal = document.getElementById('sig-modal');
+    modal.classList.remove('open', 'landscape');
+    modal.setAttribute('aria-hidden', 'true');
+    document.documentElement.classList.remove('sig-modal-open');
+    document.body.classList.remove('sig-modal-open');
+    activeSignIndex = -1;
+    fullscreenPad = null;
+  }
+
+  function confirmFullscreenSign() {
+    if (activeSignIndex < 0 || !fullscreenPad) return;
+    if (fullscreenPad.isEmpty()) {
+      showToast('Apponi la firma prima di salvare.', 'error');
+      return;
+    }
+    var idx = activeSignIndex;
+    var entry = getSignatureEntry(idx);
+    if (entry) entry.dataUrl = fullscreenPad.toDataURL('image/png');
+    closeFullscreenSign();
+    var zone = document.querySelector('.sig-zone[data-sig-index="' + idx + '"]');
+    if (zone) buildZoneContent(zone, idx);
+    document.getElementById('sig-error').style.display = 'none';
+  }
+
+  function clearAllSignatures() {
+    signatureEntries.forEach(function(entry) { entry.dataUrl = null; });
+    document.querySelectorAll('.sig-zone').forEach(function(zone) {
+      var idx = parseInt(zone.dataset.sigIndex, 10);
+      if (!isNaN(idx)) buildZoneContent(zone, idx);
+    });
+  }
+
+  function hasAnySignature() {
+    return signatureEntries.some(function(entry) { return !!entry.dataUrl; });
+  }
+
+  function renderPdf(base64) {
+    var viewer = document.getElementById('pdf-viewer');
+    viewer.innerHTML = '';
+
+    var binary = atob(base64);
+    var bytes = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+    return pdfjsLib.getDocument({ data: bytes }).promise.then(function(pdf) {
+      var numPages = pdf.numPages;
+      var chain = Promise.resolve();
+
+      for (var p = 1; p <= numPages; p++) {
+        (function(pageNum) {
+          chain = chain.then(function() {
+            return pdf.getPage(pageNum).then(function(page) {
+              var baseVp = page.getViewport({ scale: 1 });
+              var scale = viewerWidth() / baseVp.width;
+              var viewport = page.getViewport({ scale: scale });
+              var ratio = Math.max(window.devicePixelRatio || 1, 1);
+
+              var wrap = document.createElement('div');
+              wrap.className = 'pdf-page-wrap';
+              wrap.style.width = viewport.width + 'px';
+              wrap.style.height = viewport.height + 'px';
+
+              var pdfCanvas = document.createElement('canvas');
+              pdfCanvas.className = 'pdf-canvas';
+              pdfCanvas.width = Math.floor(viewport.width * ratio);
+              pdfCanvas.height = Math.floor(viewport.height * ratio);
+              pdfCanvas.style.width = viewport.width + 'px';
+              pdfCanvas.style.height = viewport.height + 'px';
+
+              var ctx = pdfCanvas.getContext('2d');
+              ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+              wrap.appendChild(pdfCanvas);
+
+              if (pageNum === numPages) {
+                for (var si = 0; si < signaturePositions.length; si++) {
+                  var pos = signaturePositions[si];
+                  var rect = pdfToScreenRect(pos, baseVp.height, scale);
+                  var zone = document.createElement('div');
+                  zone.className = 'sig-zone';
+                  zone.style.left = rect.left + 'px';
+                  zone.style.top = rect.top + 'px';
+                  zone.style.width = rect.width + 'px';
+                  zone.style.height = rect.height + 'px';
+                  buildZoneContent(zone, si);
+                  wrap.appendChild(zone);
+                }
+              }
+
+              viewer.appendChild(wrap);
+              return page.render({ canvasContext: ctx, viewport: viewport }).promise;
+            });
+          });
+        })(p);
+      }
+
+      return chain;
+    }).catch(function(err) {
+      viewer.innerHTML = '<p style="color:#c62828;padding:12px;">Errore visualizzazione PDF: ' +
+        (err.message || 'sconosciuto') + '</p>';
+      throw err;
+    });
+  }
+
+  function base64ToUint8Array(b64) {
+    var raw = atob(b64);
+    var arr = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+    return arr;
+  }
+
+  function embedAllSignaturesOnPdf(pdfBase64) {
+    var entries = signatureEntries.filter(function(e) { return !!e.dataUrl; });
+    if (!entries.length) {
+      return Promise.reject(new Error('Nessuna firma da salvare.'));
+    }
+    var pdfBytes = base64ToUint8Array(pdfBase64);
+
+    return PDFLib.PDFDocument.load(pdfBytes).then(function(pdfDoc) {
+      var page = pdfDoc.getPage(pdfDoc.getPageCount() - 1);
+      var chain = Promise.resolve();
+
+      entries.forEach(function(entry) {
+        chain = chain.then(function() {
+          var pos = signaturePositions[entry.index];
+          var sigB64 = entry.dataUrl.split(',')[1];
+          return pdfDoc.embedPng(sigB64).then(function(pngImage) {
+            page.drawImage(pngImage, {
+              x: pos.x,
+              y: pos.y,
+              width: pos.width,
+              height: pos.height
+            });
+          });
+        });
+      });
+
+      return chain.then(function() { return pdfDoc.save(); });
+    }).then(function(outBytes) {
+      var bin = '';
+      for (var i = 0; i < outBytes.length; i++) bin += String.fromCharCode(outBytes[i]);
+      return btoa(bin);
+    });
+  }
+
+  function waitForLayout() {
+    return new Promise(function(resolve) {
+      requestAnimationFrame(function() {
+        requestAnimationFrame(resolve);
+      });
+    });
+  }
+
+  function loadDocument() {
+    callServer('getFirmaPdfForView')
+      .then(function(res) {
+        currentPdfBase64 = res.pdfBase64;
+        document.getElementById('loading-view').classList.add('hidden');
+        document.getElementById('main-view').classList.remove('hidden');
+        return waitForLayout();
+      })
+      .then(function() { return renderPdf(currentPdfBase64); })
+      .catch(function(err) {
+        document.getElementById('loading-view').innerHTML =
+          '<p style="color:#c62828;">' + (err.message || 'Errore caricamento') + '</p>';
+      });
+  }
+
+  document.getElementById('btn-annulla').addEventListener('click', function() {
+    clearAllSignatures();
+    document.getElementById('sig-error').style.display = 'none';
+  });
+
+  document.getElementById('sig-modal-cancel').addEventListener('click', closeFullscreenSign);
+  document.getElementById('sig-modal-confirm').addEventListener('click', confirmFullscreenSign);
+
+  window.addEventListener('resize', function() {
+    var modal = document.getElementById('sig-modal');
+    if (modal.classList.contains('open') && activeSignIndex >= 0) {
+      onModalViewportChange();
+      return;
+    }
+    if (currentPdfBase64 && !busy) {
+      renderPdf(currentPdfBase64);
+    }
+  });
+  document.getElementById('btn-salva').addEventListener('click', function() {
+    if (busy) return;
+    if (!hasAnySignature()) {
+      document.getElementById('sig-error').style.display = 'block';
+      return;
+    }
+    document.getElementById('sig-error').style.display = 'none';
+    setBusy(true);
+    showToast('Salvataggio in corso...');
+
+    embedAllSignaturesOnPdf(currentPdfBase64)
+      .then(function(signedB64) { return callServer('salvaFirmaDocumento', signedB64); })
+      .then(function() {
+        signatureEntries.forEach(function(e) { e.dataUrl = null; });
+        return callServer('getFirmaPdfForView').then(function(view) {
+          currentPdfBase64 = view.pdfBase64;
+          return waitForLayout().then(function() { return renderPdf(currentPdfBase64); });
+        });
+      })
+      .then(function(res) {
+        var msg = 'Firme salvate sul documento.';
+        if (res && res.rootCopyUrl) msg += ' Disponibile su Drive in Iscrizioni.';
+        showToast(msg, 'success');
+      })
+      .catch(function(err) {
+        showToast(err.message || 'Errore durante il salvataggio.', 'error');
+      })
+      .finally(function() { setBusy(false); });
+  });
+
+  document.getElementById('btn-invia').addEventListener('click', function() {
+    if (busy) return;
+    setBusy(true);
+    callServer('inviaFirmaDocumentoAdmin')
+      .then(function(res) {
+        var msg = res.message || 'Documento inviato.';
+        if (res.pdfUrl) msg += ' Controlla anche Google Drive.';
+        showToast(msg, 'success');
+        setBusy(false);
+      })
+      .catch(function(err) {
+        showToast(err.message || 'Invio non riuscito.', 'error');
+        setBusy(false);
+      });
+  });
+
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', onModalViewportChange);
+    window.visualViewport.addEventListener('scroll', onModalViewportChange);
+  }
+  window.addEventListener('orientationchange', function() {
+    setTimeout(onModalViewportChange, 120);
+  });
+
+  callServer('getFirmaSignaturePositions')
+    .then(function(positions) {
+      signaturePositions = positions || [];
+      initSignatureEntries();
+      loadDocument();
+    })
+    .catch(function() {
+      signaturePositions = [
+        { x: 338, y: 268, width: 230, height: 36, label: 'Presidente — Mauro Andreoni' },
+        { x: 338, y: 210, width: 230, height: 36, label: 'Vice Presidente — Dario Sgueglia' },
+        { x: 338, y: 152, width: 230, height: 36, label: 'Consigliere — Andrea Garibaldi' }
+      ];
+      initSignatureEntries();
+      loadDocument();
+    });
+})();
+</script>
+</body>
+</html>
