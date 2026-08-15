@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getCurrentMemberWithRoles } from "@musicpro/database";
 
 import {
+  canManageBookings,
   canManageMembers,
   canManageReimbursements,
 } from "@/lib/admin/roles";
@@ -18,6 +19,10 @@ export default async function AdminIndexPage() {
 
   if (canManageMembers(member.roles)) {
     redirect("/admin/associati");
+  }
+
+  if (canManageBookings(member.roles)) {
+    redirect("/admin/prenotazioni");
   }
 
   if (canManageReimbursements(member.roles)) {

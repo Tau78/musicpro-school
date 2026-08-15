@@ -87,6 +87,45 @@ export default async function DashboardPage() {
           )}
         </section>
 
+        <section className="mt-8 rounded-xl border border-neutral-200 bg-white p-6">
+          <h2 className="text-lg font-medium text-[var(--brand)]">
+            Shop crediti
+          </h2>
+          <p className="mt-2 text-sm text-neutral-600">
+            Acquista pacchetti crediti per le prenotazioni sale prova.
+          </p>
+          <Link
+            href="/dashboard/shop"
+            className="mt-4 inline-flex rounded-lg bg-[var(--brand)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90"
+          >
+            Vai allo shop
+          </Link>
+        </section>
+
+        <section className="mt-8 rounded-xl border border-neutral-200 bg-white p-6">
+          <h2 className="text-lg font-medium text-[var(--brand)]">
+            Sale prova
+          </h2>
+          <p className="mt-2 text-sm text-neutral-600">
+            Prenota una sala, consulta le tue prenotazioni o annulla entro i
+            termini previsti — tutto dall&apos;area riservata, senza email.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Link
+              href="/prenotazioni"
+              className="inline-flex rounded-lg bg-[var(--brand)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90"
+            >
+              Prenota una sala
+            </Link>
+            <Link
+              href="/prenotazioni/mie"
+              className="inline-flex rounded-lg border border-neutral-300 px-5 py-2.5 text-sm font-medium text-neutral-800 hover:bg-neutral-50"
+            >
+              Le mie prenotazioni
+            </Link>
+          </div>
+        </section>
+
         {showAdminLink ? (
           <section className="mt-8">
             <h2 className="text-lg font-medium text-[var(--brand)]">

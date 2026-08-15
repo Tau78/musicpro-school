@@ -34,7 +34,8 @@ Print this page. Check boxes only when verified by a human.
 - [ ] Root `.env`: Stripe test keys validated
 - [ ] `musicpro/.env`: `NEXT_PUBLIC_SUPABASE_*` set
 - [ ] `musicpro/.env`: `SUPABASE_SERVICE_ROLE_KEY` set (server only)
-- [ ] `musicpro/.env`: `STRIPE_WEBHOOK_SECRET` from test endpoint
+- [ ] `musicpro/.env`: `STRIPE_WEBHOOK_SECRET` from test endpoint (iscrizione + sale)
+- [ ] Supabase Edge secret `STRIPE_WEBHOOK_SECRET` set for `stripe-room-webhook`
 - [ ] Vercel Production env vars match `musicpro/.env`
 
 ### Data migration
@@ -67,7 +68,7 @@ Print this page. Check boxes only when verified by a human.
 - [ ] Associato without quota: `QUOTA_NOT_PAID` error shown
 - [ ] Realtime: second client sees slot update
 
-### Stripe test mode
+### Stripe test mode (iscrizione)
 
 - [ ] New webhook endpoint deployed (Edge Function **or** `/api/stripe/webhook`)
 - [ ] Events subscribed: `checkout.session.completed`
@@ -77,6 +78,18 @@ Print this page. Check boxes only when verified by a human.
 - [ ] Test payment updates `enrollments` payment fields
 - [ ] Idempotency: duplicate event does not double-update
 - [ ] `metadata.mp_id_iscrizione` path verified
+
+### Stripe test mode (prenotazioni sale)
+
+- [ ] Migrations `006`–`008` applied (booking config, admin review, stripe RPC)
+- [ ] Edge Function `stripe-room-webhook` deployed on MusicProSchool
+- [ ] Webhook URL: `https://mlsiagbrejjylqvcnfbe.supabase.co/functions/v1/stripe-room-webhook`
+- [ ] `STRIPE_WEBHOOK_SECRET` set in Supabase Edge secrets (not Vercel — route legacy 500)
+- [ ] Events subscribed: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `payment_intent.succeeded`
+- [ ] Endpoint created via `node scripts/create-stripe-room-webhook.mjs` (no `--vercel`)
+- [ ] Stripe test payment on approved booking → `bookings.payment_status = paid`, `status = confirmed`
+- [ ] `metadata.mp_flow=room_booking` + `mp_id_prenotazione` path verified
+- [ ] Legacy Vercel `/api/stripe/webhook` **not** registered in Stripe Dashboard
 
 ### Staging rehearsal
 
@@ -116,7 +129,7 @@ Print this page. Check boxes only when verified by a human.
 
 - [ ] Vercel production deploy succeeded
 - [ ] Custom admin domain DNS + HTTPS OK
-- [ ] Supabase Edge Functions deployed (if used)
+- [ ] Supabase Edge Functions deployed (`stripe-room-webhook` for room bookings)
 - [ ] New enrollment API URL known: ________________________________
 - [ ] `deploy-iscrizione.js` / `api.php` points to **new** API (not GAS)
 - [ ] `npm run deploy:iscrizione` succeeded
@@ -127,10 +140,22 @@ Print this page. Check boxes only when verified by a human.
 
 ## Cutover day — Phase C: Stripe webhook (12:00–13:00)
 
+### Iscrizione
+
 - [ ] New Live webhook endpoint added in Stripe Dashboard
 - [ ] `STRIPE_WEBHOOK_SECRET` updated in Vercel + Supabase secrets
 - [ ] Test Live webhook delivery → 200 OK
 - [ ] GAS webhook endpoint **disabled or removed** in Stripe Live
+
+### Prenotazioni sale
+
+- [ ] Live webhook endpoint: `https://mlsiagbrejjylqvcnfbe.supabase.co/functions/v1/stripe-room-webhook`
+- [ ] `STRIPE_WEBHOOK_SECRET` updated in Supabase Edge secrets for `stripe-room-webhook`
+- [ ] Test Live room-booking payment → booking confirmed in DB
+- [ ] Legacy Vercel `/api/stripe/webhook` endpoint disabled or removed in Stripe Live
+
+### Comune
+
 - [ ] `STRIPE_MODE=live` in production envs
 - [ ] Live Stripe secret/publishable keys in production envs
 - [ ] No duplicate webhook processing confirmed
@@ -151,6 +176,7 @@ Print this page. Check boxes only when verified by a human.
 - [ ] Member list loads (count plausible)
 - [ ] Reimbursement list loads
 - [ ] Book + cancel test slot on `/prenotazioni`
+- [ ] Approve room booking in admin → Stripe payment link → booking `paid` + `confirmed`
 - [ ] Submit test enrollment form
 - [ ] Complete Stripe payment → enrollment marked paid
 - [ ] Return / conferma pagamento page loads
@@ -175,7 +201,7 @@ Print this page. Check boxes only when verified by a human.
 
 ### D+0
 
-- [ ] Stripe webhook delivery: 0 failures (24 h)
+- [ ] Stripe webhook delivery: 0 failures (24 h) — iscrizione + room booking Edge
 - [ ] Pending enrollments reviewed
 - [ ] `audit_log` sampled — no anomalies
 

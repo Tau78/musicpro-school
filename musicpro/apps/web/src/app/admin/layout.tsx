@@ -8,8 +8,15 @@ import { AdminNav } from "@/components/admin/admin-nav";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import {
   canAccessAdmin,
+  canManageBookings,
   canManageMembers,
+  canManagePenalties,
+  canManageQuotas,
   canManageReimbursements,
+  canManageRooms,
+  canManageSettings,
+  canManageShop,
+  canManageTemplates,
 } from "@/lib/admin/roles";
 import { createClient } from "@/lib/supabase/server";
 
@@ -32,7 +39,14 @@ export default async function AdminLayout({
   }
 
   const showRubrica = canManageMembers(member.roles);
+  const showQuote = canManageQuotas(member.roles);
   const showRimborsi = canManageReimbursements(member.roles);
+  const showPrenotazioni = canManageBookings(member.roles);
+  const showSale = canManageRooms(member.roles);
+  const showShop = canManageShop(member.roles);
+  const showImpostazioni = canManageSettings(member.roles);
+  const showPenali = canManagePenalties(member.roles);
+  const showTemplate = canManageTemplates(member.roles);
 
   return (
     <div className="min-h-screen bg-[var(--background)] pb-20 md:pb-0">
@@ -54,7 +68,17 @@ export default async function AdminLayout({
             <SignOutButton className="border-white/30 text-white hover:bg-white/10" />
           </div>
         </div>
-        <AdminNav showRubrica={showRubrica} showRimborsi={showRimborsi} />
+        <AdminNav
+          showRubrica={showRubrica}
+          showQuote={showQuote}
+          showRimborsi={showRimborsi}
+          showPrenotazioni={showPrenotazioni}
+          showSale={showSale}
+          showShop={showShop}
+          showImpostazioni={showImpostazioni}
+          showPenali={showPenali}
+          showTemplate={showTemplate}
+        />
       </header>
 
       <main className="mx-auto max-w-6xl px-6 py-8">{children}</main>

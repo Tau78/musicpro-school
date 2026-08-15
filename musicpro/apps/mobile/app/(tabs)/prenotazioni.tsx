@@ -12,8 +12,11 @@ import {
   type CreateBookingResult,
   type Room,
   type TimeSlot,
+  calculateBookingPrice,
   createBooking,
   formatDateItalian,
+  formatDurationLabel,
+  formatEuro,
   getCurrentMember,
   getRoomAvailability,
   listRooms,
@@ -28,6 +31,7 @@ export default function PrenotazioniScreen() {
 
   const [rooms, setRooms] = useState<Room[]>([]);
   const [selectedRoomId, setSelectedRoomId] = useState<string>("");
+  const [durationMinutes, setDurationMinutes] = useState(120);
   const [selectedDate] = useState(todayInRome());
   const [slots, setSlots] = useState<TimeSlot[]>([]);
   const [memberId, setMemberId] = useState<string | null>(null);
@@ -44,6 +48,7 @@ export default function PrenotazioniScreen() {
         supabase,
         selectedRoomId,
         selectedDate,
+        durationMinutes,
       );
       setSlots(availability.slots);
     } catch (err) {
@@ -51,7 +56,7 @@ export default function PrenotazioniScreen() {
         err instanceof Error ? err.message : "Errore nel caricamento degli slot",
       );
     }
-  }, [selectedDate, selectedRoomId, supabase]);
+  }, [durationMinutes, selectedDate, selectedRoomId, supabase]);
 
   useEffect(() => {
     let cancelled = false;
@@ -71,6 +76,7 @@ export default function PrenotazioniScreen() {
         setRooms(roomList);
         if (roomList.length > 0) {
           setSelectedRoomId(roomList[0].id);
+          setDurationMinutes(roomList[0].default_duration_minutes);
         }
         setMemberId(member?.id ?? null);
       } catch (err) {
@@ -132,9 +138,11 @@ export default function PrenotazioniScreen() {
     }
 
     setMessage(
-      result.status === "pending"
-        ? "Prenotazione in attesa (pagamento non ancora attivo)."
-        : "Prenotazione confermata!",
+      result.status === "pending_approval"
+        ? "Richiesta inviata: in attesa di approvazione."
+        : result.status === "pending"
+          ? "Prenotazione registrata (pagamento in arrivo)."
+          : "Prenotazione confermata!",
     );
     await loadAvailability();
   }
@@ -181,7 +189,10 @@ export default function PrenotazioniScreen() {
               return (
                 <Pressable
                   key={room.id}
-                  onPress={() => setSelectedRoomId(room.id)}
+                  onPress={() => {
+                    setSelectedRoomId(room.id);
+                    setDurationMinutes(room.default_duration_minutes);
+                  }}
                   style={[styles.roomChip, active && styles.roomChipActive]}
                 >
                   <Text
@@ -199,6 +210,13 @@ export default function PrenotazioniScreen() {
 
           {selectedRoom?.description && (
             <Text style={styles.roomDescription}>{selectedRoom.description}</Text>
+          )}
+
+          {selectedRoom && (
+            <Text style={styles.roomDescription}>
+              {formatDurationLabel(durationMinutes)} —{" "}
+              {formatEuro(calculateBookingPrice(selectedRoom, durationMinutes))}
+            </Text>
           )}
 
           <Text style={styles.sectionLabel}>Slot disponibili</Text>

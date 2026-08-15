@@ -1,13 +1,18 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useState } from "react";
 
 import {
+  type MemberAnnualQuota,
   type MemberDetail,
   type MemberInput,
   createMember,
+  currentFiscalYear,
   deleteMember,
+  formatQuotaDateItalian,
+  formatQuotaEuro,
   updateMember,
 } from "@musicpro/database";
 
@@ -17,6 +22,7 @@ interface MemberFormProps {
   member?: MemberDetail;
   defaultMemberNumber?: number;
   canDelete?: boolean;
+  quotas?: MemberAnnualQuota[];
 }
 
 function toDateInputValue(iso: string | null): string {
@@ -70,6 +76,7 @@ export function MemberForm({
   member,
   defaultMemberNumber,
   canDelete = false,
+  quotas = [],
 }: MemberFormProps) {
   const router = useRouter();
   const supabase = createClient();
@@ -417,7 +424,56 @@ export function MemberForm({
             Associato attivo
           </label>
         </div>
-        {/* TODO: quote annuali bulk (Phase 2) */}
+
+        {isEdit ? (
+          <div className="space-y-2 border-t border-neutral-100 pt-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-medium text-neutral-800">
+                Quote annuali
+              </p>
+              <Link
+                href="/admin/quote"
+                className="text-xs font-medium text-[var(--brand)] hover:underline"
+              >
+                Gestisci in Quote
+              </Link>
+            </div>
+            {quotas.length === 0 ? (
+              <p className="text-sm text-neutral-500">
+                Nessuna quota registrata. Anno corrente ({currentFiscalYear()}):
+                non pagata.
+              </p>
+            ) : (
+              <ul className="space-y-1 text-sm text-neutral-700">
+                {quotas.map((quota) => {
+                  const paid = Boolean(quota.paidAt);
+                  const amount =
+                    quota.amountPaidEur ?? quota.amountDueEur ?? null;
+                  return (
+                    <li key={quota.id} className="flex flex-wrap gap-x-2">
+                      <span className="font-medium">{quota.fiscalYear}</span>
+                      <span
+                        className={paid ? "text-green-700" : "text-amber-700"}
+                      >
+                        {paid ? "Pagata" : "Non pagata"}
+                      </span>
+                      {paid && quota.paidAt ? (
+                        <span className="text-neutral-500">
+                          il {formatQuotaDateItalian(quota.paidAt)}
+                        </span>
+                      ) : null}
+                      {amount != null ? (
+                        <span className="text-neutral-500">
+                          ({formatQuotaEuro(amount)})
+                        </span>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        ) : null}
       </fieldset>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

@@ -187,6 +187,23 @@ export async function listMembers(
   return ((data ?? []) as MemberRow[]).map(mapMemberSummary);
 }
 
+/** Full anagrafica for printable associates book / exports. */
+export async function listMembersDetail(
+  client: MembersClient,
+): Promise<MemberDetail[]> {
+  const { data, error } = await client
+    .from("members")
+    .select(MEMBER_DETAIL_COLUMNS)
+    .order("last_name", { ascending: true })
+    .order("first_name", { ascending: true });
+
+  if (error) {
+    throw new Error(`Impossibile caricare gli associati: ${error.message}`);
+  }
+
+  return ((data ?? []) as MemberRow[]).map(mapMemberDetail);
+}
+
 export async function getMemberById(
   client: MembersClient,
   id: string,

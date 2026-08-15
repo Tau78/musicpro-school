@@ -38,3 +38,6 @@ npm-debug.log*
 
 # Supabase CLI cache (local link state)
 supabase/.temp/
+.vercel
+.env*
+/apps/

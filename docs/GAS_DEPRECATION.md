@@ -120,7 +120,9 @@ Header: Stripe-Signature (whsec_...)
 |-----|-----------|
 | **Not present in GAS** | `rooms`, `bookings`, `create_booking_safe()`, `/prenotazioni` |
 
-No GAS deprecation step — net-new feature.
+No GAS deprecation step — net-new feature (replaces **SuperSaaS**, not GAS).
+
+**Design docs:** [`PIANO_PRENOTAZIONI.md`](PIANO_PRENOTAZIONI.md) (piano funzionale importato) · [`PIANO_PRENOTAZIONI_ALLINEAMENTO.md`](PIANO_PRENOTAZIONI_ALLINEAMENTO.md) (gap vs codice attuale)
 
 ### 2.7 Mobile app
 
@@ -243,6 +245,8 @@ Supabase data from failed cutover is **not** auto-synced back to Sheets.
 | Sheet → table mapping | `supabase/README.md` |
 | Migration CLI | `scripts/migrate-from-sheets/README.md` |
 | Booking rules | `musicpro/packages/database/README.md` |
+| Booking product plan | `docs/PIANO_PRENOTAZIONI.md` |
+| Booking gap analysis | `docs/PIANO_PRENOTAZIONI_ALLINEAMENTO.md` |
 | Iscrizione FTP deploy | `deploy-iscrizione.js`, `.env.example` |
 | Stripe GAS webhook | `StripePagamenti.js` (lines 11–14, 411–565) |
 

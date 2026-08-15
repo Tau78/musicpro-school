@@ -5,19 +5,50 @@ import { usePathname } from "next/navigation";
 
 interface AdminNavProps {
   showRubrica: boolean;
+  showQuote: boolean;
   showRimborsi: boolean;
+  showPrenotazioni: boolean;
+  showShop: boolean;
+  showSale: boolean;
+  showImpostazioni: boolean;
+  showPenali: boolean;
+  showTemplate: boolean;
 }
 
 const navItems = [
   { href: "/admin/associati", label: "Rubrica", key: "rubrica" as const },
+  { href: "/admin/quote", label: "Quote", key: "quote" as const },
+  { href: "/admin/prenotazioni", label: "Prenotazioni", key: "prenotazioni" as const },
+  { href: "/admin/sale", label: "Sale", key: "sale" as const },
+  { href: "/admin/shop", label: "Shop", key: "shop" as const },
+  { href: "/admin/template", label: "Template", key: "template" as const },
+  { href: "/admin/impostazioni", label: "Impostazioni", key: "impostazioni" as const },
+  { href: "/admin/penali", label: "Penali", key: "penali" as const },
   { href: "/admin/rimborsi", label: "Rimborsi", key: "rimborsi" as const },
 ];
 
-export function AdminNav({ showRubrica, showRimborsi }: AdminNavProps) {
+export function AdminNav({
+  showRubrica,
+  showQuote,
+  showRimborsi,
+  showPrenotazioni,
+  showShop,
+  showSale,
+  showImpostazioni,
+  showPenali,
+  showTemplate,
+}: AdminNavProps) {
   const pathname = usePathname();
 
   const visibleItems = navItems.filter((item) => {
     if (item.key === "rubrica") return showRubrica;
+    if (item.key === "quote") return showQuote;
+    if (item.key === "prenotazioni") return showPrenotazioni;
+    if (item.key === "sale") return showSale;
+    if (item.key === "shop") return showShop;
+    if (item.key === "template") return showTemplate;
+    if (item.key === "impostazioni") return showImpostazioni;
+    if (item.key === "penali") return showPenali;
     if (item.key === "rimborsi") return showRimborsi;
     return false;
   });

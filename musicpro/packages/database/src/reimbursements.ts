@@ -19,11 +19,25 @@ export interface ReimbursementDisplay {
   paymentMethod: string | null;
   paymentDate: string | null;
   pdfUrl: string | null;
+  pdfStoragePath: string | null;
 }
 
 export interface ReimbursementListResult {
   reimbursements: ReimbursementDisplay[];
   totalAmountEur: number;
+}
+
+export interface PaymentPart {
+  method: string;
+  amount: number;
+}
+
+export interface MemberReceiptsBalance {
+  memberId: string;
+  totalReceiptsEur: number;
+  totalGrossEur: number;
+  /** SUM(receipts) - SUM(gross). Positive = surplus, negative = debt. */
+  balanceEur: number;
 }
 
 type ReimbursementRow = {
@@ -38,10 +52,11 @@ type ReimbursementRow = {
   payment_method: string | null;
   payment_date: string | null;
   pdf_url: string | null;
+  pdf_storage_path: string | null;
 };
 
 const REIMBURSEMENT_COLUMNS =
-  "id, member_id, fiscal_year, progressive, gross_amount_eur, generated_at, receipts_amount_eur, receipts_status, payment_method, payment_date, pdf_url";
+  "id, member_id, fiscal_year, progressive, gross_amount_eur, generated_at, receipts_amount_eur, receipts_status, payment_method, payment_date, pdf_url, pdf_storage_path";
 
 function mapReimbursement(
   row: ReimbursementRow,
@@ -60,6 +75,7 @@ function mapReimbursement(
     paymentMethod: row.payment_method,
     paymentDate: row.payment_date,
     pdfUrl: row.pdf_url,
+    pdfStoragePath: row.pdf_storage_path,
   };
 }
 
@@ -124,9 +140,31 @@ export async function listReimbursements(
   return { reimbursements, totalAmountEur };
 }
 
+export async function getReimbursementById(
+  client: ReimbursementsClient,
+  id: string,
+): Promise<ReimbursementDisplay | null> {
+  const { data, error } = await client
+    .from("reimbursements")
+    .select(REIMBURSEMENT_COLUMNS)
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Impossibile caricare il rimborso: ${error.message}`);
+  }
+
+  if (!data) return null;
+
+  const row = data as ReimbursementRow;
+  const names = await loadMemberNames(client, [row.member_id]);
+  return mapReimbursement(row, names.get(row.member_id) ?? "—");
+}
+
 export interface ReimbursementMutationResult {
   success: boolean;
   id?: string;
+  progressive?: string;
   errorMessage?: string;
 }
 
@@ -166,6 +204,95 @@ export async function deleteReimbursement(
   return { success: true };
 }
 
+export async function deleteReimbursements(
+  client: ReimbursementsClient,
+  ids: string[],
+): Promise<ReimbursementMutationResult> {
+  if (ids.length === 0) {
+    return { success: true };
+  }
+
+  const { error } = await client.from("reimbursements").delete().in("id", ids);
+
+  if (error) {
+    return {
+      success: false,
+      errorMessage: error.message,
+    };
+  }
+
+  return { success: true };
+}
+
+export async function updateReimbursementPdf(
+  client: ReimbursementsClient,
+  id: string,
+  params: { pdfUrl: string | null; pdfStoragePath?: string | null },
+): Promise<ReimbursementMutationResult> {
+  const { error } = await client
+    .from("reimbursements")
+    .update({
+      pdf_url: params.pdfUrl,
+      pdf_storage_path: params.pdfStoragePath ?? null,
+    } as never)
+    .eq("id", id);
+
+  if (error) {
+    return {
+      success: false,
+      errorMessage: error.message,
+    };
+  }
+
+  return { success: true, id };
+}
+
+/**
+ * Balance = SUM(receipts) - SUM(gross) across all reimbursements for the member.
+ * Positive = surplus (credit from past receipts); negative = debt.
+ */
+export async function getMemberReceiptsBalance(
+  client: ReimbursementsClient,
+  memberId: string,
+): Promise<MemberReceiptsBalance> {
+  const { data, error } = await client
+    .from("reimbursements")
+    .select("gross_amount_eur, receipts_amount_eur")
+    .eq("member_id", memberId);
+
+  if (error) {
+    throw new Error(`Impossibile calcolare il saldo ricevute: ${error.message}`);
+  }
+
+  let totalGrossEur = 0;
+  let totalReceiptsEur = 0;
+
+  for (const row of (data ?? []) as {
+    gross_amount_eur: number;
+    receipts_amount_eur: number | null;
+  }[]) {
+    const gross = Number(row.gross_amount_eur) || 0;
+    const receiptsRaw = row.receipts_amount_eur;
+    // Legacy GAS: empty receipts treated as equal to gross
+    const receipts =
+      receiptsRaw === null || receiptsRaw === undefined
+        ? gross
+        : Number(receiptsRaw) || 0;
+    totalGrossEur += gross;
+    totalReceiptsEur += receipts;
+  }
+
+  const balanceEur =
+    Math.round((totalReceiptsEur - totalGrossEur) * 100) / 100;
+
+  return {
+    memberId,
+    totalReceiptsEur: Math.round(totalReceiptsEur * 100) / 100,
+    totalGrossEur: Math.round(totalGrossEur * 100) / 100,
+    balanceEur,
+  };
+}
+
 export interface GenerateReimbursementInput {
   memberId: string;
   fiscalYear: number;
@@ -184,11 +311,24 @@ function formatProgressive(n: number): string {
   return String(n).padStart(2, "0");
 }
 
-async function getNextProgressive(
+/**
+ * Returns the next progressive number (1-based integer) for member+year.
+ * Usable by batch with an in-memory offset.
+ */
+export async function getNextProgressive(
   client: ReimbursementsClient,
   memberId: string,
   fiscalYear: number,
 ): Promise<string> {
+  const next = await getNextProgressiveNumber(client, memberId, fiscalYear);
+  return formatProgressive(next);
+}
+
+async function getNextProgressiveNumber(
+  client: ReimbursementsClient,
+  memberId: string,
+  fiscalYear: number,
+): Promise<number> {
   const { data, error } = await client
     .from("reimbursements")
     .select("progressive")
@@ -205,17 +345,44 @@ async function getNextProgressive(
     if (value > max) max = value;
   }
 
-  return formatProgressive(max + 1);
+  return max + 1;
+}
+
+export function formatPaymentAmountIt(amount: number): string {
+  return amount.toFixed(2).replace(".", ",");
 }
 
 /**
- * Creates a reimbursement record. PDF generation from Google Docs template
- * is not migrated yet — see TODO in apps/web generate form.
+ * Builds concatenated payment_method string, e.g.
+ * "Bonifico Bancario: € 50,00, Contanti: € 30,00"
+ */
+export function formatPaymentMethodString(parts: PaymentPart[]): string {
+  return parts
+    .filter((p) => p.method && p.amount > 0)
+    .map((p) => `${p.method}: € ${formatPaymentAmountIt(p.amount)}`)
+    .join(", ");
+}
+
+export function sumPaymentParts(parts: PaymentPart[]): number {
+  return parts.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+}
+
+export function paymentPartsMatchGross(
+  parts: PaymentPart[],
+  grossAmountEur: number,
+  tolerance = 0.01,
+): boolean {
+  return Math.abs(sumPaymentParts(parts) - grossAmountEur) <= tolerance;
+}
+
+/**
+ * Creates a reimbursement record.
  */
 export async function generateReimbursement(
   client: ReimbursementsClient,
   input: GenerateReimbursementInput,
   createdByMemberId: string,
+  progressiveOverride?: string,
 ): Promise<ReimbursementMutationResult> {
   if (input.grossAmountEur <= 0) {
     return {
@@ -224,12 +391,17 @@ export async function generateReimbursement(
     };
   }
 
+  if (!input.paymentMethod?.trim()) {
+    return {
+      success: false,
+      errorMessage: "Metodo di pagamento obbligatorio.",
+    };
+  }
+
   try {
-    const progressive = await getNextProgressive(
-      client,
-      input.memberId,
-      input.fiscalYear,
-    );
+    const progressive =
+      progressiveOverride ??
+      (await getNextProgressive(client, input.memberId, input.fiscalYear));
 
     const gross = input.grossAmountEur;
     const receipts = input.receiptsAmountEur ?? 0;
@@ -248,6 +420,7 @@ export async function generateReimbursement(
         payment_date: input.paymentDate ?? null,
         receipts_amount_eur: receipts,
         pdf_url: null,
+        pdf_storage_path: null,
       } as never)
       .select("id")
       .single();
@@ -262,6 +435,7 @@ export async function generateReimbursement(
     return {
       success: true,
       id: (data as { id: string }).id,
+      progressive,
     };
   } catch (err) {
     return {
@@ -272,11 +446,93 @@ export async function generateReimbursement(
   }
 }
 
+export interface GenerateBatchResult {
+  success: boolean;
+  results: ReimbursementMutationResult[];
+  createdIds: string[];
+  errorMessage?: string;
+}
+
+/**
+ * Creates multiple reimbursements, allocating progressive numbers per member+year
+ * with an in-batch offset so concurrent cards for the same associate stay sequential.
+ */
+export async function generateReimbursementsBatch(
+  client: ReimbursementsClient,
+  inputs: GenerateReimbursementInput[],
+  createdByMemberId: string,
+): Promise<GenerateBatchResult> {
+  if (inputs.length === 0) {
+    return {
+      success: false,
+      results: [],
+      createdIds: [],
+      errorMessage: "Nessun rimborso da generare.",
+    };
+  }
+
+  const counters = new Map<string, number>();
+  const results: ReimbursementMutationResult[] = [];
+  const createdIds: string[] = [];
+
+  for (const input of inputs) {
+    const key = `${input.memberId}:${input.fiscalYear}`;
+    try {
+      if (!counters.has(key)) {
+        const next = await getNextProgressiveNumber(
+          client,
+          input.memberId,
+          input.fiscalYear,
+        );
+        counters.set(key, next);
+      }
+      const n = counters.get(key)!;
+      const progressive = formatProgressive(n);
+      counters.set(key, n + 1);
+
+      const result = await generateReimbursement(
+        client,
+        input,
+        createdByMemberId,
+        progressive,
+      );
+      results.push(result);
+      if (result.success && result.id) {
+        createdIds.push(result.id);
+      }
+    } catch (err) {
+      results.push({
+        success: false,
+        errorMessage:
+          err instanceof Error ? err.message : "Errore durante la generazione.",
+      });
+    }
+  }
+
+  const allOk = results.every((r) => r.success);
+  return {
+    success: allOk,
+    results,
+    createdIds,
+    errorMessage: allOk
+      ? undefined
+      : "Alcuni rimborsi non sono stati generati. Controlla i dettagli.",
+  };
+}
+
 export const RECEIPTS_STATUS_LABELS: Record<ReceiptsStatus, string> = {
   mancante: "Mancante",
   parziale: "Parziale",
   completo: "Completo",
 };
+
+export const DEFAULT_PAYMENT_METHODS = [
+  "Bonifico Bancario",
+  "Contanti",
+  "PayPal",
+  "Simplia",
+  "Acquisti per c/ associato",
+] as const;
 
 export function formatEuro(amount: number): string {
   return new Intl.NumberFormat("it-IT", {

@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
+    "postbuild": "node scripts/vercel-seed-school-next.mjs",
     "start": "next start",
     "lint": "tsc --noEmit"
   },
@@ -12,9 +13,14 @@
     "@musicpro/database": "*",
     "@musicpro/shared": "*",
     "@supabase/ssr": "^0.6.1",
-    "next": "15.3.4",
+    "next": "^15.3.6",
+    "pdf-lib": "^1.17.1",
     "react": "18.3.1",
-    "react-dom": "18.3.1"
+    "react-dom": "18.3.1",
+    "stripe": "^17.7.0"
+  },
+  "engines": {
+    "node": "24.x"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.10",

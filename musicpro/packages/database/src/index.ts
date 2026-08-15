@@ -15,24 +15,121 @@ export {
   SLOT_CLOSE_HOUR,
   SLOT_DURATION_MINUTES,
   SLOT_OPEN_HOUR,
+  bookingStatusLabel,
+  bookingPaymentMethodLabel,
+  calculateBookingPrice,
+  canCancelBooking,
   cancelBooking,
   createBooking,
+  durationOptionsForRoom,
+  formatBookingDateTime,
+  formatCreditsCount,
   formatDateItalian,
+  formatDurationLabel,
+  getBookingSettings,
+  getLeadTimeCategory,
   getRoomAvailability,
-  initiateRoomPayment,
+  fetchRoomAvailability,
+  buildRoomAvailability,
+  getRomeDayBoundsUtc,
+  getRoomById,
+  getRomeDayOfWeek,
+  getRomeMinutesFromMidnight,
+  isSlotInProviSchedule,
+  minutesToTimeLabel,
+  proviDayLabel,
+  timeLabelToMinutes,
+  bookingNeedsPayment,
+  requestBookingCreditsPayment,
+  requestRoomBookingPaymentUrl,
+  adminUpdateBooking,
+  bookingAuditActionLabel,
+  countPendingApprovalBookings,
+  getAdminBookingById,
+  listAdminBookings,
+  listBookingAuditLog,
+  listMyBookings,
   listRooms,
+  reviewBooking,
+  romeLocalInputToUtcIso,
+  settlementMethodLabel,
   subscribeToBookings,
   todayInRome,
+  utcIsoToRomeLocalInput,
 } from "./bookings";
+export {
+  createCancellationPenaltyRule,
+  deleteCancellationPenaltyRule,
+  listCancellationPenaltyRules,
+  updateCancellationPenaltyRule,
+} from "./penalties";
 export type {
+  CancellationPenaltyRule,
+  CancellationPenaltyRuleInput,
+  PenaltyMutationResult,
+} from "./penalties";
+export {
+  DOCUMENT_SETTING_KEYS,
+  DOCUMENT_SETTING_LABELS,
+  getAppBookingSettings,
+  listAppSettings,
+  listDocumentSettings,
+  updateBookingSettings,
+  upsertAppSetting,
+  upsertDocumentSettings,
+} from "./settings";
+export type {
+  AppSetting,
+  BookingSettingsInput,
+  DocumentSettingKey,
+  SettingsMutationResult,
+} from "./settings";
+export {
+  createRoomExternalCalendar,
+  deleteRoomExternalCalendar,
+  listRoomExternalCalendars,
+  requestExternalCalendarSync,
+  updateRoomExternalCalendar,
+} from "./external-calendars";
+export type {
+  ExternalCalendarMutationResult,
+  RoomExternalCalendar,
+  RoomExternalCalendarInput,
+} from "./external-calendars";
+export {
+  getAdminRoomById,
+  listAllRooms,
+  listProviSchedule,
+  roomToInput,
+  saveProviSchedule,
+  updateRoom,
+} from "./rooms";
+export type { RoomInput, RoomMutationResult } from "./rooms";
+export type {
+  AdminBookingDetail,
+  AdminBookingFilter,
+  AdminBookingListItem,
+  AdminBookingUpdateInput,
+  AdminBookingUpdateResult,
   Booking,
+  BookingAuditLogEntry,
   BookingChangePayload,
   BookingErrorCode,
+  BookingPaymentStatus,
+  BookingPaymentMethod,
+  BookingPriceOptions,
+  BookingSettings,
   BookingStatus,
+  BookingWithRoom,
   CancelBookingResult,
   CreateBookingResult,
+  LeadTimeCategory,
+  ReviewBookingResult,
+  ProviScheduleEntry,
   Room,
   RoomAvailability,
+  SettlementMethod,
+  BusyInterval,
   TimeSlot,
 } from "./bookings";
 export {
@@ -41,8 +138,45 @@ export {
   getMemberById,
   getNextMemberNumber,
   listMembers,
+  listMembersDetail,
   updateMember,
 } from "./members";
+export {
+  findDuplicateMembers,
+  mergeDuplicateMembers,
+} from "./members-merge";
+export type {
+  DuplicateFieldConflict,
+  DuplicateMemberSummary,
+  DuplicateMergePlan,
+  MergeMembersResult,
+} from "./members-merge";
+export {
+  adminAdjustMemberCredits,
+  createCreditPackage,
+  creditsForBookingDuration,
+  debitBookingCredits,
+  deleteCreditPackage,
+  getCreditPackageById,
+  getMemberCreditBalance,
+  holdBookingCredits,
+  listActiveCreditPackages,
+  listCreditPackages,
+  listMemberCreditPurchases,
+  listMemberCreditTransactions,
+  updateCreditPackage,
+} from "./credits";
+export type {
+  AdminAdjustCreditsResult,
+  BookingCreditsPaymentResult,
+  CreditMutationResult,
+  CreditPackage,
+  CreditPackageInput,
+  CreditPurchase,
+  CreditTransaction,
+  CreditTransactionType,
+  MemberCreditBalance,
+} from "./credits";
 export type {
   MemberDetail,
   MemberInput,
@@ -50,16 +184,72 @@ export type {
   MemberSummary,
 } from "./members";
 export {
+  createMessageTemplate,
+  deleteMessageTemplate,
+  getMessageTemplateById,
+  listMessageTemplates,
+  updateMessageTemplate,
+} from "./templates";
+export type {
+  MessageTemplate,
+  MessageTemplateChannel,
+  MessageTemplateInput,
+  TemplateMutationResult,
+} from "./templates";
+export {
+  applyMessagePlaceholders,
+  sendBulkMessages,
+} from "./messaging";
+export type {
+  MessageChannel,
+  PlaceholderContext,
+  SendBulkMessageInput,
+  SendBulkMessageResult,
+} from "./messaging";
+export {
+  createAnnualQuotaSetting,
+  currentFiscalYear,
+  deleteAnnualQuotaSetting,
+  formatQuotaDateItalian,
+  formatQuotaEuro,
+  listAnnualQuotaSettings,
+  listMemberAnnualQuotas,
+  updateAnnualQuotaSetting,
+  upsertMemberAnnualQuotas,
+} from "./quotas";
+export type {
+  AnnualQuotaSetting,
+  AnnualQuotaSettingInput,
+  BulkQuotaUpsertResult,
+  MemberAnnualQuota,
+  MemberAnnualQuotaInput,
+  QuotaMutationResult,
+} from "./quotas";
+export {
+  DEFAULT_PAYMENT_METHODS,
   RECEIPTS_STATUS_LABELS,
   deleteReimbursement,
+  deleteReimbursements,
   formatDateItalian as formatReimbursementDateItalian,
   formatEuro,
+  formatPaymentAmountIt,
+  formatPaymentMethodString,
   generateReimbursement,
+  generateReimbursementsBatch,
+  getMemberReceiptsBalance,
+  getNextProgressive,
+  getReimbursementById,
   listReimbursements,
+  paymentPartsMatchGross,
+  sumPaymentParts,
   updateReceiptsAmount,
+  updateReimbursementPdf,
 } from "./reimbursements";
 export type {
+  GenerateBatchResult,
   GenerateReimbursementInput,
+  MemberReceiptsBalance,
+  PaymentPart,
   ReceiptsStatus,
   ReimbursementDisplay,
   ReimbursementListResult,

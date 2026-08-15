@@ -1,7 +1,14 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/signup"];
+const PUBLIC_PATHS = [
+  "/login",
+  "/signup",
+  "/forgot-password",
+  "/reset-password",
+  "/auth/callback",
+  "/prenotazioni",
+];
 const AUTH_PATHS = ["/login", "/signup"];
 const PROTECTED_PREFIXES = ["/dashboard", "/admin"];
 
@@ -60,10 +67,13 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (user && AUTH_PATHS.includes(pathname)) {
-    const dashboardUrl = request.nextUrl.clone();
-    dashboardUrl.pathname = "/dashboard";
-    dashboardUrl.search = "";
-    return NextResponse.redirect(dashboardUrl);
+    const redirectParam = request.nextUrl.searchParams.get("redirect");
+    const destination =
+      redirectParam && redirectParam.startsWith("/") ? redirectParam : "/dashboard";
+    const targetUrl = request.nextUrl.clone();
+    targetUrl.pathname = destination;
+    targetUrl.search = "";
+    return NextResponse.redirect(targetUrl);
   }
 
   if (!user && pathname === "/" && !isPublicPath(pathname)) {

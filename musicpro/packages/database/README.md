@@ -16,19 +16,22 @@ Supabase client factories and data-access helpers for MusicPro School.
 Enforcement layers:
 
 1. **RLS** (`002_rls_policies.sql`) — `can_book_rooms()` on `rooms` SELECT and `bookings` INSERT/SELECT
-2. **`create_booking_safe()`** (`005_booking_functions.sql`) — quota/role checks, `UNIQUE(room_id, start_at)` → Italian `SLOT_TAKEN` message
+2. **`create_booking_safe()`** (`005` + `006`) — quota, overlap, pricing, lead-time (12h/6h)
+3. **`cancel_booking_safe()`** (`006`) — annullamento con soglia ore (default 24h)
 
 ### Booking statuses
 
-- `pending` — associato booking awaiting payment (Stripe hook placeholder: `initiateRoomPayment()`)
-- `confirmed` — active reservation (admin/docente, or associato after future payment)
-- `cancelled` — member cancelled own booking, or admin cancelled
+- `pending` — associato, anticipo ≥12h; pagamento Stripe da collegare (infrastruttura già presente per iscrizioni)
+- `pending_approval` — associato, anticipo 6–12h; approvazione segreteria (admin UI da fare)
+- `confirmed` — admin/docente, o associato dopo pagamento/approvazione
+- `cancelled` — annullata
 
-### Slots and timezone
+### Slots, pricing and timezone
 
-- Display timezone: **Europe/Rome** (`BOOKING_TIMEZONE`)
-- Default slots: hourly from **09:00** to **22:00** local time
-- Stored in DB as `timestamptz` (UTC); UI formats via `formatDateItalian()` / slot labels
+- **Formula prezzo:** `totale = tariffa × ore − sconti durata − sconto PROVI DA SOLO + addon` (Fase 1: solo base via `calculateBookingPrice()`)
+- Config per sala in DB (`006`): granularità (default 30 min), durata, tariffe, orari
+- Lead-time in `app_settings`: `booking_auto_confirm_min_hours` (12), `booking_approval_min_hours` (6), `booking_cancel_min_hours` (24)
+- Display timezone: **Europe/Rome**
 
 ### Conflict handling
 
@@ -37,6 +40,8 @@ Enforcement layers:
 | `error_code` | Italian message |
 |--------------|-----------------|
 | `SLOT_TAKEN` | Questo slot è già prenotato. Scegli un altro orario. |
+| `TOO_LATE` | Anticipo insufficiente (<6h) |
+| `CANCEL_TOO_LATE` | Annullamento oltre soglia ore |
 | `QUOTA_NOT_PAID` | Devi aver pagato la quota associativa per prenotare le sale. |
 | `NOT_AUTHORIZED` | Non hai i permessi per prenotare le sale prova. |
 | `NOT_AUTHENTICATED` | Devi effettuare l'accesso per prenotare. |
@@ -47,7 +52,7 @@ The `bookings` table is in the `supabase_realtime` publication. Use `subscribeTo
 
 ### Rooms (seed)
 
-Four practice rooms from `003_seed_data.sql`: Sala 1–4 (`sala-1` … `sala-4`).
+Four practice rooms; after `006` seed names Rossa, Verde, Arancio, Sala 4 with hourly rates.
 
 ## API (`src/bookings.ts`)
 
@@ -58,15 +63,24 @@ const supabase = createBrowserClient();
 const rooms = await listRooms(supabase);
 const availability = await getRoomAvailability(supabase, roomId, "2026-06-11");
 const result = await createBooking(supabase, { roomId, memberId, startAt, endAt });
-const unsubscribe = subscribeToBookings(supabase, roomId, () => { /* refresh slots */ });
+const mine = await listMyBookings(supabase, memberId, "upcoming");
+await cancelBooking(supabase, bookingId);
 ```
 
 ## Migrations
 
-Apply in order: `001` → `002` → `003` → `005_booking_functions.sql`.
+Apply in order: `001` → `002` → `003` → `005` → `006` → `007` → `008`.
 
 Regenerate types when schema changes:
 
 ```bash
 npx supabase gen types typescript --project-id <id> > packages/database/src/types/database.ts
 ```
+
+### URL web associato
+
+| Path | Uso |
+|------|-----|
+| `/prenotazioni` | Nuova prenotazione (wizard) |
+| `/prenotazioni/mie` | Le mie prenotazioni |
+| `/dashboard` | Link di ingresso (non alias URL) |

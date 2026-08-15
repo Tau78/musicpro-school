@@ -1,16 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { FormEvent, useMemo, useState } from "react";
+
+import { BrandLogo } from "@/components/brand/brand-logo";
 
 import { ensureMemberLinked } from "@musicpro/database";
-import { APP_NAME } from "@musicpro/shared";
 
 import { createClient } from "@/lib/supabase/client";
 
 export function SignupForm() {
-  const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("redirect") ?? "/dashboard";
+
+  const loginHref = useMemo(() => {
+    const params = new URLSearchParams({ redirect: redirectTo });
+    return `/login?${params.toString()}`;
+  }, [redirectTo]);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -36,47 +43,49 @@ export function SignupForm() {
 
     setIsLoading(true);
 
-    const supabase = createClient();
-    const { data, error: signUpError } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-    });
+    try {
+      const supabase = createClient();
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+      });
 
-    if (signUpError) {
-      setError(signUpError.message);
-      setIsLoading(false);
-      return;
-    }
-
-    if (data.session) {
-      const memberId = await ensureMemberLinked(supabase);
-
-      if (!memberId) {
-        setError(
-          "Registrazione riuscita, ma nessun profilo associato trovato per questa email. Contatta la segreteria per collegare il tuo account.",
-        );
-        await supabase.auth.signOut();
-        setIsLoading(false);
+      if (signUpError) {
+        setError(signUpError.message);
         return;
       }
 
-      router.push("/dashboard");
-      router.refresh();
-      return;
-    }
+      if (data.session) {
+        const memberId = await ensureMemberLinked(supabase);
 
-    setMessage(
-      "Controlla la tua email per confermare l'account, poi accedi con la password scelta.",
-    );
-    setIsLoading(false);
+        if (!memberId) {
+          setError(
+            "Registrazione riuscita, ma nessun profilo associato trovato per questa email. Contatta la segreteria per collegare il tuo account.",
+          );
+          await supabase.auth.signOut();
+          return;
+        }
+
+        window.location.assign(redirectTo);
+        return;
+      }
+
+      setMessage(
+        "Controlla la tua email per confermare l'account, poi accedi con la password scelta.",
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Errore imprevisto durante la registrazione.",
+      );
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   return (
-    <div className="w-full max-w-md rounded-2xl border border-neutral-200 bg-white p-8 shadow-sm">
-      <p className="text-sm font-medium uppercase tracking-wide text-[var(--brand-accent)]">
-        {APP_NAME}
-      </p>
-      <h1 className="mt-2 text-2xl font-semibold text-[var(--brand)]">
+    <div className="w-full max-w-md rounded-2xl border border-neutral-200 bg-white p-8 shadow-lg shadow-[var(--brand)]/5">
+      <BrandLogo href="/prenotazioni" size="sm" showSubtitle={false} />
+      <h1 className="mt-6 text-2xl font-semibold text-[var(--brand)]">
         Registrati
       </h1>
       <p className="mt-2 text-sm text-neutral-600">
@@ -165,7 +174,10 @@ export function SignupForm() {
 
       <p className="mt-6 text-center text-sm text-neutral-600">
         Hai già un account?{" "}
-        <Link href="/login" className="font-medium text-[var(--brand)] underline">
+        <Link
+          href={loginHref}
+          className="font-medium text-[var(--brand)] underline-offset-2 hover:underline"
+        >
           Accedi
         </Link>
       </p>

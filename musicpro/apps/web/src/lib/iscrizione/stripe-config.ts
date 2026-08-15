@@ -92,3 +92,29 @@ export function buildQuotaReturnUrl(
 
   return `${safeBase}${sep}${q.toString()}`;
 }
+
+export function buildRoomBookingReturnUrl(
+  baseUrl: string,
+  payload: {
+    bookingId: string;
+    importo: string;
+  },
+): string {
+  const safeBase = baseUrl.trim().replace(/[?&]$/, "");
+  const sep = safeBase.includes("?") ? "&" : "?";
+  const q = new URLSearchParams({
+    bookingId: payload.bookingId,
+    importo: payload.importo,
+    dopoPagamento: "1",
+  });
+
+  return `${safeBase}${sep}${q.toString()}`;
+}
+
+export function buildCreditShopReturnUrl(baseUrl: string): string {
+  const safeBase = baseUrl.trim().replace(/[?&]$/, "");
+  const sep = safeBase.includes("?") ? "&" : "?";
+  const q = new URLSearchParams({ dopoPagamento: "1" });
+
+  return `${safeBase}${sep}${q.toString()}`;
+}

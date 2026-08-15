@@ -4,8 +4,12 @@ import { notFound, redirect } from "next/navigation";
 import {
   getCurrentMemberWithRoles,
   getMemberById,
+  getMemberCreditBalance,
+  listMemberAnnualQuotas,
+  listMemberCreditTransactions,
 } from "@musicpro/database";
 
+import { MemberCreditsPanel } from "@/components/admin/member-credits-panel";
 import { MemberForm } from "@/components/admin/member-form";
 import {
   canDeleteMembers,
@@ -32,6 +36,12 @@ export default async function AssociatoDetailPage({ params }: PageProps) {
     notFound();
   }
 
+  const [creditBalance, creditTransactions, quotas] = await Promise.all([
+    getMemberCreditBalance(supabase, id),
+    listMemberCreditTransactions(supabase, id),
+    listMemberAnnualQuotas(supabase, { memberId: id }),
+  ]);
+
   return (
     <div>
       <div className="mb-6">
@@ -49,6 +59,13 @@ export default async function AssociatoDetailPage({ params }: PageProps) {
       <MemberForm
         member={member}
         canDelete={canDeleteMembers(currentMember.roles)}
+        quotas={quotas}
+      />
+
+      <MemberCreditsPanel
+        memberId={member.id}
+        initialBalance={creditBalance}
+        initialTransactions={creditTransactions}
       />
     </div>
   );
