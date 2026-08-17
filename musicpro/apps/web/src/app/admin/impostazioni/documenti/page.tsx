@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import {
@@ -8,6 +7,7 @@ import {
 
 import { AppSettingsPanel } from "@/components/admin/app-settings-panel";
 import { canManageSettings } from "@/lib/admin/roles";
+import { DOCUMENTI_SETTING_KEYS } from "@/lib/admin/settings-nav";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function ImpostazioniDocumentiPage() {
@@ -21,29 +21,34 @@ export default async function ImpostazioniDocumentiPage() {
   const settings = await listDocumentSettings(supabase);
 
   return (
-    <div>
-      <div className="mb-6">
-        <h2 className="text-2xl font-semibold text-[var(--brand)]">
-          Impostazioni
-        </h2>
-        <p className="mt-1 text-sm text-neutral-600">
-          Path Drive legacy, template, bucket Storage e email di contatto.
+    <div className="space-y-10">
+      <AppSettingsPanel
+        settings={settings}
+        keys={DOCUMENTI_SETTING_KEYS}
+        title="Documenti e contatti"
+        description="Email operative, bucket Storage, foglio legacy e fuso orario."
+        submitLabel="Salva documenti"
+      />
+
+      <section className="rounded-xl border border-neutral-200 bg-neutral-50 p-6">
+        <h3 className="text-sm font-semibold text-neutral-900">
+          Import dati storici (Sheets)
+        </h3>
+        <p className="mt-2 text-sm text-neutral-600">
+          Il wizard di import GAS non è stato ripristinato nell&apos;admin web.
+          Per re-importare o verificare i dati da Google Sheets usare lo script
+          one-shot dalla root del repository:
         </p>
-      </div>
-
-      <nav className="mb-8 flex flex-wrap gap-2 border-b border-neutral-200 pb-3 text-sm">
-        <Link
-          href="/admin/impostazioni"
-          className="rounded-lg px-3 py-1.5 text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
-        >
-          Prenotazioni
-        </Link>
-        <span className="rounded-lg bg-[var(--brand)] px-3 py-1.5 font-medium text-white">
-          Documenti / Drive
-        </span>
-      </nav>
-
-      <AppSettingsPanel settings={settings} />
+        <pre className="mt-3 overflow-x-auto rounded-lg bg-neutral-900 px-4 py-3 text-xs text-neutral-100">
+          npm run migrate:sheets -- --dry-run{"\n"}
+          npm run migrate:sheets
+        </pre>
+        <p className="mt-2 text-sm text-neutral-500">
+          Documentazione:{" "}
+          <code className="text-xs">scripts/migrate-from-sheets/README.md</code>{" "}
+          e <code className="text-xs">docs/CUTOVER.md</code>.
+        </p>
+      </section>
     </div>
   );
 }
