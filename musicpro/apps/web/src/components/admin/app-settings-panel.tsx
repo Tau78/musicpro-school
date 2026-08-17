@@ -14,9 +14,19 @@ import { createClient } from "@/lib/supabase/client";
 
 interface AppSettingsPanelProps {
   settings: AppSetting[];
+  keys?: readonly string[];
+  title?: string;
+  description?: string;
+  submitLabel?: string;
 }
 
-export function AppSettingsPanel({ settings }: AppSettingsPanelProps) {
+export function AppSettingsPanel({
+  settings,
+  keys,
+  title = "Drive, template e storage",
+  description = "Chiavi legacy migrate da GAS (`app_settings`). Gli ID Drive restano utili come riferimento per PDF storici; i bucket Storage servono per i nuovi documenti.",
+  submitLabel = "Salva impostazioni documenti",
+}: AppSettingsPanelProps) {
   const router = useRouter();
   const supabase = createClient();
 
@@ -33,7 +43,12 @@ export function AppSettingsPanel({ settings }: AppSettingsPanelProps) {
     setError(null);
     setSuccess(null);
 
-    const result = await upsertDocumentSettings(supabase, form);
+    const payload = keys
+      ? Object.fromEntries(
+          Object.entries(form).filter(([key]) => keys.includes(key)),
+        )
+      : form;
+    const result = await upsertDocumentSettings(supabase, payload);
     setSaving(false);
 
     if (!result.success) {
@@ -60,15 +75,14 @@ export function AppSettingsPanel({ settings }: AppSettingsPanelProps) {
 
       <fieldset className="space-y-4 rounded-xl border border-neutral-200 bg-white p-6">
         <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
-          Drive, template e storage
+          {title}
         </legend>
-        <p className="text-sm text-neutral-600">
-          Chiavi legacy migrate da GAS (`app_settings`). Gli ID Drive restano
-          utili come riferimento per PDF storici; i bucket Storage servono per
-          i nuovi documenti.
-        </p>
+        <p className="text-sm text-neutral-600">{description}</p>
         <div className="grid gap-4">
-          {settings.map((setting) => {
+          {(keys
+            ? settings.filter((setting) => keys.includes(setting.key))
+            : settings
+          ).map((setting) => {
             const key = setting.key as DocumentSettingKey;
             const label =
               DOCUMENT_SETTING_LABELS[key] ?? setting.description ?? setting.key;
@@ -102,7 +116,7 @@ export function AppSettingsPanel({ settings }: AppSettingsPanelProps) {
           disabled={saving}
           className="rounded-lg bg-[var(--brand)] px-6 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
         >
-          {saving ? "Salvataggio…" : "Salva impostazioni documenti"}
+          {saving ? "Salvataggio…" : submitLabel}
         </button>
       </div>
     </form>

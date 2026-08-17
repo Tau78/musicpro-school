@@ -4,87 +4,178 @@ import { redirect } from "next/navigation";
 import {
   getAppBookingSettings,
   getCurrentMemberWithRoles,
+  listCancellationPenaltyRules,
 } from "@musicpro/database";
 
 import { BookingSettingsForm } from "@/components/admin/booking-settings-form";
-import { canManageSettings } from "@/lib/admin/roles";
+import { PenaltyRulesPanel } from "@/components/admin/penalty-rules-panel";
+import { PrenotazioniSettingsNav } from "@/components/admin/prenotazioni-settings-nav";
+import { canManagePenalties, canManageSettings } from "@/lib/admin/roles";
 import { createClient } from "@/lib/supabase/server";
 
-export default async function ImpostazioniPage() {
+type PrenotazioniSettingsSection = "soglie" | "penali" | "crediti";
+
+function parseSection(value: string | undefined): PrenotazioniSettingsSection {
+  if (value === "penali" || value === "crediti" || value === "rimborsi") {
+    return value === "rimborsi" ? "crediti" : value;
+  }
+  return "soglie";
+}
+
+export default async function ImpostazioniPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ sezione?: string }>;
+}) {
   const supabase = await createClient();
   const member = await getCurrentMemberWithRoles(supabase);
+  const { sezione } = await searchParams;
+  const section = parseSection(sezione);
 
-  if (!member || !canManageSettings(member.roles)) {
+  if (
+    !member ||
+    (!canManageSettings(member.roles) && !canManagePenalties(member.roles))
+  ) {
     redirect("/admin/rimborsi");
   }
 
-  const settings = await getAppBookingSettings(supabase);
+  const [settings, rules] = await Promise.all([
+    getAppBookingSettings(supabase),
+    listCancellationPenaltyRules(supabase).catch(() => []),
+  ]);
 
   return (
     <div>
       <div className="mb-6">
         <h2 className="text-2xl font-semibold text-[var(--brand)]">
-          Impostazioni
+          Prenotazioni
         </h2>
         <p className="mt-1 text-sm text-neutral-600">
-          Configurazione prenotazioni, documenti legacy e strumenti di
-          migrazione.
+          Soglie operative, penali di cancellazione e crediti restituiti.
         </p>
       </div>
 
-      <nav className="mb-8 flex flex-wrap gap-2 border-b border-neutral-200 pb-3 text-sm">
-        <span className="rounded-lg bg-[var(--brand)] px-3 py-1.5 font-medium text-white">
-          Prenotazioni
-        </span>
-        <Link
-          href="/admin/impostazioni/documenti"
-          className="rounded-lg px-3 py-1.5 text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
-        >
-          Documenti / Drive
-        </Link>
-      </nav>
+      <PrenotazioniSettingsNav section={section} />
 
-      <div className="mb-6">
+      {section === "soglie" ? (
+        <BookingSettingsForm settings={settings} />
+      ) : null}
+
+      {section === "penali" ? (
+        <div>
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold text-[var(--brand)]">
+              Penali cancellazione
+            </h3>
+            <p className="mt-1 text-sm text-neutral-600">
+              Fasce orarie con percentuale di penale applicata alla
+              cancellazione associato. Il rimborso è calcolato come totale meno
+              penale.
+            </p>
+          </div>
+          <PenaltyRulesPanel rules={rules} />
+        </div>
+      ) : null}
+
+      {section === "crediti" ? (
+        <CreditiPrenotazioniSection rules={rules} />
+      ) : null}
+    </div>
+  );
+}
+
+function CreditiPrenotazioniSection({
+  rules,
+}: {
+  rules: Awaited<ReturnType<typeof listCancellationPenaltyRules>>;
+}) {
+  return (
+    <div className="space-y-6">
+      <div>
         <h3 className="text-lg font-semibold text-[var(--brand)]">
-          Impostazioni prenotazioni
+          Crediti su cancellazione
         </h3>
         <p className="mt-1 text-sm text-neutral-600">
-          Soglie globali per conferma, approvazione e annullamento delle
-          prenotazioni sale.
-        </p>
-        <p className="mt-2 text-sm text-neutral-500">
-          Per le penali su cancellazione vedi{" "}
+          Alla cancellazione di una prenotazione, i crediti restituiti sono il
+          complemento della penale della fascia oraria. Le regole si modificano
+          nella sezione{" "}
           <Link
-            href="/admin/penali"
+            href="/admin/impostazioni?sezione=penali"
             className="text-[var(--brand)] hover:underline"
           >
-            Admin → Penali
+            Penali
           </Link>
           .
         </p>
       </div>
 
-      <BookingSettingsForm settings={settings} />
+      <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
+        <table className="min-w-full divide-y divide-neutral-200 text-sm">
+          <thead className="bg-neutral-50">
+            <tr>
+              <th className="px-4 py-3 text-left font-medium text-neutral-600">
+                Fascia (ore prima)
+              </th>
+              <th className="px-4 py-3 text-left font-medium text-neutral-600">
+                Penale
+              </th>
+              <th className="px-4 py-3 text-left font-medium text-neutral-600">
+                Crediti restituiti
+              </th>
+              <th className="px-4 py-3 text-left font-medium text-neutral-600">
+                Stato
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-neutral-200">
+            {rules.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={4}
+                  className="px-4 py-8 text-center text-neutral-500"
+                >
+                  Nessuna fascia configurata. Aggiungi regole in Penali per
+                  definire i crediti restituiti.
+                </td>
+              </tr>
+            ) : (
+              rules.map((rule) => (
+                <tr key={rule.id} className="hover:bg-neutral-50">
+                  <td className="px-4 py-3 text-neutral-900">
+                    Da {rule.fromHours}h a {rule.toHours}h
+                  </td>
+                  <td className="px-4 py-3 text-neutral-900">
+                    {rule.penaltyPercent}%
+                  </td>
+                  <td className="px-4 py-3 font-medium text-neutral-900">
+                    {Math.max(0, 100 - rule.penaltyPercent)}%
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={
+                        rule.enabled ? "text-green-700" : "text-neutral-400"
+                      }
+                    >
+                      {rule.enabled ? "Attiva" : "Disattivata"}
+                    </span>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
 
-      <section className="mt-10 rounded-xl border border-neutral-200 bg-neutral-50 p-6">
-        <h3 className="text-sm font-semibold text-neutral-900">
-          Import dati storici (Sheets)
-        </h3>
-        <p className="mt-2 text-sm text-neutral-600">
-          Il wizard di import GAS non è stato ripristinato nell&apos;admin web.
-          Per re-importare o verificare i dati da Google Sheets usare lo script
-          one-shot dalla root del repository:
-        </p>
-        <pre className="mt-3 overflow-x-auto rounded-lg bg-neutral-900 px-4 py-3 text-xs text-neutral-100">
-          npm run migrate:sheets -- --dry-run{"\n"}
-          npm run migrate:sheets
-        </pre>
-        <p className="mt-2 text-sm text-neutral-500">
-          Documentazione:{" "}
-          <code className="text-xs">scripts/migrate-from-sheets/README.md</code>{" "}
-          e <code className="text-xs">docs/CUTOVER.md</code>.
-        </p>
-      </section>
+      <p className="text-sm text-neutral-500">
+        Le notule spese docenti restano nella tab{" "}
+        <Link
+          href="/admin/rimborsi"
+          className="text-[var(--brand)] hover:underline"
+        >
+          Rimborsi
+        </Link>
+        .
+      </p>
     </div>
   );
 }
