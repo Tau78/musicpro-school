@@ -4,6 +4,7 @@ import type {
   SupabaseClient,
 } from "@supabase/supabase-js";
 
+import { listMyBands, type MyBandSummary } from "./bands";
 import type { Database } from "./types/database";
 
 export const BOOKING_TIMEZONE = "Europe/Rome";
@@ -44,7 +45,16 @@ export type BookingErrorCode =
   | "CANCEL_TOO_LATE"
   | "INVALID_ACTION"
   | "INVALID_STATUS"
+  | "BAND_REQUIRED"
+  | "BAND_QUOTA_INCOMPLETE"
+  | "NOT_BAND_MEMBER"
   | "UNKNOWN";
+
+export interface BookingMemberSnapshotEntry {
+  member_id: string;
+  first_name: string;
+  last_name: string;
+}
 
 export interface Room {
   id: string;
@@ -61,6 +71,8 @@ export interface Room {
   max_duration_minutes: number;
   open_hour: number;
   close_hour: number;
+  open_minute: number;
+  close_minute: number;
   google_calendar_color_id?: string | null;
   provi_da_solo_enabled: boolean;
   provi_da_solo_discount_eur: number;
@@ -79,6 +91,8 @@ export interface BookingSettings {
   approvalMinHours: number;
   cancelMinHours: number;
   modifyMinHours: number;
+  /** When true, non-PROVI bookings require a band. Default false (transition period). */
+  bandRequired: boolean;
 }
 
 export interface Booking {
@@ -103,6 +117,8 @@ export interface Booking {
   credits_held: number;
   credits_used: number | null;
   provi_da_solo?: boolean;
+  band_id?: string | null;
+  member_snapshot?: BookingMemberSnapshotEntry[] | null;
   created_at: string;
   updated_at: string;
 }
@@ -117,6 +133,10 @@ export interface AdminBookingListItem extends BookingWithRoom {
     first_name: string;
     last_name: string;
     email: string | null;
+  } | null;
+  band?: {
+    id: string;
+    name: string;
   } | null;
 }
 
@@ -239,14 +259,18 @@ const BOOKING_ERROR_MESSAGES_IT: Record<BookingErrorCode, string> = {
     "Annullamento non consentito: contatta la segreteria.",
   INVALID_ACTION: "Azione non valida.",
   INVALID_STATUS: "Stato prenotazione non valido per questa operazione.",
+  BAND_REQUIRED: "Seleziona una band per questa prenotazione.",
+  BAND_QUOTA_INCOMPLETE:
+    "Non tutti i membri attivi della band hanno la quota in regola.",
+  NOT_BAND_MEMBER: "Non sei membro attivo di questa band.",
   UNKNOWN: "Si è verificato un errore durante la prenotazione.",
 };
 
 const ROOM_SELECT =
-  "id, name, slug, description, capacity, is_active, sort_order, hourly_rate_eur, slot_granularity_minutes, default_duration_minutes, min_duration_minutes, max_duration_minutes, open_hour, close_hour, google_calendar_color_id, provi_da_solo_enabled, provi_da_solo_discount_eur";
+  "id, name, slug, description, capacity, is_active, sort_order, hourly_rate_eur, slot_granularity_minutes, default_duration_minutes, min_duration_minutes, max_duration_minutes, open_hour, close_hour, open_minute, close_minute, google_calendar_color_id, provi_da_solo_enabled, provi_da_solo_discount_eur";
 
 const BOOKING_SELECT =
-  "id, room_id, member_id, start_at, end_at, status, total_price_eur, duration_minutes, payment_status, payment_method, credits_held, credits_used, provi_da_solo, payment_link_url, payment_link_id, stripe_payment_intent_id, paid_at, title, notes, cancelled_at, cancelled_by, created_at, updated_at";
+  "id, room_id, member_id, start_at, end_at, status, total_price_eur, duration_minutes, payment_status, payment_method, credits_held, credits_used, provi_da_solo, band_id, member_snapshot, payment_link_url, payment_link_id, stripe_payment_intent_id, paid_at, title, notes, cancelled_at, cancelled_by, created_at, updated_at";
 
 export function bookingNeedsPayment(booking: Pick<Booking, "status" | "payment_status">): boolean {
   return (
@@ -386,6 +410,7 @@ export async function getBookingSettings(
     "booking_approval_min_hours",
     "booking_cancel_min_hours",
     "booking_modify_min_hours",
+    "booking_band_required",
   ] as const;
 
   const { data, error } = await client
@@ -398,6 +423,8 @@ export async function getBookingSettings(
   }
 
   const map = new Map((data ?? []).map((row) => [row.key, row.value]));
+
+  const bandRequiredRaw = (map.get("booking_band_required") ?? "false").toLowerCase();
 
   return {
     autoConfirmMinHours: parseInt(
@@ -416,6 +443,7 @@ export async function getBookingSettings(
       map.get("booking_modify_min_hours") ?? "6",
       10,
     ),
+    bandRequired: ["true", "1", "yes", "on"].includes(bandRequiredRaw),
   };
 }
 
@@ -462,6 +490,53 @@ export function timeLabelToMinutes(value: string): number {
   const [h, m] = value.split(":").map(Number);
   if (Number.isNaN(h) || Number.isNaN(m)) return 0;
   return h * 60 + m;
+}
+
+export function roomOpenMinute(room: Pick<Room, "open_hour" | "open_minute">): number {
+  return room.open_minute ?? room.open_hour * 60;
+}
+
+export function roomCloseMinute(room: Pick<Room, "close_hour" | "close_minute">): number {
+  return room.close_minute ?? room.close_hour * 60;
+}
+
+/** Clock value for a <input type="time">. Midnight end-of-day (1440) → 00:00. */
+export function closeMinuteToTimeInput(closeMinute: number): string {
+  if (closeMinute >= 1440) {
+    return minutesToTimeLabel(closeMinute - 1440);
+  }
+  return minutesToTimeLabel(closeMinute);
+}
+
+/**
+ * 00:00 → midnight (1440). A clock time at or before opening → next day.
+ */
+export function timeInputToCloseMinute(
+  openMinute: number,
+  closeLabel: string,
+): number {
+  const clock = timeLabelToMinutes(closeLabel);
+  if (clock === 0) return 1440;
+  if (clock <= openMinute) return clock + 1440;
+  return clock;
+}
+
+export function formatRoomHoursLabel(openMinute: number, closeMinute: number): string {
+  const open = minutesToTimeLabel(openMinute);
+  if (closeMinute === 1440) return `${open} – 24:00`;
+  if (closeMinute > 1440) {
+    return `${open} – ${minutesToTimeLabel(closeMinute - 1440)} (+1)`;
+  }
+  return `${open} – ${minutesToTimeLabel(closeMinute)}`;
+}
+
+export function closeMinuteHint(openMinute: number, closeMinute: number): string {
+  if (closeMinute === 1440) return "Mezzanotte";
+  if (closeMinute > 1440) {
+    return `${minutesToTimeLabel(closeMinute - 1440)} del giorno successivo`;
+  }
+  if (closeMinute <= openMinute) return "Deve essere dopo l'apertura";
+  return "Stesso giorno";
 }
 
 export function getRomeDayOfWeek(iso: string): number {
@@ -589,19 +664,38 @@ export async function getRoomAvailability(
   };
 }
 
+export type FetchRoomAvailabilityOptions = {
+  /** Base URL web app (es. EXPO_PUBLIC_WEB_URL) — richiesto fuori dal browser. */
+  apiBaseUrl?: string;
+  /** Token Supabase per Authorization Bearer (mobile). */
+  accessToken?: string;
+};
+
 /** Disponibilità con merge prenotazioni DB + eventi Google Calendar (via API web). */
 export async function fetchRoomAvailability(
   roomId: string,
   date: string,
   durationMinutes?: number,
+  options?: FetchRoomAvailabilityOptions,
 ): Promise<RoomAvailability> {
   const params = new URLSearchParams({ roomId, date });
   if (durationMinutes != null) {
     params.set("duration", String(durationMinutes));
   }
 
-  const resp = await fetch(`/api/prenotazioni/availability?${params.toString()}`, {
-    credentials: "same-origin",
+  const apiBase = options?.apiBaseUrl?.replace(/\/$/, "") ?? "";
+  const url = apiBase
+    ? `${apiBase}/api/prenotazioni/availability?${params.toString()}`
+    : `/api/prenotazioni/availability?${params.toString()}`;
+
+  const headers: Record<string, string> = {};
+  if (options?.accessToken) {
+    headers.Authorization = `Bearer ${options.accessToken}`;
+  }
+
+  const resp = await fetch(url, {
+    credentials: apiBase ? "omit" : "same-origin",
+    headers,
   });
 
   const payload = (await resp.json()) as RoomAvailability & {
@@ -817,6 +911,15 @@ export async function countPendingApprovalBookings(
   return count ?? 0;
 }
 
+export async function listBookableBands(
+  client: BookingsClient,
+): Promise<MyBandSummary[]> {
+  const bands = await listMyBands(client);
+  return bands.filter(
+    (band) => band.myStatus === "active" && band.allQuotaOk,
+  );
+}
+
 export async function createBooking(
   client: BookingsClient,
   params: {
@@ -825,6 +928,7 @@ export async function createBooking(
     startAt: string;
     endAt: string;
     proviDaSolo?: boolean;
+    bandId?: string | null;
   },
 ): Promise<CreateBookingResult> {
   const { data, error } = await client.rpc("create_booking_safe", {
@@ -833,6 +937,7 @@ export async function createBooking(
     p_start_at: params.startAt,
     p_end_at: params.endAt,
     p_provi_da_solo: params.proviDaSolo ?? false,
+    p_band_id: params.bandId ?? null,
   });
 
   if (error) {
@@ -991,17 +1096,21 @@ function buildSlotsForRoom(
   settings: BookingSettings,
 ): TimeSlot[] {
   const slots: TimeSlot[] = [];
-  const closeStartMinutes = room.close_hour * 60;
+  const openMinute = roomOpenMinute(room);
+  const closeMinute = roomCloseMinute(room);
   const priceEur = calculateBookingPrice(room, durationMinutes);
 
   for (
-    let startMinutes = room.open_hour * 60;
-    startMinutes + durationMinutes <= closeStartMinutes;
+    let startMinutes = openMinute;
+    startMinutes + durationMinutes <= closeMinute;
     startMinutes += room.slot_granularity_minutes
   ) {
-    const hour = Math.floor(startMinutes / 60);
-    const minute = startMinutes % 60;
-    const startAt = romeLocalToUtcIso(date, hour, minute);
+    const dayOffset = Math.floor(startMinutes / 1440);
+    const timeOfDay = startMinutes % 1440;
+    const hour = Math.floor(timeOfDay / 60);
+    const minute = timeOfDay % 60;
+    const slotDate = dayOffset === 0 ? date : addDays(date, dayOffset);
+    const startAt = romeLocalToUtcIso(slotDate, hour, minute);
     const endAt = addMinutesIso(startAt, durationMinutes);
     const overlapping = bookings.find(
       (b) => b.start_at < endAt && b.end_at > startAt,
@@ -1253,19 +1362,25 @@ export async function getAdminBookingById(
 
   const booking = data as Booking;
 
-  const [{ data: room }, { data: member }] = await Promise.all([
+  const bandQuery = booking.band_id
+    ? client.from("bands").select("id, name").eq("id", booking.band_id).maybeSingle()
+    : Promise.resolve({ data: null, error: null });
+
+  const [{ data: room }, { data: member }, { data: band }] = await Promise.all([
     client.from("rooms").select("id, name, slug").eq("id", booking.room_id).maybeSingle(),
     client
       .from("members")
       .select("id, first_name, last_name, email")
       .eq("id", booking.member_id)
       .maybeSingle(),
+    bandQuery,
   ]);
 
   return {
     ...booking,
     room: (room as Pick<Room, "id" | "name" | "slug"> | null) ?? null,
     member: member ?? null,
+    band: (band as { id: string; name: string } | null) ?? null,
   };
 }
 

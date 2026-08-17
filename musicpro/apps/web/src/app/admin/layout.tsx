@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { getCurrentMemberWithRoles } from "@musicpro/database";
 import { APP_NAME } from "@musicpro/shared";
 
 import { AdminNav } from "@/components/admin/admin-nav";
 import { SettingsSubNav } from "@/components/admin/settings-sub-nav";
 import { SignOutButton } from "@/components/auth/sign-out-button";
+import { getAdminMember } from "@/lib/admin/current-member";
 import {
   canAccessAdmin,
   canManageBookings,
@@ -20,7 +20,6 @@ import {
   canManageTemplates,
 } from "@/lib/admin/roles";
 import { firstSettingsHref } from "@/lib/admin/settings-nav";
-import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -29,8 +28,7 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  const member = await getCurrentMemberWithRoles(supabase);
+  const member = await getAdminMember();
 
   if (!member) {
     redirect("/login?error=member_not_linked&redirect=/admin");

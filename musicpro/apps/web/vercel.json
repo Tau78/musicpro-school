@@ -2,5 +2,11 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "installCommand": "cd ../.. && npm install",
-  "buildCommand": "cd ../.. && npm run build --workspace=@musicpro/web"
+  "buildCommand": "cd ../.. && npm run build --workspace=@musicpro/web",
+  "crons": [
+    {
+      "path": "/api/cron/external-calendar-sync",
+      "schedule": "0 6 * * *"
+    }
+  ]
 }

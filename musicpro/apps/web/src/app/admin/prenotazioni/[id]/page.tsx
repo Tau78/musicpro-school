@@ -3,11 +3,11 @@ import { notFound, redirect } from "next/navigation";
 
 import {
   getAdminBookingById,
-  getCurrentMemberWithRoles,
   listAllRooms,
 } from "@musicpro/database";
 
 import { BookingAdminDetail } from "@/components/admin/booking-admin-detail";
+import { getAdminMember } from "@/lib/admin/current-member";
 import { canManageBookings } from "@/lib/admin/roles";
 import { createClient } from "@/lib/supabase/server";
 
@@ -18,7 +18,7 @@ interface PageProps {
 export default async function AdminBookingDetailPage({ params }: PageProps) {
   const { id } = await params;
   const supabase = await createClient();
-  const currentMember = await getCurrentMemberWithRoles(supabase);
+  const currentMember = await getAdminMember();
 
   if (!currentMember || !canManageBookings(currentMember.roles)) {
     redirect("/admin/associati");

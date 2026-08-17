@@ -72,10 +72,11 @@ const checks = [
       "booking_approval_min_hours",
       "booking_cancel_min_hours",
       "booking_modify_min_hours",
+      "booking_band_required",
     ];
     const { data, error } = await service.from("app_settings").select("key").in("key", keys);
     if (error) fail(`app_settings: ${error.message}`);
-    else ok(`app_settings booking — ${data?.length ?? 0}/4 chiavi`);
+    else ok(`app_settings booking — ${data?.length ?? 0}/5 chiavi`);
   },
   async () => {
     const { error } = await service.from("room_external_calendars").select("id").limit(1);
@@ -130,6 +131,19 @@ const checks = [
     if (error?.message?.includes("does not exist")) {
       fail("release_booking_credits_internal — funzione mancante (migration 012?)");
     } else ok("release_booking_credits_internal — funzione presente");
+  },
+  async () => {
+    const { data, error } = await service.rpc("debit_booking_credits", {
+      p_booking_id: "00000000-0000-0000-0000-000000000000",
+      p_credits: null,
+    });
+    if (error?.message?.includes("does not exist")) {
+      fail("debit_booking_credits (021) — funzione mancante");
+    } else if (data?.error_code === "HOLD_MISMATCH") {
+      fail("debit_booking_credits (021) — ancora HOLD_MISMATCH");
+    } else {
+      ok("debit_booking_credits (021) — RPC registrata");
+    }
   },
 ];
 

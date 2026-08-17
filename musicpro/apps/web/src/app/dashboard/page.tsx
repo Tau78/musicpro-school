@@ -6,7 +6,6 @@ import {
   APP_NAME,
   MEMBER_ROLE_LABELS,
   MemberRole,
-  type MemberRoleValue,
 } from "@musicpro/shared";
 
 import { SignOutButton } from "@/components/auth/sign-out-button";
@@ -21,7 +20,6 @@ export default async function DashboardPage() {
     redirect("/login?error=member_not_linked");
   }
 
-  const assignedRoles = new Set(member.roles);
   const showAdminLink = canAccessAdmin(member.roles);
 
   return (
@@ -36,7 +34,17 @@ export default async function DashboardPage() {
               Dashboard
             </h1>
           </div>
-          <SignOutButton />
+          <div className="flex items-center gap-3">
+            {showAdminLink ? (
+              <Link
+                href="/admin"
+                className="text-sm text-neutral-600 hover:text-[var(--brand)]"
+              >
+                Admin
+              </Link>
+            ) : null}
+            <SignOutButton />
+          </div>
         </div>
       </header>
 
@@ -89,6 +97,22 @@ export default async function DashboardPage() {
 
         <section className="mt-8 rounded-xl border border-neutral-200 bg-white p-6">
           <h2 className="text-lg font-medium text-[var(--brand)]">
+            Le mie band
+          </h2>
+          <p className="mt-2 text-sm text-neutral-600">
+            Crea o gestisci le band a cui appartieni, invita nuovi membri e
+            preparati alle prenotazioni di gruppo.
+          </p>
+          <Link
+            href="/dashboard/band"
+            className="mt-4 inline-flex rounded-lg bg-[var(--brand)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90"
+          >
+            Vai alle band
+          </Link>
+        </section>
+
+        <section className="mt-8 rounded-xl border border-neutral-200 bg-white p-6">
+          <h2 className="text-lg font-medium text-[var(--brand)]">
             Shop crediti
           </h2>
           <p className="mt-2 text-sm text-neutral-600">
@@ -126,54 +150,6 @@ export default async function DashboardPage() {
           </div>
         </section>
 
-        {showAdminLink ? (
-          <section className="mt-8">
-            <h2 className="text-lg font-medium text-[var(--brand)]">
-              Amministrazione
-            </h2>
-            <p className="mt-2 text-sm text-neutral-600">
-              Gestisci anagrafiche e rimborsi dal pannello admin.
-            </p>
-            <Link
-              href="/admin"
-              className="mt-4 inline-flex rounded-lg bg-[var(--brand)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90"
-            >
-              Vai al pannello admin
-            </Link>
-          </section>
-        ) : null}
-
-        <section className="mt-8">
-          <h2 className="text-lg font-medium text-[var(--brand)]">
-            Tutti i ruoli (riferimento)
-          </h2>
-          <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {Object.values(MemberRole).map((role) => {
-              const isAssigned = assignedRoles.has(role as MemberRoleValue);
-
-              return (
-                <li
-                  key={role}
-                  className={`rounded-lg border px-4 py-3 text-sm ${
-                    isAssigned
-                      ? "border-[var(--brand)] bg-[var(--brand)]/5"
-                      : "border-neutral-200 bg-white"
-                  }`}
-                >
-                  <span className="font-medium">
-                    {MEMBER_ROLE_LABELS[role]}
-                  </span>
-                  <span className="mt-1 block text-neutral-500">{role}</span>
-                  {isAssigned ? (
-                    <span className="mt-2 block text-xs font-medium text-[var(--brand)]">
-                      Assegnato
-                    </span>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-        </section>
       </div>
     </main>
   );

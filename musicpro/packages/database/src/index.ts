@@ -37,7 +37,13 @@ export {
   getRomeMinutesFromMidnight,
   isSlotInProviSchedule,
   minutesToTimeLabel,
+  closeMinuteHint,
+  closeMinuteToTimeInput,
+  formatRoomHoursLabel,
   proviDayLabel,
+  roomCloseMinute,
+  roomOpenMinute,
+  timeInputToCloseMinute,
   timeLabelToMinutes,
   bookingNeedsPayment,
   requestBookingCreditsPayment,
@@ -49,6 +55,7 @@ export {
   listAdminBookings,
   listBookingAuditLog,
   listMyBookings,
+  listBookableBands,
   listRooms,
   reviewBooking,
   romeLocalInputToUtcIso,
@@ -115,6 +122,7 @@ export type {
   BookingAuditLogEntry,
   BookingChangePayload,
   BookingErrorCode,
+  BookingMemberSnapshotEntry,
   BookingPaymentStatus,
   BookingPaymentMethod,
   BookingPriceOptions,
@@ -160,6 +168,7 @@ export {
   getCreditPackageById,
   getMemberCreditBalance,
   holdBookingCredits,
+  listMemberAvailableCredits,
   listActiveCreditPackages,
   listCreditPackages,
   listMemberCreditPurchases,
@@ -207,6 +216,36 @@ export type {
   SendBulkMessageResult,
 } from "./messaging";
 export {
+  acceptBandInvite,
+  bandMemberRoleLabel,
+  bandMemberStatusLabel,
+  createBand,
+  createBandInvite,
+  getBand,
+  getBandInviteByToken,
+  leaveBand,
+  listBandMembers,
+  listMyBands,
+} from "./bands";
+export type {
+  AcceptBandInviteResult,
+  Band,
+  BandErrorCode,
+  BandInvite,
+  BandInvitePreview,
+  BandInviteStatus,
+  BandMember,
+  BandMemberRole,
+  BandMemberStatus,
+  BandMutationResult,
+  CreateBandInviteResult,
+  LeaveBandResult,
+  MyBandSummary,
+  QuotaPayment,
+  QuotaPaymentItem,
+  QuotaPaymentItemStatus,
+} from "./bands";
+export {
   createAnnualQuotaSetting,
   currentFiscalYear,
   deleteAnnualQuotaSetting,
@@ -217,6 +256,11 @@ export {
   updateAnnualQuotaSetting,
   upsertMemberAnnualQuotas,
 } from "./quotas";
+export {
+  createQuotaPaymentCheckout,
+  listQuotaPaymentItems,
+} from "./quota-payments";
+export type { CreateQuotaPaymentCheckoutResult } from "./quota-payments";
 export type {
   AnnualQuotaSetting,
   AnnualQuotaSettingInput,

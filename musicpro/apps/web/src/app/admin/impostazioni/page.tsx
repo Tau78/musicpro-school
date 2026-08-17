@@ -3,13 +3,13 @@ import { redirect } from "next/navigation";
 
 import {
   getAppBookingSettings,
-  getCurrentMemberWithRoles,
   listCancellationPenaltyRules,
 } from "@musicpro/database";
 
 import { BookingSettingsForm } from "@/components/admin/booking-settings-form";
 import { PenaltyRulesPanel } from "@/components/admin/penalty-rules-panel";
 import { PrenotazioniSettingsNav } from "@/components/admin/prenotazioni-settings-nav";
+import { getAdminMember } from "@/lib/admin/current-member";
 import { canManagePenalties, canManageSettings } from "@/lib/admin/roles";
 import { createClient } from "@/lib/supabase/server";
 
@@ -28,7 +28,7 @@ export default async function ImpostazioniPage({
   searchParams: Promise<{ sezione?: string }>;
 }) {
   const supabase = await createClient();
-  const member = await getCurrentMemberWithRoles(supabase);
+  const member = await getAdminMember();
   const { sezione } = await searchParams;
   const section = parseSection(sezione);
 

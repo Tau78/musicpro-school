@@ -10,8 +10,8 @@ export type { Room, ProviScheduleEntry };
 export interface RoomInput {
   name: string;
   hourlyRateEur: number;
-  openHour: number;
-  closeHour: number;
+  openMinute: number;
+  closeMinute: number;
   slotGranularityMinutes: number;
   defaultDurationMinutes: number;
   minDurationMinutes: number;
@@ -28,7 +28,7 @@ export interface RoomMutationResult {
 }
 
 const ROOM_SELECT =
-  "id, name, slug, description, capacity, is_active, sort_order, hourly_rate_eur, slot_granularity_minutes, default_duration_minutes, min_duration_minutes, max_duration_minutes, open_hour, close_hour, google_calendar_color_id, provi_da_solo_enabled, provi_da_solo_discount_eur";
+  "id, name, slug, description, capacity, is_active, sort_order, hourly_rate_eur, slot_granularity_minutes, default_duration_minutes, min_duration_minutes, max_duration_minutes, open_hour, close_hour, open_minute, close_minute, google_calendar_color_id, provi_da_solo_enabled, provi_da_solo_discount_eur";
 
 const PROVI_SCHEDULE_COLUMNS =
   "id, room_id, day_of_week, start_minute, end_minute, enabled";
@@ -37,8 +37,8 @@ export function roomToInput(room: Room): RoomInput {
   return {
     name: room.name,
     hourlyRateEur: room.hourly_rate_eur,
-    openHour: room.open_hour,
-    closeHour: room.close_hour,
+    openMinute: room.open_minute ?? room.open_hour * 60,
+    closeMinute: room.close_minute ?? room.close_hour * 60,
     slotGranularityMinutes: room.slot_granularity_minutes,
     defaultDurationMinutes: room.default_duration_minutes,
     minDurationMinutes: room.min_duration_minutes,
@@ -54,8 +54,10 @@ function mapRoomInput(input: RoomInput): Database["public"]["Tables"]["rooms"]["
   return {
     name: input.name.trim(),
     hourly_rate_eur: input.hourlyRateEur,
-    open_hour: input.openHour,
-    close_hour: input.closeHour,
+    open_minute: input.openMinute,
+    close_minute: input.closeMinute,
+    open_hour: Math.min(23, Math.floor(input.openMinute / 60)),
+    close_hour: Math.min(24, Math.max(1, Math.ceil(input.closeMinute / 60))),
     slot_granularity_minutes: input.slotGranularityMinutes,
     default_duration_minutes: input.defaultDurationMinutes,
     min_duration_minutes: input.minDurationMinutes,
@@ -72,7 +74,7 @@ function validateRoomInput(input: RoomInput): string | null {
     return "Il nome della sala è obbligatorio.";
   }
 
-  if (input.openHour >= input.closeHour) {
+  if (input.openMinute >= input.closeMinute) {
     return "L'orario di chiusura deve essere successivo all'apertura.";
   }
 

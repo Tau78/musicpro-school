@@ -8,6 +8,7 @@ import {
   fetchRoomAvailability,
   type BookingStatus,
   type CreateBookingResult,
+  type MyBandSummary,
   type Room,
   type TimeSlot,
   bookingStatusLabel,
@@ -18,9 +19,11 @@ import {
   formatDateItalian,
   formatDurationLabel,
   formatEuro,
+  getBookingSettings,
   getCurrentMember,
   getMemberCreditBalance,
   isSlotInProviSchedule,
+  listMyBands,
   listProviSchedule,
   listRooms,
   requestBookingCreditsPayment,
@@ -34,18 +37,26 @@ import {
 import { AuthSignInPanel } from "@/components/auth/auth-sign-in-panel";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { SiteHeader } from "@/components/layout/site-header";
+import { BandSelectStep } from "@/components/prenotazioni/band-select-step";
+import {
+  SessionTypeStep,
+  type SessionType,
+} from "@/components/prenotazioni/session-type-step";
 import { PrenotazioniWelcomeHero } from "@/components/prenotazioni/welcome-hero";
 import { createClient } from "@/lib/supabase/client";
 import { requestBookingConfirmationEmail } from "@/lib/booking/send-confirmation-email";
 import { requestBookingCalendarSync } from "@/lib/calendar/sync-booking";
 
-type WizardStep = 1 | 2 | 3;
+type WizardStepKey = "session" | "band" | "room" | "slot" | "confirm";
 
 export default function PrenotazioniPage() {
   const supabase = createClient();
 
-  const [step, setStep] = useState<WizardStep>(1);
+  const [stepIndex, setStepIndex] = useState(0);
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [myBands, setMyBands] = useState<MyBandSummary[]>([]);
+  const [sessionType, setSessionType] = useState<SessionType>("band");
+  const [selectedBandId, setSelectedBandId] = useState("");
   const [selectedRoomId, setSelectedRoomId] = useState<string>("");
   const [durationMinutes, setDurationMinutes] = useState<number>(120);
   const [selectedDate, setSelectedDate] = useState(todayInRome());
@@ -63,6 +74,7 @@ export default function PrenotazioniPage() {
   const [error, setError] = useState<string | null>(null);
   const [proviSchedule, setProviSchedule] = useState<ProviScheduleEntry[]>([]);
   const [proviDaSolo, setProviDaSolo] = useState(false);
+  const [bandRequired, setBandRequired] = useState(false);
 
   const selectedRoom = useMemo(
     () => rooms.find((r) => r.id === selectedRoomId) ?? null,
@@ -74,13 +86,20 @@ export default function PrenotazioniPage() {
     [selectedRoom],
   );
 
+  const bookableBands = useMemo(
+    () => myBands.filter((band) => band.myStatus === "active" && band.allQuotaOk),
+    [myBands],
+  );
+
+  const showBandFlow = bandRequired;
+
   const previewPrice = useMemo(() => {
     if (!selectedRoom) return null;
     const base =
       selectedSlot?.priceEur ??
       calculateBookingPrice(selectedRoom, durationMinutes);
     if (
-      proviDaSolo &&
+      (proviDaSolo || (showBandFlow && sessionType === "provi_da_solo")) &&
       selectedRoom.provi_da_solo_enabled &&
       selectedRoom.provi_da_solo_discount_eur > 0
     ) {
@@ -92,7 +111,7 @@ export default function PrenotazioniPage() {
       );
     }
     return base;
-  }, [durationMinutes, proviDaSolo, selectedRoom, selectedSlot]);
+  }, [durationMinutes, proviDaSolo, selectedRoom, selectedSlot, sessionType, showBandFlow]);
 
   const slotAllowsProviDaSolo = useMemo(() => {
     if (!selectedRoom?.provi_da_solo_enabled || !selectedSlot) return false;
@@ -111,19 +130,36 @@ export default function PrenotazioniPage() {
   const canPayWithCredits =
     creditBalance != null && creditBalance.available >= creditCost;
 
+  const wizardSteps = useMemo(() => {
+    const steps: { key: WizardStepKey; label: string }[] = [];
+    if (showBandFlow) {
+      steps.push({ key: "session", label: "Tipo sessione" });
+      if (sessionType === "band") {
+        steps.push({ key: "band", label: "Band" });
+      }
+    }
+    steps.push({ key: "room", label: "Sala e durata" });
+    steps.push({ key: "slot", label: "Data e orario" });
+    steps.push({ key: "confirm", label: "Conferma" });
+    return steps;
+  }, [showBandFlow, sessionType]);
+
+  const currentStepKey = wizardSteps[stepIndex]?.key ?? "room";
+
+  const selectedBand = useMemo(
+    () => bookableBands.find((band) => band.id === selectedBandId) ?? null,
+    [bookableBands, selectedBandId],
+  );
+
   const bookableSlots = useMemo(
     () => slots.filter((slot) => slot.available),
     [slots],
   );
 
-  const wizardSteps = [
-    { n: 1 as WizardStep, label: "Sala e durata" },
-    { n: 2 as WizardStep, label: "Data e orario" },
-    { n: 3 as WizardStep, label: "Conferma" },
-  ];
-
   const loadAvailability = useCallback(async () => {
-    if (!selectedRoomId || step < 2) return;
+    if (!selectedRoomId || currentStepKey === "session" || currentStepKey === "band" || currentStepKey === "room") {
+      return;
+    }
 
     try {
       const availability = await fetchRoomAvailability(
@@ -137,7 +173,7 @@ export default function PrenotazioniPage() {
         err instanceof Error ? err.message : "Errore nel caricamento degli slot",
       );
     }
-  }, [durationMinutes, selectedDate, selectedRoomId, step, supabase]);
+  }, [currentStepKey, durationMinutes, selectedDate, selectedRoomId, supabase]);
 
   useEffect(() => {
     let cancelled = false;
@@ -151,18 +187,28 @@ export default function PrenotazioniPage() {
           data: { user },
         } = await supabase.auth.getUser();
 
-        const [roomList, member] = await Promise.all([
+        const [roomList, member, bands, bookingSettings] = await Promise.all([
           user ? listRooms(supabase) : Promise.resolve([] as Room[]),
           user ? getCurrentMember(supabase) : Promise.resolve(null),
+          user ? listMyBands(supabase).catch(() => [] as MyBandSummary[]) : Promise.resolve([] as MyBandSummary[]),
+          user ? getBookingSettings(supabase) : Promise.resolve({ bandRequired: false } as Awaited<ReturnType<typeof getBookingSettings>>),
         ]);
 
         if (cancelled) return;
 
         setHasSession(Boolean(user));
         setRooms(roomList);
+        setMyBands(bands);
+        setBandRequired(bookingSettings.bandRequired);
         if (roomList.length > 0) {
           setSelectedRoomId(roomList[0].id);
           setDurationMinutes(roomList[0].default_duration_minutes);
+        }
+        const bookable = bands.filter(
+          (band) => band.myStatus === "active" && band.allQuotaOk,
+        );
+        if (bookable.length > 0) {
+          setSelectedBandId(bookable[0].id);
         }
         setMemberId(member?.id ?? null);
       } catch (err) {
@@ -225,17 +271,19 @@ export default function PrenotazioniPage() {
   }, [loadAvailability]);
 
   useEffect(() => {
-    if (!selectedRoomId || step < 2) return;
+    if (!selectedRoomId || currentStepKey === "session" || currentStepKey === "band" || currentStepKey === "room") {
+      return;
+    }
 
     const unsubscribe = subscribeToBookings(supabase, selectedRoomId, () => {
       void loadAvailability();
     });
 
     return unsubscribe;
-  }, [loadAvailability, selectedRoomId, step, supabase]);
+  }, [currentStepKey, loadAvailability, selectedRoomId, supabase]);
 
   useEffect(() => {
-    if (step !== 3 || !memberId) {
+    if (currentStepKey !== "confirm" || !memberId) {
       setCreditBalance(null);
       return;
     }
@@ -253,22 +301,31 @@ export default function PrenotazioniPage() {
     return () => {
       cancelled = true;
     };
-  }, [memberId, step, supabase]);
+  }, [memberId, currentStepKey, supabase]);
 
-  function goToStep(next: WizardStep) {
+  function goToStepIndex(next: number) {
     setError(null);
     setMessage(null);
-    setStep(next);
+    setStepIndex(Math.max(0, Math.min(next, wizardSteps.length - 1)));
   }
 
-  function handleStepTabClick(target: WizardStep) {
-    if (target === step) return;
-    if (target > step) return;
+  function handleStepTabClick(targetIndex: number) {
+    if (targetIndex === stepIndex) return;
+    if (targetIndex > stepIndex) return;
 
-    if (target < 3) {
+    if (wizardSteps[targetIndex]?.key !== "confirm") {
       setSelectedSlot(null);
     }
-    goToStep(target);
+    goToStepIndex(targetIndex);
+  }
+
+  function handleSessionContinue() {
+    if (sessionType === "provi_da_solo") {
+      const roomIndex = wizardSteps.findIndex((step) => step.key === "room");
+      goToStepIndex(roomIndex >= 0 ? roomIndex : stepIndex + 1);
+      return;
+    }
+    goToStepIndex(stepIndex + 1);
   }
 
   async function finalizeBooking(
@@ -314,7 +371,11 @@ export default function PrenotazioniPage() {
 
     setMessage(successMessage);
     setSelectedSlot(null);
-    setStep(1);
+    setSessionType("band");
+    if (bookableBands.length > 0) {
+      setSelectedBandId(bookableBands[0].id);
+    }
+    goToStepIndex(0);
     await loadAvailability();
 
     if (result.status === "confirmed" && result.bookingId) {
@@ -346,12 +407,21 @@ export default function PrenotazioniPage() {
     setError(null);
     setMessage(null);
 
+    const isProviBooking =
+      showBandFlow && sessionType === "provi_da_solo"
+        ? true
+        : proviDaSolo && slotAllowsProviDaSolo;
+
     const result: CreateBookingResult = await createBooking(supabase, {
       roomId: selectedRoomId,
       memberId,
       startAt: selectedSlot.startAt,
       endAt: selectedSlot.endAt,
-      proviDaSolo: proviDaSolo && slotAllowsProviDaSolo,
+      proviDaSolo: isProviBooking,
+      bandId:
+        showBandFlow && sessionType === "band" && selectedBandId
+          ? selectedBandId
+          : undefined,
     });
 
     if (!result.success) {
@@ -448,10 +518,10 @@ export default function PrenotazioniPage() {
         {hasSession && memberId && (
         <>
         <ol className="flex flex-wrap gap-2 text-sm" aria-label="Passaggi prenotazione">
-          {wizardSteps.map(({ n, label }) => {
-            const isCurrent = step === n;
-            const isCompleted = step > n;
-            const isClickable = n <= step;
+          {wizardSteps.map(({ key, label }, index) => {
+            const isCurrent = stepIndex === index;
+            const isCompleted = stepIndex > index;
+            const isClickable = index <= stepIndex;
 
             const className = isCurrent
               ? "bg-[var(--brand)] text-white"
@@ -460,11 +530,11 @@ export default function PrenotazioniPage() {
                 : "bg-neutral-100 text-neutral-500";
 
             return (
-              <li key={n}>
+              <li key={key}>
                 {isClickable ? (
                   <button
                     type="button"
-                    onClick={() => handleStepTabClick(n)}
+                    onClick={() => handleStepTabClick(index)}
                     aria-current={isCurrent ? "step" : undefined}
                     title={
                       isCurrent
@@ -475,14 +545,14 @@ export default function PrenotazioniPage() {
                       isClickable && !isCurrent ? "cursor-pointer" : ""
                     }`}
                   >
-                    {n}. {label}
+                    {index + 1}. {label}
                   </button>
                 ) : (
                   <span
                     className={`inline-block rounded-full px-3 py-1 ${className}`}
                     aria-disabled="true"
                   >
-                    {n}. {label}
+                    {index + 1}. {label}
                   </span>
                 )}
               </li>
@@ -528,7 +598,58 @@ export default function PrenotazioniPage() {
           </div>
         )}
 
-        {rooms.length > 0 && step === 1 && (
+        {currentStepKey === "session" && (
+          <div className="mt-8">
+            <SessionTypeStep
+              value={sessionType}
+              onChange={setSessionType}
+              onContinue={handleSessionContinue}
+            />
+          </div>
+        )}
+
+        {currentStepKey === "band" && sessionType === "band" && (
+          <div className="mt-8 space-y-4">
+            {myBands.length === 0 ? (
+              <section className="space-y-6 rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
+                <div>
+                  <h2 className="text-lg font-medium text-[var(--brand)]">
+                    Crea una band
+                  </h2>
+                  <p className="mt-2 text-sm text-neutral-600">
+                    Per prenotare con la band devi prima crearne una e invitare i
+                    membri dalla dashboard.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <Link
+                    href="/dashboard/band"
+                    className="rounded-lg bg-[var(--brand)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90"
+                  >
+                    Vai alle band
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => goToStepIndex(stepIndex - 1)}
+                    className="rounded-lg border border-neutral-300 px-5 py-2.5 text-sm"
+                  >
+                    Indietro
+                  </button>
+                </div>
+              </section>
+            ) : (
+              <BandSelectStep
+                bands={myBands}
+                selectedBandId={selectedBandId}
+                onSelectBand={setSelectedBandId}
+                onContinue={() => goToStepIndex(stepIndex + 1)}
+                onBack={() => goToStepIndex(stepIndex - 1)}
+              />
+            )}
+          </div>
+        )}
+
+        {rooms.length > 0 && currentStepKey === "room" && (
           <section className="mt-8 space-y-6 rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
             <div>
               <label
@@ -582,15 +703,24 @@ export default function PrenotazioniPage() {
 
             <button
               type="button"
-              onClick={() => goToStep(2)}
+              onClick={() => goToStepIndex(stepIndex + 1)}
               className="rounded-lg bg-[var(--brand)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90"
             >
               Continua
             </button>
+            {showBandFlow && (
+              <button
+                type="button"
+                onClick={() => goToStepIndex(stepIndex - 1)}
+                className="ml-3 text-sm text-neutral-600 underline"
+              >
+                Indietro
+              </button>
+            )}
           </section>
         )}
 
-        {rooms.length > 0 && step === 2 && (
+        {rooms.length > 0 && currentStepKey === "slot" && (
           <section className="mt-8 space-y-6 rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
             <div>
               <label
@@ -633,7 +763,7 @@ export default function PrenotazioniPage() {
                         type="button"
                         onClick={() => {
                           setSelectedSlot(slot);
-                          goToStep(3);
+                          goToStepIndex(stepIndex + 1);
                         }}
                         className="w-full rounded-lg border border-neutral-200 bg-white px-4 py-3 text-left text-sm transition hover:border-[var(--brand)] hover:bg-neutral-50"
                       >
@@ -658,7 +788,7 @@ export default function PrenotazioniPage() {
 
             <button
               type="button"
-              onClick={() => goToStep(1)}
+              onClick={() => goToStepIndex(stepIndex - 1)}
               className="text-sm text-neutral-600 underline"
             >
               Indietro
@@ -666,7 +796,7 @@ export default function PrenotazioniPage() {
           </section>
         )}
 
-        {step === 3 && selectedSlot && selectedRoom && (
+        {currentStepKey === "confirm" && selectedSlot && selectedRoom && (
           <section className="mt-8 space-y-6">
             <div className="rounded-xl border border-neutral-200 bg-white p-6">
               <h2 className="text-lg font-medium text-[var(--brand)]">
@@ -691,13 +821,25 @@ export default function PrenotazioniPage() {
                     {formatDurationLabel(durationMinutes)}
                   </dd>
                 </div>
+                {selectedBand && sessionType === "band" && (
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-neutral-500">Band</dt>
+                    <dd className="font-medium">{selectedBand.name}</dd>
+                  </div>
+                )}
+                {(showBandFlow && sessionType === "provi_da_solo") && (
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-neutral-500">PROVI DA SOLO</dt>
+                    <dd className="font-medium">Sì</dd>
+                  </div>
+                )}
                 <div className="flex justify-between gap-4 border-t border-neutral-100 pt-2">
                   <dt className="text-neutral-500">Totale</dt>
                   <dd className="text-lg font-semibold text-[var(--brand)]">
                     {previewPrice != null ? formatEuro(previewPrice) : "—"}
                   </dd>
                 </div>
-                {slotAllowsProviDaSolo && (
+                {slotAllowsProviDaSolo && !showBandFlow && (
                   <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-3">
                     <label className="flex cursor-pointer items-start gap-3 text-sm">
                       <input
@@ -767,7 +909,7 @@ export default function PrenotazioniPage() {
               )}
               <button
                 type="button"
-                onClick={() => goToStep(2)}
+                onClick={() => goToStepIndex(stepIndex - 1)}
                 className="rounded-lg border border-neutral-300 px-5 py-2.5 text-sm"
               >
                 Indietro

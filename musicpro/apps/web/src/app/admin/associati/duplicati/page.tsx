@@ -3,16 +3,16 @@ import { redirect } from "next/navigation";
 
 import {
   findDuplicateMembers,
-  getCurrentMemberWithRoles,
 } from "@musicpro/database";
 
 import { DuplicatesMergePanel } from "@/components/admin/duplicates-merge-panel";
+import { getAdminMember } from "@/lib/admin/current-member";
 import { canMergeDuplicates } from "@/lib/admin/roles";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function AssociatiDuplicatiPage() {
   const supabase = await createClient();
-  const member = await getCurrentMemberWithRoles(supabase);
+  const member = await getAdminMember();
 
   if (!member || !canMergeDuplicates(member.roles)) {
     redirect("/admin/associati");

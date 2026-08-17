@@ -3,11 +3,11 @@ import { notFound, redirect } from "next/navigation";
 
 import {
   getAdminRoomById,
-  getCurrentMemberWithRoles,
 } from "@musicpro/database";
 
 import { RoomForm } from "@/components/admin/room-form";
 import { RoomExternalCalendarsPanel } from "@/components/admin/room-external-calendars-panel";
+import { getAdminMember } from "@/lib/admin/current-member";
 import { canManageRooms } from "@/lib/admin/roles";
 import { createClient } from "@/lib/supabase/server";
 
@@ -18,7 +18,7 @@ interface PageProps {
 export default async function SalaDetailPage({ params }: PageProps) {
   const { id } = await params;
   const supabase = await createClient();
-  const currentMember = await getCurrentMemberWithRoles(supabase);
+  const currentMember = await getAdminMember();
 
   if (!currentMember || !canManageRooms(currentMember.roles)) {
     redirect("/admin/rimborsi");

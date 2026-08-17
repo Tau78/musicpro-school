@@ -12,6 +12,7 @@ export interface BookingSettingsInput {
   approvalMinHours: number;
   cancelMinHours: number;
   modifyMinHours: number;
+  bandRequired: boolean;
 }
 
 export interface SettingsMutationResult {
@@ -60,6 +61,7 @@ const BOOKING_SETTING_KEYS = {
   approvalMinHours: "booking_approval_min_hours",
   cancelMinHours: "booking_cancel_min_hours",
   modifyMinHours: "booking_modify_min_hours",
+  bandRequired: "booking_band_required",
 } as const;
 
 export async function getAppBookingSettings(
@@ -108,6 +110,12 @@ export async function updateBookingSettings(
     {
       key: BOOKING_SETTING_KEYS.modifyMinHours,
       value: String(input.modifyMinHours),
+    },
+    {
+      key: BOOKING_SETTING_KEYS.bandRequired,
+      value: input.bandRequired ? "true" : "false",
+      description:
+        "Band obbligatoria per prenotazioni (salvo PROVI DA SOLO). Se disattivato, l'associato in regola con la quota può prenotare da solo.",
     },
   ];
 

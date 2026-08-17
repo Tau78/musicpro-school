@@ -18,7 +18,14 @@ type BookingRow = {
   payment_status: string | null;
   payment_method: string | null;
   provi_da_solo: boolean;
+  band_id: string | null;
+  member_snapshot: Array<{
+    member_id: string;
+    first_name: string;
+    last_name: string;
+  }> | null;
   rooms: { name: string; slug: string } | null;
+  bands: { name: string } | null;
   members: {
     first_name: string;
     last_name: string;
@@ -122,7 +129,10 @@ export async function loadBookingForEmail(
       payment_status,
       payment_method,
       provi_da_solo,
+      band_id,
+      member_snapshot,
       rooms ( name, slug ),
+      bands ( name ),
       members!bookings_member_id_fkey ( first_name, last_name, email )
     `,
     )
@@ -213,8 +223,13 @@ export function buildBookingEmailContent(
     ['Sala', roomName],
     ['Durata', duration],
     ['Provi da solo?', proviLabel],
-    ['Prezzo', price],
   ];
+
+  if (booking.band_id && booking.bands?.name) {
+    rows.push(['Band', booking.bands.name]);
+  }
+
+  rows.push(['Prezzo', price]);
 
   if (creditLine) {
     rows.push(['Crediti', creditLine.replace('Saldo crediti residuo: ', '')]);

@@ -418,6 +418,9 @@ verify_jwt = false
 [functions.stripe-credit-shop-webhook]
 verify_jwt = false
 
+[functions.stripe-quota-webhook]
+verify_jwt = false
+
 [functions.booking-calendar-sync]
 verify_jwt = false
 

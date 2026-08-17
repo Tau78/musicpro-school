@@ -174,6 +174,8 @@ export interface Database {
           max_duration_minutes: number;
           open_hour: number;
           close_hour: number;
+          open_minute: number;
+          close_minute: number;
           google_calendar_color_id: string | null;
           provi_da_solo_enabled: boolean;
           provi_da_solo_discount_eur: number;
@@ -195,6 +197,8 @@ export interface Database {
           max_duration_minutes?: number;
           open_hour?: number;
           close_hour?: number;
+          open_minute?: number;
+          close_minute?: number;
           google_calendar_color_id?: string | null;
           provi_da_solo_enabled?: boolean;
           provi_da_solo_discount_eur?: number;
@@ -260,6 +264,8 @@ export interface Database {
           google_calendar_synced_at: string | null;
           google_calendar_sync_error: string | null;
           provi_da_solo: boolean;
+          band_id: string | null;
+          member_snapshot: Json | null;
           created_at: string;
           updated_at: string;
         };
@@ -288,6 +294,8 @@ export interface Database {
           title?: string | null;
           notes?: string | null;
           provi_da_solo?: boolean;
+          band_id?: string | null;
+          member_snapshot?: Json | null;
           payment_method?: "stripe" | "credits" | null;
           credits_held?: number;
           credits_used?: number | null;
@@ -704,6 +712,108 @@ export interface Database {
         >;
         Relationships: [];
       };
+      bands: {
+        Row: {
+          id: string;
+          name: string;
+          founder_member_id: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          founder_member_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["bands"]["Insert"]>;
+        Relationships: [];
+      };
+      band_members: {
+        Row: {
+          band_id: string;
+          member_id: string;
+          status: Database["public"]["Enums"]["band_member_status"];
+          role: Database["public"]["Enums"]["band_member_role"];
+          joined_at: string | null;
+          invited_email: string | null;
+        };
+        Insert: {
+          band_id: string;
+          member_id: string;
+          status?: Database["public"]["Enums"]["band_member_status"];
+          role?: Database["public"]["Enums"]["band_member_role"];
+          joined_at?: string | null;
+          invited_email?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["band_members"]["Insert"]>;
+        Relationships: [];
+      };
+      band_invites: {
+        Row: {
+          id: string;
+          band_id: string;
+          email: string;
+          token: string;
+          status: Database["public"]["Enums"]["band_invite_status"];
+          expires_at: string;
+          invited_by_member_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          band_id: string;
+          email: string;
+          token?: string;
+          status?: Database["public"]["Enums"]["band_invite_status"];
+          expires_at: string;
+          invited_by_member_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["band_invites"]["Insert"]>;
+        Relationships: [];
+      };
+      quota_payments: {
+        Row: {
+          id: string;
+          paid_by_member_id: string;
+          stripe_payment_intent_id: string | null;
+          total_amount_eur: number;
+          fiscal_year: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          paid_by_member_id: string;
+          stripe_payment_intent_id?: string | null;
+          total_amount_eur: number;
+          fiscal_year: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["quota_payments"]["Insert"]>;
+        Relationships: [];
+      };
+      quota_payment_items: {
+        Row: {
+          id: string;
+          quota_payment_id: string;
+          member_id: string;
+          amount_eur: number;
+          fiscal_year: number;
+          paid_by_member_id: string;
+          status: Database["public"]["Enums"]["quota_payment_item_status"];
+        };
+        Insert: {
+          id?: string;
+          quota_payment_id: string;
+          member_id: string;
+          amount_eur: number;
+          fiscal_year: number;
+          paid_by_member_id: string;
+          status?: Database["public"]["Enums"]["quota_payment_item_status"];
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["quota_payment_items"]["Insert"]
+        >;
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -720,6 +830,7 @@ export interface Database {
           p_start_at: string;
           p_end_at: string;
           p_provi_da_solo?: boolean;
+          p_band_id?: string | null;
         };
         Returns: Json;
       };
@@ -772,6 +883,17 @@ export interface Database {
         Args: Record<string, never>;
         Returns: Json;
       };
+      member_quota_ok: {
+        Args: {
+          p_member_id: string;
+          p_fiscal_year?: number;
+        };
+        Returns: boolean;
+      };
+      current_member_id: {
+        Args: Record<string, never>;
+        Returns: string | null;
+      };
       admin_adjust_member_credits: {
         Args: {
           p_member_id: string;
@@ -810,6 +932,49 @@ export interface Database {
         };
         Returns: Json;
       };
+      create_band_safe: {
+        Args: {
+          p_name: string;
+        };
+        Returns: Json;
+      };
+      accept_band_invite: {
+        Args: {
+          p_token: string;
+        };
+        Returns: Json;
+      };
+      band_all_members_quota_ok: {
+        Args: {
+          p_band_id: string;
+          p_fiscal_year?: number | null;
+        };
+        Returns: boolean;
+      };
+      list_my_bands: {
+        Args: Record<string, never>;
+        Returns: Json;
+      };
+      create_quota_payment_checkout: {
+        Args: {
+          p_member_ids: string[];
+          p_fiscal_year?: number | null;
+        };
+        Returns: Json;
+      };
+      apply_stripe_quota_payment: {
+        Args: {
+          p_stripe_event_id: string;
+          p_stripe_event_type: string;
+          p_payment_intent_id: string;
+          p_payment_link_id: string;
+          p_amount_cents: number;
+          p_flow: string;
+          p_enrollment_id?: string | null;
+          p_quota_payment_id?: string | null;
+        };
+        Returns: Json;
+      };
     };
     Enums: {
       member_role: MemberRoleEnum;
@@ -833,6 +998,18 @@ export interface Database {
         | "refund"
         | "adjustment"
         | "penalty";
+      band_member_status:
+        | "pending_invite"
+        | "pending_quota"
+        | "active"
+        | "expired";
+      band_member_role: "founder" | "member";
+      band_invite_status: "pending" | "accepted" | "expired" | "revoked";
+      quota_payment_item_status:
+        | "pending"
+        | "completed"
+        | "failed"
+        | "refunded";
     };
     CompositeTypes: {
       [_ in never]: never;

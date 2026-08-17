@@ -122,6 +122,11 @@ export async function deactivatePaymentLink(stripe: Stripe, paymentLinkId: strin
 
 export const CREDIT_SHOP_FLOW = 'shop_credit_package';
 
+export const QUOTA_ASSOCIATIVA_FLOW = 'quota_associativa';
+export const QUOTA_MULTI_PAY_FLOW = 'quota_multi_pay';
+
+export const QUOTA_FLOWS = new Set([QUOTA_ASSOCIATIVA_FLOW, QUOTA_MULTI_PAY_FLOW]);
+
 export function metadataMemberId(metadata: Stripe.Metadata | null | undefined): string {
   if (!metadata) return '';
   return String(metadata.mp_member_id ?? metadata.mp_id_membro ?? '').trim();
@@ -217,6 +222,134 @@ export async function resolveCreditShopFromEvent(
   return {
     memberId: '',
     packageId: '',
+    paymentIntentId: '',
+    paymentLinkId: '',
+    amountCents: 0,
+    flow: '',
+  };
+}
+
+export function metadataEnrollmentId(
+  metadata: Stripe.Metadata | null | undefined,
+): string {
+  if (!metadata) return '';
+  return String(
+    metadata.mp_id_iscrizione ?? metadata.id_iscrizione ?? metadata.enrollment_id ?? '',
+  ).trim();
+}
+
+export function metadataQuotaPaymentId(
+  metadata: Stripe.Metadata | null | undefined,
+): string {
+  if (!metadata) return '';
+  return String(metadata.mp_quota_payment_id ?? '').trim();
+}
+
+export function metadataMemberIds(
+  metadata: Stripe.Metadata | null | undefined,
+): string {
+  if (!metadata) return '';
+  return String(metadata.mp_member_ids ?? '').trim();
+}
+
+async function resolveQuotaMetadataFromStripeObject(
+  stripe: Stripe,
+  obj: Stripe.Checkout.Session | Stripe.PaymentIntent,
+  eventType: string,
+): Promise<{
+  enrollmentId: string;
+  quotaPaymentId: string;
+  memberIds: string;
+  paymentIntentId: string;
+  paymentLinkId: string;
+  amountCents: number;
+  flow: string;
+}> {
+  const session = eventType.startsWith('checkout.session')
+    ? (obj as Stripe.Checkout.Session)
+    : null;
+  const piDirect = eventType === 'payment_intent.succeeded'
+    ? (obj as Stripe.PaymentIntent)
+    : null;
+
+  const metaSource = session?.metadata ?? piDirect?.metadata ?? undefined;
+  let enrollmentId = metadataEnrollmentId(metaSource);
+  let quotaPaymentId = metadataQuotaPaymentId(metaSource);
+  let memberIds = metadataMemberIds(metaSource);
+  let flow = metadataFlow(metaSource);
+  let paymentIntentId = paymentIntentIdFromObject(obj);
+  let paymentLinkId = session ? paymentLinkIdFromSession(session) : '';
+  let amountCents = session
+    ? Number(session.amount_total ?? 0)
+    : Number(piDirect?.amount_received ?? piDirect?.amount ?? 0);
+
+  if ((!enrollmentId || !quotaPaymentId || !flow) && paymentIntentId) {
+    const pi = piDirect ?? (await stripe.paymentIntents.retrieve(paymentIntentId));
+    if (!enrollmentId) enrollmentId = metadataEnrollmentId(pi.metadata);
+    if (!quotaPaymentId) quotaPaymentId = metadataQuotaPaymentId(pi.metadata);
+    if (!memberIds) memberIds = metadataMemberIds(pi.metadata);
+    if (!flow) flow = metadataFlow(pi.metadata);
+    if (!amountCents) {
+      amountCents = Number(pi.amount_received ?? pi.amount ?? 0);
+    }
+  }
+
+  if (!paymentLinkId && paymentIntentId) {
+    const sessions = await stripe.checkout.sessions.list({
+      payment_intent: paymentIntentId,
+      limit: 1,
+    });
+    if (sessions.data[0]) {
+      paymentLinkId = paymentLinkIdFromSession(sessions.data[0]);
+      const sessionMeta = sessions.data[0].metadata ?? undefined;
+      if (!enrollmentId) enrollmentId = metadataEnrollmentId(sessionMeta);
+      if (!quotaPaymentId) quotaPaymentId = metadataQuotaPaymentId(sessionMeta);
+      if (!memberIds) memberIds = metadataMemberIds(sessionMeta);
+      if (!flow) flow = metadataFlow(sessionMeta);
+    }
+  }
+
+  if (!enrollmentId && session?.client_reference_id) {
+    enrollmentId = String(session.client_reference_id).trim();
+  }
+
+  return {
+    enrollmentId,
+    quotaPaymentId,
+    memberIds,
+    paymentIntentId,
+    paymentLinkId,
+    amountCents,
+    flow,
+  };
+}
+
+export async function resolveQuotaFromEvent(
+  stripe: Stripe,
+  event: Stripe.Event,
+): Promise<{
+  enrollmentId: string;
+  quotaPaymentId: string;
+  memberIds: string;
+  paymentIntentId: string;
+  paymentLinkId: string;
+  amountCents: number;
+  flow: string;
+}> {
+  const obj = event.data.object;
+
+  if (event.type.startsWith('checkout.session') || event.type === 'payment_intent.succeeded') {
+    return resolveQuotaMetadataFromStripeObject(
+      stripe,
+      obj as Stripe.Checkout.Session | Stripe.PaymentIntent,
+      event.type,
+    );
+  }
+
+  return {
+    enrollmentId: '',
+    quotaPaymentId: '',
+    memberIds: '',
     paymentIntentId: '',
     paymentLinkId: '',
     amountCents: 0,

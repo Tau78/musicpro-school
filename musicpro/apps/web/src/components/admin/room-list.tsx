@@ -3,7 +3,11 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
-import { formatDurationLabel, type Room } from "@musicpro/database";
+import {
+  formatDurationLabel,
+  formatRoomHoursLabel,
+  type Room,
+} from "@musicpro/database";
 
 interface RoomListProps {
   rooms: Room[];
@@ -60,7 +64,11 @@ export function RoomList({ rooms }: RoomListProps) {
                     {room.name}
                   </p>
                   <p className="truncate text-sm text-neutral-500">
-                    {room.open_hour}:00 – {room.close_hour}:00 ·{" "}
+                    {formatRoomHoursLabel(
+                      room.open_minute ?? room.open_hour * 60,
+                      room.close_minute ?? room.close_hour * 60,
+                    )}{" "}
+                    ·{" "}
                     {formatDurationLabel(room.default_duration_minutes)} default
                     {room.provi_da_solo_enabled ? " · PROVI DA SOLO" : ""}
                   </p>

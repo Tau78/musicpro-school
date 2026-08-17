@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import {
+  closeMinuteHint,
+  closeMinuteToTimeInput,
   formatDurationLabel,
   formatEuro,
   listProviSchedule,
@@ -11,6 +13,7 @@ import {
   proviDayLabel,
   roomToInput,
   saveProviSchedule,
+  timeInputToCloseMinute,
   timeLabelToMinutes,
   updateRoom,
   type Room,
@@ -211,32 +214,47 @@ export function RoomForm({ room }: RoomFormProps) {
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label htmlFor="openHour" className="block text-sm font-medium text-neutral-700">
-              Apertura (ora)
+            <label htmlFor="openMinute" className="block text-sm font-medium text-neutral-700">
+              Apertura
             </label>
             <input
-              id="openHour"
-              type="number"
-              min={0}
-              max={23}
-              value={form.openHour}
-              onChange={(e) => updateField("openHour", Number(e.target.value))}
+              id="openMinute"
+              type="time"
+              value={minutesToTimeLabel(form.openMinute)}
+              onChange={(e) => {
+                const openMinute = timeLabelToMinutes(e.target.value);
+                setForm((prev) => ({
+                  ...prev,
+                  openMinute,
+                  closeMinute: timeInputToCloseMinute(
+                    openMinute,
+                    closeMinuteToTimeInput(prev.closeMinute),
+                  ),
+                }));
+              }}
               className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
             />
           </div>
           <div>
-            <label htmlFor="closeHour" className="block text-sm font-medium text-neutral-700">
-              Chiusura (ora)
+            <label htmlFor="closeMinute" className="block text-sm font-medium text-neutral-700">
+              Chiusura
             </label>
             <input
-              id="closeHour"
-              type="number"
-              min={1}
-              max={24}
-              value={form.closeHour}
-              onChange={(e) => updateField("closeHour", Number(e.target.value))}
+              id="closeMinute"
+              type="time"
+              value={closeMinuteToTimeInput(form.closeMinute)}
+              onChange={(e) =>
+                updateField(
+                  "closeMinute",
+                  timeInputToCloseMinute(form.openMinute, e.target.value),
+                )
+              }
               className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
             />
+            <p className="mt-1 text-xs text-neutral-500">
+              {closeMinuteHint(form.openMinute, form.closeMinute)}. 00:00 =
+              mezzanotte; un orario prima dell&apos;apertura è il giorno dopo.
+            </p>
           </div>
         </div>
 

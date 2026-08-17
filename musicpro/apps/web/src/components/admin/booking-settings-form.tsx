@@ -21,6 +21,7 @@ function settingsToInput(settings: BookingSettings): BookingSettingsInput {
     approvalMinHours: settings.approvalMinHours,
     cancelMinHours: settings.cancelMinHours,
     modifyMinHours: settings.modifyMinHours,
+    bandRequired: settings.bandRequired,
   };
 }
 
@@ -149,6 +150,33 @@ export function BookingSettingsForm({ settings }: BookingSettingsFormProps) {
             </span>
           </Field>
         </div>
+      </fieldset>
+
+      <fieldset className="space-y-4 rounded-xl border border-neutral-200 bg-white p-6">
+        <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
+          Sistema BAND
+        </legend>
+        <p className="text-sm text-neutral-600">
+          Durante il periodo di transizione la band resta facoltativa: gli
+          associati con quota in regola possono prenotare da soli. Attiva lo
+          switch quando vuoi rendere obbligatoria la selezione band (salvo PROVI
+          DA SOLO).
+        </p>
+        <label className="flex cursor-pointer items-start gap-3 text-sm text-neutral-800">
+          <input
+            type="checkbox"
+            checked={form.bandRequired}
+            onChange={(e) => updateField("bandRequired", e.target.checked)}
+            className="mt-0.5 rounded border-neutral-300"
+          />
+          <span>
+            <span className="font-medium">Band obbligatoria per prenotare</span>
+            <span className="mt-1 block text-xs text-neutral-500">
+              Se attivo, ogni prenotazione (eccetto PROVI DA SOLO) richiede una
+              band con tutti i membri in regola con la quota.
+            </span>
+          </span>
+        </label>
       </fieldset>
 
       <div className="flex gap-3">

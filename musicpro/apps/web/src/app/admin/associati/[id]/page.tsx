@@ -2,7 +2,6 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import {
-  getCurrentMemberWithRoles,
   getMemberById,
   getMemberCreditBalance,
   listMemberAnnualQuotas,
@@ -11,6 +10,7 @@ import {
 
 import { MemberCreditsPanel } from "@/components/admin/member-credits-panel";
 import { MemberForm } from "@/components/admin/member-form";
+import { getAdminMember } from "@/lib/admin/current-member";
 import {
   canDeleteMembers,
   canManageMembers,
@@ -24,7 +24,7 @@ interface PageProps {
 export default async function AssociatoDetailPage({ params }: PageProps) {
   const { id } = await params;
   const supabase = await createClient();
-  const currentMember = await getCurrentMemberWithRoles(supabase);
+  const currentMember = await getAdminMember();
 
   if (!currentMember || !canManageMembers(currentMember.roles)) {
     redirect("/admin/rimborsi");

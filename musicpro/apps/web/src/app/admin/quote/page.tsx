@@ -1,19 +1,19 @@
 import { redirect } from "next/navigation";
 
 import {
-  getCurrentMemberWithRoles,
   listAnnualQuotaSettings,
   listMemberAnnualQuotas,
   listMembers,
 } from "@musicpro/database";
 
 import { QuotasPanel } from "@/components/admin/quotas-panel";
+import { getAdminMember } from "@/lib/admin/current-member";
 import { canManageQuotas } from "@/lib/admin/roles";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function AdminQuotePage() {
   const supabase = await createClient();
-  const member = await getCurrentMemberWithRoles(supabase);
+  const member = await getAdminMember();
 
   if (!member || !canManageQuotas(member.roles)) {
     redirect("/admin/rimborsi");
