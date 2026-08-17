@@ -497,6 +497,20 @@ async function fillCanonicalFromDuplicate(
 
   if (Object.keys(patch).length === 0) return null;
 
+  // Unique columns still live on the duplicate; copying them first
+  // hits members_tax_code_unique. Free them, then write on canonical.
+  const uniqueClear: Record<string, null> = {};
+  if ("tax_code" in patch) {
+    uniqueClear.tax_code = null;
+  }
+  if (Object.keys(uniqueClear).length > 0) {
+    const { error: clearError } = await client
+      .from("members")
+      .update(uniqueClear as never)
+      .eq("id", duplicateId);
+    if (clearError) return clearError.message;
+  }
+
   const { error: updError } = await client
     .from("members")
     .update(patch as never)

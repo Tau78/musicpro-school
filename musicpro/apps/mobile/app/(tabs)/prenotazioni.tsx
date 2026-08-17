@@ -14,11 +14,11 @@ import {
   type TimeSlot,
   calculateBookingPrice,
   createBooking,
+  fetchRoomAvailability,
   formatDateItalian,
   formatDurationLabel,
   formatEuro,
   getCurrentMember,
-  getRoomAvailability,
   listRooms,
   subscribeToBookings,
   todayInRome,
@@ -43,12 +43,25 @@ export default function PrenotazioniScreen() {
   const loadAvailability = useCallback(async () => {
     if (!selectedRoomId) return;
 
+    const apiBaseUrl = process.env.EXPO_PUBLIC_WEB_URL?.trim();
+    if (!apiBaseUrl) {
+      setError("EXPO_PUBLIC_WEB_URL non configurato per la disponibilità sale.");
+      return;
+    }
+
     try {
-      const availability = await getRoomAvailability(
-        supabase,
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const availability = await fetchRoomAvailability(
         selectedRoomId,
         selectedDate,
         durationMinutes,
+        {
+          apiBaseUrl,
+          accessToken: session?.access_token,
+        },
       );
       setSlots(availability.slots);
     } catch (err) {

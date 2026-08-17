@@ -98,7 +98,7 @@ export function AdminNav({
             href="/dashboard"
             className="flex flex-1 flex-col items-center py-3 text-xs font-medium text-neutral-500"
           >
-            <span>Home</span>
+            <span>Dashboard</span>
           </Link>
         </div>
       </nav>

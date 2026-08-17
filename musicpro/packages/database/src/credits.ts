@@ -371,6 +371,27 @@ export async function getMemberCreditBalance(
   return mapMemberCreditBalance(result);
 }
 
+/** Available credits for every member, one query instead of N RPCs. */
+export async function listMemberAvailableCredits(
+  client: CreditsClient,
+): Promise<Record<string, number>> {
+  const { data, error } = await client
+    .from("credit_transactions")
+    .select("member_id, amount");
+
+  if (error) {
+    throw new Error(
+      `Impossibile caricare i saldi crediti: ${error.message}`,
+    );
+  }
+
+  const totals: Record<string, number> = {};
+  for (const row of data ?? []) {
+    totals[row.member_id] = (totals[row.member_id] ?? 0) + row.amount;
+  }
+  return totals;
+}
+
 export async function holdBookingCredits(
   client: CreditsClient,
   bookingId: string,

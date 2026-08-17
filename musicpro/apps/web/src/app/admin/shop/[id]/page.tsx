@@ -3,10 +3,10 @@ import { notFound, redirect } from "next/navigation";
 
 import {
   getCreditPackageById,
-  getCurrentMemberWithRoles,
 } from "@musicpro/database";
 
 import { CreditPackageForm } from "@/components/admin/credit-package-form";
+import { getAdminMember } from "@/lib/admin/current-member";
 import {
   canDeleteCreditPackages,
   canManageShop,
@@ -20,7 +20,7 @@ interface PageProps {
 export default async function PacchettoDetailPage({ params }: PageProps) {
   const { id } = await params;
   const supabase = await createClient();
-  const currentMember = await getCurrentMemberWithRoles(supabase);
+  const currentMember = await getAdminMember();
 
   if (!currentMember || !canManageShop(currentMember.roles)) {
     redirect("/admin/rimborsi");

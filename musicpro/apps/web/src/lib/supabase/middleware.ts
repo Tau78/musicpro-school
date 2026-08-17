@@ -1,6 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
+import { MemberRole, type MemberRoleValue } from "@musicpro/shared";
+
 const PUBLIC_PATHS = [
   "/login",
   "/signup",
@@ -11,13 +13,34 @@ const PUBLIC_PATHS = [
 ];
 const AUTH_PATHS = ["/login", "/signup"];
 const PROTECTED_PREFIXES = ["/dashboard", "/admin"];
+const ONBOARDING_PATHS = ["/onboarding", "/invite"];
 
 function isPublicPath(pathname: string): boolean {
-  return PUBLIC_PATHS.includes(pathname);
+  if (PUBLIC_PATHS.includes(pathname)) {
+    return true;
+  }
+
+  return ONBOARDING_PATHS.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
 }
 
 function isProtectedPath(pathname: string): boolean {
   return PROTECTED_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+}
+
+function isOnboardingPath(pathname: string): boolean {
+  return ONBOARDING_PATHS.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
+
+function shouldSkipOnboardingCheck(roles: MemberRoleValue[]): boolean {
+  return (
+    roles.includes(MemberRole.Admin) ||
+    roles.includes(MemberRole.Docente) ||
+    roles.includes(MemberRole.Segreteria)
+  );
 }
 
 export async function updateSession(request: NextRequest) {
@@ -66,6 +89,13 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  if (!user && isOnboardingPath(pathname)) {
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = "/login";
+    loginUrl.searchParams.set("redirect", pathname);
+    return NextResponse.redirect(loginUrl);
+  }
+
   if (user && AUTH_PATHS.includes(pathname)) {
     const redirectParam = request.nextUrl.searchParams.get("redirect");
     const destination =
@@ -74,6 +104,47 @@ export async function updateSession(request: NextRequest) {
     targetUrl.pathname = destination;
     targetUrl.search = "";
     return NextResponse.redirect(targetUrl);
+  }
+
+  if (
+    user &&
+    pathname.startsWith("/dashboard")
+  ) {
+    const { data: member } = await supabase
+      .from("members")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (member?.id) {
+      const { data: roleRows } = await supabase
+        .from("member_roles")
+        .select("role")
+        .eq("member_id", member.id)
+        .is("revoked_at", null);
+
+      const roles = (roleRows ?? []).map(
+        (row) => row.role as MemberRoleValue,
+      );
+
+      const isAssociato = roles.includes(MemberRole.Associato);
+      const skipCheck = shouldSkipOnboardingCheck(roles);
+
+      if (isAssociato && !skipCheck) {
+        const fiscalYear = new Date().getFullYear();
+        const { data: quotaOk } = await supabase.rpc("member_quota_ok", {
+          p_member_id: member.id,
+          p_fiscal_year: fiscalYear,
+        });
+
+        if (!quotaOk) {
+          const onboardingUrl = request.nextUrl.clone();
+          onboardingUrl.pathname = "/onboarding";
+          onboardingUrl.search = "";
+          return NextResponse.redirect(onboardingUrl);
+        }
+      }
+    }
   }
 
   if (!user && pathname === "/" && !isPublicPath(pathname)) {

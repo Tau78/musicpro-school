@@ -259,6 +259,26 @@ export function BookingAdminDetail({ booking, rooms }: BookingAdminDetailProps) 
               <dd className="font-medium">Sì</dd>
             </div>
           )}
+          {booking.band?.name && (
+            <div>
+              <dt className="text-neutral-500">Band</dt>
+              <dd className="font-medium">{booking.band.name}</dd>
+            </div>
+          )}
+          {booking.member_snapshot && booking.member_snapshot.length > 0 && (
+            <div className="sm:col-span-2">
+              <dt className="text-neutral-500">Membri (snapshot)</dt>
+              <dd className="mt-1 font-medium">
+                <ul className="list-inside list-disc text-sm text-neutral-800">
+                  {booking.member_snapshot.map((member) => (
+                    <li key={member.member_id}>
+                      {`${member.first_name} ${member.last_name}`.trim()}
+                    </li>
+                  ))}
+                </ul>
+              </dd>
+            </div>
+          )}
         </dl>
       </div>
 

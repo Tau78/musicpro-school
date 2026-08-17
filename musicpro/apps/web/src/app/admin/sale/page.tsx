@@ -1,14 +1,15 @@
 import { redirect } from "next/navigation";
 
-import { getCurrentMemberWithRoles, listAllRooms } from "@musicpro/database";
+import { listAllRooms } from "@musicpro/database";
 
 import { RoomList } from "@/components/admin/room-list";
+import { getAdminMember } from "@/lib/admin/current-member";
 import { canManageRooms } from "@/lib/admin/roles";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function SalePage() {
   const supabase = await createClient();
-  const member = await getCurrentMemberWithRoles(supabase);
+  const member = await getAdminMember();
 
   if (!member || !canManageRooms(member.roles)) {
     redirect("/admin/rimborsi");

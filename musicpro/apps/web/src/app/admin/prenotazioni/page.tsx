@@ -1,14 +1,11 @@
 import { redirect } from "next/navigation";
 
-import { getCurrentMemberWithRoles } from "@musicpro/database";
-
 import { BookingsAdminPanel } from "@/components/admin/bookings-admin-panel";
+import { getAdminMember } from "@/lib/admin/current-member";
 import { canManageBookings } from "@/lib/admin/roles";
-import { createClient } from "@/lib/supabase/server";
 
 export default async function AdminPrenotazioniPage() {
-  const supabase = await createClient();
-  const member = await getCurrentMemberWithRoles(supabase);
+  const member = await getAdminMember();
 
   if (!member || !canManageBookings(member.roles)) {
     redirect("/admin/associati");

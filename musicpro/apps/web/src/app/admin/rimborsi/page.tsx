@@ -1,12 +1,12 @@
 import { redirect } from "next/navigation";
 
 import {
-  getCurrentMemberWithRoles,
   listMembers,
 } from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
 
 import { ReimbursementsPanel } from "@/components/admin/reimbursements-panel";
+import { getAdminMember } from "@/lib/admin/current-member";
 import {
   canDeleteReimbursements,
   canManageReimbursements,
@@ -15,7 +15,7 @@ import { createClient } from "@/lib/supabase/server";
 
 export default async function RimborsiPage() {
   const supabase = await createClient();
-  const member = await getCurrentMemberWithRoles(supabase);
+  const member = await getAdminMember();
 
   if (!member || !canManageReimbursements(member.roles)) {
     redirect("/admin/associati");

@@ -1,17 +1,14 @@
 import { redirect } from "next/navigation";
 
-import { getCurrentMemberWithRoles } from "@musicpro/database";
-
+import { getAdminMember } from "@/lib/admin/current-member";
 import {
   canManageBookings,
   canManageMembers,
   canManageReimbursements,
 } from "@/lib/admin/roles";
-import { createClient } from "@/lib/supabase/server";
 
 export default async function AdminIndexPage() {
-  const supabase = await createClient();
-  const member = await getCurrentMemberWithRoles(supabase);
+  const member = await getAdminMember();
 
   if (!member) {
     redirect("/login");

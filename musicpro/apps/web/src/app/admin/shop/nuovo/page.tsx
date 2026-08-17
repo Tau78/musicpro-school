@@ -1,15 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { getCurrentMemberWithRoles } from "@musicpro/database";
-
 import { CreditPackageForm } from "@/components/admin/credit-package-form";
+import { getAdminMember } from "@/lib/admin/current-member";
 import { canManageShop } from "@/lib/admin/roles";
-import { createClient } from "@/lib/supabase/server";
 
 export default async function NuovoPacchettoPage() {
-  const supabase = await createClient();
-  const member = await getCurrentMemberWithRoles(supabase);
+  const member = await getAdminMember();
 
   if (!member || !canManageShop(member.roles)) {
     redirect("/admin/rimborsi");

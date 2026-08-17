@@ -16,6 +16,7 @@ export interface PaymentLinkResult {
 
 export async function createStripePaymentLinkQuotaAssociativa(opts: {
   idIscrizione: string;
+  memberId?: string;
   nome: string;
   cognome: string;
   importoCentesimi?: number;
@@ -43,6 +44,7 @@ export async function createStripePaymentLinkQuotaAssociativa(opts: {
       : new Date().getFullYear();
   const nome = String(opts.nome || "").trim();
   const cognome = String(opts.cognome || "").trim();
+  const memberId = String(opts.memberId || "").trim();
   const importoDisplay = (importoCents / 100).toFixed(2);
 
   const returnUrl = buildQuotaReturnUrl(cfg.returnBase, {
@@ -68,6 +70,11 @@ export async function createStripePaymentLinkQuotaAssociativa(opts: {
     "metadata[mp_totale]": importoDisplay,
     "metadata[mp_ambiente]": cfg.mode,
   });
+
+  if (memberId) {
+    body.set("metadata[mp_member_id]", memberId);
+    body.set("payment_intent_data[metadata][mp_member_id]", memberId);
+  }
 
   const headers: Record<string, string> = {
     Authorization: `Bearer ${cfg.secret}`,

@@ -1,14 +1,15 @@
 import { redirect } from "next/navigation";
 
-import { getCurrentMemberWithRoles, listCreditPackages } from "@musicpro/database";
+import { listCreditPackages } from "@musicpro/database";
 
 import { CreditPackageList } from "@/components/admin/credit-package-list";
+import { getAdminMember } from "@/lib/admin/current-member";
 import { canManageShop } from "@/lib/admin/roles";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function AdminShopPage() {
   const supabase = await createClient();
-  const member = await getCurrentMemberWithRoles(supabase);
+  const member = await getAdminMember();
 
   if (!member || !canManageShop(member.roles)) {
     redirect("/admin/rimborsi");

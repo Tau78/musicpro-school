@@ -2,17 +2,17 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import {
-  getCurrentMemberWithRoles,
   getNextMemberNumber,
 } from "@musicpro/database";
 
 import { MemberForm } from "@/components/admin/member-form";
+import { getAdminMember } from "@/lib/admin/current-member";
 import { canManageMembers } from "@/lib/admin/roles";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function NuovoAssociatoPage() {
   const supabase = await createClient();
-  const member = await getCurrentMemberWithRoles(supabase);
+  const member = await getAdminMember();
 
   if (!member || !canManageMembers(member.roles)) {
     redirect("/admin/rimborsi");

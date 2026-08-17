@@ -62,6 +62,7 @@ function MiePrenotazioniContent() {
     autoConfirmMinHours: 12,
     approvalMinHours: 6,
     modifyMinHours: 6,
+    bandRequired: false,
   });
   const [memberId, setMemberId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);

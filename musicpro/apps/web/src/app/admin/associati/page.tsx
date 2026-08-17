@@ -2,14 +2,14 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import {
-  getCurrentMemberWithRoles,
-  getMemberCreditBalance,
+  listMemberAvailableCredits,
   listMembers,
   listMembersDetail,
 } from "@musicpro/database";
 
 import { AssociatesBookButton } from "@/components/admin/associates-book-button";
 import { MemberList } from "@/components/admin/member-list";
+import { getAdminMember } from "@/lib/admin/current-member";
 import {
   canManageMembers,
   canMergeDuplicates,
@@ -18,29 +18,21 @@ import { createClient } from "@/lib/supabase/server";
 
 export default async function AssociatiPage() {
   const supabase = await createClient();
-  const member = await getCurrentMemberWithRoles(supabase);
+  const member = await getAdminMember();
 
   if (!member || !canManageMembers(member.roles)) {
     redirect("/admin/rimborsi");
   }
 
-  const [members, memberDetails] = await Promise.all([
+  const [members, memberDetails, availableCredits] = await Promise.all([
     listMembers(supabase),
     listMembersDetail(supabase),
+    listMemberAvailableCredits(supabase).catch(() => ({}) as Record<string, number>),
   ]);
   const showMerge = canMergeDuplicates(member.roles);
 
   const creditBalances = Object.fromEntries(
-    await Promise.all(
-      members.map(async (m) => {
-        try {
-          const balance = await getMemberCreditBalance(supabase, m.id);
-          return [m.id, balance.available] as const;
-        } catch {
-          return [m.id, null] as const;
-        }
-      }),
-    ),
+    members.map((m) => [m.id, availableCredits[m.id] ?? 0] as const),
   );
 
   return (

@@ -1,3 +1,4 @@
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
 import {
@@ -9,6 +10,35 @@ import {
 } from "@musicpro/database";
 
 import { createClient } from "@/lib/supabase/server";
+
+async function getAvailabilityClient(request: Request) {
+  const authHeader = request.headers.get("authorization");
+  if (authHeader?.startsWith("Bearer ")) {
+    const token = authHeader.slice(7).trim();
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !anonKey || !token) {
+      return { supabase: null, user: null };
+    }
+
+    const supabase = createSupabaseClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    });
+    const {
+      data: { user },
+    } = await supabase.auth.getUser(token);
+
+    return { supabase, user };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  return { supabase, user };
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -23,12 +53,9 @@ export async function GET(request: Request) {
     );
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { supabase, user } = await getAvailabilityClient(request);
 
-  if (!user) {
+  if (!supabase || !user) {
     return NextResponse.json({ message: "Non autenticato." }, { status: 401 });
   }
 
