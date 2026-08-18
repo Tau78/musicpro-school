@@ -271,14 +271,19 @@ async function loadTerm(
 async function lessonIdsWithAttendance(
   client: LifecycleClient,
   lessonIds: string[],
-): Promise<Set<string>> {
+): Promise<Set<string> | { errorMessage: string }> {
   const attended = new Set<string>();
   if (lessonIds.length === 0) return attended;
   const { data, error } = await client
     .from("lesson_attendances")
     .select("lesson_id")
     .in("lesson_id", lessonIds);
-  if (error) return attended;
+  if (error) {
+    return {
+      errorMessage:
+        error.message || "Impossibile verificare le presenze delle lezioni.",
+    };
+  }
   for (const row of data ?? []) attended.add(row.lesson_id);
   return attended;
 }
@@ -718,6 +723,7 @@ export async function pauseCourse(
     client,
     candidates.map((row) => row.id),
   );
+  if ("errorMessage" in attended) return fail(attended.errorMessage);
   const toCancel = candidates.filter((row) => !attended.has(row.id));
   const cancelled = await cancelEligibleLessons(client, toCancel);
   if ("errorMessage" in cancelled) return fail(cancelled.errorMessage);
@@ -868,6 +874,7 @@ export async function closeCourse(
     client,
     candidates.map((row) => row.id),
   );
+  if ("errorMessage" in attended) return fail(attended.errorMessage);
   const toCancel = candidates.filter((row) => !attended.has(row.id));
   const cancelled = await cancelEligibleLessons(client, toCancel);
   if ("errorMessage" in cancelled) return fail(cancelled.errorMessage);

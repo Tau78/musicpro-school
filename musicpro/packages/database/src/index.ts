@@ -104,11 +104,13 @@ export type {
 export {
   createRoomExternalCalendar,
   deleteRoomExternalCalendar,
+  listExternalCalendarEventsInRange,
   listRoomExternalCalendars,
   requestExternalCalendarSync,
   updateRoomExternalCalendar,
 } from "./external-calendars";
 export type {
+  ExternalCalendarEvent,
   ExternalCalendarMutationResult,
   RoomExternalCalendar,
   RoomExternalCalendarInput,

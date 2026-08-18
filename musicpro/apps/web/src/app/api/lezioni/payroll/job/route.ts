@@ -21,17 +21,6 @@ function isAuthorized(request: Request): boolean {
   return authHeader === `Bearer ${cronSecret}`;
 }
 
-function hourInRome(): number {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Europe/Rome",
-    hour: "2-digit",
-    hour12: false,
-  }).formatToParts(new Date());
-  const raw = Number(parts.find((part) => part.type === "hour")?.value);
-  if (!Number.isFinite(raw)) return 0;
-  return raw === 24 ? 0 : raw;
-}
-
 export async function GET(request: Request) {
   if (!isAuthorized(request)) {
     return NextResponse.json(
@@ -62,12 +51,12 @@ export async function GET(request: Request) {
   try {
     const settings = await getLessonSchoolSettings(service);
     const jobDay = settings?.notulaJobDay ?? 8;
-    const jobHour = settings?.notulaJobHour ?? 8;
     const today = todayInRome();
     const day = Number(today.slice(8, 10));
-    const hour = hourInRome();
 
-    if (day === jobDay && hour === jobHour) {
+    // Il cron Vercel è già una volta al giorno (UTC). Non richiedere
+    // anche l'ora Rome: 08:00 UTC ≠ 08:00 Europe/Rome (CET/CEST).
+    if (day === jobDay) {
       const due = await generateDueLessonPayrollDrafts(service);
       generated = due.generated;
       errors.push(...due.errors);

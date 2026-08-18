@@ -9,10 +9,8 @@ import {
   setLessonSubjectActive,
 } from "@musicpro/database";
 
+import { FieldLabel, settingsInputClass } from "@/components/admin/settings-chrome";
 import { createClient } from "@/lib/supabase/client";
-
-const inputClass =
-  "w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)]";
 
 export type LessonSubjectFormRow = {
   id: string;
@@ -92,7 +90,7 @@ export function LessonSubjectsForm({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-8">
       {error ? (
         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
@@ -104,10 +102,8 @@ export function LessonSubjectsForm({
         </p>
       ) : null}
 
-      <fieldset className="space-y-3 rounded-xl border border-neutral-200 bg-white p-6">
-        <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
-          Materie
-        </legend>
+      <section className="space-y-3">
+        <h3 className="text-base font-semibold text-[var(--brand)]">Materie</h3>
         <p className="text-sm text-neutral-600">
           Disattivare è soft: i corsi esistenti restano, la materia non si
           assegna più ai nuovi.
@@ -115,14 +111,14 @@ export function LessonSubjectsForm({
         {subjects.length === 0 ? (
           <p className="text-sm text-neutral-500">Nessuna materia.</p>
         ) : (
-          <ul className="divide-y divide-neutral-100">
+          <ul className="divide-y divide-neutral-100 rounded-xl border border-neutral-200 bg-white">
             {subjects.map((subject) => {
               const draft = drafts[subject.id] ?? subject.name;
               const renamed = draft.trim() !== subject.name;
               return (
                 <li
                   key={subject.id}
-                  className="flex flex-wrap items-center gap-2 py-2"
+                  className="flex flex-wrap items-center gap-2 px-4 py-3"
                 >
                   <input
                     value={draft}
@@ -132,7 +128,7 @@ export function LessonSubjectsForm({
                         [subject.id]: e.target.value,
                       }))
                     }
-                    className={`${inputClass} min-w-[12rem] flex-1 ${
+                    className={`${settingsInputClass} min-w-[12rem] flex-1 ${
                       subject.isActive ? "" : "text-neutral-500"
                     }`}
                   />
@@ -162,24 +158,22 @@ export function LessonSubjectsForm({
             })}
           </ul>
         )}
-      </fieldset>
+      </section>
 
       <form onSubmit={handleCreate} className="space-y-4">
-        <fieldset className="space-y-4 rounded-xl border border-neutral-200 bg-white p-6">
-          <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
-            Nuova materia
-          </legend>
-          <label className="block text-sm">
-            <span className="mb-1 block text-neutral-600">Nome *</span>
-            <input
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="es. Ukulele"
-              className={inputClass}
-            />
-          </label>
-        </fieldset>
+        <h3 className="text-base font-semibold text-[var(--brand)]">
+          Nuova materia
+        </h3>
+        <label className="block">
+          <FieldLabel>Nome</FieldLabel>
+          <input
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="es. Ukulele"
+            className={settingsInputClass}
+          />
+        </label>
         <button
           type="submit"
           disabled={saving}

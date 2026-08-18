@@ -11,7 +11,11 @@ import {
   updateCancellationPenaltyRule,
 } from "@musicpro/database";
 
-import { CollapsibleSection } from "@/components/admin/collapsible-section";
+import {
+  FieldLabel,
+  ToggleRow,
+  settingsInputClass,
+} from "@/components/admin/settings-chrome";
 import { createClient } from "@/lib/supabase/client";
 
 interface PenaltyRulesPanelProps {
@@ -111,7 +115,7 @@ export function PenaltyRulesPanel({ rules }: PenaltyRulesPanelProps) {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {error ? (
         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
@@ -128,7 +132,7 @@ export function PenaltyRulesPanel({ rules }: PenaltyRulesPanelProps) {
           <thead className="bg-neutral-50">
             <tr>
               <th className="px-4 py-3 text-left font-medium text-neutral-600">
-                Fascia (ore prima)
+                Ore prima
               </th>
               <th className="px-4 py-3 text-left font-medium text-neutral-600">
                 Penale
@@ -204,72 +208,69 @@ export function PenaltyRulesPanel({ rules }: PenaltyRulesPanelProps) {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <CollapsibleSection
-          title={editingId ? "Modifica regola" : "Nuova regola penale"}
-          description="Fascia oraria prima dell’inizio. Il limite superiore (da ore) deve essere maggiore del limite inferiore (a ore)."
-          defaultOpen
-        >
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            <Field label="Da ore (limite superiore) *">
-              <input
-                type="number"
-                min={0}
-                step="0.5"
-                required
-                value={form.fromHours}
-                onChange={(e) =>
-                  updateField("fromHours", Number(e.target.value) || 0)
-                }
-                className={inputClass}
-              />
-            </Field>
-            <Field label="A ore (limite inferiore) *">
-              <input
-                type="number"
-                min={0}
-                step="0.5"
-                required
-                value={form.toHours}
-                onChange={(e) =>
-                  updateField("toHours", Number(e.target.value) || 0)
-                }
-                className={inputClass}
-              />
-            </Field>
-            <Field label="Penale (%) *">
-              <input
-                type="number"
-                min={0}
-                max={100}
-                required
-                value={form.penaltyPercent}
-                onChange={(e) =>
-                  updateField("penaltyPercent", Number(e.target.value) || 0)
-                }
-                className={inputClass}
-              />
-            </Field>
-            <Field label="Ordine">
-              <input
-                type="number"
-                value={form.sortOrder}
-                onChange={(e) =>
-                  updateField("sortOrder", Number(e.target.value) || 0)
-                }
-                className={inputClass}
-              />
-            </Field>
-            <label className="flex items-end gap-2 pb-2 text-sm">
-              <input
-                type="checkbox"
-                checked={form.enabled}
-                onChange={(e) => updateField("enabled", e.target.checked)}
-                className="rounded border-neutral-300"
-              />
-              Attiva
-            </label>
-          </div>
-        </CollapsibleSection>
+        <p className="text-sm font-medium text-neutral-800">
+          {editingId ? "Modifica regola" : "Nuova regola"}
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <label className="block">
+            <FieldLabel>Da (ore prima)</FieldLabel>
+            <input
+              type="number"
+              min={0}
+              step="0.5"
+              required
+              value={form.fromHours}
+              onChange={(e) =>
+                updateField("fromHours", Number(e.target.value) || 0)
+              }
+              className={settingsInputClass}
+            />
+          </label>
+          <label className="block">
+            <FieldLabel>A (ore prima)</FieldLabel>
+            <input
+              type="number"
+              min={0}
+              step="0.5"
+              required
+              value={form.toHours}
+              onChange={(e) =>
+                updateField("toHours", Number(e.target.value) || 0)
+              }
+              className={settingsInputClass}
+            />
+          </label>
+          <label className="block">
+            <FieldLabel>Penale (%)</FieldLabel>
+            <input
+              type="number"
+              min={0}
+              max={100}
+              required
+              value={form.penaltyPercent}
+              onChange={(e) =>
+                updateField("penaltyPercent", Number(e.target.value) || 0)
+              }
+              className={settingsInputClass}
+            />
+          </label>
+          <label className="block">
+            <FieldLabel>Ordine</FieldLabel>
+            <input
+              type="number"
+              value={form.sortOrder}
+              onChange={(e) =>
+                updateField("sortOrder", Number(e.target.value) || 0)
+              }
+              className={settingsInputClass}
+            />
+          </label>
+        </div>
+        <ToggleRow
+          label="Attiva"
+          checked={form.enabled}
+          onChange={(checked) => updateField("enabled", checked)}
+        />
 
         <div className="flex gap-3">
           <button
@@ -295,23 +296,5 @@ export function PenaltyRulesPanel({ rules }: PenaltyRulesPanelProps) {
         </div>
       </form>
     </div>
-  );
-}
-
-const inputClass =
-  "w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)]";
-
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="block text-sm">
-      <span className="mb-1 block text-neutral-600">{label}</span>
-      {children}
-    </label>
   );
 }

@@ -9,12 +9,19 @@ import {
   updateBookingSettings,
 } from "@musicpro/database";
 
-import { CollapsibleSection } from "@/components/admin/collapsible-section";
+import {
+  FieldLabel,
+  SettingsTabs,
+  ToggleRow,
+  settingsInputClass,
+} from "@/components/admin/settings-chrome";
 import { createClient } from "@/lib/supabase/client";
 
 interface BookingSettingsFormProps {
   settings: BookingSettings;
 }
+
+type BookingTab = "soglie" | "band";
 
 function settingsToInput(settings: BookingSettings): BookingSettingsInput {
   return {
@@ -30,6 +37,7 @@ export function BookingSettingsForm({ settings }: BookingSettingsFormProps) {
   const router = useRouter();
   const supabase = createClient();
 
+  const [tab, setTab] = useState<BookingTab>("soglie");
   const [form, setForm] = useState<BookingSettingsInput>(
     settingsToInput(settings),
   );
@@ -63,7 +71,7 @@ export function BookingSettingsForm({ settings }: BookingSettingsFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8">
+    <form onSubmit={handleSubmit} className="space-y-6">
       {error ? (
         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
@@ -75,13 +83,19 @@ export function BookingSettingsForm({ settings }: BookingSettingsFormProps) {
         </p>
       ) : null}
 
-      <CollapsibleSection
-        title="Soglie prenotazione"
-        description="Comportamento delle prenotazioni in base all’anticipo sull’inizio."
-        defaultOpen
-      >
+      <SettingsTabs
+        tabs={[
+          { id: "soglie", label: "Soglie" },
+          { id: "band", label: "Band" },
+        ]}
+        value={tab}
+        onChange={setTab}
+      />
+
+      {tab === "soglie" ? (
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Conferma automatica (ore minime) *">
+          <label className="block">
+            <FieldLabel>Conferma automatica</FieldLabel>
             <input
               type="number"
               min={1}
@@ -93,13 +107,11 @@ export function BookingSettingsForm({ settings }: BookingSettingsFormProps) {
                   Number(e.target.value) || 0,
                 )
               }
-              className={inputClass}
+              className={settingsInputClass}
             />
-            <span className="mt-1 block text-xs text-neutral-500">
-              ≥ queste ore: prenotazione in attesa pagamento (default 12h).
-            </span>
-          </Field>
-          <Field label="Approvazione admin (ore minime) *">
+          </label>
+          <label className="block">
+            <FieldLabel>Approvazione</FieldLabel>
             <input
               type="number"
               min={1}
@@ -108,14 +120,11 @@ export function BookingSettingsForm({ settings }: BookingSettingsFormProps) {
               onChange={(e) =>
                 updateField("approvalMinHours", Number(e.target.value) || 0)
               }
-              className={inputClass}
+              className={settingsInputClass}
             />
-            <span className="mt-1 block text-xs text-neutral-500">
-              Tra questa soglia e la conferma automatica: richiede approvazione
-              (default 6h).
-            </span>
-          </Field>
-          <Field label="Annullamento self-service (ore minime) *">
+          </label>
+          <label className="block">
+            <FieldLabel>Annullamento</FieldLabel>
             <input
               type="number"
               min={1}
@@ -124,14 +133,11 @@ export function BookingSettingsForm({ settings }: BookingSettingsFormProps) {
               onChange={(e) =>
                 updateField("cancelMinHours", Number(e.target.value) || 0)
               }
-              className={inputClass}
+              className={settingsInputClass}
             />
-            <span className="mt-1 block text-xs text-neutral-500">
-              L&apos;associato può annullare solo se mancano almeno queste ore
-              (default 24h).
-            </span>
-          </Field>
-          <Field label="Modifica self-service (ore minime) *">
+          </label>
+          <label className="block">
+            <FieldLabel>Modifica</FieldLabel>
             <input
               type="number"
               min={1}
@@ -140,36 +146,20 @@ export function BookingSettingsForm({ settings }: BookingSettingsFormProps) {
               onChange={(e) =>
                 updateField("modifyMinHours", Number(e.target.value) || 0)
               }
-              className={inputClass}
+              className={settingsInputClass}
             />
-            <span className="mt-1 block text-xs text-neutral-500">
-              Sotto questa soglia solo l&apos;admin può modificare la prenotazione
-              (default 6h).
-            </span>
-          </Field>
+          </label>
+          <p className="text-xs text-neutral-500 sm:col-span-2">
+            Ore prima dell&apos;inizio.
+          </p>
         </div>
-      </CollapsibleSection>
-
-      <CollapsibleSection
-        title="Sistema BAND"
-        description="In transizione la band è facoltativa. Attiva lo switch per renderla obbligatoria (salvo PROVI DA SOLO)."
-      >
-        <label className="flex cursor-pointer items-start gap-3 text-sm text-neutral-800">
-          <input
-            type="checkbox"
-            checked={form.bandRequired}
-            onChange={(e) => updateField("bandRequired", e.target.checked)}
-            className="mt-0.5 rounded border-neutral-300"
-          />
-          <span>
-            <span className="font-medium">Band obbligatoria per prenotare</span>
-            <span className="mt-1 block text-xs text-neutral-500">
-              Se attivo, ogni prenotazione (eccetto PROVI DA SOLO) richiede una
-              band con tutti i membri in regola con la quota.
-            </span>
-          </span>
-        </label>
-      </CollapsibleSection>
+      ) : (
+        <ToggleRow
+          label="Band obbligatoria"
+          checked={form.bandRequired}
+          onChange={(checked) => updateField("bandRequired", checked)}
+        />
+      )}
 
       <div className="flex gap-3">
         <button
@@ -181,25 +171,5 @@ export function BookingSettingsForm({ settings }: BookingSettingsFormProps) {
         </button>
       </div>
     </form>
-  );
-}
-
-const inputClass =
-  "w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)]";
-
-function Field({
-  label,
-  children,
-  className = "",
-}: {
-  label: string;
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <label className={`block text-sm ${className}`}>
-      <span className="mb-1 block text-neutral-600">{label}</span>
-      {children}
-    </label>
   );
 }

@@ -10,13 +10,25 @@ import {
   type LessonSchoolSettings,
 } from "@musicpro/database";
 
-import { CollapsibleSection } from "@/components/admin/collapsible-section";
+import {
+  ChipGroup,
+  FieldLabel,
+  SettingsTabs,
+  ToggleRow,
+  settingsInputClass,
+} from "@/components/admin/settings-chrome";
 import { createClient } from "@/lib/supabase/client";
 
-const inputClass =
-  "w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)]";
-
 const SLOT_OPTIONS = [5, 15, 30] as const;
+
+type SchoolSettingsTab = "calendario" | "corsi" | "promemoria" | "notule";
+
+const TABS: { id: SchoolSettingsTab; label: string }[] = [
+  { id: "calendario", label: "Calendario" },
+  { id: "corsi", label: "Corsi" },
+  { id: "promemoria", label: "Promemoria" },
+  { id: "notule", label: "Notule" },
+];
 
 type SettingsDraft = {
   gridOpen: string;
@@ -64,6 +76,7 @@ export function LessonSchoolSettingsForm({
   const router = useRouter();
   const supabase = createClient();
 
+  const [tab, setTab] = useState<SchoolSettingsTab>("calendario");
   const [form, setForm] = useState<SettingsDraft>(() => toDraft(settings));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -135,66 +148,57 @@ export function LessonSchoolSettingsForm({
         </p>
       ) : null}
 
-      <CollapsibleSection
-        title="Calendario"
-        description="Griglia usata da calendario, disponibilità e creazione corso. Orari in Europe/Rome."
-        defaultOpen
-      >
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Apertura griglia">
-            <input
-              type="time"
-              required
-              value={form.gridOpen}
-              onChange={(e) => updateField("gridOpen", e.target.value)}
-              className={inputClass}
-            />
-          </Field>
-          <Field label="Chiusura griglia">
-            <input
-              type="time"
-              required
-              value={form.gridClose}
-              onChange={(e) => updateField("gridClose", e.target.value)}
-              className={inputClass}
-            />
-          </Field>
-          <Field label="Passo inizio lezione">
-            <select
-              value={form.slotGranularityMinutes}
-              onChange={(e) =>
-                updateField("slotGranularityMinutes", Number(e.target.value))
-              }
-              className={inputClass}
-            >
-              {SLOT_OPTIONS.map((minutes) => (
-                <option key={minutes} value={minutes}>
-                  {minutes} minuti
-                </option>
-              ))}
-            </select>
-          </Field>
-        </div>
-        <label className="flex items-start gap-3 text-sm text-neutral-800">
-          <input
-            type="checkbox"
-            checked={form.sundayVisible}
-            onChange={(e) => updateField("sundayVisible", e.target.checked)}
-            className="mt-0.5 rounded border-neutral-300"
-          />
-          <span>
-            <span className="font-medium">Mostra la domenica</span>
-            <span className="mt-1 block text-xs text-neutral-500">
-              Se spento, la domenica resta nascosta in calendario e
-              disponibilità.
-            </span>
-          </span>
-        </label>
-      </CollapsibleSection>
+      <SettingsTabs tabs={TABS} value={tab} onChange={setTab} />
 
-      <CollapsibleSection title="Corsi e presenze">
-        <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="Capienza gruppo default">
+      {tab === "calendario" ? (
+        <section className="space-y-4">
+          <p className="text-sm text-neutral-600">
+            Orari usati da calendario, disponibilità e creazione corso (Roma).
+          </p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Apertura">
+              <input
+                type="time"
+                required
+                value={form.gridOpen}
+                onChange={(e) => updateField("gridOpen", e.target.value)}
+                className={settingsInputClass}
+              />
+            </Field>
+            <Field label="Chiusura">
+              <input
+                type="time"
+                required
+                value={form.gridClose}
+                onChange={(e) => updateField("gridClose", e.target.value)}
+                className={settingsInputClass}
+              />
+            </Field>
+            <div className="sm:col-span-2">
+              <FieldLabel>Passo inizio</FieldLabel>
+              <ChipGroup
+                value={String(form.slotGranularityMinutes)}
+                options={SLOT_OPTIONS.map((minutes) => ({
+                  value: String(minutes),
+                  label: `${minutes} min`,
+                }))}
+                onChange={(value) =>
+                  updateField("slotGranularityMinutes", Number(value))
+                }
+              />
+            </div>
+          </div>
+          <ToggleRow
+            label="Mostra la domenica"
+            checked={form.sundayVisible}
+            onChange={(checked) => updateField("sundayVisible", checked)}
+          />
+        </section>
+      ) : null}
+
+      {tab === "corsi" ? (
+        <section className="grid gap-4 sm:grid-cols-3">
+          <Field label="Posti nel gruppo">
             <input
               type="number"
               min={1}
@@ -203,10 +207,10 @@ export function LessonSchoolSettingsForm({
               onChange={(e) =>
                 updateField("defaultGroupCapacity", Number(e.target.value) || 0)
               }
-              className={inputClass}
+              className={settingsInputClass}
             />
           </Field>
-          <Field label="Finestra presenze (giorni)">
+          <Field label="Giorni per le presenze">
             <input
               type="number"
               min={1}
@@ -215,13 +219,13 @@ export function LessonSchoolSettingsForm({
               onChange={(e) =>
                 updateField("attendanceEditDays", Number(e.target.value) || 0)
               }
-              className={inputClass}
+              className={settingsInputClass}
             />
             <span className="mt-1 block text-xs text-neutral-500">
-              Giorni in cui si possono editare presenze passate (default 14).
+              Giorni in cui si possono modificare le presenze passate.
             </span>
           </Field>
-          <Field label="Hold sala (ore)">
+          <Field label="Ore di blocco sala">
             <input
               type="number"
               min={1}
@@ -230,86 +234,89 @@ export function LessonSchoolSettingsForm({
               onChange={(e) =>
                 updateField("holdHours", Number(e.target.value) || 0)
               }
-              className={inputClass}
+              className={settingsInputClass}
             />
             <span className="mt-1 block text-xs text-neutral-500">
-              Hold sulla prima occorrenza di un corso in attesa (default 48).
+              Blocco sulla prima lezione di un corso in attesa.
             </span>
           </Field>
-        </div>
-      </CollapsibleSection>
+        </section>
+      ) : null}
 
-      <CollapsibleSection
-        title="Reminder e solleciti"
-        description="Ore prima dell’evento. I reminder lezione usano le soglie 24h e 2h; i solleciti pacchetto partono prima della 5ª lezione."
-      >
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Reminder lezione lungo (ore)">
-            <input
-              type="number"
-              min={1}
-              required
-              value={form.reminderWeekHours}
-              onChange={(e) =>
-                updateField("reminderWeekHours", Number(e.target.value) || 0)
-              }
-              className={inputClass}
-            />
-          </Field>
-          <Field label="Reminder lezione (ore)">
-            <input
-              type="number"
-              min={1}
-              required
-              value={form.reminderDayHours}
-              onChange={(e) =>
-                updateField("reminderDayHours", Number(e.target.value) || 0)
-              }
-              className={inputClass}
-            />
-          </Field>
-          <Field label="Reminder breve (ore)">
-            <input
-              type="number"
-              min={1}
-              required
-              value={form.reminderSoonHours}
-              onChange={(e) =>
-                updateField("reminderSoonHours", Number(e.target.value) || 0)
-              }
-              className={inputClass}
-            />
-          </Field>
-          <Field label="Sollecito pack 1 (ore)">
-            <input
-              type="number"
-              min={1}
-              required
-              value={form.packRemindHours1}
-              onChange={(e) =>
-                updateField("packRemindHours1", Number(e.target.value) || 0)
-              }
-              className={inputClass}
-            />
-          </Field>
-          <Field label="Sollecito pack 2 (ore)">
-            <input
-              type="number"
-              min={1}
-              required
-              value={form.packRemindHours2}
-              onChange={(e) =>
-                updateField("packRemindHours2", Number(e.target.value) || 0)
-              }
-              className={inputClass}
-            />
-          </Field>
-        </div>
-      </CollapsibleSection>
+      {tab === "promemoria" ? (
+        <section className="space-y-4">
+          <p className="text-sm text-neutral-600">
+            Ore prima dell’evento. I promemoria lezione usano le soglie giorno e
+            imminente; quelli del pacchetto partono prima della 5ª lezione.
+          </p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Settimana">
+              <input
+                type="number"
+                min={1}
+                required
+                value={form.reminderWeekHours}
+                onChange={(e) =>
+                  updateField("reminderWeekHours", Number(e.target.value) || 0)
+                }
+                className={settingsInputClass}
+              />
+            </Field>
+            <Field label="Giorno">
+              <input
+                type="number"
+                min={1}
+                required
+                value={form.reminderDayHours}
+                onChange={(e) =>
+                  updateField("reminderDayHours", Number(e.target.value) || 0)
+                }
+                className={settingsInputClass}
+              />
+            </Field>
+            <Field label="Imminente">
+              <input
+                type="number"
+                min={1}
+                required
+                value={form.reminderSoonHours}
+                onChange={(e) =>
+                  updateField("reminderSoonHours", Number(e.target.value) || 0)
+                }
+                className={settingsInputClass}
+              />
+            </Field>
+            <Field label="Pacchetto">
+              <input
+                type="number"
+                min={1}
+                required
+                value={form.packRemindHours1}
+                onChange={(e) =>
+                  updateField("packRemindHours1", Number(e.target.value) || 0)
+                }
+                className={settingsInputClass}
+              />
+            </Field>
+            <Field label="Pacchetto (2°)">
+              <input
+                type="number"
+                min={1}
+                required
+                value={form.packRemindHours2}
+                onChange={(e) =>
+                  updateField("packRemindHours2", Number(e.target.value) || 0)
+                }
+                className={settingsInputClass}
+              />
+            </Field>
+          </div>
+        </section>
+      ) : null}
 
-      <CollapsibleSection title="Notule">
-        <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="Giorno job (1–28)">
+      {tab === "notule" ? (
+        <section className="grid gap-4 sm:grid-cols-3">
+          <Field label="Giorno">
             <input
               type="number"
               min={1}
@@ -319,10 +326,13 @@ export function LessonSchoolSettingsForm({
               onChange={(e) =>
                 updateField("notulaJobDay", Number(e.target.value) || 0)
               }
-              className={inputClass}
+              className={settingsInputClass}
             />
+            <span className="mt-1 block text-xs text-neutral-500">
+              Giorno del mese (1–28).
+            </span>
           </Field>
-          <Field label="Ora job (0–23, Rome)">
+          <Field label="Ora">
             <input
               type="number"
               min={0}
@@ -332,10 +342,13 @@ export function LessonSchoolSettingsForm({
               onChange={(e) =>
                 updateField("notulaJobHour", Number(e.target.value))
               }
-              className={inputClass}
+              className={settingsInputClass}
             />
+            <span className="mt-1 block text-xs text-neutral-500">
+              Dalle 0 alle 23, orario di Roma.
+            </span>
           </Field>
-          <Field label="Scadenza firma (giorni)">
+          <Field label="Scadenza firma">
             <input
               type="number"
               min={1}
@@ -347,15 +360,15 @@ export function LessonSchoolSettingsForm({
                   Number(e.target.value) || 0,
                 )
               }
-              className={inputClass}
+              className={settingsInputClass}
             />
             <span className="mt-1 block text-xs text-neutral-500">
               Dopo questa scadenza le presenze non compilate slittano al mese
               dopo.
             </span>
           </Field>
-        </div>
-      </CollapsibleSection>
+        </section>
+      ) : null}
 
       <button
         type="submit"
@@ -376,8 +389,8 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <label className="block text-sm">
-      <span className="mb-1 block text-neutral-600">{label}</span>
+    <label className="block">
+      <FieldLabel>{label}</FieldLabel>
       {children}
     </label>
   );

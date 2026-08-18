@@ -973,6 +973,8 @@ Le 16 fette sono **scritte** (UI + helper + migrazioni `029`–`045`). Non si ag
 | Export Excel rette / ZIP PDF ricevute | Lasciati dopo |
 | V2 | Bloccato (§2) |
 
+Audit post-scrittura (2026-08-18): fix P0 su Expo (route `/lezioni` vs calendario), cron notule (ora UTC ≠ Rome), email coda da docente (`list_lesson_staff_emails`), contanti titolare (RLS `046`). Restano accettati: GCal OAuth stub, dual iscrizione, webhook pack al VAI, photo_consent su nuovo iscritto solo se c’è già un `members` (token).
+
 Prossimo passo operativo: **VAI** (main, Supabase, Edge, Vercel, FTP iscrizione, smoke). Poi uso reale, non nuove fette.
 
 *Fine specifica V1. Non allargare il perimetro V2.*

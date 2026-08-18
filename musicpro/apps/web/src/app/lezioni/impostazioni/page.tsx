@@ -12,10 +12,10 @@ import {
 } from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
 
-import { CollapsibleSection } from "@/components/admin/collapsible-section";
 import { TeacherAvailabilityPanel } from "@/components/lezioni/teacher-availability-panel";
 import { TeacherGcalConnect } from "@/components/lezioni/teacher-gcal-connect";
 import { TeacherProfileReadonly } from "@/components/lezioni/teacher-profile-readonly";
+import { TeacherSettingsPanel } from "@/components/lezioni/teacher-settings-panel";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function LezioniImpostazioniPage() {
@@ -45,18 +45,21 @@ export default async function LezioniImpostazioniPage() {
     .map((subject) => subject.name);
 
   return (
-    <div>
-      <TeacherProfileReadonly
-        firstName={member?.firstName ?? currentMember.firstName}
-        lastName={member?.lastName ?? currentMember.lastName}
-        email={member?.email ?? currentMember.email}
-        phone={member?.phone ?? null}
-        subjectNames={subjectNames}
-        canCreateCourses={profile?.canCreateCourses ?? false}
-        canReschedule={profile?.canReschedule ?? false}
-        canCloseCourses={profile?.canCloseCourses ?? false}
-        paymentVisibility={profile?.paymentVisibility ?? "hidden"}
-      >
+    <TeacherSettingsPanel
+      profilo={
+        <TeacherProfileReadonly
+          firstName={member?.firstName ?? currentMember.firstName}
+          lastName={member?.lastName ?? currentMember.lastName}
+          email={member?.email ?? currentMember.email}
+          phone={member?.phone ?? null}
+          subjectNames={subjectNames}
+          canCreateCourses={profile?.canCreateCourses ?? false}
+          canReschedule={profile?.canReschedule ?? false}
+          canCloseCourses={profile?.canCloseCourses ?? false}
+          paymentVisibility={profile?.paymentVisibility ?? "hidden"}
+        />
+      }
+      orari={
         <TeacherAvailabilityPanel
           memberId={currentMember.id}
           initialSlots={slots}
@@ -65,13 +68,8 @@ export default async function LezioniImpostazioniPage() {
           gridOpenMinute={settings?.gridOpenMinute ?? 600}
           gridCloseMinute={settings?.gridCloseMinute ?? 1380}
         />
-      </TeacherProfileReadonly>
-
-      <div className="mt-8">
-        <CollapsibleSection title="Google Calendar">
-          <TeacherGcalConnect />
-        </CollapsibleSection>
-      </div>
-    </div>
+      }
+      calendario={<TeacherGcalConnect />}
+    />
   );
 }

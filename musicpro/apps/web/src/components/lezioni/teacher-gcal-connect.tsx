@@ -9,24 +9,27 @@ function teacherGcalClientId(): string | undefined {
 export function TeacherGcalConnect() {
   const configured = Boolean(teacherGcalClientId());
 
-  return configured ? (
-    <>
-      <p className="text-sm text-neutral-700">Collega il tuo Google Calendar</p>
-      <button
-        type="button"
-        disabled
-        className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-400"
-      >
-        Collega Google
-      </button>
-      <p className="text-xs text-neutral-500">
-        OAuth in arrivo — chiavi presenti, sync eventi non ancora attivo
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-neutral-700">
+        Collega il calendario Google per vedere le lezioni anche lì.
       </p>
-    </>
-  ) : (
-    <p className="text-sm text-neutral-600">
-      Collegamento Google Calendar docente non configurato. Quando le chiavi
-      OAuth saranno in env, potrai sincronizzare le tue lezioni.
-    </p>
+      {configured ? (
+        <>
+          <button
+            type="button"
+            disabled
+            className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-400"
+          >
+            Collega Google
+          </button>
+          <p className="text-xs text-neutral-500">Disponibile a breve.</p>
+        </>
+      ) : (
+        <p className="text-sm text-neutral-600">
+          Il collegamento non è ancora disponibile.
+        </p>
+      )}
+    </div>
   );
 }

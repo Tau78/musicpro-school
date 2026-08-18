@@ -5,8 +5,10 @@ import {
   listMessageTemplates,
 } from "@musicpro/database";
 
-import { AppSettingsPanel } from "@/components/admin/app-settings-panel";
-import { CollapsibleSection } from "@/components/admin/collapsible-section";
+import {
+  AppSettingsPanel,
+  TemplateSettingsLayout,
+} from "@/components/admin/app-settings-panel";
 import { MessageTemplatesPanel } from "@/components/admin/message-templates-panel";
 import { getAdminMember } from "@/lib/admin/current-member";
 import { canManageSettings, canManageTemplates } from "@/lib/admin/roles";
@@ -30,29 +32,25 @@ export default async function ImpostazioniTemplatePage() {
   ]);
 
   return (
-    <div className="space-y-10">
-      {canManageTemplates(member.roles) ? (
-        <CollapsibleSection
-          title="Modelli messaggio"
-          description="Template per messaggi massivi email e Telegram (rubrica → selezione associati → Invia messaggio)."
-          defaultOpen
-        >
+    <TemplateSettingsLayout
+      templatesPanel={
+        canManageTemplates(member.roles) ? (
           <MessageTemplatesPanel
             templates={templates}
             createdBy={member.id}
           />
-        </CollapsibleSection>
-      ) : null}
-
-      {canManageSettings(member.roles) ? (
-        <AppSettingsPanel
-          settings={settings}
-          keys={TEMPLATE_SETTING_KEYS}
-          title="Template Google Doc (legacy)"
-          description="ID dei documenti Google usati come modello per notule e iscrizioni generate da GAS."
-          submitLabel="Salva template Drive"
-        />
-      ) : null}
-    </div>
+        ) : undefined
+      }
+      settingsPanel={
+        canManageSettings(member.roles) ? (
+          <AppSettingsPanel
+            settings={settings}
+            keys={TEMPLATE_SETTING_KEYS}
+            title="Modelli documenti"
+            submitLabel="Salva"
+          />
+        ) : undefined
+      }
+    />
   );
 }

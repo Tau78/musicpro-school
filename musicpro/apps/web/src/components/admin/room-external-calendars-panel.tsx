@@ -6,16 +6,18 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   createRoomExternalCalendar,
   deleteRoomExternalCalendar,
-  formatDateItalian,
   listRoomExternalCalendars,
   requestExternalCalendarSync,
-  todayInRome,
   updateRoomExternalCalendar,
   type RoomExternalCalendar,
   type RoomExternalCalendarInput,
 } from "@musicpro/database";
 
-import { CollapsibleSection } from "@/components/admin/collapsible-section";
+import {
+  FieldLabel,
+  ToggleRow,
+  settingsInputClass,
+} from "@/components/admin/settings-chrome";
 import { createClient } from "@/lib/supabase/client";
 
 interface RoomExternalCalendarsPanelProps {
@@ -40,21 +42,11 @@ function calendarToInput(
   };
 }
 
-function formatSyncStatus(calendar: RoomExternalCalendar): string {
-  if (calendar.lastSyncError) {
-    return `Errore: ${calendar.lastSyncError}`;
-  }
-  if (calendar.lastSyncedAt) {
-    const date = new Date(calendar.lastSyncedAt);
-    return `Ultima sync: ${date.toLocaleString("it-IT", {
-      timeZone: "Europe/Rome",
-      day: "numeric",
-      month: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-    })}`;
-  }
-  return "Mai sincronizzato";
+function calendarStatus(
+  calendar: RoomExternalCalendar,
+): "Attivo" | "Spento" | "Errore" {
+  if (calendar.lastSyncError) return "Errore";
+  return calendar.enabled ? "Attivo" : "Spento";
 }
 
 export function RoomExternalCalendarsPanel({
@@ -83,7 +75,7 @@ export function RoomExternalCalendarsPanel({
       setError(
         err instanceof Error
           ? err.message
-          : "Impossibile caricare i calendari esterni.",
+          : "Impossibile caricare i calendari.",
       );
     } finally {
       setLoading(false);
@@ -146,7 +138,7 @@ export function RoomExternalCalendarsPanel({
   }
 
   async function handleDelete(calendarId: string) {
-    const ok = window.confirm("Eliminare questo calendario esterno?");
+    const ok = window.confirm("Eliminare questo calendario?");
     if (!ok) return;
 
     setDeletingId(calendarId);
@@ -198,11 +190,7 @@ export function RoomExternalCalendarsPanel({
   }
 
   return (
-    <div className="max-w-3xl">
-      <CollapsibleSection
-        title="Calendari esterni"
-        description={`Importa calendari Google pubblici per bloccare slot occupati. Oggi: ${formatDateItalian(todayInRome())}.`}
-      >
+    <div className="space-y-4">
       {error && (
         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
           {error}
@@ -220,81 +208,75 @@ export function RoomExternalCalendarsPanel({
 
       {!loading && calendars.length > 0 && (
         <ul className="space-y-3">
-          {calendars.map((calendar) => (
-            <li
-              key={calendar.id}
-              className="rounded-xl border border-neutral-200 p-4"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
+          {calendars.map((calendar) => {
+            const status = calendarStatus(calendar);
+            return (
+              <li
+                key={calendar.id}
+                className="rounded-xl border border-neutral-200 p-4"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
                   <p className="font-medium text-neutral-900">{calendar.name}</p>
-                  <p className="mt-1 font-mono text-xs text-neutral-500">
-                    {calendar.googleCalendarId}
-                  </p>
-                  <p
-                    className={`mt-2 text-xs ${
-                      calendar.lastSyncError
-                        ? "text-red-700"
-                        : "text-neutral-500"
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                      status === "Attivo"
+                        ? "bg-green-100 text-green-800"
+                        : status === "Errore"
+                          ? "bg-red-100 text-red-800"
+                          : "bg-neutral-100 text-neutral-600"
                     }`}
                   >
-                    {formatSyncStatus(calendar)}
-                  </p>
+                    {status}
+                  </span>
                 </div>
-                <span
-                  className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                    calendar.enabled
-                      ? "bg-green-100 text-green-800"
-                      : "bg-neutral-100 text-neutral-600"
-                  }`}
-                >
-                  {calendar.enabled ? "Attivo" : "Disattivo"}
-                </span>
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => startEdit(calendar)}
-                  className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
-                >
-                  Modifica
-                </button>
-                <button
-                  type="button"
-                  disabled={syncingId !== null}
-                  onClick={() => void handleSync(calendar.id)}
-                  className="rounded-lg border border-[var(--brand)] px-3 py-1.5 text-xs font-medium text-[var(--brand)] hover:bg-[var(--brand)]/5 disabled:opacity-60"
-                >
-                  {syncingId === calendar.id ? "Sync…" : "Sincronizza"}
-                </button>
-                <button
-                  type="button"
-                  disabled={deletingId === calendar.id}
-                  onClick={() => void handleDelete(calendar.id)}
-                  className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-60"
-                >
-                  {deletingId === calendar.id ? "…" : "Elimina"}
-                </button>
-              </div>
-            </li>
-          ))}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={syncingId !== null}
+                    onClick={() => void handleSync(calendar.id)}
+                    className="rounded-lg border border-[var(--brand)] px-3 py-1.5 text-xs font-medium text-[var(--brand)] hover:bg-[var(--brand)]/5 disabled:opacity-60"
+                  >
+                    {syncingId === calendar.id ? "Sincronizzo…" : "Sincronizza"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => startEdit(calendar)}
+                    className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                  >
+                    Modifica
+                  </button>
+                  <button
+                    type="button"
+                    disabled={deletingId === calendar.id}
+                    onClick={() => void handleDelete(calendar.id)}
+                    className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-60"
+                  >
+                    {deletingId === calendar.id ? "…" : "Elimina"}
+                  </button>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
 
       {!loading && calendars.length === 0 && (
         <p className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 px-4 py-6 text-center text-sm text-neutral-600">
-          Nessun calendario esterno configurato per questa sala.
+          Nessun calendario per questa sala.
         </p>
       )}
 
-      <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4 border-t border-neutral-100 pt-6">
+      <form
+        onSubmit={(e) => void handleSubmit(e)}
+        className="space-y-4 border-t border-neutral-100 pt-6"
+      >
         <h4 className="text-sm font-medium text-neutral-800">
           {editingId ? "Modifica calendario" : "Aggiungi calendario"}
         </h4>
 
         <div>
-          <label htmlFor="cal-name" className="block text-sm font-medium text-neutral-700">
-            Nome
+          <label htmlFor="cal-name">
+            <FieldLabel>Nome</FieldLabel>
           </label>
           <input
             id="cal-name"
@@ -302,16 +284,13 @@ export function RoomExternalCalendarsPanel({
             value={form.name}
             onChange={(e) => updateField("name", e.target.value)}
             placeholder="es. Aula Arancio — Scuola"
-            className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
+            className={settingsInputClass}
           />
         </div>
 
         <div>
-          <label
-            htmlFor="cal-google-id"
-            className="block text-sm font-medium text-neutral-700"
-          >
-            ID Google Calendar
+          <label htmlFor="cal-google-id">
+            <FieldLabel>Indirizzo calendario</FieldLabel>
           </label>
           <input
             id="cal-google-id"
@@ -319,19 +298,15 @@ export function RoomExternalCalendarsPanel({
             value={form.googleCalendarId}
             onChange={(e) => updateField("googleCalendarId", e.target.value)}
             placeholder="xxxx@group.calendar.google.com"
-            className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 font-mono text-sm"
+            className={settingsInputClass}
           />
         </div>
 
-        <label className="flex items-center gap-2 text-sm text-neutral-700">
-          <input
-            type="checkbox"
-            checked={form.enabled}
-            onChange={(e) => updateField("enabled", e.target.checked)}
-            className="rounded border-neutral-300"
-          />
-          Calendario attivo
-        </label>
+        <ToggleRow
+          label="Attivo"
+          checked={form.enabled}
+          onChange={(checked) => updateField("enabled", checked)}
+        />
 
         <div className="flex flex-wrap gap-2">
           <button
@@ -352,7 +327,6 @@ export function RoomExternalCalendarsPanel({
           )}
         </div>
       </form>
-      </CollapsibleSection>
     </div>
   );
 }

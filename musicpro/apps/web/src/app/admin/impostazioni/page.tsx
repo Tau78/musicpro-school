@@ -7,7 +7,6 @@ import {
 } from "@musicpro/database";
 
 import { BookingSettingsForm } from "@/components/admin/booking-settings-form";
-import { CollapsibleSection } from "@/components/admin/collapsible-section";
 import { PenaltyRulesPanel } from "@/components/admin/penalty-rules-panel";
 import { PrenotazioniSettingsNav } from "@/components/admin/prenotazioni-settings-nav";
 import { getAdminMember } from "@/lib/admin/current-member";
@@ -51,9 +50,6 @@ export default async function ImpostazioniPage({
         <h2 className="text-2xl font-semibold text-[var(--brand)]">
           Prenotazioni
         </h2>
-        <p className="mt-1 text-sm text-neutral-600">
-          Soglie operative, penali di cancellazione e crediti restituiti.
-        </p>
       </div>
 
       <PrenotazioniSettingsNav section={section} />
@@ -62,21 +58,7 @@ export default async function ImpostazioniPage({
         <BookingSettingsForm settings={settings} />
       ) : null}
 
-      {section === "penali" ? (
-        <div>
-          <div className="mb-6">
-            <h3 className="text-lg font-semibold text-[var(--brand)]">
-              Penali cancellazione
-            </h3>
-            <p className="mt-1 text-sm text-neutral-600">
-              Fasce orarie con percentuale di penale applicata alla
-              cancellazione associato. Il rimborso è calcolato come totale meno
-              penale.
-            </p>
-          </div>
-          <PenaltyRulesPanel rules={rules} />
-        </div>
-      ) : null}
+      {section === "penali" ? <PenaltyRulesPanel rules={rules} /> : null}
 
       {section === "crediti" ? (
         <CreditiPrenotazioniSection rules={rules} />
@@ -92,37 +74,28 @@ function CreditiPrenotazioniSection({
 }) {
   return (
     <div className="space-y-6">
-      <div>
-        <h3 className="text-lg font-semibold text-[var(--brand)]">
-          Crediti su cancellazione
-        </h3>
-        <p className="mt-1 text-sm text-neutral-600">
-          Alla cancellazione di una prenotazione, i crediti restituiti sono il
-          complemento della penale della fascia oraria. Le regole si modificano
-          nella sezione{" "}
-          <Link
-            href="/admin/impostazioni?sezione=penali"
-            className="text-[var(--brand)] hover:underline"
-          >
-            Penali
-          </Link>
-          .
-        </p>
-      </div>
+      <p className="text-sm text-neutral-600">
+        I crediti restituiti sono il complemento della penale.{" "}
+        <Link
+          href="/admin/impostazioni?sezione=penali"
+          className="text-[var(--brand)] hover:underline"
+        >
+          Penali
+        </Link>
+      </p>
 
-      <CollapsibleSection title="Fasce e crediti restituiti" defaultOpen>
       <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
         <table className="min-w-full divide-y divide-neutral-200 text-sm">
           <thead className="bg-neutral-50">
             <tr>
               <th className="px-4 py-3 text-left font-medium text-neutral-600">
-                Fascia (ore prima)
+                Ore prima
               </th>
               <th className="px-4 py-3 text-left font-medium text-neutral-600">
                 Penale
               </th>
               <th className="px-4 py-3 text-left font-medium text-neutral-600">
-                Crediti restituiti
+                Crediti
               </th>
               <th className="px-4 py-3 text-left font-medium text-neutral-600">
                 Stato
@@ -136,8 +109,7 @@ function CreditiPrenotazioniSection({
                   colSpan={4}
                   className="px-4 py-8 text-center text-neutral-500"
                 >
-                  Nessuna fascia configurata. Aggiungi regole in Penali per
-                  definire i crediti restituiti.
+                  Nessuna fascia. Aggiungi regole in Penali.
                 </td>
               </tr>
             ) : (
@@ -167,10 +139,9 @@ function CreditiPrenotazioniSection({
           </tbody>
         </table>
       </div>
-      </CollapsibleSection>
 
       <p className="text-sm text-neutral-500">
-        Le notule spese docenti restano nella tab{" "}
+        Notule docenti:{" "}
         <Link
           href="/admin/rimborsi"
           className="text-[var(--brand)] hover:underline"

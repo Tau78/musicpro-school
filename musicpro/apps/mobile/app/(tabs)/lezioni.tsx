@@ -106,7 +106,7 @@ export default function LezioniScreen() {
         </View>
         <Pressable
           style={styles.calendarButton}
-          onPress={() => router.push("/lezioni/calendario")}
+          onPress={() => router.push("/calendario-lezioni")}
         >
           <Text style={styles.calendarButtonText}>Calendario</Text>
         </Pressable>

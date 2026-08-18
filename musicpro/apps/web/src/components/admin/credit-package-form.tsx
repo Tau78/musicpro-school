@@ -11,7 +11,11 @@ import {
   updateCreditPackage,
 } from "@musicpro/database";
 
-import { CollapsibleSection } from "@/components/admin/collapsible-section";
+import {
+  FieldLabel,
+  ToggleRow,
+  settingsInputClass,
+} from "@/components/admin/settings-chrome";
 import { createClient } from "@/lib/supabase/client";
 
 interface CreditPackageFormProps {
@@ -133,7 +137,7 @@ export function CreditPackageForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8">
+    <form onSubmit={handleSubmit} className="space-y-6">
       {error ? (
         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
@@ -145,72 +149,73 @@ export function CreditPackageForm({
         </p>
       ) : null}
 
-      <CollapsibleSection title="Pacchetto crediti" defaultOpen>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Nome *" className="sm:col-span-2">
-            <input
-              required
-              value={form.name}
-              onChange={(e) => updateField("name", e.target.value)}
-              className={inputClass}
-            />
-          </Field>
-          <Field label="Crediti *">
-            <input
-              type="number"
-              min={1}
-              required
-              value={form.credits}
-              onChange={(e) =>
-                updateField("credits", Number(e.target.value) || 0)
-              }
-              className={inputClass}
-            />
-          </Field>
-          <Field label="Prezzo (EUR) *">
-            <input
-              type="number"
-              min={0}
-              step="0.01"
-              required
-              value={form.priceEur}
-              onChange={(e) =>
-                updateField("priceEur", Number(e.target.value) || 0)
-              }
-              className={inputClass}
-            />
-          </Field>
-          <Field label="Ordine visualizzazione">
-            <input
-              type="number"
-              value={form.sortOrder}
-              onChange={(e) =>
-                updateField("sortOrder", Number(e.target.value) || 0)
-              }
-              className={inputClass}
-            />
-          </Field>
-          <Field label="Descrizione" className="sm:col-span-2">
-            <textarea
-              rows={3}
-              value={form.description ?? ""}
-              onChange={(e) =>
-                updateField("description", e.target.value || null)
-              }
-              className={inputClass}
-            />
-          </Field>
-          <label className="flex items-center gap-2 text-sm sm:col-span-2">
-            <input
-              type="checkbox"
-              checked={form.enabled}
-              onChange={(e) => updateField("enabled", e.target.checked)}
-              className="rounded border-neutral-300"
-            />
-            Pacchetto attivo nello shop
-          </label>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="block sm:col-span-2">
+          <FieldLabel>Nome</FieldLabel>
+          <input
+            required
+            value={form.name}
+            onChange={(e) => updateField("name", e.target.value)}
+            className={settingsInputClass}
+          />
+        </label>
+        <label className="block">
+          <FieldLabel>Crediti</FieldLabel>
+          <input
+            type="number"
+            min={1}
+            required
+            value={form.credits}
+            onChange={(e) =>
+              updateField("credits", Number(e.target.value) || 0)
+            }
+            className={settingsInputClass}
+          />
+        </label>
+        <label className="block">
+          <FieldLabel>Prezzo</FieldLabel>
+          <input
+            type="number"
+            min={0}
+            step="0.01"
+            required
+            value={form.priceEur}
+            onChange={(e) =>
+              updateField("priceEur", Number(e.target.value) || 0)
+            }
+            className={settingsInputClass}
+          />
+        </label>
+        <label className="block">
+          <FieldLabel>Ordine</FieldLabel>
+          <input
+            type="number"
+            value={form.sortOrder}
+            onChange={(e) =>
+              updateField("sortOrder", Number(e.target.value) || 0)
+            }
+            className={settingsInputClass}
+          />
+        </label>
+        <label className="block sm:col-span-2">
+          <FieldLabel>Descrizione</FieldLabel>
+          <textarea
+            rows={3}
+            value={form.description ?? ""}
+            onChange={(e) =>
+              updateField("description", e.target.value || null)
+            }
+            className={settingsInputClass}
+          />
+        </label>
+        <div className="sm:col-span-2">
+          <ToggleRow
+            label="Attivo"
+            checked={form.enabled}
+            onChange={(checked) => updateField("enabled", checked)}
+          />
         </div>
-      </CollapsibleSection>
+      </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex gap-3">
@@ -277,25 +282,5 @@ export function CreditPackageForm({
         </div>
       ) : null}
     </form>
-  );
-}
-
-const inputClass =
-  "w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)]";
-
-function Field({
-  label,
-  children,
-  className = "",
-}: {
-  label: string;
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <label className={`block text-sm ${className}`}>
-      <span className="mb-1 block text-neutral-600">{label}</span>
-      {children}
-    </label>
   );
 }

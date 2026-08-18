@@ -18,12 +18,12 @@ export function DocumentiSubNav() {
         },
         {
           href: "/admin/impostazioni/documenti/drive",
-          label: "Drive",
+          label: "Cartelle",
           active: pathname.startsWith("/admin/impostazioni/documenti/drive"),
         },
         {
           href: "/admin/impostazioni/documenti/template",
-          label: "Template",
+          label: "Modelli",
           active:
             pathname.startsWith("/admin/impostazioni/documenti/template") ||
             pathname.startsWith("/admin/template"),

@@ -1909,6 +1909,10 @@ export interface Database {
         Args: { p_payment_id: string };
         Returns: Json;
       };
+      list_lesson_staff_emails: {
+        Args: Record<string, never>;
+        Returns: { email: string; label: string }[];
+      };
       next_fiscal_receipt_number: {
         Args: { p_year: number };
         Returns: number;

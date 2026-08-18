@@ -280,7 +280,7 @@ export default function LezioniCalendarioScreen() {
         actor: {
           memberId: member.id,
           isStaff: false,
-          canReschedule: true,
+          canReschedule,
         },
       });
       if (!result.success) {
@@ -414,7 +414,7 @@ export default function LezioniCalendarioScreen() {
             today={today}
             selectedLessonId={selectedLesson?.id}
             onSelectLesson={openDetail}
-            onLongPressLesson={startMove}
+            onLongPressLesson={canReschedule ? startMove : undefined}
           />
         ) : (
           <CalendarMonth
@@ -425,7 +425,7 @@ export default function LezioniCalendarioScreen() {
             selectedLessonId={selectedLesson?.id}
             onSelectDate={(date) => void handleSelectDate(date)}
             onSelectLesson={openDetail}
-            onLongPressLesson={startMove}
+            onLongPressLesson={canReschedule ? startMove : undefined}
           />
         )}
 

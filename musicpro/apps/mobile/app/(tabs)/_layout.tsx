@@ -36,7 +36,7 @@ export default function TabsLayout() {
         options={{
           title: "Lezioni",
           headerTitle: APP_NAME,
-          href: isDocente ? "/lezioni" : null,
+          href: isDocente ? "/(tabs)/lezioni" : null,
         }}
       />
     </Tabs>

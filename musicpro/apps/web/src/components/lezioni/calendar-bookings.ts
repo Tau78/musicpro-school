@@ -1,4 +1,7 @@
-import type { AdminBookingListItem } from "@musicpro/database";
+import type {
+  AdminBookingListItem,
+  ExternalCalendarEvent,
+} from "@musicpro/database";
 
 import type { CalendarLesson } from "@/components/lezioni/lessons-calendar";
 
@@ -43,9 +46,37 @@ export function toBookingLesson(booking: AdminBookingListItem): CalendarLesson {
   };
 }
 
+export function externalEventId(id: string): string {
+  return `external:${id}`;
+}
+
+export function parseExternalEventId(id: string): string | null {
+  return id.startsWith("external:") ? id.slice("external:".length) : null;
+}
+
+export function toExternalLesson(event: ExternalCalendarEvent): CalendarLesson {
+  return {
+    id: externalEventId(event.id),
+    courseId: "",
+    sequenceNumber: 0,
+    startsAt: event.startsAt,
+    endsAt: event.endsAt,
+    roomId: event.roomId,
+    courseName: event.summary?.trim() || event.calendarName || "Calendario",
+    courseKind: "gruppo",
+    courseStatus: "attivo",
+    studentNames: [],
+    titularFirstName: null,
+    titularLastName: null,
+    roomName: event.roomName,
+    source: "external",
+  };
+}
+
 export function mergeCalendarEvents(
   lessons: Array<CalendarLesson & { bookingId?: string | null }>,
   bookings: AdminBookingListItem[],
+  externals: ExternalCalendarEvent[] = [],
 ): CalendarLesson[] {
   const used = new Set(
     lessons
@@ -55,5 +86,6 @@ export function mergeCalendarEvents(
   return [
     ...lessons,
     ...bookings.filter((row) => !used.has(row.id)).map(toBookingLesson),
+    ...externals.map(toExternalLesson),
   ];
 }

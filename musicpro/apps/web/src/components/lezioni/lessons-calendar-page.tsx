@@ -452,7 +452,9 @@ export function LessonsCalendarPage({
           </p>
           {attendanceLesson.hasAttendance && !isStaff ? (
             <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-              Lezione già presenziata: sblocca la presenza in segreteria.
+              Presenze già segnate: puoi modificarle se il mese è aperto e
+              sei nella finestra di 14 giorni. Per spostare la lezione serve
+              prima lo sblocco in segreteria.
             </p>
           ) : null}
           <div className="mt-4">

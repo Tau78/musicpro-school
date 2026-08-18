@@ -10,7 +10,11 @@ import {
   upsertDocumentSettings,
 } from "@musicpro/database";
 
-import { CollapsibleSection } from "@/components/admin/collapsible-section";
+import {
+  FieldLabel,
+  SettingsTabs,
+  settingsInputClass,
+} from "@/components/admin/settings-chrome";
 import { createClient } from "@/lib/supabase/client";
 
 interface AppSettingsPanelProps {
@@ -19,14 +23,72 @@ interface AppSettingsPanelProps {
   title?: string;
   description?: string;
   submitLabel?: string;
+  extraTabs?: { id: string; label: string; content: React.ReactNode }[];
+}
+
+const HUMAN_SETTING_LABELS: Record<string, string> = {
+  root_reimbursements_folder_id: "Cartella notule",
+  reimbursement_template_id: "Modello notule",
+  enrollment_template_id: "Modello iscrizione",
+  root_enrollments_folder_id: "Cartella iscrizioni",
+  admin_email: "Email admin",
+  segreteria_email: "Email segreteria",
+  storage_bucket_reimbursements: "Archivio notule",
+  storage_bucket_enrollments: "Archivio iscrizioni",
+  legacy_spreadsheet_id: "Foglio storico",
+  timezone: "Fuso orario",
+};
+
+function settingLabel(setting: AppSetting): string {
+  const key = setting.key as DocumentSettingKey;
+  return (
+    HUMAN_SETTING_LABELS[setting.key] ??
+    DOCUMENT_SETTING_LABELS[key] ??
+    setting.description ??
+    setting.key
+  );
+}
+
+export function TemplateSettingsLayout({
+  templatesPanel,
+  settingsPanel,
+}: {
+  templatesPanel?: React.ReactNode;
+  settingsPanel?: React.ReactNode;
+}) {
+  const hasBoth = Boolean(templatesPanel && settingsPanel);
+  const [tab, setTab] = useState<"modelli" | "documenti">("modelli");
+  const active = hasBoth
+    ? tab
+    : templatesPanel
+      ? "modelli"
+      : "documenti";
+
+  return (
+    <div className="space-y-6">
+      {hasBoth ? (
+        <SettingsTabs
+          tabs={[
+            { id: "modelli", label: "Modelli" },
+            { id: "documenti", label: "Documenti" },
+          ]}
+          value={tab}
+          onChange={setTab}
+        />
+      ) : null}
+      {active === "modelli" ? templatesPanel : null}
+      {active === "documenti" ? settingsPanel : null}
+    </div>
+  );
 }
 
 export function AppSettingsPanel({
   settings,
   keys,
-  title = "Drive, template e storage",
-  description = "Chiavi legacy migrate da GAS (`app_settings`). Gli ID Drive restano utili come riferimento per PDF storici; i bucket Storage servono per i nuovi documenti.",
-  submitLabel = "Salva impostazioni documenti",
+  title = "Documenti",
+  description,
+  submitLabel = "Salva",
+  extraTabs,
 }: AppSettingsPanelProps) {
   const router = useRouter();
   const supabase = createClient();
@@ -37,6 +99,18 @@ export function AppSettingsPanel({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [tab, setTab] = useState("impostazioni");
+
+  const visibleSettings = keys
+    ? settings.filter((setting) => keys.includes(setting.key))
+    : settings;
+
+  const tabs = extraTabs
+    ? [
+        { id: "impostazioni", label: title },
+        ...extraTabs.map((item) => ({ id: item.id, label: item.label })),
+      ]
+    : null;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -61,6 +135,29 @@ export function AppSettingsPanel({
     router.refresh();
   }
 
+  const fields = (
+    <div className="grid gap-4">
+      {visibleSettings.map((setting) => (
+        <label key={setting.key} className="block">
+          <FieldLabel>{settingLabel(setting)}</FieldLabel>
+          <input
+            type="text"
+            name={setting.key}
+            value={form[setting.key] ?? ""}
+            onChange={(e) =>
+              setForm((prev) => ({
+                ...prev,
+                [setting.key]: e.target.value,
+              }))
+            }
+            className={settingsInputClass}
+            spellCheck={false}
+          />
+        </label>
+      ))}
+    </div>
+  );
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {error ? (
@@ -74,38 +171,26 @@ export function AppSettingsPanel({
         </p>
       ) : null}
 
-      <CollapsibleSection title={title} description={description} defaultOpen>
-        <div className="grid gap-4">
-          {(keys
-            ? settings.filter((setting) => keys.includes(setting.key))
-            : settings
-          ).map((setting) => {
-            const key = setting.key as DocumentSettingKey;
-            const label =
-              DOCUMENT_SETTING_LABELS[key] ?? setting.description ?? setting.key;
-            return (
-              <label key={setting.key} className="block text-sm">
-                <span className="mb-1 block text-neutral-600">{label}</span>
-                <input
-                  type="text"
-                  value={form[setting.key] ?? ""}
-                  onChange={(e) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      [setting.key]: e.target.value,
-                    }))
-                  }
-                  className="w-full rounded-lg border border-neutral-300 px-3 py-2 font-mono text-sm focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)]"
-                  spellCheck={false}
-                />
-                <span className="mt-1 block text-xs text-neutral-400">
-                  chiave: {setting.key}
-                </span>
-              </label>
-            );
-          })}
+      {tabs ? (
+        <SettingsTabs
+          tabs={tabs}
+          value={tab}
+          onChange={setTab}
+        />
+      ) : title ? (
+        <div>
+          <h3 className="text-lg font-semibold text-[var(--brand)]">{title}</h3>
+          {description ? (
+            <p className="mt-1 text-sm text-neutral-600">{description}</p>
+          ) : null}
         </div>
-      </CollapsibleSection>
+      ) : null}
+
+      {tabs && tab !== "impostazioni" ? (
+        extraTabs?.find((item) => item.id === tab)?.content
+      ) : (
+        fields
+      )}
 
       <div className="flex gap-3">
         <button

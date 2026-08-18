@@ -224,6 +224,7 @@ async function computePreview(
   teacherMemberId: string,
   year: number,
   month: number,
+  persistSlips = false,
 ): Promise<PayrollPreview> {
   const warnings: string[] = [];
   const settings = await getLessonSchoolSettings(client);
@@ -343,7 +344,7 @@ async function computePreview(
     const assignedHere = slippedIn.has(lesson.id);
 
     if (!markedLessons.has(lesson.id)) {
-      if (inNaturalMonth && pastDeadline) {
+      if (persistSlips && inNaturalMonth && pastDeadline) {
         const dest = addMonths(year, month, 1);
         await client.from("lesson_payroll_slips").upsert({
           lesson_id: lesson.id,
@@ -806,6 +807,7 @@ export async function generateLessonPayroll(
     input.teacherMemberId,
     input.year,
     input.month,
+    true,
   );
   return persistGenerated(client, preview, input.actorMemberId, 0);
 }

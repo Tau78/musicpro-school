@@ -1,6 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { listMemberIdsWithRole } from "./member-roles";
 import { sendLessonFamilyEmail, sendSingleEmail } from "./messaging";
 import type { Database } from "./types/database";
 
@@ -135,33 +134,14 @@ function familyCopy(input: CourseLifecycleNotifyInput): {
 async function listStaffRecipients(
   client: NotifyClient,
 ): Promise<{ email: string; label: string }[]> {
-  const [adminIds, segreteriaIds] = await Promise.all([
-    listMemberIdsWithRole(client, "admin"),
-    listMemberIdsWithRole(client, "segreteria"),
-  ]);
-  const ids = [...new Set([...adminIds, ...segreteriaIds])];
-  if (ids.length === 0) return [];
-
-  const { data, error } = await client
-    .from("members")
-    .select("id, email, first_name, last_name")
-    .in("id", ids);
-  if (error) {
-    return [];
-  }
-
-  const seen = new Set<string>();
-  const rows: { email: string; label: string }[] = [];
-  for (const row of data ?? []) {
-    const email = row.email?.trim().toLowerCase() ?? "";
-    if (!email || seen.has(email)) continue;
-    seen.add(email);
-    rows.push({
-      email,
-      label: `${row.last_name} ${row.first_name}`.trim(),
-    });
-  }
-  return rows;
+  const { data, error } = await client.rpc("list_lesson_staff_emails");
+  if (error) return [];
+  return (data ?? [])
+    .map((row) => ({
+      email: row.email?.trim() ?? "",
+      label: row.label?.trim() || "Staff",
+    }))
+    .filter((row) => row.email);
 }
 
 export async function notifyCourseLifecycle(

@@ -47,7 +47,7 @@ export interface CalendarLesson {
   titularLastName: string | null;
   roomName: string | null;
   hasAttendance?: boolean;
-  source?: "lesson" | "booking";
+  source?: "lesson" | "booking" | "external";
   bookingStatus?: "pending" | "pending_approval" | "confirmed" | "cancelled";
   proviDaSolo?: boolean;
 }
@@ -657,7 +657,9 @@ function LessonCard({
   const time = `${minutesToTimeLabel(lesson.startMinute)}–${minutesToTimeLabel(lesson.endMinute)}`;
   const isHold = lesson.id.startsWith("hold:");
   const isBooking = isCalendarBooking(lesson);
-  const draggable = canDrag && !isHold && !isBooking && !lesson.hasAttendance;
+  const isExternal = isCalendarExternal(lesson);
+  const draggable =
+    canDrag && !isHold && !isBooking && !isExternal && !lesson.hasAttendance;
 
   function open() {
     if (dragged.current) return;
@@ -712,6 +714,11 @@ function LessonCard({
       {isBooking ? (
         <p className="truncate text-[9px] font-medium text-neutral-600">
           {bookingChipLabel(lesson)}
+        </p>
+      ) : null}
+      {isExternal ? (
+        <p className="truncate text-[9px] font-medium text-neutral-600">
+          Calendario
         </p>
       ) : null}
       {lesson.hasAttendance && !isHold && !isBooking ? (
@@ -1008,6 +1015,10 @@ function isCalendarBooking(lesson: CalendarLesson): boolean {
   return lesson.source === "booking" || lesson.id.startsWith("booking:");
 }
 
+function isCalendarExternal(lesson: CalendarLesson): boolean {
+  return lesson.source === "external" || lesson.id.startsWith("external:");
+}
+
 function bookingChipLabel(lesson: CalendarLesson): string {
   if (lesson.bookingStatus === "pending_approval") return "Da approvare";
   if (lesson.proviDaSolo) return "Da solo";
@@ -1015,6 +1026,9 @@ function bookingChipLabel(lesson: CalendarLesson): string {
 }
 
 function lessonCardClass(lesson: CalendarLesson): string {
+  if (isCalendarExternal(lesson)) {
+    return "bg-neutral-100 border-neutral-400";
+  }
   if (isCalendarBooking(lesson)) {
     return lesson.bookingStatus === "pending_approval"
       ? "bg-emerald-50 border-dashed border-emerald-400"
@@ -1037,7 +1051,9 @@ function lessonCardClass(lesson: CalendarLesson): string {
 }
 
 function lessonTitle(lesson: CalendarLesson): string {
-  if (isCalendarBooking(lesson)) return chipName(lesson);
+  if (isCalendarBooking(lesson) || isCalendarExternal(lesson)) {
+    return chipName(lesson);
+  }
   return `#${lesson.sequenceNumber} ${chipName(lesson)}`;
 }
 

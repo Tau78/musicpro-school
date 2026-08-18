@@ -14,7 +14,11 @@ import {
   timeLabelToMinutes,
 } from "@musicpro/database";
 
-import { CollapsibleSection } from "@/components/admin/collapsible-section";
+import {
+  FieldLabel,
+  ToggleRow,
+  settingsInputClass,
+} from "@/components/admin/settings-chrome";
 import { createClient } from "@/lib/supabase/client";
 
 export interface TeacherAvailabilitySlotProp {
@@ -57,8 +61,7 @@ const DAY_LABELS: Record<IsoWeekday, string> = {
 
 const TIME_STEP_SECONDS = 15 * 60;
 
-const inputClass =
-  "w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)] disabled:bg-neutral-50 disabled:text-neutral-500";
+const inputClass = `${settingsInputClass} disabled:bg-neutral-50 disabled:text-neutral-500`;
 
 function nextDraftKey(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -390,11 +393,16 @@ export function TeacherAvailabilityPanel({
       ) : null}
 
       <form onSubmit={(e) => void handleSaveWeekly(e)} className="space-y-6">
-        <CollapsibleSection
-          title="Disponibilità settimanale"
-          description="Nessuna fascia = sempre disponibile. Aggiungendo fasce, il docente risulta libero solo in quelle ore."
-          defaultOpen
-        >
+        <section className="space-y-4">
+          <div>
+            <h3 className="text-base font-semibold text-[var(--brand)]">
+              Disponibilità settimanale
+            </h3>
+            <p className="mt-1 text-sm text-neutral-600">
+              Nessuna fascia = sempre disponibile. Aggiungendo fasce, il docente
+              risulta libero solo in quelle ore.
+            </p>
+          </div>
 
           {slots.length === 0 ? (
             <p className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 px-4 py-4 text-sm text-neutral-600">
@@ -482,7 +490,7 @@ export function TeacherAvailabilityPanel({
               );
             })}
           </div>
-        </CollapsibleSection>
+        </section>
 
         {readOnly ? null : (
           <button
@@ -495,7 +503,10 @@ export function TeacherAvailabilityPanel({
         )}
       </form>
 
-      <CollapsibleSection title="Ferie e assenze">
+      <section className="space-y-4">
+        <h3 className="text-base font-semibold text-[var(--brand)]">
+          Ferie e assenze
+        </h3>
 
         {timeOff.length === 0 ? (
           <p className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 px-4 py-4 text-sm text-neutral-600">
@@ -530,15 +541,11 @@ export function TeacherAvailabilityPanel({
             <h4 className="text-sm font-medium text-neutral-800">
               Aggiungi assenza
             </h4>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={offHasTimeRange}
-                onChange={(e) => setOffHasTimeRange(e.target.checked)}
-                className="rounded border-neutral-300"
-              />
-              Fascia oraria
-            </label>
+            <ToggleRow
+              label="Fascia oraria"
+              checked={offHasTimeRange}
+              onChange={setOffHasTimeRange}
+            />
             <div className="grid gap-4 sm:grid-cols-2">
               {offHasTimeRange ? (
                 <>
@@ -599,7 +606,7 @@ export function TeacherAvailabilityPanel({
             </button>
           </form>
         )}
-      </CollapsibleSection>
+      </section>
     </section>
   );
 }
@@ -672,8 +679,8 @@ function Field({
   className?: string;
 }) {
   return (
-    <label className={`block min-w-[8rem] text-sm ${className}`}>
-      <span className="mb-1 block text-neutral-600">{label}</span>
+    <label className={`block min-w-[8rem] ${className}`}>
+      <FieldLabel>{label}</FieldLabel>
       {children}
     </label>
   );
