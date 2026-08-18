@@ -827,6 +827,17 @@ export async function rescheduleTrial(
     return fail("La lezione di prova è stata annullata.");
   }
 
+  const { error: flagError } = await client
+    .from("courses")
+    .update({ trial_reschedule_used: true })
+    .eq("id", courseId)
+    .eq("trial_reschedule_used", false);
+  if (flagError) {
+    return fail(
+      flagError.message || "Impossibile segnare la prova come riprogrammata.",
+    );
+  }
+
   const moved = await moveLesson(client, lesson.id, {
     startsAt: nextStartsAt,
     roomId,
@@ -837,12 +848,17 @@ export async function rescheduleTrial(
       canReschedule: actor.isStaff || actor.canCreateCourses,
     },
   });
-  if (!moved.success) return moved;
+  if (!moved.success) {
+    await client
+      .from("courses")
+      .update({ trial_reschedule_used: false })
+      .eq("id", courseId);
+    return moved;
+  }
 
   const { error } = await client
     .from("courses")
     .update({
-      trial_reschedule_used: true,
       starts_on: nextDate,
       weekly_dow: toIsoWeekday(getRomeDayOfWeek(nextStartsAt)),
       weekly_start_minute: getRomeMinutesFromMidnight(nextStartsAt),

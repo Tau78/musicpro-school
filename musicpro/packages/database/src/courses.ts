@@ -1077,9 +1077,10 @@ export async function createCourse(
   if (isStaff) {
     const generated = await generateCourseLessons(client, courseId);
     if (!generated.success) {
+      await client.from("courses").delete().eq("id", courseId);
       return fail(
         generated.errorMessage || "Impossibile generare le lezioni.",
-        { id: courseId, warnings },
+        { warnings },
       );
     }
     if (generated.warnings) warnings.push(...generated.warnings);
@@ -1300,6 +1301,7 @@ export async function generateCourseLessons(
     .from("lessons")
     .select("id")
     .eq("course_id", courseId)
+    .is("cancelled_at", null)
     .limit(1);
   if (existingError) {
     return fail(
