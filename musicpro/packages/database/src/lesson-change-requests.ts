@@ -196,6 +196,12 @@ export async function reviewLessonChangeRequest(
   if (holdError) return fail(holdError);
 
   if (input.approve) {
+    const { data: original } = await client
+      .from("lessons")
+      .select("starts_at, room_id")
+      .eq("id", request.lessonId)
+      .maybeSingle();
+
     const moved = await moveLesson(client, request.lessonId, {
       startsAt: request.requestedStartsAt,
       roomId: request.requestedRoomId,
@@ -217,6 +223,19 @@ export async function reviewLessonChangeRequest(
       .eq("id", request.id)
       .eq("status", "pending");
     if (updateError) {
+      if (original?.starts_at) {
+        await moveLesson(client, request.lessonId, {
+          startsAt: original.starts_at,
+          roomId: original.room_id,
+          scope: "this",
+          actor: {
+            memberId: input.actorMemberId,
+            isStaff: true,
+            canReschedule: true,
+          },
+        });
+      }
+      await restoreRequestHold(client, request);
       return fail(
         updateError.message || "Impossibile approvare la richiesta.",
         { warnings: moved.warnings },

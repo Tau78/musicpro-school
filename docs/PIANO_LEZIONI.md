@@ -979,7 +979,7 @@ Audit 2 (2026-08-18): RPC pack solo titolare+contanti propri (`047`); reminder n
 
 Audit 3 (2026-08-19): sblocco presenze ripristina consumi (`048`); insert titolare solo contanti; Stripe apply solo webhook + leftover famiglia + unique pack (`049`); trigger colonne corso; reminder log dopo send + cron orario; rollback booking; Expo solo docente; unplaced/drag solo `attivo`.
 
-Audit 4 (2026-08-19): cancelTrial libera `booking_id`; una sola richiesta spostamento pending; generate con lezioni esistenti avvisa; resume fallisce e torna in pausa se lo snapshot non si ripristina; welcome prova due To; step slot anche sulla prova.
+Audit 4 (2026-08-19): cancelTrial libera `booking_id`; una sola richiesta spostamento pending; generate ignora solo lezioni vive; resume/pausa/chiusura con rollback; move future senza booking fantasma; approve coda atomica rispetto allo spostamento.
 
 Restano accettati: GCal OAuth stub, dual iscrizione, webhook pack al VAI, photo_consent su nuovo iscritto solo se c’è già un `members` (token).
 
