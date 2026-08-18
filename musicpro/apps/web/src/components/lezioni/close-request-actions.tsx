@@ -89,6 +89,13 @@ export function CloseRequestActions({
       setError("La data di chiusura è obbligatoria.");
       return;
     }
+    if (
+      !window.confirm(
+        `Chiudere «${request.courseName}» in data ${closedOn}? Le lezioni dopo quella data verranno cancellate.`,
+      )
+    ) {
+      return;
+    }
 
     void run(request.id, "close", () =>
       closeCourse(supabase, {
@@ -100,6 +107,13 @@ export function CloseRequestActions({
   }
 
   function handleDismiss(request: CourseCloseRequest) {
+    if (
+      !window.confirm(
+        `Scartare la richiesta di chiusura di «${request.courseName}»?`,
+      )
+    ) {
+      return;
+    }
     void run(request.id, "dismiss", () =>
       dismissCourseCloseRequest(supabase, {
         eventId: request.id,

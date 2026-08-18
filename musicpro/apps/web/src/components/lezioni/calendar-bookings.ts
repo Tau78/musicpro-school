@@ -70,6 +70,7 @@ export function toExternalLesson(event: ExternalCalendarEvent): CalendarLesson {
     titularLastName: null,
     roomName: event.roomName,
     source: "external",
+    calendarColorId: event.calendarColorId,
   };
 }
 

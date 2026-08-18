@@ -1,6 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { cancelHoldBooking, type CourseMutationResult } from "./courses";
+import {
+  cancelHoldBooking,
+  createLessonBooking,
+  type CourseMutationResult,
+} from "./courses";
 import { moveLesson } from "./lessons-calendar";
 import type { Database } from "./types/database";
 
@@ -73,6 +77,36 @@ function mapRequest(
     createdBy: row.created_by,
     createdAt: row.created_at,
   };
+}
+
+function addMinutesIso(iso: string, minutes: number): string {
+  return new Date(Date.parse(iso) + minutes * 60_000).toISOString();
+}
+
+async function restoreRequestHold(
+  client: RequestsClient,
+  request: LessonChangeRequest,
+): Promise<void> {
+  if (!request.requestedRoomId || !request.requestedStartsAt) return;
+  const { data: course } = await client
+    .from("courses")
+    .select("titular_member_id, name, duration_minutes")
+    .eq("id", request.courseId)
+    .maybeSingle();
+  if (!course) return;
+  const booked = await createLessonBooking(client, {
+    roomId: request.requestedRoomId,
+    memberId: course.titular_member_id,
+    startAt: request.requestedStartsAt,
+    endAt: addMinutesIso(request.requestedStartsAt, course.duration_minutes),
+    title: `Richiesta spostamento: ${course.name}`,
+  });
+  if (!booked.bookingId) return;
+  await client
+    .from("lesson_change_requests")
+    .update({ hold_booking_id: booked.bookingId })
+    .eq("id", request.id)
+    .eq("status", "pending");
 }
 
 async function releaseHold(
@@ -172,7 +206,10 @@ export async function reviewLessonChangeRequest(
         canReschedule: true,
       },
     });
-    if (!moved.success) return moved;
+    if (!moved.success) {
+      await restoreRequestHold(client, request);
+      return moved;
+    }
 
     const { error: updateError } = await client
       .from("lesson_change_requests")

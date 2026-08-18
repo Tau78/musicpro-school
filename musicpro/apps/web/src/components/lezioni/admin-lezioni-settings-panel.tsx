@@ -60,8 +60,7 @@ export function AdminLezioniSettingsPanel({
           <LessonSchoolSettingsForm settings={settings} />
         ) : (
           <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            Impostazioni scuola non trovate. Controlla la riga singleton in
-            database.
+            Impostazioni scuola non trovate.
           </p>
         )
       ) : null}

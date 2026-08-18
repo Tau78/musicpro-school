@@ -24,6 +24,7 @@ type CourseNotifyRow = {
   course_kind: "individuale" | "gruppo" | "online";
   room_id: string | null;
   titular_member_id: string;
+  status: string;
 };
 
 type LessonNotifyRow = {
@@ -392,7 +393,7 @@ export async function sendDueLessonReminders(
   const [coursesRes, attendanceRes, logsRes] = await Promise.all([
     client
       .from("courses")
-      .select("id, name, course_kind, room_id, titular_member_id")
+      .select("id, name, course_kind, room_id, titular_member_id, status")
       .in("id", courseIds),
     client
       .from("lesson_attendances")
@@ -495,22 +496,14 @@ export async function sendDueLessonReminders(
       continue;
     }
 
-    const { error: insertError } = await client
-      .from("lesson_reminder_log")
-      .insert({ lesson_id: lesson.id, kind });
-    if (insertError) {
-      if (isUniqueViolation(insertError)) {
-        skipped += 1;
-        continue;
-      }
-      errors.push(`${lesson.id}: ${insertError.message}`);
-      continue;
-    }
-
     const course = courseById.get(lesson.course_id);
     if (!course) {
       skipped += 1;
       errors.push(`${lesson.id}: corso non trovato.`);
+      continue;
+    }
+    if (course.status === "in_pausa" || course.status === "chiuso") {
+      skipped += 1;
       continue;
     }
 
@@ -553,8 +546,17 @@ export async function sendDueLessonReminders(
       }
     }
 
-    if (emailed > 0) sent += 1;
-    else skipped += 1;
+    if (emailed > 0) {
+      const { error: insertError } = await client
+        .from("lesson_reminder_log")
+        .insert({ lesson_id: lesson.id, kind });
+      if (insertError && !isUniqueViolation(insertError)) {
+        errors.push(`${lesson.id}: ${insertError.message}`);
+      }
+      sent += 1;
+    } else {
+      skipped += 1;
+    }
   }
 
   return { sent, skipped, errors };

@@ -367,6 +367,13 @@ export function PayrollStaffPanel({ actorMemberId }: { actorMemberId: string }) 
   }
 
   async function handleUnlock(row: LessonPayroll) {
+    if (
+      !window.confirm(
+        `Sbloccare il mese di ${row.teacherLabel}? Firma e fattura caricata verranno cancellate e la notula verrà rigenerata.`,
+      )
+    ) {
+      return;
+    }
     setBusyId(row.id);
     resetMessages();
     const result = await unlockLessonPayroll(supabase, {

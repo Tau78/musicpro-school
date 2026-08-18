@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
 
     const { data: course, error: courseError } = await supabase
       .from("courses")
-      .select("id, is_trial, price_eur, titular_member_id")
+      .select("id, is_trial, price_eur, titular_member_id, status")
       .eq("id", enrollment.course_id)
       .maybeSingle();
 
@@ -129,6 +129,9 @@ export async function POST(request: NextRequest) {
     }
     if (!course) {
       return jsonError("Corso non trovato.", 404);
+    }
+    if (course.status !== "attivo") {
+      return jsonError("Si può generare il link solo per un corso attivo.", 400);
     }
 
     const isStaff = canManageMembers(actor.roles);

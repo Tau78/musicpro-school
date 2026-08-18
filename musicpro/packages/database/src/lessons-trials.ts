@@ -20,7 +20,7 @@ import {
 } from "./courses";
 import { moveLesson } from "./lessons-calendar";
 import { getCurrentSchoolCourseTerm } from "./lessons-settings";
-import { sendSingleEmail } from "./messaging";
+import { sendLessonFamilyEmail } from "./messaging";
 import { upsertAppSetting } from "./settings";
 import type { Database } from "./types/database";
 
@@ -580,9 +580,14 @@ export async function sendTrialWelcomeEmail(
     "MusicPro School",
   ].join("\n");
 
-  const sent = await sendSingleEmail(client, { to: recipient, subject, body });
-  if (sent.ok) return ok(courseId);
-  return ok(courseId, [sent.error]);
+  const sent = await sendLessonFamilyEmail(client, member.id, {
+    subject,
+    body,
+  });
+  if (sent.sent > 0) return ok(courseId, sent.warnings);
+  return ok(courseId, sent.warnings.length ? sent.warnings : [
+    "Impossibile inviare l'email di benvenuto.",
+  ]);
 }
 
 export async function createTrial(
@@ -826,6 +831,11 @@ export async function rescheduleTrial(
     startsAt: nextStartsAt,
     roomId,
     scope: "this",
+    actor: {
+      memberId: actor.memberId,
+      isStaff: actor.isStaff,
+      canReschedule: actor.isStaff || actor.canCreateCourses,
+    },
   });
   if (!moved.success) return moved;
 
@@ -879,11 +889,24 @@ export async function cancelTrial(
   if (!lesson.cancelled_at) {
     const { error: lessonError } = await client
       .from("lessons")
-      .update({ cancelled_at: new Date().toISOString() })
+      .update({
+        cancelled_at: new Date().toISOString(),
+        booking_id: null,
+      })
       .eq("id", lesson.id);
     if (lessonError) {
       return fail(
         lessonError.message || "Impossibile annullare la lezione di prova.",
+      );
+    }
+  } else if (lesson.booking_id) {
+    const { error: clearError } = await client
+      .from("lessons")
+      .update({ booking_id: null })
+      .eq("id", lesson.id);
+    if (clearError) {
+      return fail(
+        clearError.message || "Impossibile liberare la sala della prova.",
       );
     }
   }

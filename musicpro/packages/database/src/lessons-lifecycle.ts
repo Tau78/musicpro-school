@@ -422,7 +422,7 @@ async function fillMissingFutureLessons(
   let maxSeq = 0;
   for (const row of existing ?? []) {
     maxSeq = Math.max(maxSeq, row.sequence_number);
-    if (row.cancelled_at || !row.starts_at) continue;
+    if (!row.starts_at) continue;
     takenDates.add(dateInRome(row.starts_at));
   }
 
@@ -488,6 +488,11 @@ async function fillMissingFutureLessons(
   if (rows.length === 0) return warnings;
   const { error: insertError } = await client.from("lessons").insert(rows);
   if (insertError) {
+    for (const row of rows) {
+      if (row.booking_id) {
+        await cancelHoldBooking(client, row.booking_id);
+      }
+    }
     warnings.push(
       insertError.message || "Impossibile creare le lezioni mancanti.",
     );
@@ -733,7 +738,17 @@ export async function pauseCourse(
     .update({ status: "in_pausa" })
     .eq("id", course.id);
   if (error) {
-    return fail(error.message || "Impossibile mettere in pausa il corso.");
+    const restoreError = await restoreCancelledLessons(
+      client,
+      course,
+      cancelled,
+      "strict",
+    );
+    return fail(
+      restoreError
+        ? `${error.message || "Impossibile mettere in pausa il corso."} ${restoreError}`
+        : error.message || "Impossibile mettere in pausa il corso.",
+    );
   }
 
   const eventId = await insertEvent(client, {
@@ -746,7 +761,14 @@ export async function pauseCourse(
       lessons: cancelled,
     },
   });
-  if (typeof eventId !== "string") return fail(eventId.errorMessage);
+  if (typeof eventId !== "string") {
+    await restoreCancelledLessons(client, course, cancelled, "soft");
+    await client
+      .from("courses")
+      .update({ status: course.status })
+      .eq("id", course.id);
+    return fail(eventId.errorMessage);
+  }
 
   const actorLabel = await memberLabel(client, input.actor.memberId);
   fireNotify(client, {
@@ -804,7 +826,13 @@ export async function resumeCourse(
       snapshots,
       "soft",
     );
-    if (restoreError) warnings.push(restoreError);
+    if (restoreError) {
+      await client
+        .from("courses")
+        .update({ status: "in_pausa" })
+        .eq("id", course.id);
+      return fail(restoreError);
+    }
   }
   const restoredDates = snapshots
     .map((snap) => (snap.startsAt ? dateInRome(snap.startsAt) : null))
@@ -823,7 +851,13 @@ export async function resumeCourse(
     createdBy: input.actor.memberId,
     payload: { previousStatus: "in_pausa" },
   });
-  if (typeof eventId !== "string") return fail(eventId.errorMessage);
+  if (typeof eventId !== "string") {
+    await client
+      .from("courses")
+      .update({ status: "in_pausa" })
+      .eq("id", course.id);
+    return fail(eventId.errorMessage);
+  }
 
   const actorLabel = await memberLabel(client, input.actor.memberId);
   fireNotify(client, {
@@ -884,7 +918,17 @@ export async function closeCourse(
     .update({ status: "chiuso", closed_on: closedOn })
     .eq("id", course.id);
   if (error) {
-    return fail(error.message || "Impossibile chiudere il corso.");
+    const restoreError = await restoreCancelledLessons(
+      client,
+      course,
+      cancelled,
+      "strict",
+    );
+    return fail(
+      restoreError
+        ? `${error.message || "Impossibile chiudere il corso."} ${restoreError}`
+        : error.message || "Impossibile chiudere il corso.",
+    );
   }
 
   const accounting = await getCourseAccountingSummary(client, course.id);
@@ -900,7 +944,14 @@ export async function closeCourse(
       accounting,
     },
   });
-  if (typeof eventId !== "string") return fail(eventId.errorMessage);
+  if (typeof eventId !== "string") {
+    await restoreCancelledLessons(client, course, cancelled, "soft");
+    await client
+      .from("courses")
+      .update({ status: course.status, closed_on: course.closedOn })
+      .eq("id", course.id);
+    return fail(eventId.errorMessage);
+  }
 
   await resolveOpenCloseRequests(client, course.id);
 

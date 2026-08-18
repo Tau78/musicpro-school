@@ -66,6 +66,7 @@ export function LessonsOggi({
 
   function openLesson(lesson: OggiLesson) {
     if (canExpand) {
+      if (isHoldLesson(lesson)) return;
       setExpandedId((current) => (current === lesson.id ? null : lesson.id));
       return;
     }

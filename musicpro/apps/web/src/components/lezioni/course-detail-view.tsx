@@ -41,6 +41,7 @@ export function CourseDetailView({
   canCloseCourses = false,
   teachers = [],
   readOnly = false,
+  slotStepMinutes = 15,
 }: {
   course: CourseDetail;
   lessons: Lesson[];
@@ -57,6 +58,7 @@ export function CourseDetailView({
   teachers?: { id: string; label: string }[];
   /** Coordinatore: stesso dettaglio, nessuna azione. */
   readOnly?: boolean;
+  slotStepMinutes?: number;
 }) {
   const titularLabel = course.titular
     ? `${course.titular.lastName} ${course.titular.firstName}`.trim()
@@ -68,7 +70,10 @@ export function CourseDetailView({
         ? (roomsById[course.roomId] ?? "—")
         : "—";
   const canMutate = !readOnly && Boolean(actorMemberId);
-  const canPlace = canMutate && (isStaff || canReschedule);
+  const canPlace =
+    canMutate &&
+    (isStaff || canReschedule) &&
+    course.status === "attivo";
   const today = todayInRome();
   const [expandedLessonId, setExpandedLessonId] = useState<string | null>(null);
 
@@ -157,6 +162,7 @@ export function CourseDetailView({
           actorMemberId={actorMemberId}
           isStaff={isStaff}
           canCreateCourses={canCreateCourses}
+          slotStepMinutes={slotStepMinutes}
         />
       ) : null}
 
@@ -327,6 +333,7 @@ export function CourseDetailView({
                       rooms={rooms}
                       requiresRoom={course.courseKind !== "online"}
                       defaultRoomId={lesson.roomId ?? course.roomId}
+                      slotStepMinutes={slotStepMinutes}
                       actor={{
                         memberId: actorMemberId,
                         isStaff,

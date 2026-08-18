@@ -727,21 +727,27 @@ export async function listUnplacedLessons(
     );
   }
   const lessons = (data ?? []).map(mapLesson);
-  if (!options.titularMemberId) return lessons;
-
   const courseIds = [...new Set(lessons.map((row) => row.courseId))];
   if (courseIds.length === 0) return lessons;
   const { data: courseRows, error: courseError } = await client
     .from("courses")
-    .select("id")
+    .select("id, status, titular_member_id")
     .in("id", courseIds)
-    .eq("titular_member_id", options.titularMemberId);
+    .eq("status", "attivo");
   if (courseError) {
     throw new Error(
       `Impossibile filtrare le lezioni da piazzare: ${courseError.message}`,
     );
   }
-  const allowed = new Set((courseRows ?? []).map((row) => row.id));
+  const allowed = new Set(
+    (courseRows ?? [])
+      .filter((row) =>
+        options.titularMemberId
+          ? row.titular_member_id === options.titularMemberId
+          : true,
+      )
+      .map((row) => row.id),
+  );
   return lessons.filter((row) => allowed.has(row.courseId));
 }
 
@@ -1301,7 +1307,9 @@ export async function generateCourseLessons(
     );
   }
   if ((existing?.length ?? 0) > 0) {
-    return ok(courseId);
+    return ok(courseId, [
+      "Il corso ha già delle lezioni: la generazione automatica è stata saltata.",
+    ]);
   }
 
   const { data: termRow, error: termError } = await client
@@ -1432,6 +1440,11 @@ export async function generateCourseLessons(
 
   const { error: insertError } = await client.from("lessons").insert(rows);
   if (insertError) {
+    for (const row of rows) {
+      if (row.booking_id) {
+        await cancelHoldBooking(client, row.booking_id);
+      }
+    }
     return fail(
       insertError.message || "Impossibile salvare le lezioni generate.",
       { id: courseId, warnings },
@@ -1497,6 +1510,9 @@ export async function placeLesson(
       return fail("Non hai il permesso di piazzare o recuperare lezioni.");
     }
   }
+  if (course.status !== "attivo") {
+    return fail("Si possono piazzare lezioni solo su un corso attivo.");
+  }
 
   const roomId = course.courseKind === "online" ? null : input.roomId;
   if (course.courseKind !== "online" && !roomId) {
@@ -1540,6 +1556,9 @@ export async function placeLesson(
     .eq("id", lessonId);
 
   if (error) {
+    if (bookingId) {
+      await cancelHoldBooking(client, bookingId);
+    }
     return fail(error.message || "Impossibile piazzare la lezione.");
   }
   return ok(lessonId);

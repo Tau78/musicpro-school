@@ -19,7 +19,7 @@
   "dependencies": {
     "@musicpro/shared": "*",
     "@supabase/ssr": "^0.6.1",
-    "@supabase/supabase-js": "^2.50.2"
+    "@supabase/supabase-js": "^2.105.0"
   },
   "devDependencies": {
     "typescript": "^5.8.3"

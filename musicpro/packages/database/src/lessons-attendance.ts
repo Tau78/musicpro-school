@@ -444,6 +444,24 @@ export async function parkScheduledLesson(
     return fail("Si possono parcheggiare solo le lezioni in calendario.");
   }
 
+  if (reason !== "giustificato") {
+    const { data: attendanceRows, error: attendanceError } = await client
+      .from("lesson_attendances")
+      .select("lesson_id")
+      .eq("lesson_id", lessonId)
+      .limit(1);
+    if (attendanceError) {
+      return fail(
+        attendanceError.message || "Impossibile verificare le presenze.",
+      );
+    }
+    if ((attendanceRows ?? []).length > 0) {
+      return fail(
+        "Lezione già presenziata: sblocca la presenza prima di parcheggiarla.",
+      );
+    }
+  }
+
   if (lesson.bookingId) {
     const cancelError = await cancelHoldBooking(client, lesson.bookingId);
     if (cancelError) return fail(cancelError);
@@ -614,10 +632,30 @@ export async function saveLessonAttendance(
     break;
   }
 
+  if (course.courseKind === "gruppo" && roster.students.length > 0) {
+    const nextByMember = new Map(previousByMember);
+    for (const row of input.rows) {
+      nextByMember.set(row.memberId, row.status);
+    }
+    const allGiustificati = roster.students.every(
+      (student) => nextByMember.get(student.memberId) === "assente_giustificato",
+    );
+    if (allGiustificati) {
+      const parked = await parkScheduledLesson(
+        client,
+        input.lessonId,
+        "giustificato",
+      );
+      if (!parked.success && parked.errorMessage) {
+        warnings.push(parked.errorMessage);
+      }
+    }
+  }
+
   return ok(input.lessonId, warnings);
 }
 
-/** Solo staff. Cancella le righe presenza; il consumo wallet resta. Mese closed: lo staff può sbloccare le presenze; la notula NON si sblocca qui. */
+/** Solo staff. Cancella le righe presenza e riallinea i consumi wallet. La notula NON si sblocca qui. */
 export async function unlockLessonAttendance(
   client: AttendanceClient,
   lessonId: string,
@@ -641,7 +679,31 @@ export async function unlockLessonAttendance(
   if (error) {
     return fail(error.message || "Impossibile sbloccare le presenze.");
   }
-  return ok(lessonId);
+
+  const warnings: string[] = [];
+  const { data: walletSync, error: walletError } = await client.rpc(
+    "sync_lesson_wallet_after_attendance",
+    { p_lesson_id: lessonId },
+  );
+  if (walletError) {
+    warnings.push(
+      walletError.message || "Presenze sbloccate, ma i crediti non sono stati ripristinati.",
+    );
+  } else if (
+    walletSync &&
+    typeof walletSync === "object" &&
+    !Array.isArray(walletSync) &&
+    walletSync.success === false
+  ) {
+    const message = walletSync.message;
+    warnings.push(
+      typeof message === "string" && message.trim()
+        ? message
+        : "Presenze sbloccate, ma i crediti non sono stati ripristinati.",
+    );
+  }
+
+  return ok(lessonId, warnings);
 }
 
 export async function cancelLessonAsSchool(
@@ -694,7 +756,9 @@ export async function markTeacherAbsent(
   const { data: courses, error: coursesError } = await client
     .from("courses")
     .select("id")
-    .eq("titular_member_id", input.titularMemberId);
+    .eq("titular_member_id", input.titularMemberId)
+    .eq("status", "attivo")
+    .eq("is_trial", false);
   if (coursesError) {
     return fail(coursesError.message || "Impossibile caricare i corsi del docente.");
   }
