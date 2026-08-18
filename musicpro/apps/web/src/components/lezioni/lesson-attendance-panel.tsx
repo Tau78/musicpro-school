@@ -246,6 +246,12 @@ export function LessonAttendancePanel({
         </p>
       ) : null}
 
+      {isStaff && roster.payrollClosed ? (
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          Mese chiuso. Sblocca la notula per ricalcolare i compensi.
+        </p>
+      ) : null}
+
       {!roster.canEdit && roster.editBlockReason ? (
         <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
           {roster.editBlockReason}

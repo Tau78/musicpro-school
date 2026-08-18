@@ -12,6 +12,7 @@ const ITEMS = [
   { href: "/admin/lezioni/calendario", label: "Calendario" },
   { href: "/admin/lezioni/rette", label: "Rette" },
   { href: "/admin/lezioni/ricevute", label: "Ricevute" },
+  { href: "/admin/lezioni/notule", label: "Notule" },
   { href: "/admin/lezioni/impostazioni", label: "Impostazioni" },
 ] as const;
 
