@@ -480,6 +480,10 @@ export type {
   PayrollPreview,
 } from "./lessons-payroll";
 export {
+  notifyLessonPayrollDraft,
+  sendDuePayrollSignReminders,
+} from "./lessons-payroll-notify";
+export {
   cancelTrial,
   convertTrialToCourse,
   createTrial,

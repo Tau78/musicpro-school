@@ -12,6 +12,7 @@ import {
   type LessonParkedReason,
 } from "./courses";
 import { notifyLessonScheduleChange } from "./lessons-notify";
+import { isPayrollMonthClosed } from "./lessons-payroll";
 import { getLessonSchoolSettings } from "./lessons-settings";
 import type { Database } from "./types/database";
 
@@ -39,6 +40,7 @@ export type LessonRoster = {
   students: LessonRosterStudent[];
   canEdit: boolean;
   editBlockReason: string | null;
+  payrollClosed?: boolean;
 };
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -392,6 +394,22 @@ export async function getLessonRoster(
     attendanceEditDays,
   });
 
+  let canEdit = edit.canEdit;
+  let editBlockReason = edit.editBlockReason;
+  let payrollClosed = false;
+  if (lesson.startsAt) {
+    payrollClosed = await isPayrollMonthClosed(
+      client,
+      course.titularMemberId,
+      dateInRome(lesson.startsAt),
+    );
+    if (payrollClosed && !actor.isStaff) {
+      canEdit = false;
+      editBlockReason =
+        "Mese notula chiuso. Chiedi alla segreteria di sbloccare.";
+    }
+  }
+
   return {
     lessonId: lesson.id,
     courseId: course.id,
@@ -399,8 +417,9 @@ export async function getLessonRoster(
     courseKind: course.courseKind,
     startsAt: lesson.startsAt,
     students,
-    canEdit: edit.canEdit,
-    editBlockReason: edit.editBlockReason,
+    canEdit,
+    editBlockReason,
+    payrollClosed: payrollClosed || undefined,
   };
 }
 
@@ -485,6 +504,7 @@ export async function saveLessonAttendance(
   if (!roster.canEdit) {
     return fail(roster.editBlockReason || "Non è possibile modificare le presenze.");
   }
+  // Mese closed: lo staff può salvare; la notula NON si sblocca qui (lo fa la UI).
 
   const allowedMembers = new Set(roster.students.map((row) => row.memberId));
   for (const row of input.rows) {
@@ -597,7 +617,7 @@ export async function saveLessonAttendance(
   return ok(input.lessonId, warnings);
 }
 
-/** Solo staff. Cancella le righe presenza; il consumo wallet resta. */
+/** Solo staff. Cancella le righe presenza; il consumo wallet resta. Mese closed: lo staff può sbloccare le presenze; la notula NON si sblocca qui. */
 export async function unlockLessonAttendance(
   client: AttendanceClient,
   lessonId: string,
