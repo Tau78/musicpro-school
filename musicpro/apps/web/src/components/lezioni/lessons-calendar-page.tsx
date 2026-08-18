@@ -1,16 +1,18 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import {
   getCurrentMemberWithRoles,
+  listLessonsInRange,
   moveLesson,
   requestLessonMove,
   romeLocalInputToUtcIso,
   utcIsoToRomeLocalInput,
 } from "@musicpro/database";
 
+import { LessonAttendancePanel } from "@/components/lezioni/lesson-attendance-panel";
 import {
   LessonsCalendar,
   type CalendarLesson,
@@ -18,6 +20,7 @@ import {
   type MoveScope,
 } from "@/components/lezioni/lessons-calendar";
 import { lessonCourseId } from "@/components/lezioni/lessons-oggi";
+import { monthBounds, weekBounds } from "@/lib/lezioni/calendar-range";
 import { createClient } from "@/lib/supabase/client";
 
 export type CalendarMode = "docente" | "sala";
@@ -72,17 +75,80 @@ export function LessonsCalendarPage({
 }: LessonsCalendarPageProps) {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
+  const fetchGen = useRef(0);
 
-  const view = initialView;
-  const anchorDate = initialDate && isIsoDate(initialDate) ? initialDate : today;
-  const teacherId = initialTeacherId ?? "";
-  const roomId = initialRoomId ?? "";
-  const mode = initialMode;
+  const [view, setView] = useState<CalendarView>(initialView);
+  const [anchorDate, setAnchorDate] = useState(
+    initialDate && isIsoDate(initialDate) ? initialDate : today,
+  );
+  const [teacherId, setTeacherId] = useState(initialTeacherId ?? "");
+  const [roomId, setRoomId] = useState(initialRoomId ?? "");
+  const [mode, setMode] = useState<CalendarMode>(initialMode);
+  const [highlight, setHighlight] = useState<string | null>(highlightDay);
+  const [lessons, setLessons] = useState(initialLessons);
+  const [lessonsBusy, setLessonsBusy] = useState(false);
 
   const [requestForm, setRequestForm] = useState<RequestForm | null>(null);
   const [requestBusy, setRequestBusy] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
   const [actionLesson, setActionLesson] = useState<CalendarLesson | null>(null);
+  const [attendanceLesson, setAttendanceLesson] =
+    useState<CalendarLesson | null>(null);
+
+  const sundayVisible = settings.sundayVisible;
+  const filtersRef = useRef({ view, anchorDate, mode, teacherId, roomId });
+  filtersRef.current = { view, anchorDate, mode, teacherId, roomId };
+
+  const loadLessons = useCallback(
+    async (next: {
+      view: CalendarView;
+      date: string;
+      mode: CalendarMode;
+      teacherId: string;
+      roomId: string;
+    }) => {
+      const gen = ++fetchGen.current;
+      setLessonsBusy(true);
+      const bounds =
+        next.view === "month"
+          ? monthBounds(next.date)
+          : weekBounds(next.date, sundayVisible);
+      try {
+        const rows = await listLessonsInRange(supabase, {
+          from: bounds.from,
+          to: bounds.to,
+          includePendingHold: true,
+          titularMemberId: isStaff
+            ? next.mode === "docente" && next.teacherId
+              ? next.teacherId
+              : undefined
+            : memberId,
+          roomId:
+            isStaff && next.mode === "sala" && next.roomId
+              ? next.roomId
+              : undefined,
+        });
+        if (gen !== fetchGen.current) return;
+        setLessons(rows);
+      } catch {
+        if (gen !== fetchGen.current) return;
+      } finally {
+        if (gen === fetchGen.current) setLessonsBusy(false);
+      }
+    },
+    [isStaff, memberId, supabase, sundayVisible],
+  );
+
+  function reloadLessons() {
+    const current = filtersRef.current;
+    return loadLessons({
+      view: current.view,
+      date: current.anchorDate,
+      mode: current.mode,
+      teacherId: current.teacherId,
+      roomId: current.roomId,
+    });
+  }
 
   function pushQuery(next: {
     view?: CalendarView;
@@ -92,15 +158,22 @@ export function LessonsCalendarPage({
     sala?: string | null;
     modo?: CalendarMode;
   }) {
-    const params = new URLSearchParams();
     const nextView = next.view ?? view;
     const nextDate = next.date ?? anchorDate;
-    const nextHl = next.hl === undefined ? highlightDay : next.hl;
+    const nextHl = next.hl === undefined ? highlight : next.hl;
     const nextMode = next.modo ?? mode;
     const nextTeacher =
       next.docente === undefined ? teacherId : (next.docente ?? "");
     const nextRoom = next.sala === undefined ? roomId : (next.sala ?? "");
 
+    setView(nextView);
+    setAnchorDate(nextDate);
+    setHighlight(nextHl);
+    setMode(nextMode);
+    setTeacherId(nextTeacher);
+    setRoomId(nextRoom);
+
+    const params = new URLSearchParams();
     params.set("view", nextView);
     params.set("date", nextDate);
     if (nextHl) params.set("hl", nextHl);
@@ -115,7 +188,17 @@ export function LessonsCalendarPage({
     }
 
     const query = params.toString();
-    router.push(query ? `?${query}` : "?");
+    const nextUrl = query
+      ? `${window.location.pathname}?${query}`
+      : window.location.pathname;
+    window.history.replaceState(window.history.state, "", nextUrl);
+    void loadLessons({
+      view: nextView,
+      date: nextDate,
+      mode: nextMode,
+      teacherId: nextTeacher,
+      roomId: nextRoom,
+    });
   }
 
   function openCourse(lesson: CalendarLesson) {
@@ -123,9 +206,17 @@ export function LessonsCalendarPage({
   }
 
   function handleOpenLesson(lessonId: string) {
-    const lesson = initialLessons.find((row) => row.id === lessonId);
+    const lesson = lessons.find((row) => row.id === lessonId);
     if (!lesson) return;
-    if (!canDrag && !lessonId.startsWith("hold:")) {
+    const hold = lessonId.startsWith("hold:");
+    if (!hold && memberId) {
+      setActionLesson(null);
+      setAttendanceLesson((current) =>
+        current?.id === lesson.id ? null : lesson,
+      );
+      return;
+    }
+    if (!canDrag && !hold) {
       setActionLesson(lesson);
       return;
     }
@@ -152,7 +243,7 @@ export function LessonsCalendarPage({
     nextRoomId: string | null,
     scope: MoveScope,
   ) {
-    const lesson = initialLessons.find((row) => row.id === lessonId);
+    const lesson = lessons.find((row) => row.id === lessonId);
     if (lesson?.hasAttendance) {
       throw new Error(
         "Lezione già presenziata: sblocca la presenza prima di spostarla.",
@@ -163,6 +254,13 @@ export function LessonsCalendarPage({
       startsAt: startsAtIso,
       roomId: nextRoomId,
       scope,
+      actor: memberId
+        ? {
+            memberId,
+            isStaff,
+            canReschedule: canDrag,
+          }
+        : undefined,
     });
     if (!result.success) {
       throw new Error(result.errorMessage || "Impossibile spostare la lezione.");
@@ -170,7 +268,7 @@ export function LessonsCalendarPage({
     if (result.warnings?.length) {
       window.alert(result.warnings.join("\n"));
     }
-    router.refresh();
+    await reloadLessons();
   }
 
   async function submitRequest() {
@@ -211,7 +309,7 @@ export function LessonsCalendarPage({
         return;
       }
       setRequestForm(null);
-      router.refresh();
+      await reloadLessons();
     } catch (error) {
       setRequestError(
         error instanceof Error
@@ -224,11 +322,11 @@ export function LessonsCalendarPage({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       {isStaff ? (
-        <div className="flex flex-wrap items-end gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           <div
-            className="inline-flex rounded-full bg-neutral-100 p-0.5"
+            className="inline-flex rounded-md bg-neutral-100 p-0.5"
             role="group"
             aria-label="Filtro calendario"
           >
@@ -247,64 +345,97 @@ export function LessonsCalendarPage({
           </div>
 
           {mode === "docente" ? (
-            <label className="block min-w-[12rem] text-sm">
-              <span className="mb-1 block text-neutral-600">Docente</span>
-              <select
-                value={teacherId}
-                onChange={(event) =>
-                  pushQuery({ docente: event.target.value || null })
-                }
-                className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)]"
-              >
-                <option value="">Tutti</option>
-                {teachers.map((teacher) => (
-                  <option key={teacher.id} value={teacher.id}>
-                    {teacher.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <select
+              aria-label="Docente"
+              value={teacherId}
+              onChange={(event) =>
+                pushQuery({ docente: event.target.value || null })
+              }
+              className="h-7 min-w-[10rem] rounded-md border border-neutral-300 bg-white px-2 text-xs focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)]"
+            >
+              <option value="">Tutti i docenti</option>
+              {teachers.map((teacher) => (
+                <option key={teacher.id} value={teacher.id}>
+                  {teacher.label}
+                </option>
+              ))}
+            </select>
           ) : (
-            <label className="block min-w-[12rem] text-sm">
-              <span className="mb-1 block text-neutral-600">Sala</span>
-              <select
-                value={roomId}
-                onChange={(event) =>
-                  pushQuery({ sala: event.target.value || null })
-                }
-                className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)]"
-              >
-                <option value="">Tutte</option>
-                {rooms.map((room) => (
-                  <option key={room.id} value={room.id}>
-                    {room.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <select
+              aria-label="Sala"
+              value={roomId}
+              onChange={(event) =>
+                pushQuery({ sala: event.target.value || null })
+              }
+              className="h-7 min-w-[10rem] rounded-md border border-neutral-300 bg-white px-2 text-xs focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)]"
+            >
+              <option value="">Tutte le sale</option>
+              {rooms.map((room) => (
+                <option key={room.id} value={room.id}>
+                  {room.name}
+                </option>
+              ))}
+            </select>
           )}
         </div>
       ) : null}
 
-      <LessonsCalendar
-        lessons={initialLessons}
-        view={view}
-        anchorDate={anchorDate}
-        sundayVisible={settings.sundayVisible}
-        gridOpenMinute={settings.gridOpenMinute}
-        gridCloseMinute={settings.gridCloseMinute}
-        canDrag={canDrag}
-        showTeacherName={isStaff}
-        rooms={rooms}
-        highlightDay={highlightDay}
-        onMove={handleMove}
-        onOpenLesson={handleOpenLesson}
-        onSelectDay={(date) =>
-          pushQuery({ view: "week", date, hl: date })
+      <div
+        aria-busy={lessonsBusy}
+        className={
+          lessonsBusy
+            ? "opacity-70 transition-opacity"
+            : "transition-opacity"
         }
-        onViewChange={(next) => pushQuery({ view: next })}
-        onAnchorDateChange={(date) => pushQuery({ date })}
-      />
+      >
+        <LessonsCalendar
+          lessons={lessons}
+          view={view}
+          anchorDate={anchorDate}
+          sundayVisible={settings.sundayVisible}
+          gridOpenMinute={settings.gridOpenMinute}
+          gridCloseMinute={settings.gridCloseMinute}
+          canDrag={canDrag}
+          showTeacherName={isStaff}
+          rooms={rooms}
+          highlightDay={highlight}
+          onMove={handleMove}
+          onOpenLesson={handleOpenLesson}
+          onSelectDay={(date) =>
+            pushQuery({ view: "week", date, hl: date })
+          }
+          onViewChange={(next) => pushQuery({ view: next })}
+          onAnchorDateChange={(date) => pushQuery({ date })}
+        />
+      </div>
+
+      {attendanceLesson && memberId ? (
+        <Dialog
+          title="Registro"
+          wide
+          onClose={() => setAttendanceLesson(null)}
+        >
+          <p className="text-sm text-neutral-600">
+            #{attendanceLesson.sequenceNumber}{" "}
+            {attendanceLesson.courseName.trim() ||
+              attendanceLesson.studentNames[0] ||
+              "Lezione"}
+          </p>
+          {attendanceLesson.hasAttendance && !isStaff ? (
+            <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              Lezione già presenziata: sblocca la presenza in segreteria.
+            </p>
+          ) : null}
+          <div className="mt-4">
+            <LessonAttendancePanel
+              lessonId={attendanceLesson.id}
+              actorMemberId={memberId}
+              isStaff={isStaff}
+              onSaved={() => void reloadLessons()}
+            />
+          </div>
+        </Dialog>
+      ) : null}
 
       {actionLesson ? (
         <Dialog
@@ -502,8 +633,8 @@ function ModePill({
       aria-pressed={active}
       className={
         active
-          ? "rounded-full bg-[var(--brand)] px-3 py-1 text-sm font-medium text-white"
-          : "rounded-full px-3 py-1 text-sm font-medium text-neutral-600 hover:bg-white"
+          ? "touch-manipulation rounded px-2.5 py-0.5 text-xs font-medium text-white bg-[var(--brand)]"
+          : "touch-manipulation rounded px-2.5 py-0.5 text-xs font-medium text-neutral-600 hover:bg-white"
       }
     >
       {children}
@@ -515,10 +646,12 @@ function Dialog({
   title,
   onClose,
   children,
+  wide = false,
 }: {
   title: string;
   onClose: () => void;
   children: React.ReactNode;
+  wide?: boolean;
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -526,7 +659,7 @@ function Dialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="calendar-dialog-title"
-        className="w-full max-w-md rounded-xl bg-white p-6 shadow-lg"
+        className={`w-full ${wide ? "max-w-lg" : "max-w-md"} max-h-[90vh] overflow-y-auto rounded-xl bg-white p-6 shadow-lg`}
       >
         <div className="flex items-start justify-between gap-3">
           <h3

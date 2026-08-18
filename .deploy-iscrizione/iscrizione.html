@@ -309,6 +309,7 @@
     }
 
     var iscrizioneToken = qp('iscrizioneToken');
+    var activeIscrizioneToken = iscrizioneToken || '';
     if (iscrizioneToken) {
         showLoading('Accesso in corso...', 'Caricamento dei tuoi dati.');
         gasApiGet('validateIscrizioneToken', { token: iscrizioneToken })
@@ -380,6 +381,10 @@
         data.privacy_accepted = document.getElementById('privacy-check').checked;
         data.signatureData = signaturePad.toDataURL();
         if (isRinnovoAssociato) data.rinnovo_associato = true;
+        if (activeIscrizioneToken) {
+            data.iscrizioneToken = activeIscrizioneToken;
+            data.token = activeIscrizioneToken;
+        }
 
         var action = (isRinnovoAssociato && quotaGiaPagata)
             ? 'salvaAggiornamentoAssociatoIscrizione'

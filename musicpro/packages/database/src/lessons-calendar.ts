@@ -5,11 +5,14 @@ import {
   cancelHoldBooking,
   createLessonBooking,
   getCourse,
+  resolveLessonCalendarTitle,
   type CourseKind,
   type CourseMutationResult,
   type CourseStatus,
   type Lesson,
+  type LessonScheduleActor,
 } from "./courses";
+import { notifyLessonScheduleChange } from "./lessons-notify";
 import type { Database } from "./types/database";
 
 type CalendarClient = SupabaseClient<Database>;
@@ -43,6 +46,7 @@ export type MoveLessonInput = {
   roomId?: string | null;
   scope: "this" | "future";
   forceTeacherOverlap?: boolean;
+  actor?: LessonScheduleActor;
 };
 
 export type RequestLessonMoveInput = {
@@ -715,6 +719,16 @@ export async function moveLesson(
   if (!course) {
     return fail("Corso non trovato.");
   }
+  if (input.actor) {
+    if (!input.actor.isStaff) {
+      if (course.titularMemberId !== input.actor.memberId) {
+        return fail("Puoi spostare solo le lezioni dei tuoi corsi.");
+      }
+      if (!input.actor.canReschedule) {
+        return fail("Non hai il permesso di spostare le lezioni.");
+      }
+    }
+  }
   if (course.status === "in_attesa") {
     if (input.scope !== "this") {
       return fail("Su un corso in attesa si può spostare solo questa lezione.");
@@ -735,7 +749,7 @@ export async function moveLesson(
 
   const originalStartsAt = lesson.startsAt;
   const deltaMs = new Date(startsAt).getTime() - new Date(originalStartsAt).getTime();
-  const title = `Lezione: ${course.name}`;
+  const title = await resolveLessonCalendarTitle(client, course.id);
   const warnings: string[] = [];
 
   let futureLessons: Lesson[] = [];
@@ -899,6 +913,12 @@ export async function moveLesson(
       );
     }
   }
+
+  void notifyLessonScheduleChange(client, {
+    lessonId,
+    kind: "moved",
+    notifyTeachers: Boolean(input.actor?.isStaff),
+  }).catch(() => undefined);
 
   return ok(lessonId, warnings);
 }

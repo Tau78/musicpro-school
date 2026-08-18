@@ -1,5 +1,7 @@
 "use client";
 
+import { LessonsPrintButton } from "@/components/lezioni/lessons-print-button";
+
 export type CalendarView = "week" | "month";
 
 export interface LessonsCalendarToolbarProps {
@@ -22,86 +24,48 @@ export function LessonsCalendarToolbar({
   onViewChange,
 }: LessonsCalendarToolbarProps) {
   return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={onPrev}
-            aria-label={view === "week" ? "Settimana precedente" : "Mese precedente"}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-neutral-300 bg-white text-sm font-medium text-[var(--brand)] hover:bg-[var(--brand)]/5"
-          >
-            ‹
-          </button>
-          <button
-            type="button"
-            onClick={onToday}
-            className="rounded-lg border border-[var(--brand-accent)] bg-white px-3 py-1.5 text-sm font-medium text-[var(--brand)] hover:bg-[var(--brand-accent)]/15"
-          >
-            Oggi
-          </button>
-          <button
-            type="button"
-            onClick={onNext}
-            aria-label={view === "week" ? "Settimana successiva" : "Mese successivo"}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-neutral-300 bg-white text-sm font-medium text-[var(--brand)] hover:bg-[var(--brand)]/5"
-          >
-            ›
-          </button>
-        </div>
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+      <button
+        type="button"
+        onClick={onToday}
+        className="touch-manipulation rounded-md border border-neutral-300 bg-white px-2.5 py-1 text-xs font-medium text-[var(--brand)] hover:bg-neutral-50"
+      >
+        Oggi
+      </button>
 
-        <p className="min-w-0 flex-1 text-base font-semibold capitalize text-[var(--brand)]">
-          {dateLabel}
-        </p>
-
-        <div
-          className="inline-flex rounded-lg border border-neutral-200 bg-neutral-50 p-0.5"
-          role="group"
-          aria-label="Vista calendario"
-        >
-          <ViewToggle
-            active={view === "week"}
-            onClick={() => onViewChange?.("week")}
-          >
-            Settimana
-          </ViewToggle>
-          <ViewToggle
-            active={view === "month"}
-            onClick={() => onViewChange?.("month")}
-          >
-            Mese
-          </ViewToggle>
-        </div>
-      </div>
-
-      <p className="text-sm font-semibold tabular-nums text-[var(--brand)]">
-        {hoursLabel}
+      <p className="min-w-0 flex-1 text-center text-sm font-semibold capitalize text-neutral-800">
+        {dateLabel}
+        <span className="ml-2 text-xs font-medium tabular-nums text-neutral-500">
+          {hoursLabel}
+        </span>
       </p>
-    </div>
-  );
-}
 
-function ViewToggle({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={
-        active
-          ? "rounded-md bg-[var(--brand)] px-3 py-1.5 text-sm font-medium text-white"
-          : "rounded-md px-3 py-1.5 text-sm text-neutral-600 hover:bg-white hover:text-neutral-900"
-      }
-    >
-      {children}
-    </button>
+      <div className="ml-auto flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => onViewChange?.(view === "week" ? "month" : "week")}
+          className="touch-manipulation rounded-md border border-neutral-300 bg-white px-2.5 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+        >
+          {view === "week" ? "Vista mensile" : "Vista settimanale"}
+        </button>
+        {view === "week" ? <LessonsPrintButton /> : null}
+        <button
+          type="button"
+          onClick={onPrev}
+          aria-label={view === "week" ? "Settimana precedente" : "Mese precedente"}
+          className="touch-manipulation inline-flex h-7 w-7 items-center justify-center rounded-md border border-neutral-300 bg-white text-sm text-neutral-700 hover:bg-neutral-50"
+        >
+          ‹
+        </button>
+        <button
+          type="button"
+          onClick={onNext}
+          aria-label={view === "week" ? "Settimana successiva" : "Mese successivo"}
+          className="touch-manipulation inline-flex h-7 w-7 items-center justify-center rounded-md border border-neutral-300 bg-white text-sm text-neutral-700 hover:bg-neutral-50"
+        >
+          ›
+        </button>
+      </div>
+    </div>
   );
 }

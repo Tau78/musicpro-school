@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { todayInRome } from "./bookings";
 import type { CourseMutationResult } from "./courses";
+import { emitFiscalReceiptForPayment } from "./lessons-receipts";
 import { getLessonSchoolSettings } from "./lessons-settings";
 import { sendSingleEmail } from "./messaging";
 import { currentFiscalYear } from "./quotas";
@@ -1136,7 +1137,18 @@ export async function registerFamilyCollection(
   );
   if (applyMessage) return fail(applyMessage, { id: payment.id });
 
-  return ok(payment.id);
+  const receipt = await emitFiscalReceiptForPayment(client, {
+    paymentId: payment.id,
+    actorMemberId: input.actorMemberId,
+  });
+  const warnings = receipt.success
+    ? receipt.warnings
+    : [
+        receipt.errorMessage ||
+          "Incasso registrato, ma la ricevuta non è stata emessa.",
+      ];
+
+  return ok(payment.id, warnings);
 }
 
 export async function sendFeeDunning(

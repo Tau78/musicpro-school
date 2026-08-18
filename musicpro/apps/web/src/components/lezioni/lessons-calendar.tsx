@@ -10,7 +10,7 @@
  * Chrome admin: navy --brand, accent oro --brand-accent, card rounded-xl
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import {
   getRomeMinutesFromMidnight,
@@ -76,7 +76,10 @@ export interface LessonsCalendarProps {
 
 const ROME = "Europe/Rome";
 const SLOT_MINUTES = 15;
-const PX_PER_HOUR = 64;
+const PX_PER_HOUR_FALLBACK = 32;
+const PX_PER_HOUR_MIN = 20;
+const PX_PER_HOUR_MAX = 48;
+const DAY_HEADER_PX = 28;
 const MONTHS_IT = [
   "gennaio",
   "febbraio",
@@ -90,6 +93,20 @@ const MONTHS_IT = [
   "ottobre",
   "novembre",
   "dicembre",
+] as const;
+const MONTHS_SHORT = [
+  "gen",
+  "feb",
+  "mar",
+  "apr",
+  "mag",
+  "giu",
+  "lug",
+  "ago",
+  "set",
+  "ott",
+  "nov",
+  "dic",
 ] as const;
 const DOW_SHORT = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"] as const;
 const DRAG_MIME = "application/x-musicpro-lesson";
@@ -254,7 +271,7 @@ export function LessonsCalendar({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       <LessonsCalendarToolbar
         view={view}
         dateLabel={dateLabel}
@@ -265,7 +282,7 @@ export function LessonsCalendar({
         onViewChange={onViewChange}
       />
 
-      <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
+      <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
         {view === "week" ? (
           <WeekGrid
             dates={weekDates}
@@ -350,7 +367,9 @@ function WeekGrid({
 }) {
   const today = useTodayRome();
   const nowMinute = useNowMinute();
-  const gridHeight = ((closeMinute - openMinute) / 60) * PX_PER_HOUR;
+  const hours = Math.max(1, (closeMinute - openMinute) / 60);
+  const { ref: fitRef, pxPerHour } = useFitHourHeight(hours);
+  const gridHeight = hours * pxPerHour;
   const hourMarks = hourLabels(openMinute, closeMinute);
   const byDate = useMemo(() => {
     const map = new Map<string, PlacedLesson[]>();
@@ -367,39 +386,36 @@ function WeekGrid({
     nowMinute <= closeMinute;
 
   return (
-    <div className="overflow-x-auto">
+    <div ref={fitRef} className="w-full">
       <div
-        className="grid min-w-[720px]"
-        style={{ gridTemplateColumns: `3.5rem repeat(${dates.length}, minmax(0, 1fr))` }}
+        className="grid w-full"
+        style={{
+          gridTemplateColumns: `2.5rem repeat(${dates.length}, minmax(0, 1fr))`,
+        }}
       >
-        <div className="border-b border-neutral-200 bg-neutral-50" />
+        <div className="border-b border-neutral-200 bg-white" />
         {dates.map((date) => {
           const isToday = date === today;
           const isHighlight = highlightDay === date;
           return (
             <div
               key={date}
-              className={`border-b border-l border-neutral-200 px-2 py-2 text-center ${
+              className={`border-b border-l border-neutral-200 px-1 py-1 text-center ${
                 isToday
                   ? "bg-[var(--brand)]/5"
                   : isHighlight
                     ? "bg-[var(--brand-accent)]/15"
-                    : "bg-neutral-50"
+                    : "bg-white"
               }`}
+              style={{ height: DAY_HEADER_PX }}
             >
               <p
-                className={`text-xs font-medium uppercase tracking-wide ${
-                  isToday ? "text-[var(--brand-accent)]" : "text-neutral-500"
+                className={`text-[10px] font-medium uppercase leading-none tracking-wide ${
+                  isToday ? "text-[var(--brand)]" : "text-neutral-500"
                 }`}
               >
-                {DOW_SHORT[isoDow(date) - 1]}
-              </p>
-              <p
-                className={`text-sm font-semibold tabular-nums ${
-                  isToday ? "text-[var(--brand)]" : "text-neutral-800"
-                }`}
-              >
-                {Number(date.slice(8, 10))}
+                {DOW_SHORT[isoDow(date) - 1]}{" "}
+                <span className="tabular-nums">{Number(date.slice(8, 10))}</span>
               </p>
             </div>
           );
@@ -409,8 +425,8 @@ function WeekGrid({
           {hourMarks.map((minute) => (
             <div
               key={minute}
-              className="absolute right-1 -translate-y-2 text-[11px] tabular-nums text-neutral-400"
-              style={{ top: minuteToPx(minute, openMinute) }}
+              className="absolute right-0.5 -translate-y-1.5 text-[9px] tabular-nums text-neutral-400"
+              style={{ top: minuteToPx(minute, openMinute, pxPerHour) }}
             >
               {minutesToTimeLabel(minute)}
             </div>
@@ -425,6 +441,7 @@ function WeekGrid({
             openMinute={openMinute}
             closeMinute={closeMinute}
             height={gridHeight}
+            pxPerHour={pxPerHour}
             hourMarks={hourMarks}
             isToday={date === today}
             isHighlight={highlightDay === date}
@@ -452,6 +469,7 @@ function DayColumn({
   openMinute,
   closeMinute,
   height,
+  pxPerHour,
   hourMarks,
   isToday,
   isHighlight,
@@ -472,6 +490,7 @@ function DayColumn({
   openMinute: number;
   closeMinute: number;
   height: number;
+  pxPerHour: number;
   hourMarks: number[];
   isToday: boolean;
   isHighlight: boolean;
@@ -492,7 +511,7 @@ function DayColumn({
   function minuteFromEvent(event: React.DragEvent<HTMLDivElement>): number {
     const rect = event.currentTarget.getBoundingClientRect();
     const y = event.clientY - rect.top;
-    return openMinute + (y / PX_PER_HOUR) * 60;
+    return openMinute + (y / pxPerHour) * 60;
   }
 
   return (
@@ -536,28 +555,28 @@ function DayColumn({
         <div
           key={minute}
           className="pointer-events-none absolute inset-x-0 border-t border-neutral-100"
-          style={{ top: minuteToPx(minute, openMinute) }}
+          style={{ top: minuteToPx(minute, openMinute, pxPerHour) }}
         />
       ))}
 
       {hover ? (
         <div
-          className="pointer-events-none absolute inset-x-1 rounded-md border border-dashed border-[var(--brand)] bg-[var(--brand)]/10"
+          className="pointer-events-none absolute inset-x-0.5 rounded-sm border border-dashed border-[var(--brand)] bg-[var(--brand)]/10"
           style={{
-            top: minuteToPx(hover.startMinute, openMinute),
+            top: minuteToPx(hover.startMinute, openMinute, pxPerHour),
             height: Math.max(
-              12,
-              ((hover.durationMinutes) / 60) * PX_PER_HOUR,
+              10,
+              (hover.durationMinutes / 60) * pxPerHour,
             ),
           }}
         />
       ) : null}
 
       {layouts.map(({ lesson, col, cols }) => {
-        const top = minuteToPx(lesson.startMinute, openMinute);
+        const top = minuteToPx(lesson.startMinute, openMinute, pxPerHour);
         const rawHeight =
-          ((lesson.endMinute - lesson.startMinute) / 60) * PX_PER_HOUR;
-        const heightPx = Math.max(22, rawHeight);
+          ((lesson.endMinute - lesson.startMinute) / 60) * pxPerHour;
+        const heightPx = Math.max(16, rawHeight);
         const widthPct = 100 / cols;
         return (
           <LessonCard
@@ -581,7 +600,7 @@ function DayColumn({
       {showNow ? (
         <div
           className="pointer-events-none absolute inset-x-0 z-20 border-t border-red-500"
-          style={{ top: minuteToPx(nowMinute, openMinute) }}
+          style={{ top: minuteToPx(nowMinute, openMinute, pxPerHour) }}
           aria-hidden
         >
           <span className="absolute -left-0.5 -top-1 h-2 w-2 rounded-full bg-red-500" />
@@ -650,20 +669,20 @@ function LessonCard({
           open();
         }
       }}
-      className={`absolute z-10 overflow-hidden rounded-md border px-1.5 py-0.5 text-left leading-tight shadow-sm ${lessonCardClass(lesson)} ${
+      className={`absolute z-10 overflow-hidden rounded-sm border px-1 py-px text-left leading-tight ${lessonCardClass(lesson)} ${
         draggable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
       } ${lesson.hasAttendance && !isHold ? "opacity-80" : ""}`}
       style={style}
     >
-      <p className="truncate text-[11px] font-semibold text-neutral-900">
+      <p className="truncate text-[10px] font-semibold text-neutral-900">
         {title}
       </p>
-      <p className="truncate text-[10px] tabular-nums text-neutral-700">
+      <p className="truncate text-[9px] tabular-nums text-neutral-700">
         {time}
         {lesson.roomName ? ` · ${lesson.roomName}` : ""}
       </p>
       {showTeacherName && teacher ? (
-        <p className="truncate text-[10px] text-neutral-600">{teacher}</p>
+        <p className="truncate text-[9px] text-neutral-600">{teacher}</p>
       ) : null}
       {lesson.hasAttendance && !isHold ? (
         <p className="truncate text-[9px] font-medium uppercase tracking-wide text-neutral-500">
@@ -706,11 +725,11 @@ function MonthGrid({
 
   return (
     <div>
-      <div className="grid grid-cols-7 border-b border-neutral-200 bg-neutral-50">
+      <div className="grid grid-cols-7 border-b border-neutral-200 bg-white">
         {DOW_SHORT.map((label) => (
           <div
             key={label}
-            className="px-2 py-2 text-center text-xs font-medium uppercase tracking-wide text-neutral-500"
+            className="px-1 py-1 text-center text-[10px] font-medium uppercase tracking-wide text-neutral-500"
           >
             {label}
           </div>
@@ -720,7 +739,7 @@ function MonthGrid({
         {cells.map((date) => {
           const inMonth = date.startsWith(monthPrefix);
           const dayLessons = byDate.get(date) ?? [];
-          const extra = Math.max(0, dayLessons.length - 3);
+          const extra = Math.max(0, dayLessons.length - 2);
           const isToday = date === today;
           const isHighlight = highlightDay === date;
           return (
@@ -728,12 +747,12 @@ function MonthGrid({
               key={date}
               type="button"
               onClick={() => onSelectDay(date)}
-              className={`min-h-[7.5rem] border-b border-r border-neutral-100 px-1.5 py-1.5 text-left align-top last:border-r-0 hover:bg-neutral-50 ${
+              className={`min-h-[4.5rem] border-b border-r border-neutral-100 px-1 py-1 text-left align-top last:border-r-0 hover:bg-neutral-50 ${
                 inMonth ? "bg-white" : "bg-neutral-50/80"
               } ${isHighlight && !isToday ? "bg-[var(--brand-accent)]/10" : ""}`}
             >
               <span
-                className={`inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-xs font-semibold tabular-nums ${
+                className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-semibold tabular-nums ${
                   isToday
                     ? "bg-[var(--brand)] text-white"
                     : isHighlight
@@ -745,8 +764,8 @@ function MonthGrid({
               >
                 {Number(date.slice(8, 10))}
               </span>
-              <ul className="mt-1 space-y-0.5">
-                {dayLessons.slice(0, 3).map((lesson) => (
+              <ul className="mt-0.5 space-y-px">
+                {dayLessons.slice(0, 2).map((lesson) => (
                   <li key={lesson.id}>
                     <span
                       role={onOpenLesson ? "button" : undefined}
@@ -995,8 +1014,12 @@ function formatOreLabel(minutes: number): string {
   return `${text} ore`;
 }
 
-function minuteToPx(minute: number, openMinute: number): number {
-  return ((minute - openMinute) / 60) * PX_PER_HOUR;
+function minuteToPx(
+  minute: number,
+  openMinute: number,
+  pxPerHour: number,
+): number {
+  return ((minute - openMinute) / 60) * pxPerHour;
 }
 
 function snapMinute(
@@ -1058,15 +1081,15 @@ function monthCellDates(anchorDate: string): string[] {
 function weekRangeLabel(start: string, end: string): string {
   const startDay = Number(start.slice(8, 10));
   const endDay = Number(end.slice(8, 10));
-  const startMonth = MONTHS_IT[Number(start.slice(5, 7)) - 1];
-  const endMonth = MONTHS_IT[Number(end.slice(5, 7)) - 1];
+  const startMonth = MONTHS_SHORT[Number(start.slice(5, 7)) - 1];
+  const endMonth = MONTHS_SHORT[Number(end.slice(5, 7)) - 1];
   const startYear = start.slice(0, 4);
   const endYear = end.slice(0, 4);
   if (start.slice(0, 7) === end.slice(0, 7)) {
-    return `${startDay} – ${endDay} ${endMonth} ${endYear}`;
+    return `${startDay} ${endMonth} ${endYear} – ${endDay} ${endMonth} ${endYear}`;
   }
   if (startYear === endYear) {
-    return `${startDay} ${startMonth} – ${endDay} ${endMonth} ${endYear}`;
+    return `${startDay} ${startMonth} ${startYear} – ${endDay} ${endMonth} ${endYear}`;
   }
   return `${startDay} ${startMonth} ${startYear} – ${endDay} ${endMonth} ${endYear}`;
 }
@@ -1105,6 +1128,41 @@ function romeDateFromIso(iso: string): string {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+function useFitHourHeight(hours: number): {
+  ref: React.RefObject<HTMLDivElement>;
+  pxPerHour: number;
+} {
+  const ref = useRef<HTMLDivElement>(null);
+  const [pxPerHour, setPxPerHour] = useState(PX_PER_HOUR_FALLBACK);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    function measure() {
+      const node = ref.current;
+      if (!node) return;
+      const top = node.getBoundingClientRect().top;
+      const available = window.innerHeight - top - 12 - DAY_HEADER_PX;
+      if (available <= 0 || hours <= 0) return;
+      setPxPerHour(
+        clamp(available / hours, PX_PER_HOUR_MIN, PX_PER_HOUR_MAX),
+      );
+    }
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(document.documentElement);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [hours]);
+
+  return { ref, pxPerHour };
 }
 
 function useTodayRome(): string {

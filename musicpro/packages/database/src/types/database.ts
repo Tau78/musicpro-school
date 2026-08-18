@@ -1417,6 +1417,261 @@ export interface Database {
         >;
         Relationships: [];
       };
+      fiscal_receipt_counters: {
+        Row: { year: number; next_n: number };
+        Insert: { year: number; next_n?: number };
+        Update: Partial<
+          Database["public"]["Tables"]["fiscal_receipt_counters"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      fiscal_receipts: {
+        Row: {
+          id: string;
+          number_n: number;
+          year: number;
+          code: string;
+          issued_on: string;
+          status: "emessa" | "sostituita";
+          replaces_id: string | null;
+          payment_id: string | null;
+          member_id: string;
+          payee_name: string;
+          payee_tax_code: string | null;
+          payee_email: string | null;
+          amount_eur: number;
+          method: string;
+          pdf_base64: string | null;
+          emailed_at: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          number_n: number;
+          year: number;
+          code: string;
+          issued_on: string;
+          status?: "emessa" | "sostituita";
+          replaces_id?: string | null;
+          payment_id?: string | null;
+          member_id: string;
+          payee_name: string;
+          payee_tax_code?: string | null;
+          payee_email?: string | null;
+          amount_eur: number;
+          method: string;
+          pdf_base64?: string | null;
+          emailed_at?: string | null;
+          created_by?: string | null;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["fiscal_receipts"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      fiscal_receipt_lines: {
+        Row: {
+          id: string;
+          receipt_id: string;
+          description: string;
+          amount_eur: number;
+          sort_order: number;
+        };
+        Insert: {
+          id?: string;
+          receipt_id: string;
+          description: string;
+          amount_eur: number;
+          sort_order?: number;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["fiscal_receipt_lines"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      teacher_cash_advances: {
+        Row: {
+          id: string;
+          teacher_member_id: string;
+          payment_id: string | null;
+          enrollment_id: string | null;
+          amount_eur: number;
+          status: "pending" | "confirmed" | "rejected";
+          note: string | null;
+          confirmed_by: string | null;
+          confirmed_at: string | null;
+          payroll_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          teacher_member_id: string;
+          payment_id?: string | null;
+          enrollment_id?: string | null;
+          amount_eur: number;
+          status?: "pending" | "confirmed" | "rejected";
+          note?: string | null;
+          confirmed_by?: string | null;
+          confirmed_at?: string | null;
+          payroll_id?: string | null;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["teacher_cash_advances"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      lesson_payrolls: {
+        Row: {
+          id: string;
+          teacher_member_id: string;
+          year: number;
+          month: number;
+          status: "draft" | "signed" | "closed";
+          gross_eur: number;
+          advances_eur: number;
+          carry_in_eur: number;
+          carry_out_eur: number;
+          withholding_eur: number;
+          net_eur: number;
+          minutes_teaching: number;
+          minutes_coordination: number;
+          signed_at: string | null;
+          signature_png_base64: string | null;
+          invoice_filename: string | null;
+          invoice_base64: string | null;
+          invoice_uploaded_at: string | null;
+          closed_at: string | null;
+          closed_by: string | null;
+          paid_on: string | null;
+          paid_method: string | null;
+          paid_note: string | null;
+          generated_at: string;
+          generated_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          teacher_member_id: string;
+          year: number;
+          month: number;
+          status?: "draft" | "signed" | "closed";
+          gross_eur?: number;
+          advances_eur?: number;
+          carry_in_eur?: number;
+          carry_out_eur?: number;
+          withholding_eur?: number;
+          net_eur?: number;
+          minutes_teaching?: number;
+          minutes_coordination?: number;
+          signed_at?: string | null;
+          signature_png_base64?: string | null;
+          invoice_filename?: string | null;
+          invoice_base64?: string | null;
+          invoice_uploaded_at?: string | null;
+          closed_at?: string | null;
+          closed_by?: string | null;
+          paid_on?: string | null;
+          paid_method?: string | null;
+          paid_note?: string | null;
+          generated_at?: string;
+          generated_by?: string | null;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["lesson_payrolls"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      lesson_payroll_lines: {
+        Row: {
+          id: string;
+          payroll_id: string;
+          kind:
+            | "insegnamento"
+            | "coordinamento"
+            | "extra"
+            | "anticipo"
+            | "riporto";
+          lesson_id: string | null;
+          course_id: string | null;
+          occurred_on: string | null;
+          description: string;
+          minutes: number;
+          quantity: number;
+          unit_eur: number;
+          amount_eur: number;
+          sort_order: number;
+          is_manual: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          payroll_id: string;
+          kind:
+            | "insegnamento"
+            | "coordinamento"
+            | "extra"
+            | "anticipo"
+            | "riporto";
+          lesson_id?: string | null;
+          course_id?: string | null;
+          occurred_on?: string | null;
+          description: string;
+          minutes?: number;
+          quantity?: number;
+          unit_eur?: number;
+          amount_eur?: number;
+          sort_order?: number;
+          is_manual?: boolean;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["lesson_payroll_lines"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      lesson_payroll_slips: {
+        Row: {
+          lesson_id: string;
+          from_year: number;
+          from_month: number;
+          to_year: number;
+          to_month: number;
+          slipped_at: string;
+        };
+        Insert: {
+          lesson_id: string;
+          from_year: number;
+          from_month: number;
+          to_year: number;
+          to_month: number;
+          slipped_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["lesson_payroll_slips"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      lesson_reminder_log: {
+        Row: {
+          id: string;
+          lesson_id: string;
+          kind: "day" | "soon";
+          sent_at: string;
+        };
+        Insert: {
+          id?: string;
+          lesson_id: string;
+          kind: "day" | "soon";
+          sent_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["lesson_reminder_log"]["Insert"]
+        >;
+        Relationships: [];
+      };
       lesson_change_requests: {
         Row: {
           id: string;
@@ -1608,6 +1863,10 @@ export interface Database {
       apply_lesson_pack_payment: {
         Args: { p_payment_id: string };
         Returns: Json;
+      };
+      next_fiscal_receipt_number: {
+        Args: { p_year: number };
+        Returns: number;
       };
       apply_stripe_lesson_pack_payment: {
         Args: {

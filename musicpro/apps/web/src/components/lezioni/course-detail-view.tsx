@@ -1,8 +1,12 @@
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
 
 import {
   formatBookingDateTime,
   formatEuro,
+  todayInRome,
   type CourseDetail,
   type Lesson,
 } from "@musicpro/database";
@@ -15,6 +19,9 @@ import {
   courseTrialBadgeClass,
   courseTrialLabel,
 } from "@/components/lezioni/course-labels";
+import { CashCollectionForm } from "@/components/lezioni/cash-collection-form";
+import { LessonAttendancePanel } from "@/components/lezioni/lesson-attendance-panel";
+import { PlaceLessonForm } from "@/components/lezioni/place-lesson-form";
 import { TransferTitularForm } from "@/components/lezioni/transfer-titular-form";
 import { TrialActions } from "@/components/lezioni/trial-actions";
 
@@ -29,6 +36,7 @@ export function CourseDetailView({
   showPrice = true,
   actorMemberId,
   canCreateCourses = false,
+  canReschedule = false,
   teachers = [],
 }: {
   course: CourseDetail;
@@ -41,6 +49,7 @@ export function CourseDetailView({
   showPrice?: boolean;
   actorMemberId?: string;
   canCreateCourses?: boolean;
+  canReschedule?: boolean;
   teachers?: { id: string; label: string }[];
 }) {
   const titularLabel = course.titular
@@ -52,6 +61,9 @@ export function CourseDetailView({
       : course.roomId
         ? (roomsById[course.roomId] ?? "—")
         : "—";
+  const canPlace = Boolean(actorMemberId) && (isStaff || canReschedule);
+  const today = todayInRome();
+  const [expandedLessonId, setExpandedLessonId] = useState<string | null>(null);
 
   return (
     <div className="space-y-6">
@@ -155,6 +167,18 @@ export function CourseDetailView({
                 {enrollment.email ? (
                   <span className="text-neutral-500">{enrollment.email}</span>
                 ) : null}
+                {actorMemberId &&
+                !course.isTrial &&
+                !enrollment.leftAt &&
+                course.status === "attivo" ? (
+                  <div className="w-full pt-2">
+                    <CashCollectionForm
+                      enrollmentId={enrollment.id}
+                      actorMemberId={actorMemberId}
+                      studentLabel={`${enrollment.lastName} ${enrollment.firstName}`.trim()}
+                    />
+                  </div>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -180,25 +204,95 @@ export function CourseDetailView({
                 lesson.startsAt && lesson.endsAt
                   ? formatBookingDateTime(lesson.startsAt, lesson.endsAt)
                   : "—";
-              return (
-                <li
-                  key={lesson.id}
-                  className="flex flex-wrap items-center gap-2 py-2 text-sm"
-                >
+              const unplaced =
+                lesson.placement === "da_piazzare" ||
+                lesson.placement === "da_recuperare";
+              const isRecovery = lesson.placement === "da_recuperare";
+              const canOpenAttendance =
+                Boolean(actorMemberId) &&
+                lesson.placement === "scheduled" &&
+                Boolean(lesson.startsAt);
+              const expanded = expandedLessonId === lesson.id;
+              const rowInner = (
+                <>
                   <span className="w-8 shrink-0 text-neutral-400">
                     #{lesson.sequenceNumber}
                   </span>
-                  <span className="min-w-0 flex-1 text-neutral-900">{when}</span>
+                  <span className="min-w-0 flex-1 text-neutral-900">
+                    {when}
+                  </span>
                   <span className="text-neutral-500">{sala}</span>
                   {lesson.placement === "da_piazzare" ? (
                     <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">
                       Da piazzare
                     </span>
                   ) : null}
-                  {lesson.placement === "da_recuperare" ? (
+                  {isRecovery ? (
                     <span className="rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800">
                       Da recuperare
                     </span>
+                  ) : null}
+                  {isRecovery && lesson.originalStartsAt ? (
+                    <span className="text-neutral-500">
+                      Originale:{" "}
+                      {new Date(lesson.originalStartsAt).toLocaleString(
+                        "it-IT",
+                        {
+                          timeZone: "Europe/Rome",
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        },
+                      )}
+                    </span>
+                  ) : null}
+                </>
+              );
+              return (
+                <li key={lesson.id} className="space-y-2 py-2 text-sm">
+                  {canOpenAttendance ? (
+                    <button
+                      type="button"
+                      aria-expanded={expanded}
+                      onClick={() =>
+                        setExpandedLessonId((current) =>
+                          current === lesson.id ? null : lesson.id,
+                        )
+                      }
+                      className="-mx-2 flex w-[calc(100%+1rem)] flex-wrap items-center gap-2 rounded-lg px-2 py-1 text-left hover:bg-neutral-50"
+                    >
+                      {rowInner}
+                    </button>
+                  ) : (
+                    <div className="flex flex-wrap items-center gap-2">
+                      {rowInner}
+                    </div>
+                  )}
+                  {canOpenAttendance && expanded && actorMemberId ? (
+                    <div className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-3">
+                      <LessonAttendancePanel
+                        lessonId={lesson.id}
+                        actorMemberId={actorMemberId}
+                        isStaff={isStaff}
+                      />
+                    </div>
+                  ) : null}
+                  {canPlace && unplaced && actorMemberId ? (
+                    <PlaceLessonForm
+                      lessonId={lesson.id}
+                      rooms={rooms}
+                      requiresRoom={course.courseKind !== "online"}
+                      defaultRoomId={lesson.roomId ?? course.roomId}
+                      actor={{
+                        memberId: actorMemberId,
+                        isStaff,
+                        canReschedule: isStaff || canReschedule,
+                      }}
+                      minDate={isRecovery ? today : undefined}
+                      label={isRecovery ? "Nuova data e ora" : undefined}
+                    />
                   ) : null}
                 </li>
               );

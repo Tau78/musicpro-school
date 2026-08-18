@@ -2,8 +2,7 @@ import { redirect } from "next/navigation";
 
 import {
   getLessonSchoolSettings,
-  listMemberIdsWithRole,
-  listMembers,
+  listMemberLabelsWithRole,
   listTeacherAvailability,
   listTeacherTimeOff,
 } from "@musicpro/database";
@@ -35,19 +34,10 @@ export default async function AdminLezioniDisponibilitaPage({
 
   const { docente: docenteParam } = await searchParams;
 
-  const [docenteIds, members, settings] = await Promise.all([
-    listMemberIdsWithRole(supabase, MemberRole.Docente),
-    listMembers(supabase),
+  const [teachers, settings] = await Promise.all([
+    listMemberLabelsWithRole(supabase, MemberRole.Docente),
     getLessonSchoolSettings(supabase),
   ]);
-
-  const docenteIdSet = new Set(docenteIds);
-  const teachers = members
-    .filter((row) => docenteIdSet.has(row.id))
-    .map((row) => ({
-      id: row.id,
-      label: `${row.lastName} ${row.firstName}`.trim(),
-    }));
 
   const selectedId =
     (docenteParam && teachers.some((row) => row.id === docenteParam)
@@ -65,15 +55,6 @@ export default async function AdminLezioniDisponibilitaPage({
 
   return (
     <div>
-      <div className="mb-6">
-        <h2 className="text-2xl font-semibold text-[var(--brand)]">
-          Disponibilità
-        </h2>
-        <p className="mt-1 text-sm text-neutral-600">
-          Disponibilità settimanale e ferie dei docenti.
-        </p>
-      </div>
-
       {teachers.length === 0 ? (
         <p className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 px-4 py-4 text-sm text-neutral-600">
           Nessun docente in rubrica.

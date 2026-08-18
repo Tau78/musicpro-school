@@ -118,6 +118,31 @@ Deno.serve(async (req) => {
     await deactivatePaymentLink(stripe, paymentLinkId);
   }
 
+  const appUrl = (
+    Deno.env.get('NEXT_PUBLIC_APP_URL') ??
+    Deno.env.get('SITE_URL') ??
+    ''
+  ).replace(/\/$/, '');
+  const cronSecret = Deno.env.get('CRON_SECRET') ?? '';
+  const appliedPaymentId = String(result.payment_id ?? paymentId ?? '');
+  if (appUrl && cronSecret && appliedPaymentId && result.duplicate !== true) {
+    try {
+      await fetch(`${appUrl}/api/lezioni/receipts/from-payment`, {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${cronSecret}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ paymentId: appliedPaymentId }),
+      });
+    } catch (emitError) {
+      console.error(
+        '[stripe-lesson-pack-webhook] receipt emit',
+        emitError instanceof Error ? emitError.message : String(emitError),
+      );
+    }
+  }
+
   return json({
     success: true,
     received: true,

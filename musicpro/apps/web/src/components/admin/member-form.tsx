@@ -93,6 +93,8 @@ function emptyMemberInput(defaultMemberNumber?: number): MemberInput {
     gdprConsent: false,
     gdprConsentAt: null,
     isActive: true,
+    membershipCardPickedUpAt: null,
+    gadgetsPickedUpAt: null,
   };
 }
 
@@ -487,6 +489,24 @@ export function MemberForm({
 
       <fieldset className="space-y-4 rounded-xl border border-neutral-200 bg-white p-6">
         <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
+          Ritiri
+        </legend>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <PickupFlag
+            label="Tessera ritirata"
+            value={form.membershipCardPickedUpAt}
+            onChange={(next) => updateField("membershipCardPickedUpAt", next)}
+          />
+          <PickupFlag
+            label="Gadget ritirati"
+            value={form.gadgetsPickedUpAt}
+            onChange={(next) => updateField("gadgetsPickedUpAt", next)}
+          />
+        </div>
+      </fieldset>
+
+      <fieldset className="space-y-4 rounded-xl border border-neutral-200 bg-white p-6">
+        <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
           Altro
         </legend>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -677,5 +697,40 @@ function Field({
       <span className="mb-1 block text-neutral-600">{label}</span>
       {children}
     </label>
+  );
+}
+
+function PickupFlag({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string | null;
+  onChange: (next: string | null) => void;
+}) {
+  return (
+    <div>
+      <label className="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={Boolean(value)}
+          onChange={(e) => {
+            if (e.target.checked) {
+              onChange(value ?? new Date().toISOString());
+            } else {
+              onChange(null);
+            }
+          }}
+          className="rounded border-neutral-300"
+        />
+        {label}
+      </label>
+      {value ? (
+        <p className="mt-1 text-xs text-neutral-500">
+          Ritiro: {new Date(value).toLocaleDateString("it-IT")}
+        </p>
+      ) : null}
+    </div>
   );
 }

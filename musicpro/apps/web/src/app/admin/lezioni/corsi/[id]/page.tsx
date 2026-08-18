@@ -66,6 +66,7 @@ export default async function AdminCorsoDetailPage({ params }: PageProps) {
       showPrice
       actorMemberId={member.id}
       canCreateCourses
+      canReschedule
       teachers={teachers}
     />
   );

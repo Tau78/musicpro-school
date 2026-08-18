@@ -27,6 +27,8 @@ export type LessonChangeRequest = {
   courseId: string;
   requestedStartsAt: string;
   requestedRoomId: string | null;
+  originalStartsAt: string | null;
+  originalRoomId: string | null;
   scope: "this" | "future";
   note: string | null;
   status: "pending" | "approved" | "rejected";
@@ -52,13 +54,18 @@ function ok(id?: string, warnings?: string[]): CourseMutationResult {
   return result;
 }
 
-function mapRequest(row: RequestRow): LessonChangeRequest {
+function mapRequest(
+  row: RequestRow,
+  original?: { startsAt: string | null; roomId: string | null },
+): LessonChangeRequest {
   return {
     id: row.id,
     lessonId: row.lesson_id,
     courseId: row.course_id,
     requestedStartsAt: row.requested_starts_at,
     requestedRoomId: row.requested_room_id,
+    originalStartsAt: original?.startsAt ?? null,
+    originalRoomId: original?.roomId ?? null,
     scope: row.scope,
     note: row.note,
     status: row.status,
@@ -99,7 +106,30 @@ export async function listPendingLessonChangeRequests(
       `Impossibile caricare le richieste di spostamento: ${error.message}`,
     );
   }
-  return (data ?? []).map(mapRequest);
+  const rows = data ?? [];
+  const lessonIds = [...new Set(rows.map((row) => row.lesson_id))];
+  const originals = new Map<
+    string,
+    { startsAt: string | null; roomId: string | null }
+  >();
+  if (lessonIds.length > 0) {
+    const { data: lessons, error: lessonError } = await client
+      .from("lessons")
+      .select("id, starts_at, room_id")
+      .in("id", lessonIds);
+    if (lessonError) {
+      throw new Error(
+        `Impossibile caricare gli orari originali: ${lessonError.message}`,
+      );
+    }
+    for (const lesson of lessons ?? []) {
+      originals.set(lesson.id, {
+        startsAt: lesson.starts_at,
+        roomId: lesson.room_id,
+      });
+    }
+  }
+  return rows.map((row) => mapRequest(row, originals.get(row.lesson_id)));
 }
 
 export async function reviewLessonChangeRequest(
@@ -136,6 +166,11 @@ export async function reviewLessonChangeRequest(
       startsAt: request.requestedStartsAt,
       roomId: request.requestedRoomId,
       scope: request.scope,
+      actor: {
+        memberId: input.actorMemberId,
+        isStaff: true,
+        canReschedule: true,
+      },
     });
     if (!moved.success) return moved;
 

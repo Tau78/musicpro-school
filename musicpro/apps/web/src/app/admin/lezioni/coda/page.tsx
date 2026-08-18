@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import {
@@ -8,6 +7,7 @@ import {
   listPendingCourses,
   listPendingLessonChangeRequests,
   listRooms,
+  listTeacherCashAdvances,
   listUnplacedLessons,
   minutesToTimeLabel,
   todayInRome,
@@ -17,6 +17,7 @@ import {
 } from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
 
+import { CashAdvanceActions } from "@/components/lezioni/cash-advance-actions";
 import { ChangeRequestActions } from "@/components/lezioni/change-request-actions";
 import { CourseQueueActions } from "@/components/lezioni/course-queue-actions";
 import { PlaceLessonForm } from "@/components/lezioni/place-lesson-form";
@@ -77,6 +78,19 @@ function roomLabel(
   return roomsById.get(roomId) ?? "Sala non trovata";
 }
 
+function changeRequestRoomLabel(
+  roomId: string | null,
+  roomsById: Map<string, string>,
+): string {
+  if (!roomId) return "—";
+  return roomsById.get(roomId) ?? "—";
+}
+
+function changeRequestWhenLabel(iso: string | null): string {
+  if (!iso) return "—";
+  return formatDateTimeIt(iso);
+}
+
 export default async function AdminLezioniCodaPage() {
   const supabase = await createClient();
   const member = await getAdminMember();
@@ -99,23 +113,33 @@ export default async function AdminLezioniCodaPage() {
   > = [];
   let rooms: Awaited<ReturnType<typeof listRooms>> = [];
   let settings: Awaited<ReturnType<typeof getLessonSchoolSettings>> = null;
+  let cashAdvances: Awaited<ReturnType<typeof listTeacherCashAdvances>> = [];
   const detailsById = new Map<string, CourseDetail>();
   const today = todayInRome();
 
   try {
-    const [pendingRows, unplacedRows, requestRows, roomRows, schoolSettings] =
+    const [
+      pendingRows,
+      unplacedRows,
+      requestRows,
+      roomRows,
+      schoolSettings,
+      advanceRows,
+    ] =
       await Promise.all([
         listPendingCourses(supabase),
         listUnplacedLessons(supabase),
         listPendingLessonChangeRequests(supabase),
         listRooms(supabase),
         getLessonSchoolSettings(supabase),
+        listTeacherCashAdvances(supabase, { status: "pending" }),
       ]);
     pending = pendingRows;
     unplaced = unplacedRows;
     changeRequests = requestRows;
     rooms = roomRows;
     settings = schoolSettings;
+    cashAdvances = advanceRows;
 
     const courseIds = [
       ...new Set([
@@ -143,24 +167,6 @@ export default async function AdminLezioniCodaPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h2 className="text-2xl font-semibold text-[var(--brand)]">Coda</h2>
-        <p className="mt-2 flex flex-wrap gap-3 text-sm">
-          <Link
-            href="/admin/lezioni/corsi"
-            className="text-[var(--brand)] underline-offset-2 hover:underline"
-          >
-            Corsi
-          </Link>
-          <Link
-            href="/admin/lezioni"
-            className="text-[var(--brand)] underline-offset-2 hover:underline"
-          >
-            Lezioni
-          </Link>
-        </p>
-      </div>
-
       {!expireResult.success ? (
         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {expireResult.errorMessage ??
@@ -179,6 +185,11 @@ export default async function AdminLezioniCodaPage() {
           {loadError}
         </p>
       ) : null}
+
+      <CashAdvanceActions
+        advances={cashAdvances}
+        actorMemberId={member.id}
+      />
 
       <section className="space-y-4">
         <h3 className="text-lg font-semibold text-[var(--brand)]">
@@ -243,6 +254,12 @@ export default async function AdminLezioniCodaPage() {
                   <CourseQueueActions
                     courseId={course.id}
                     actorMemberId={member.id}
+                    weeklyDow={course.weeklyDow}
+                    weeklyStartMinute={course.weeklyStartMinute}
+                    roomId={course.roomId}
+                    rooms={roomOptions}
+                    online={course.courseKind === "online"}
+                    slotStepMinutes={slotStepMinutes}
                   />
                 </li>
               );
@@ -304,6 +321,11 @@ export default async function AdminLezioniCodaPage() {
                     rooms={roomOptions}
                     requiresRoom={!online}
                     defaultRoomId={lesson.roomId}
+                    actor={{
+                      memberId: member.id,
+                      isStaff: true,
+                      canReschedule: true,
+                    }}
                     slotStepMinutes={slotStepMinutes}
                     minDate={isRecovery ? today : undefined}
                     label={isRecovery ? "Nuova data e ora" : undefined}
@@ -343,12 +365,32 @@ export default async function AdminLezioniCodaPage() {
                   <dl className="grid gap-2 text-sm text-neutral-600 sm:grid-cols-2">
                     <div>
                       <dt className="text-xs uppercase tracking-wide text-neutral-500">
-                        Orario richiesto
+                        Da
                       </dt>
-                      <dd>{formatDateTimeIt(request.requestedStartsAt)}</dd>
+                      <dd>
+                        {changeRequestWhenLabel(request.originalStartsAt)}
+                        {" · "}
+                        {changeRequestRoomLabel(
+                          request.originalRoomId,
+                          roomsById,
+                        )}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs uppercase tracking-wide text-neutral-500">
+                        A
+                      </dt>
+                      <dd>
+                        {formatDateTimeIt(request.requestedStartsAt)}
+                        {" · "}
+                        {changeRequestRoomLabel(
+                          request.requestedRoomId,
+                          roomsById,
+                        )}
+                      </dd>
                     </div>
                     {request.note ? (
-                      <div>
+                      <div className="sm:col-span-2">
                         <dt className="text-xs uppercase tracking-wide text-neutral-500">
                           Nota
                         </dt>

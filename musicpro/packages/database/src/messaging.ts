@@ -91,11 +91,17 @@ async function resolveEmailFrom(
   return "MusicPro School <noreply@school.musicproeventi.it>";
 }
 
+export type EmailAttachment = {
+  filename: string;
+  contentBase64: string;
+};
+
 async function sendEmailViaResend(params: {
   from: string;
   to: string;
   subject: string;
   body: string;
+  attachments?: EmailAttachment[];
 }): Promise<{ ok: true } | { ok: false; error: string; skipped?: boolean }> {
   const apiKey = process.env.RESEND_API_KEY?.trim();
   if (!apiKey) {
@@ -118,6 +124,14 @@ async function sendEmailViaResend(params: {
       subject: params.subject,
       text: params.body,
       html: textToHtml(params.body),
+      ...(params.attachments?.length
+        ? {
+            attachments: params.attachments.map((file) => ({
+              filename: file.filename,
+              content: file.contentBase64,
+            })),
+          }
+        : {}),
     }),
   });
 
@@ -136,6 +150,7 @@ export type SendSingleEmailInput = {
   to: string;
   subject: string;
   body: string;
+  attachments?: EmailAttachment[];
 };
 
 export type SendSingleEmailResult =
@@ -159,7 +174,60 @@ export async function sendSingleEmail(
     to,
     subject: input.subject,
     body: input.body,
+    attachments: input.attachments,
   });
+}
+
+/** Due invii To distinti: tutore e allievo. Niente BCC. */
+export async function sendLessonFamilyEmail(
+  client: MessagingClient,
+  memberId: string,
+  input: {
+    subject: string;
+    body: string;
+    attachments?: EmailAttachment[];
+  },
+): Promise<{ sent: number; skipped: number; warnings: string[] }> {
+  const { data: member, error } = await client
+    .from("members")
+    .select("email, first_name, manual_tutor_email, manual_tutor_first_name")
+    .eq("id", memberId)
+    .maybeSingle();
+
+  const warnings: string[] = [];
+  if (error) {
+    return { sent: 0, skipped: 0, warnings: [error.message] };
+  }
+  if (!member) {
+    return { sent: 0, skipped: 0, warnings: ["Associato non trovato."] };
+  }
+
+  const addresses = new Set<string>();
+  const tutor = member.manual_tutor_email?.trim().toLowerCase() ?? "";
+  const own = member.email?.trim().toLowerCase() ?? "";
+  if (tutor) addresses.add(tutor);
+  if (own) addresses.add(own);
+
+  if (addresses.size === 0) {
+    return { sent: 0, skipped: 1, warnings: ["Nessuna email famiglia."] };
+  }
+
+  let sent = 0;
+  let skipped = 0;
+  for (const to of addresses) {
+    const result = await sendSingleEmail(client, {
+      to,
+      subject: input.subject,
+      body: input.body,
+      attachments: input.attachments,
+    });
+    if (result.ok) sent += 1;
+    else {
+      skipped += 1;
+      warnings.push(result.error);
+    }
+  }
+  return { sent, skipped, warnings };
 }
 
 async function sendTelegramMessage(

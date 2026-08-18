@@ -1,16 +1,17 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 
 import {
   getLessonSchoolSettings,
   listLessonsInRange,
-  listMemberIdsWithRole,
-  listMembers,
+  listMemberLabelsWithRole,
   listRooms,
   todayInRome,
 } from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
 
 import { LessonsCalendarPage } from "@/components/lezioni/lessons-calendar-page";
+import { UnplacedLessonsBlock } from "@/components/lezioni/unplaced-lessons-block";
 import { getAdminMember } from "@/lib/admin/current-member";
 import { canManageMembers } from "@/lib/admin/roles";
 import {
@@ -54,20 +55,11 @@ export default async function AdminLezioniCalendarioPage({
   const anchorDate = isIsoDate(params.date) ? params.date : today;
   const highlightDay = isIsoDate(params.hl) ? params.hl : null;
 
-  const [settings, rooms, docenteIds, members] = await Promise.all([
+  const [settings, rooms, teachers] = await Promise.all([
     getLessonSchoolSettings(supabase),
     listRooms(supabase),
-    listMemberIdsWithRole(supabase, MemberRole.Docente),
-    listMembers(supabase),
+    listMemberLabelsWithRole(supabase, MemberRole.Docente),
   ]);
-
-  const docenteIdSet = new Set(docenteIds);
-  const teachers = members
-    .filter((row) => docenteIdSet.has(row.id))
-    .map((row) => ({
-      id: row.id,
-      label: `${row.lastName} ${row.firstName}`.trim(),
-    }));
 
   const roomOptions = rooms.map((room) => ({ id: room.id, name: room.name }));
   const teacherId =
@@ -95,15 +87,18 @@ export default async function AdminLezioniCalendarioPage({
   });
 
   return (
-    <div>
-      <div className="mb-6">
-        <h2 className="text-2xl font-semibold text-[var(--brand)]">
-          Calendario
-        </h2>
-        <p className="mt-1 text-sm text-neutral-600">
-          Tutte le lezioni, per docente o per sala.
-        </p>
-      </div>
+    <div className="space-y-3">
+      <Suspense fallback={null}>
+        <UnplacedLessonsBlock
+          actor={{
+            memberId: member.id,
+            isStaff: true,
+            canReschedule: true,
+          }}
+          rooms={roomOptions}
+          courseDetailBaseHref="/admin/lezioni/corsi"
+        />
+      </Suspense>
 
       <LessonsCalendarPage
         initialLessons={lessons}

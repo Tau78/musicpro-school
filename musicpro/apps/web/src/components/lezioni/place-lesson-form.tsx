@@ -3,7 +3,11 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { placeLesson, romeLocalInputToUtcIso } from "@musicpro/database";
+import {
+  placeLesson,
+  romeLocalInputToUtcIso,
+  type LessonScheduleActor,
+} from "@musicpro/database";
 
 import { createClient } from "@/lib/supabase/client";
 
@@ -15,6 +19,7 @@ interface PlaceLessonFormProps {
   rooms: { id: string; name: string }[];
   requiresRoom: boolean;
   defaultRoomId: string | null;
+  actor: LessonScheduleActor;
   slotStepMinutes?: number;
   /** YYYY-MM-DD — blocca datetime-local prima di questo giorno. */
   minDate?: string;
@@ -26,6 +31,7 @@ export function PlaceLessonForm({
   rooms,
   requiresRoom,
   defaultRoomId,
+  actor,
   slotStepMinutes = 15,
   minDate,
   label = "Data e ora",
@@ -69,6 +75,7 @@ export function PlaceLessonForm({
     const result = await placeLesson(supabase, lessonId, {
       startsAt,
       roomId: requiresRoom ? roomId : null,
+      actor,
     });
     setBusy(false);
 

@@ -108,6 +108,32 @@ export async function listMemberIdsWithRole(
   return [...new Set((data ?? []).map((row) => row.member_id))];
 }
 
+export async function listMemberLabelsWithRole(
+  client: RolesClient,
+  role: MemberRoleValue,
+): Promise<{ id: string; label: string }[]> {
+  const ids = await listMemberIdsWithRole(client, role);
+  if (ids.length === 0) return [];
+
+  const { data, error } = await client
+    .from("members")
+    .select("id, first_name, last_name")
+    .in("id", ids)
+    .order("last_name", { ascending: true })
+    .order("first_name", { ascending: true });
+
+  if (error) {
+    throw new Error(
+      `Impossibile caricare i nomi dei membri con ruolo ${role}: ${error.message}`,
+    );
+  }
+
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    label: `${row.last_name} ${row.first_name}`.trim(),
+  }));
+}
+
 export async function setMemberHasRole(
   client: RolesClient,
   memberId: string,

@@ -22,11 +22,13 @@ import {
 
 import { LessonAttendancePanel } from "@/components/lezioni/lesson-attendance-panel";
 import type { CalendarLesson } from "@/components/lezioni/lessons-calendar";
+import { LessonsPrintButton } from "@/components/lezioni/lessons-print-button";
 
 export type OggiLesson = CalendarLesson & { hasAttendance?: boolean };
 
 export interface LessonsOggiProps {
   lessons: OggiLesson[];
+  arrears?: OggiLesson[];
   onOpenLesson?: (lessonId: string) => void;
   courseDetailBasePath?: string;
   actorMemberId?: string;
@@ -43,8 +45,15 @@ function isHoldLesson(lesson: OggiLesson): boolean {
   return lesson.id.startsWith("hold:") || lesson.courseStatus === "in_attesa";
 }
 
+function filterArrearsLessons(lessons: OggiLesson[]): OggiLesson[] {
+  return lessons.filter(
+    (lesson) => !lesson.hasAttendance && !isHoldLesson(lesson),
+  );
+}
+
 export function LessonsOggi({
   lessons,
+  arrears = [],
   onOpenLesson,
   courseDetailBasePath,
   actorMemberId,
@@ -69,23 +78,79 @@ export function LessonsOggi({
     }
   }
 
-  const rows = lessons
-    .filter((lesson) => lesson.startsAt && romeDateFromIso(lesson.startsAt) === today)
-    .slice()
-    .sort((a, b) => {
-      const aMin = a.startsAt ? getRomeMinutesFromMidnight(a.startsAt) : 0;
-      const bMin = b.startsAt ? getRomeMinutesFromMidnight(b.startsAt) : 0;
-      return aMin - bMin;
-    });
+  const todayRows = sortByStart(
+    lessons.filter(
+      (lesson) =>
+        lesson.startsAt && romeDateFromIso(lesson.startsAt) === today,
+    ),
+  );
+  const arrearsRows = sortByStart(filterArrearsLessons(arrears));
 
-  if (rows.length === 0) {
-    return (
-      <p className="rounded-xl border border-dashed border-neutral-300 bg-white px-4 py-8 text-center text-sm text-neutral-500">
-        Nessuna lezione oggi.
-      </p>
-    );
-  }
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-end">
+        <LessonsPrintButton label="Stampa registro del giorno" />
+      </div>
+      {todayRows.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-neutral-300 bg-white px-4 py-8 text-center text-sm text-neutral-500">
+          Nessuna lezione oggi.
+        </p>
+      ) : (
+        <LessonOggiList
+          rows={todayRows}
+          expandedId={expandedId}
+          canExpand={canExpand}
+          actorMemberId={actorMemberId}
+          isStaff={isStaff}
+          courseDetailBasePath={courseDetailBasePath}
+          onOpen={openLesson}
+          onSaved={() => router.refresh()}
+        />
+      )}
 
+      {arrearsRows.length > 0 ? (
+        <section className="space-y-3">
+          <h3 className="text-lg font-semibold text-[var(--brand)]">
+            Arretrati
+          </h3>
+          <LessonOggiList
+            rows={arrearsRows}
+            expandedId={expandedId}
+            canExpand={canExpand}
+            actorMemberId={actorMemberId}
+            isStaff={isStaff}
+            courseDetailBasePath={courseDetailBasePath}
+            onOpen={openLesson}
+            onSaved={() => router.refresh()}
+            showDate
+          />
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
+function LessonOggiList({
+  rows,
+  expandedId,
+  canExpand,
+  actorMemberId,
+  isStaff,
+  courseDetailBasePath,
+  onOpen,
+  onSaved,
+  showDate = false,
+}: {
+  rows: OggiLesson[];
+  expandedId: string | null;
+  canExpand: boolean;
+  actorMemberId?: string;
+  isStaff: boolean;
+  courseDetailBasePath?: string;
+  onOpen: (lesson: OggiLesson) => void;
+  onSaved: () => void;
+  showDate?: boolean;
+}) {
   return (
     <ul className="divide-y divide-neutral-200 overflow-hidden rounded-xl border border-neutral-200 bg-white">
       {rows.map((lesson) => {
@@ -95,13 +160,17 @@ export function LessonsOggi({
         const end = lesson.endsAt
           ? minutesToTimeLabel(getRomeMinutesFromMidnight(lesson.endsAt))
           : null;
-        const name = lesson.courseName.trim() || lesson.studentNames[0] || "Lezione";
+        const name =
+          lesson.courseName.trim() || lesson.studentNames[0] || "Lezione";
         const students = lesson.studentNames.filter(Boolean).join(", ");
         const room =
           lesson.courseKind === "online" ? "Online" : (lesson.roomName ?? "—");
         const hold = isHoldLesson(lesson);
         const expanded = expandedId === lesson.id;
-        const clickable = canExpand || Boolean(onOpenLesson || courseDetailBasePath);
+        const clickable =
+          canExpand || Boolean(onOpen || courseDetailBasePath);
+        const dayLabel =
+          showDate && lesson.startsAt ? romeDayLabel(lesson.startsAt) : null;
 
         const inner = (
           <>
@@ -111,6 +180,13 @@ export function LessonsOggi({
             </p>
             <div className="min-w-0 flex-1">
               <p className="truncate font-medium text-neutral-900">
+                {dayLabel ? (
+                  <>
+                    <span className="font-normal text-neutral-500">
+                      {dayLabel}
+                    </span>{" "}
+                  </>
+                ) : null}
                 <span className="text-neutral-500">#{lesson.sequenceNumber}</span>{" "}
                 {name}
               </p>
@@ -138,7 +214,7 @@ export function LessonsOggi({
               {clickable ? (
                 <button
                   type="button"
-                  onClick={() => openLesson(lesson)}
+                  onClick={() => onOpen(lesson)}
                   aria-expanded={canExpand ? expanded : undefined}
                   className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3 text-left hover:bg-neutral-50"
                 >
@@ -164,7 +240,7 @@ export function LessonsOggi({
                   lessonId={lesson.id}
                   actorMemberId={actorMemberId}
                   isStaff={isStaff}
-                  onSaved={() => router.refresh()}
+                  onSaved={onSaved}
                 />
               </div>
             ) : null}
@@ -194,11 +270,31 @@ function KindDot({ lesson }: { lesson: CalendarLesson }) {
   );
 }
 
+function sortByStart(lessons: OggiLesson[]): OggiLesson[] {
+  return lessons.slice().sort((a, b) => {
+    const aMin = a.startsAt ? getRomeMinutesFromMidnight(a.startsAt) : 0;
+    const bMin = b.startsAt ? getRomeMinutesFromMidnight(b.startsAt) : 0;
+    const aDay = a.startsAt ? romeDateFromIso(a.startsAt) : "";
+    const bDay = b.startsAt ? romeDateFromIso(b.startsAt) : "";
+    if (aDay !== bDay) return aDay.localeCompare(bDay);
+    return aMin - bMin;
+  });
+}
+
 function romeDateFromIso(iso: string): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Europe/Rome",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
+  }).format(new Date(iso));
+}
+
+function romeDayLabel(iso: string): string {
+  return new Intl.DateTimeFormat("it-IT", {
+    timeZone: "Europe/Rome",
+    weekday: "short",
+    day: "numeric",
+    month: "short",
   }).format(new Date(iso));
 }

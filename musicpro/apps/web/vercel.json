@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/external-calendar-sync",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/lezioni/reminders",
+      "schedule": "0 * * * *"
     }
   ]
 }

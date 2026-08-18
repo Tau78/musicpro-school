@@ -50,6 +50,7 @@ export default async function CorsoDocenteDetailPage({ params }: PageProps) {
       isStaff={false}
       showPrice={profile?.paymentVisibility !== "hidden"}
       canCreateCourses={profile?.canCreateCourses ?? false}
+      canReschedule={profile?.canReschedule ?? false}
     />
   );
 }
