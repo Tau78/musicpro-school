@@ -1073,6 +1073,21 @@ export async function generateDueLessonPayrollDrafts(
       .maybeSingle();
     if (existing && existing.status !== "draft") continue;
     if (existing && !force) continue;
+    const preview = await previewLessonPayroll(
+      client,
+      teacherId,
+      target.year,
+      target.month,
+    );
+    if (
+      !existing &&
+      preview.grossEur === 0 &&
+      preview.advancesEur === 0 &&
+      preview.minutesTeaching === 0 &&
+      preview.minutesCoordination === 0
+    ) {
+      continue;
+    }
     const result = await generateLessonPayroll(client, {
       teacherMemberId: teacherId,
       year: target.year,
