@@ -13,6 +13,8 @@ export interface MemberSummary {
   email: string | null;
   telegramChatId: string | null;
   isActive: boolean;
+  isEnrollmentDraft: boolean;
+  draftExpiresAt: string | null;
 }
 
 export interface MemberDetail {
@@ -42,9 +44,14 @@ export interface MemberDetail {
   gdprConsent: boolean;
   gdprConsentAt: string | null;
   isActive: boolean;
+  isEnrollmentDraft: boolean;
+  draftExpiresAt: string | null;
 }
 
-export type MemberInput = Omit<MemberDetail, "id">;
+export type MemberInput = Omit<
+  MemberDetail,
+  "id" | "isEnrollmentDraft" | "draftExpiresAt"
+>;
 
 type MemberRow = {
   id: string;
@@ -73,13 +80,15 @@ type MemberRow = {
   gdpr_consent: boolean;
   gdpr_consent_at: string | null;
   is_active: boolean;
+  is_enrollment_draft: boolean;
+  draft_expires_at: string | null;
 };
 
 const MEMBER_LIST_COLUMNS =
-  "id, member_number, first_name, last_name, phone, email, telegram_chat_id, is_active";
+  "id, member_number, first_name, last_name, phone, email, telegram_chat_id, is_active, is_enrollment_draft, draft_expires_at";
 
 const MEMBER_DETAIL_COLUMNS =
-  "id, member_number, enrolled_at, first_name, last_name, birth_place, birth_province, birth_date, address_street, address_postal_code, address_city, address_province, tax_code, phone, email, legacy_tutor_member_number, legacy_tutor_full_name, manual_tutor_first_name, manual_tutor_last_name, manual_tutor_phone, manual_tutor_email, manual_tutor_tax_code, telegram_chat_id, gdpr_consent, gdpr_consent_at, is_active";
+  "id, member_number, enrolled_at, first_name, last_name, birth_place, birth_province, birth_date, address_street, address_postal_code, address_city, address_province, tax_code, phone, email, legacy_tutor_member_number, legacy_tutor_full_name, manual_tutor_first_name, manual_tutor_last_name, manual_tutor_phone, manual_tutor_email, manual_tutor_tax_code, telegram_chat_id, gdpr_consent, gdpr_consent_at, is_active, is_enrollment_draft, draft_expires_at";
 
 function mapMemberSummary(row: MemberRow): MemberSummary {
   return {
@@ -91,6 +100,8 @@ function mapMemberSummary(row: MemberRow): MemberSummary {
     email: row.email,
     telegramChatId: row.telegram_chat_id,
     isActive: row.is_active,
+    isEnrollmentDraft: Boolean(row.is_enrollment_draft),
+    draftExpiresAt: row.draft_expires_at ?? null,
   };
 }
 
@@ -122,6 +133,8 @@ function mapMemberDetail(row: MemberRow): MemberDetail {
     gdprConsent: row.gdpr_consent,
     gdprConsentAt: row.gdpr_consent_at,
     isActive: row.is_active,
+    isEnrollmentDraft: Boolean(row.is_enrollment_draft),
+    draftExpiresAt: row.draft_expires_at ?? null,
   };
 }
 

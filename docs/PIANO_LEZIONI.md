@@ -1,7 +1,7 @@
 # Piano Lezioni — area docente e didattica
 
 **Data:** 2026-08-18  
-**Stato:** specifica V1 chiusa (§20–27). **Fette 1–3 fatte.** **Fetta 5 UI fatta** (corsi, hold, generazione, coda). `032`–`033` in push. Calendario (6) ancora no.  
+**Stato:** specifica V1 chiusa (§20–33). **Fette 1–9b UI fatte.** Audit 4 punti di vista in §32. Wallet/rette/`037` applicata. Dual iscrizione e webhook pack vanno in produzione con VAI.  
 **Riferimento UX:** planning settimanale tipo ScuolaSemplice / screenshot docente (card gialle, ore totali, Oggi, DnD, vista mensile)  
 **Stack:** monorepo `musicpro/` + Supabase (stesso di [`PIANO_PRENOTAZIONI.md`](PIANO_PRENOTAZIONI.md))
 
@@ -210,13 +210,17 @@ Presenza docente **implicita** se si segnano gli allievi.
 
 ### Regole
 
-- **Giustificato** o **cancellata scuola:** la lezione **si accoda** alle programmate (stessa fascia/sala, primo buco). Non scala il pacchetto.
-- **Assente** (non giustificato): consuma il pacchetto, non si accoda.
+- **Giustificato** o **cancellata scuola:** la lezione va in **da recuperare** (parcheggio, stessa coda «da piazzare»). **Non** si accoda in silenzio al primo buco. Non scala il pacchetto. Lo slot originale **si libera subito**.
+- **Assente** (non giustificato): consuma il pacchetto (fetta 9), non si accoda.
+- Collettivo, un solo allievo giustificato: la lezione di gruppo **resta**; si crea uno slot **1:1 extra** (`kind=recupero`) in da recuperare, solo per lui. Non si infila in un altro gruppo.
 - Si può segnare un’assenza **in anticipo**.
 - Docente: edit passato entro **14 giorni** e solo se il **mese notula non è chiuso**.
-- Mese chiuso: solo staff, edit **in riga** sull’elenco. Tentativo → popup «Sblocca mese?» → salva → **notula rigenerata**.
-- Ferie/assenze docente: le lezioni in quei giorni **si accodano**. Non si può restringere la disponibilità sotto lezioni già messe (prima si spostano/accodano). Conflitto con lezioni = fetta 5/7 (ora stub).
+- Mese chiuso: solo staff, edit **in riga** sull’elenco. Tentativo → popup «Sblocca mese?» → salva → **notula rigenerata**. (Fetta 11; in 7 il mese è sempre aperto.)
+- Ferie/assenze docente: non si restringe la disponibilità sotto lezioni già messe. Azione unica **«Docente assente»** (oggi o range) → lezioni → da recuperare + libera sala. Conflitto disponibilità ↔ lezioni = blocco con elenco.
 - Disponibilità default: **tutto libero** (zero fasce). Prima fascia = libero **solo** in quelle ore. Fasce che si toccano si **uniscono**. Ferie: giorni interi (default) o fascia oraria. Domenica nascosta se il flag scuola è off. Modificano docente e staff (scheda + `/admin/lezioni`).
+- Lezione **già presenziata**: niente DnD / spostamento. Prima si sblocca la presenza (docente se mese aperto e ≤14 giorni; staff sempre).
+- Recupero: **non** si piazza nel passato.
+- **Cambio titolare** a metà anno: staff «Passa a X» sullo stesso corso (chiude riga `course_teachers`, nuova titolarità, `courses.titular_member_id`). Storico presenze/notule resta. Le future pagano il nuovo.
 
 ### Supplenza
 
@@ -408,6 +412,8 @@ Consenso foto/video: va **aggiunto** al modulo `iscrizioni.musicproeventi.it` (t
 | Benvenuto corso | Famiglia (tessera/gadget) |
 | Ricevuta fiscale (copia) | Intestatario (tutore se c’è); pulsante Invia/reinvia |
 | Reminder lezione e prova | Famiglia only |
+| **Subito** su spostamento / cancellazione / da recuperare / supplenza | Famiglia (tutore se minore); se agisce lo staff anche titolare e supplente. Checkbox «Avvisa» default acceso. Fetta 14. |
+| Conferma corso approvato (prima lezione) | Famiglia. Se manca < 24h, reminder immediato. Fetta 14. |
 | Notula da firmare / sollecito firma | Docente |
 
 Canale V1: **email**. Niente Telegram reminder, niente push, niente BCC.
@@ -465,11 +471,12 @@ Ordine consigliato (ogni fetta consegnabile e testabile):
 | 3 | Disponibilità docente | **UI fatta** (`/lezioni`, `/admin/lezioni`, scheda) |
 | 4 | Occupazione sala da lezione (booking source) | Inclusa nella 5 (generate → `bookings.source=lesson`) |
 | 5 | Corsi: crea / approva / hold 48h / genera ricorrente / da piazzare | **UI fatta** (`032`–`033`) |
-| 6 | Calendario settimana + mensile + Oggi + DnD + colori | Planning usabile |
-| 7 | Presenze + accodamento giustificata + ferie/festività | Registro |
-| 8 | Prova + bozza + magic link + email benvenuto | Funnel iscrizione |
-| 9 | Pacchetti da 4 + wallet crediti + checkout Stripe (quota+pack) + sollecito | Incassi |
-| 9b | **Rette da incassare** + Registra incasso (anticipo famiglia) + saldo iniziale SS | Coda segreteria |
+| 6 | Calendario settimana + mensile + Oggi + DnD + colori | **UI fatta** |
+| 7 | Presenze + da recuperare + docente assente + passa titolare + coda richieste | **UI fatta** (`035`) |
+| 8 | Prova + bozza + magic link + email benvenuto | **UI fatta** (`036`) |
+| 8b | Ponte iscrizione: form produzione valida token Supabase (poi GAS) + chiudi bozza su quota | **Codice fatto** (dual spento di default; VAI deve settare env) |
+| 9 | Pacchetti da 4 + wallet crediti + checkout Stripe (quota+pack) + sollecito | **UI fatta** (`037` applicata) |
+| 9b | **Rette da incassare** + Registra incasso (anticipo famiglia) + saldo iniziale SS | **UI fatta** (lista + incasso + saldo; export Excel dopo) |
 | 10 | Contanti → conferma staff → crediti lezione + **anticipo docente** | Cassa docente |
 | 10b | Ricevute: matrice + copia, auto su incasso, registro/export | Fiscalità entrate |
 | 11 | Notule da presenti + firma + extra + chiusura mese + job giorno 8 | Compensi |
@@ -687,5 +694,151 @@ Wiki SS usata: *Rette studenti*, *pagamento parziale/cumulativo*, *solleciti*, *
 | Slot occupato | Lezione **da piazzare** (niente booking) |
 | Anno corsi | Form in `/admin/lezioni/impostazioni` (niente seed) |
 | Occupazione sala | `bookings.source=lesson` via `create_lesson_booking` (fetta 4 inclusa) |
+
+---
+
+## 29. Calendario (fetta 6, 2026-08-18)
+
+| Tema | Decisione |
+|------|-----------|
+| Staff | Toggle **Docente / Sala** (default docente) |
+| Senza flag sposta | Card non trascinabile; tap → **Richiedi spostamento** (testo + hold; tabella `lesson_change_requests`) |
+| Corsi in attesa | Card tratteggiata sulla lezione hold |
+| Tap giorno in mese | Apre la **settimana** e evidenzia il giorno |
+| Colori | Individuale giallo, gruppo azzurro, online viola |
+| Landing docente | `/lezioni` → **Oggi** |
+
+---
+
+## 30. Presenze e recuperi (fetta 7, 2026-08-18)
+
+Default operativi chiusi (SS / Jackrabbit, senza feature extra).
+
+| Tema | Decisione |
+|------|-----------|
+| Recupero data ignota | **Parcheggio da recuperare** (default). Accodamento automatico al primo buco = no |
+| Slot originale | Si **libera subito** (booking cancellato) |
+| Collettivo 1 assente giustificato | Slot **1:1 extra** `kind=recupero`, non altro gruppo |
+| Docente assente su lezioni già messe | Azione unica «Docente assente» oggi/range → da recuperare + libera sala |
+| Cambio titolare | **Passa a X** sullo stesso corso |
+| Già presenziata | Niente spostamento / DnD finché non si sblocca |
+| Recupero nel passato | Vietato |
+| Oggi | Registro in un tap (default tutti presenti); **telefono** allievo/tutore in riga |
+| Wallet / pack | Stati presenza sì; consumo crediti = fetta 9 |
+| Mese notula chiuso | Stub (sempre aperto) fino alla 11 |
+| Email subito su sposta/cancella | Spec §14, implementazione fetta 14 |
+| Coda staff | Da piazzare **e** da recuperare **e** richieste spostamento (`034`) |
+
+---
+
+## 31. Prova (fetta 8, 2026-08-18)
+
+| Tema | Decisione |
+|------|-----------|
+| Modello | `courses.is_trial` + **una** lezione `kind=prova`. Status **attivo** subito, niente hold/coda |
+| Flag crea | Docente: serve `can_create_courses`. Staff: sempre |
+| Allievo | Bozza rubrica (`is_enrollment_draft`, no n. associato, scade 30g). Email già in anagrafe → **riaggancia** |
+| Minore | < 18 come `iscrizione.html`: dati allievo **e** tutore |
+| Sala | Occupata subito (`confirmed`). Online = niente sala |
+| 1 / stagione | Per persona, anno corsi corrente. Fratelli = due prove |
+| No-show | Docente: **libera** o **riprogramma** (1 sola volta) |
+| Annulla | Libera sala; bozza resta 30g |
+| Conversione | Nuovo corso **già attivo**, stesso slot proposto. Checkout quota+pack = fetta 9 |
+| Magic link | 30 giorni, URL form iscrizione esistente (`iscrizioneToken`), campi modificabili. Reinvio docente/staff |
+| Email | Benvenuto + link via Resend. Se manca la chiave, warning (non blocca la prova) |
+| Colore card | Prova = rosa (distinto da individuale giallo) |
+| Rubrica | Badge **Bozza** + filtro |
+
+---
+
+## 32. Audit quattro punti di vista (2026-08-18)
+
+Walk su fette 1–8 (admin/segreteria, docente, allievo, tutore). Distingue **buchi in pezzi già consegnati** da **fette successive**. Il portale famiglia è V2, non un buco.
+
+### Verdetto
+
+| Persona | Pronto? | Cosa gira | Cosa rompe il lunedì |
+|---------|---------|-----------|----------------------|
+| Admin / segreteria | Didattica sì, cassa no | Anno, rubrica docente, disponibilità, crea/approva/hold, calendario, Oggi, recuperi in coda, passa titolare, prova | Rette stub, listino/festività senza UI, email famiglia, sblocca presenza, pausa/chiudi, saldo SS senza campo |
+| Docente | Oggi sì, settimana no | Landing Oggi, presenze del giorno, docente assente, calendario, richiesta spostamento, corso/prova se flag, disponibilità | Presenze solo oggi, recuperi non piazzabili, niente sblocca, RLS prova `attivo`, Impostazioni 1/3, prezzo sempre visibile |
+| Allievo | No (canali V1 rotti) | Dashboard associativa (sale, shop crediti **sala**, quota onboarding). Non entra in `/lezioni` (voluto) | Magic link prova → GAS. Zero reminder, pack, ricevuta, avviso spostamento |
+| Tutore | No | Campi sul figlio + email prova (se Resend). Telefono in Oggi docente | Stesso link rotto. Non è un’identità. Quota pagata non chiude la bozza. Conferme al figlio. Un solo contatto |
+
+### Cinque pezzi comuni
+
+| Pezzo | Chi colpisce | Dove sta |
+|-------|--------------|----------|
+| Form iscrizione in produzione valida token **GAS**; la prova li scrive in **Supabase** → «Link non valido» | Allievo, tutore, poi docente (non converte) | **8b** (inclusa nella 9) |
+| Rette / wallet / checkout quota+pack | Admin, famiglia | **9 / 9b** (questa fetta) |
+| Email subito su sposta/cancella + reminder 24h/2h | Famiglia, tutore, staff che deve telefonare | **14** |
+| Presenze solo oggi + recuperi solo in coda admin + niente sblocca | Docente e staff | **Gap 7** (hotfix dopo la 9, non V2) |
+| Pausa / chiudi / togli iscritto / notule didattiche / GCal / PDF / Expo | Admin e docente | **11–15** |
+
+### Admin / segreteria
+
+Percorso: tab Lezioni → `/admin/lezioni` (Oggi · Corsi · Coda · Disponibilità · Calendario · Rette · Impostazioni).
+
+- Impostazioni oggi = solo anno corsi. Helper listino e chiusure **esistono** (`listCoursePackPrices`, `listSchoolClosures`) ma **senza form**. Listino `amount_eur` NULL blocca il go-live pack.
+- Crea corso: `openingPrepaidLessons` è nel helper, **campo assente** in UI.
+- Approva: non si cambia sala al volo.
+- Rette = stub. Senza 9/9b niente FIFO famiglia, niente sollecito, niente saldo SS.
+- Richieste spostamento: manca orario originale in coda.
+
+### Docente
+
+Percorso: `/lezioni` (landing Oggi). Associato non vede Lezioni.
+
+- Registro: piano dice `attendanceEditDays` (14); UI = **solo oggi**.
+- `PlaceLessonForm` solo in coda **admin**, anche se `can_reschedule`.
+- Niente «sblocca presenza» → card già presenziata non si muove (voluto finché non si sblocca; manca l’azione).
+- **RLS:** `courses_insert_docente` accetta solo `in_attesa`; `createTrial` inserisce `attivo` → la prova lato docente può fallire. Fix in `037`.
+- Flag `can_reschedule` / `can_close_courses` non applicati in `moveLesson` / `placeLesson`.
+- `payment_visibility` ignorato: il prezzo corso si vede sempre.
+- Impostazioni docente = solo disponibilità. Mancano Anagrafica e Permessi in sola lettura.
+
+### Allievo
+
+Niente `/lezioni` (contratto V1). Canale famiglia = email + form iscrizione + paga.
+
+- Token prova in `app_settings` (`iscrizione_token:`); `api.php` produzione inoltra a GAS.
+- Pagare la quota su GAS **non** scrive `member_annual_quotas` e **non** toglie `is_enrollment_draft` → il docente non converte.
+- Dashboard shop = crediti **sala**, omonimia con «crediti lezione».
+- Nessuna email dopo il benvenuto prova (reminder, spostamento, pack). Fetta 14.
+
+### Tutore
+
+Non è un login. Identità = `manual_tutor_*` sul figlio. `tutor_links` non usata in UI.
+
+- Stesso magic link rotto.
+- Email di prova al tutore, saluto col **nome del figlio**.
+- Conferma/PDF iscrizione all’email del figlio.
+- Un solo contatto. Famiglia = stesso tutore (FIFO 9b) non implementata prima di questa fetta.
+
+### Cosa non è un buco
+
+Portale tutore, disdetta famiglia, self-book, SMS, push, PayPal/Nexi, lista d’attesa, note lezione, KPI, timeclock. Piano V2 o fuori perimetro.
+
+---
+
+## 33. Pacchetti, wallet, rette (fetta 9+9b, 2026-08-18)
+
+Default operativi chiusi. Ricevute PDF = **10b**. Contanti docente = **10**. Email reminder lezione / sposta = **14** (qui solo sollecito retta).
+
+| Tema | Decisione |
+|------|-----------|
+| Wallet | 1 riga ledger per movimento. Saldo = `sum(delta)` su `course_enrollments`. 1 credito = 1 lezione di **quel** corso |
+| Consumo | `presente` o `assente` (non giustificato). Idempotente per `(lesson_id, member_id)`. Prova = niente consumo |
+| Apertura retta pack | Se dopo il consumo il saldo ≤ 0: `ceil(debiti/4)` rette pack aperte (`debiti = max(0, −saldo)`). Prezzo 0 € = nessuna retta, nessun sollecito |
+| Prima retta | Anche in conversione prova e in crea corso (se saldo 0 e prezzo > 0): si apre subito, scadenza = oggi |
+| Saldo iniziale | Staff: N lezioni + nota. Ledger `saldo_iniziale`, **niente** ricevuta né retta |
+| Incasso | Euro, FIFO famiglia (stesso `manual_tutor_email`, senno solo l’allievo). Parziale sì. Resto ÷ prezzo-lezione → crediti; centesimi → acconto € famiglia |
+| Metodi V1 qui | Stripe checkout (quota+pack), bonifico staff, altro staff. Contanti docente = fetta 10 |
+| Checkout | Payment Link come iscrizioni. Due line item se quota mancante. `mp_flow=lesson_pack` |
+| Bozza | Pagamento quota (Stripe o staff) toglie `is_enrollment_draft` |
+| Ponte form | `ISCRIZIONE_BACKEND=dual`: valida token Supabase prima, poi GAS. Il form tiene `iscrizioneToken` nel POST. Submit Next se il token è in Supabase, senno GAS. Dual spento di default (VAI deve settare env) |
+| Sollecito | Manuale (riga + massivo filtrati) + automatico 1 settimana / 24h prima della **5ª** lezione in calendario se il wallet non copre (`pack_remind_hours_*`) |
+| UI staff | `/admin/lezioni/rette` + listino e festività in Impostazioni + campo saldo iniziale in crea corso |
+| Docente | Non vede Rette. Non vede importi se `payment_visibility` lo vieta (fix visibilità prezzo in questa fetta, sul dettaglio corso) |
+| Fuori da questa fetta | Export Excel, ricevuta PDF, contanti docente, email sposta/reminder lezione, hotfix presenze 14 giorni / piazza recupero / sblocca |
 
 *Fine specifica V1. Implementare solo a fette (§16), senza allargare il perimetro V2.*

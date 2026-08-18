@@ -62,3 +62,11 @@ export function courseStatusClass(status: CourseStatus): string {
       return "bg-neutral-100 text-neutral-700";
   }
 }
+
+export function courseTrialLabel(): string {
+  return "Prova";
+}
+
+export function courseTrialBadgeClass(): string {
+  return "bg-rose-100 text-rose-800";
+}

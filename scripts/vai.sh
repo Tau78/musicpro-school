@@ -297,10 +297,14 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
 else
   VERCEL_OUT="$(npx vercel deploy --prod --yes)"
   printf '%s\n' "$VERCEL_OUT"
-  VERCEL_URL="$(printf '%s\n' "$VERCEL_OUT" | grep -E '^https://' | tail -1)"
-  [[ -n "$VERCEL_URL" ]] || die "Vercel non ha restituito un URL"
-  npx vercel alias set "$VERCEL_URL" "$PRODUCTION_HOST" \
-    || warn "alias $PRODUCTION_HOST non impostato (forse già attivo)"
+  VERCEL_URL="$(printf '%s\n' "$VERCEL_OUT" | grep -oE 'https://[a-zA-Z0-9._-]+\.vercel\.app' | tail -1)"
+  if [[ -z "$VERCEL_URL" ]]; then
+    VERCEL_URL="https://${PRODUCTION_HOST}"
+    warn "URL Vercel non in output; --prod ha già aliasato $PRODUCTION_HOST"
+  else
+    npx vercel alias set "$VERCEL_URL" "$PRODUCTION_HOST" \
+      || warn "alias $PRODUCTION_HOST non impostato (forse già attivo)"
+  fi
 fi
 ok "Vercel $VERCEL_URL → https://$PRODUCTION_HOST"
 

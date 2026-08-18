@@ -215,12 +215,15 @@ export type {
 export {
   applyMessagePlaceholders,
   sendBulkMessages,
+  sendSingleEmail,
 } from "./messaging";
 export type {
   MessageChannel,
   PlaceholderContext,
   SendBulkMessageInput,
   SendBulkMessageResult,
+  SendSingleEmailInput,
+  SendSingleEmailResult,
 } from "./messaging";
 export {
   acceptBandInvite,
@@ -319,6 +322,8 @@ export {
   setCurrentSchoolCourseTerm,
   listLessonSubjects,
   listSchoolClosures,
+  createSchoolClosure,
+  deleteSchoolClosure,
   listCoursePackPrices,
   updateCoursePackPrice,
   listPayRateTypes,
@@ -334,6 +339,7 @@ export type {
   CourseKind,
   CoursePackPrice,
   CreatePayRateTypeInput,
+  CreateSchoolClosureInput,
   IsoWeekday,
   LessonSchoolSettings,
   LessonSchoolSettingsPatch,
@@ -362,6 +368,7 @@ export {
   listUnplacedLessons,
   placeLesson,
   rejectCourse,
+  transferCourseTitular,
 } from "./courses";
 export type {
   Course,
@@ -377,9 +384,70 @@ export type {
   CreateCourseActor,
   CreateCourseInput,
   Lesson,
+  LessonKind,
+  LessonParkedReason,
   LessonPlacement,
   ListCoursesOptions,
 } from "./courses";
+export {
+  listPendingLessonChangeRequests,
+  reviewLessonChangeRequest,
+} from "./lesson-change-requests";
+export type { LessonChangeRequest } from "./lesson-change-requests";
+export {
+  cancelLessonAsSchool,
+  getLessonRoster,
+  listRecoverableLessons,
+  markTeacherAbsent,
+  parkScheduledLesson,
+  saveLessonAttendance,
+} from "./lessons-attendance";
+export type {
+  AttendanceStatus,
+  LessonRoster,
+  LessonRosterStudent,
+} from "./lessons-attendance";
+export {
+  adjustEnrollmentCredits,
+  ensureOpenPackFee,
+  getEnrollmentWallet,
+  listEnrollmentWalletsForCourse,
+  listLessonFees,
+  maybeSendPackReminders,
+  registerFamilyCollection,
+  seedOpeningPrepaidCredits,
+  sendFeeDunning,
+  waiveLessonFee,
+} from "./lessons-wallet";
+export type {
+  EnrollmentWallet,
+  LessonCreditKind,
+  LessonFeeKind,
+  LessonFeeRow,
+  LessonFeeStatus,
+} from "./lessons-wallet";
+export {
+  cancelTrial,
+  convertTrialToCourse,
+  createTrial,
+  listTrialCourses,
+  rescheduleTrial,
+  sendTrialWelcomeEmail,
+} from "./lessons-trials";
+export type { CreateTrialActor, CreateTrialInput } from "./lessons-trials";
+export {
+  listLessonsInRange,
+  listLessonsOnDate,
+  moveLesson,
+  requestLessonMove,
+} from "./lessons-calendar";
+export type {
+  CalendarLesson,
+  ListLessonsCalendarOptions,
+  ListLessonsInRangeInput,
+  MoveLessonInput,
+  RequestLessonMoveInput,
+} from "./lessons-calendar";
 export {
   availabilityConflictsWithLessons,
   createTeacherTimeOff,
@@ -392,6 +460,7 @@ export {
 export type {
   CreateTeacherTimeOffInput,
   TeacherAvailabilityMutationResult,
+  LessonAvailabilityConflict,
   TeacherAvailabilitySlot,
   TeacherAvailabilitySlotInput,
   TeacherTimeOff,

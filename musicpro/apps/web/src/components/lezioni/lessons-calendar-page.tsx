@@ -1,0 +1,554 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
+
+import {
+  getCurrentMemberWithRoles,
+  moveLesson,
+  requestLessonMove,
+  romeLocalInputToUtcIso,
+  utcIsoToRomeLocalInput,
+} from "@musicpro/database";
+
+import {
+  LessonsCalendar,
+  type CalendarLesson,
+  type CalendarView,
+  type MoveScope,
+} from "@/components/lezioni/lessons-calendar";
+import { lessonCourseId } from "@/components/lezioni/lessons-oggi";
+import { createClient } from "@/lib/supabase/client";
+
+export type CalendarMode = "docente" | "sala";
+
+export interface LessonsCalendarPageProps {
+  initialLessons: CalendarLesson[];
+  initialOggiLessons?: CalendarLesson[];
+  settings: {
+    sundayVisible: boolean;
+    gridOpenMinute: number;
+    gridCloseMinute: number;
+  };
+  rooms: { id: string; name: string }[];
+  teachers?: { id: string; label: string }[];
+  initialTeacherId?: string | null;
+  initialRoomId?: string | null;
+  initialView?: CalendarView;
+  initialDate?: string;
+  initialMode?: CalendarMode;
+  isStaff: boolean;
+  canDrag: boolean;
+  courseDetailBasePath: string;
+  today: string;
+  highlightDay?: string | null;
+  memberId?: string;
+}
+
+type RequestForm = {
+  lesson: CalendarLesson;
+  startsLocal: string;
+  roomId: string;
+  note: string;
+  scope: MoveScope;
+};
+
+export function LessonsCalendarPage({
+  initialLessons,
+  settings,
+  rooms,
+  teachers = [],
+  initialTeacherId = null,
+  initialRoomId = null,
+  initialView = "week",
+  initialDate,
+  initialMode = "docente",
+  isStaff,
+  canDrag,
+  courseDetailBasePath,
+  today,
+  highlightDay = null,
+  memberId,
+}: LessonsCalendarPageProps) {
+  const router = useRouter();
+  const supabase = useMemo(() => createClient(), []);
+
+  const view = initialView;
+  const anchorDate = initialDate && isIsoDate(initialDate) ? initialDate : today;
+  const teacherId = initialTeacherId ?? "";
+  const roomId = initialRoomId ?? "";
+  const mode = initialMode;
+
+  const [requestForm, setRequestForm] = useState<RequestForm | null>(null);
+  const [requestBusy, setRequestBusy] = useState(false);
+  const [requestError, setRequestError] = useState<string | null>(null);
+  const [actionLesson, setActionLesson] = useState<CalendarLesson | null>(null);
+
+  function pushQuery(next: {
+    view?: CalendarView;
+    date?: string;
+    hl?: string | null;
+    docente?: string | null;
+    sala?: string | null;
+    modo?: CalendarMode;
+  }) {
+    const params = new URLSearchParams();
+    const nextView = next.view ?? view;
+    const nextDate = next.date ?? anchorDate;
+    const nextHl = next.hl === undefined ? highlightDay : next.hl;
+    const nextMode = next.modo ?? mode;
+    const nextTeacher =
+      next.docente === undefined ? teacherId : (next.docente ?? "");
+    const nextRoom = next.sala === undefined ? roomId : (next.sala ?? "");
+
+    params.set("view", nextView);
+    params.set("date", nextDate);
+    if (nextHl) params.set("hl", nextHl);
+    if (isStaff) {
+      params.set("modo", nextMode);
+      if (nextMode === "docente" && nextTeacher) {
+        params.set("docente", nextTeacher);
+      }
+      if (nextMode === "sala" && nextRoom) {
+        params.set("sala", nextRoom);
+      }
+    }
+
+    const query = params.toString();
+    router.push(query ? `?${query}` : "?");
+  }
+
+  function openCourse(lesson: CalendarLesson) {
+    router.push(`${courseDetailBasePath}/${lessonCourseId(lesson)}`);
+  }
+
+  function handleOpenLesson(lessonId: string) {
+    const lesson = initialLessons.find((row) => row.id === lessonId);
+    if (!lesson) return;
+    if (!canDrag && !lessonId.startsWith("hold:")) {
+      setActionLesson(lesson);
+      return;
+    }
+    openCourse(lesson);
+  }
+
+  function beginRequest(lesson: CalendarLesson) {
+    setActionLesson(null);
+    setRequestError(null);
+    setRequestForm({
+      lesson,
+      startsLocal: lesson.startsAt
+        ? utcIsoToRomeLocalInput(lesson.startsAt)
+        : `${today}T10:00`,
+      roomId: lesson.roomId ?? "",
+      note: "",
+      scope: "this",
+    });
+  }
+
+  async function handleMove(
+    lessonId: string,
+    startsAtIso: string,
+    nextRoomId: string | null,
+    scope: MoveScope,
+  ) {
+    const lesson = initialLessons.find((row) => row.id === lessonId);
+    if (lesson?.hasAttendance) {
+      throw new Error(
+        "Lezione già presenziata: sblocca la presenza prima di spostarla.",
+      );
+    }
+
+    const result = await moveLesson(supabase, lessonId, {
+      startsAt: startsAtIso,
+      roomId: nextRoomId,
+      scope,
+    });
+    if (!result.success) {
+      throw new Error(result.errorMessage || "Impossibile spostare la lezione.");
+    }
+    if (result.warnings?.length) {
+      window.alert(result.warnings.join("\n"));
+    }
+    router.refresh();
+  }
+
+  async function submitRequest() {
+    if (!requestForm) return;
+    setRequestBusy(true);
+    setRequestError(null);
+    try {
+      let startsAt: string;
+      try {
+        startsAt = romeLocalInputToUtcIso(requestForm.startsLocal);
+      } catch {
+        setRequestError("Data e ora della lezione non valide.");
+        return;
+      }
+
+      let createdBy = memberId ?? "";
+      if (!createdBy) {
+        const member = await getCurrentMemberWithRoles(supabase);
+        createdBy = member?.id ?? "";
+      }
+      if (!createdBy) {
+        setRequestError("Impossibile identificare l'associato.");
+        return;
+      }
+
+      const result = await requestLessonMove(supabase, {
+        lessonId: requestForm.lesson.id,
+        startsAt,
+        roomId: requestForm.roomId || null,
+        scope: requestForm.scope,
+        note: requestForm.note,
+        createdBy,
+      });
+      if (!result.success) {
+        setRequestError(
+          result.errorMessage || "Impossibile inviare la richiesta.",
+        );
+        return;
+      }
+      setRequestForm(null);
+      router.refresh();
+    } catch (error) {
+      setRequestError(
+        error instanceof Error
+          ? error.message
+          : "Impossibile inviare la richiesta.",
+      );
+    } finally {
+      setRequestBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      {isStaff ? (
+        <div className="flex flex-wrap items-end gap-3">
+          <div
+            className="inline-flex rounded-full bg-neutral-100 p-0.5"
+            role="group"
+            aria-label="Filtro calendario"
+          >
+            <ModePill
+              active={mode === "docente"}
+              onClick={() => pushQuery({ modo: "docente" })}
+            >
+              Docente
+            </ModePill>
+            <ModePill
+              active={mode === "sala"}
+              onClick={() => pushQuery({ modo: "sala" })}
+            >
+              Sala
+            </ModePill>
+          </div>
+
+          {mode === "docente" ? (
+            <label className="block min-w-[12rem] text-sm">
+              <span className="mb-1 block text-neutral-600">Docente</span>
+              <select
+                value={teacherId}
+                onChange={(event) =>
+                  pushQuery({ docente: event.target.value || null })
+                }
+                className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)]"
+              >
+                <option value="">Tutti</option>
+                {teachers.map((teacher) => (
+                  <option key={teacher.id} value={teacher.id}>
+                    {teacher.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <label className="block min-w-[12rem] text-sm">
+              <span className="mb-1 block text-neutral-600">Sala</span>
+              <select
+                value={roomId}
+                onChange={(event) =>
+                  pushQuery({ sala: event.target.value || null })
+                }
+                className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)]"
+              >
+                <option value="">Tutte</option>
+                {rooms.map((room) => (
+                  <option key={room.id} value={room.id}>
+                    {room.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
+      ) : null}
+
+      <LessonsCalendar
+        lessons={initialLessons}
+        view={view}
+        anchorDate={anchorDate}
+        sundayVisible={settings.sundayVisible}
+        gridOpenMinute={settings.gridOpenMinute}
+        gridCloseMinute={settings.gridCloseMinute}
+        canDrag={canDrag}
+        showTeacherName={isStaff}
+        rooms={rooms}
+        highlightDay={highlightDay}
+        onMove={handleMove}
+        onOpenLesson={handleOpenLesson}
+        onSelectDay={(date) =>
+          pushQuery({ view: "week", date, hl: date })
+        }
+        onViewChange={(next) => pushQuery({ view: next })}
+        onAnchorDateChange={(date) => pushQuery({ date })}
+      />
+
+      {actionLesson ? (
+        <Dialog
+          title="Lezione"
+          onClose={() => setActionLesson(null)}
+        >
+          <p className="text-sm text-neutral-600">
+            #{actionLesson.sequenceNumber}{" "}
+            {actionLesson.courseName.trim() ||
+              actionLesson.studentNames[0] ||
+              "Lezione"}
+          </p>
+          <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              onClick={() => setActionLesson(null)}
+              className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+            >
+              Annulla
+            </button>
+            <button
+              type="button"
+              onClick={() => beginRequest(actionLesson)}
+              className="rounded-lg border border-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand)] hover:bg-[var(--brand)]/5"
+            >
+              Richiedi spostamento
+            </button>
+            <button
+              type="button"
+              onClick={() => openCourse(actionLesson)}
+              className="rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90"
+            >
+              Apri corso
+            </button>
+          </div>
+        </Dialog>
+      ) : null}
+
+      {requestForm ? (
+        <Dialog
+          title="Richiedi spostamento"
+          onClose={() => {
+            if (!requestBusy) {
+              setRequestForm(null);
+              setRequestError(null);
+            }
+          }}
+        >
+          <p className="text-sm text-neutral-600">
+            #{requestForm.lesson.sequenceNumber}{" "}
+            {requestForm.lesson.courseName.trim() ||
+              requestForm.lesson.studentNames[0] ||
+              "Lezione"}
+          </p>
+
+          <label className="mt-4 block text-xs font-medium text-neutral-600">
+            Data e ora
+            <input
+              type="datetime-local"
+              value={requestForm.startsLocal}
+              disabled={requestBusy}
+              onChange={(event) =>
+                setRequestForm((current) =>
+                  current
+                    ? { ...current, startsLocal: event.target.value }
+                    : current,
+                )
+              }
+              className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)]"
+            />
+          </label>
+
+          {requestForm.lesson.courseKind !== "online" && rooms.length > 0 ? (
+            <label className="mt-3 block text-xs font-medium text-neutral-600">
+              Sala
+              <select
+                value={requestForm.roomId}
+                disabled={requestBusy}
+                onChange={(event) =>
+                  setRequestForm((current) =>
+                    current
+                      ? { ...current, roomId: event.target.value }
+                      : current,
+                  )
+                }
+                className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)]"
+              >
+                <option value="">Nessuna sala</option>
+                {rooms.map((room) => (
+                  <option key={room.id} value={room.id}>
+                    {room.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+
+          <label className="mt-3 block text-xs font-medium text-neutral-600">
+            Nota
+            <textarea
+              value={requestForm.note}
+              disabled={requestBusy}
+              rows={3}
+              onChange={(event) =>
+                setRequestForm((current) =>
+                  current ? { ...current, note: event.target.value } : current,
+                )
+              }
+              className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)]"
+            />
+          </label>
+
+          <fieldset className="mt-3">
+            <legend className="text-xs font-medium text-neutral-600">
+              Ambito
+            </legend>
+            <div className="mt-1 flex flex-wrap gap-3 text-sm">
+              <label className="inline-flex items-center gap-1.5">
+                <input
+                  type="radio"
+                  name="request-scope"
+                  checked={requestForm.scope === "this"}
+                  disabled={requestBusy}
+                  onChange={() =>
+                    setRequestForm((current) =>
+                      current ? { ...current, scope: "this" } : current,
+                    )
+                  }
+                />
+                Solo questa lezione
+              </label>
+              <label className="inline-flex items-center gap-1.5">
+                <input
+                  type="radio"
+                  name="request-scope"
+                  checked={requestForm.scope === "future"}
+                  disabled={requestBusy}
+                  onChange={() =>
+                    setRequestForm((current) =>
+                      current ? { ...current, scope: "future" } : current,
+                    )
+                  }
+                />
+                Questa e le future
+              </label>
+            </div>
+          </fieldset>
+
+          {requestError ? (
+            <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {requestError}
+            </p>
+          ) : null}
+
+          <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              disabled={requestBusy}
+              onClick={() => {
+                setRequestForm(null);
+                setRequestError(null);
+              }}
+              className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium hover:bg-neutral-50 disabled:opacity-50"
+            >
+              Annulla
+            </button>
+            <button
+              type="button"
+              disabled={requestBusy}
+              onClick={() => void submitRequest()}
+              className="rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
+            >
+              {requestBusy ? "Invio…" : "Invia richiesta"}
+            </button>
+          </div>
+        </Dialog>
+      ) : null}
+    </div>
+  );
+}
+
+function ModePill({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={
+        active
+          ? "rounded-full bg-[var(--brand)] px-3 py-1 text-sm font-medium text-white"
+          : "rounded-full px-3 py-1 text-sm font-medium text-neutral-600 hover:bg-white"
+      }
+    >
+      {children}
+    </button>
+  );
+}
+
+function Dialog({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="calendar-dialog-title"
+        className="w-full max-w-md rounded-xl bg-white p-6 shadow-lg"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <h3
+            id="calendar-dialog-title"
+            className="text-lg font-semibold text-[var(--brand)]"
+          >
+            {title}
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-sm text-neutral-500 hover:text-neutral-800"
+          >
+            Chiudi
+          </button>
+        </div>
+        <div className="mt-2">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function isIsoDate(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}

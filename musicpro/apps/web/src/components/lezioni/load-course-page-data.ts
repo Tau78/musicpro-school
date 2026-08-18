@@ -21,7 +21,7 @@ export async function loadCourseLessons(
   const { data, error } = await client
     .from("lessons")
     .select(
-      "id, course_id, sequence_number, starts_at, ends_at, room_id, booking_id, placement, cancelled_at, created_at, updated_at",
+      "id, course_id, sequence_number, starts_at, ends_at, room_id, booking_id, placement, cancelled_at, kind, recovered_from_lesson_id, makeup_member_id, parked_reason, original_starts_at, created_at, updated_at",
     )
     .eq("course_id", courseId)
     .is("cancelled_at", null)
@@ -41,6 +41,11 @@ export async function loadCourseLessons(
     bookingId: row.booking_id,
     placement: row.placement,
     cancelledAt: row.cancelled_at,
+    kind: row.kind,
+    recoveredFromLessonId: row.recovered_from_lesson_id,
+    makeupMemberId: row.makeup_member_id,
+    parkedReason: row.parked_reason,
+    originalStartsAt: row.original_starts_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }));

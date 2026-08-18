@@ -2,11 +2,15 @@ import { redirect } from "next/navigation";
 
 import {
   formatDateItalian,
+  listCoursePackPrices,
+  listSchoolClosures,
   listSchoolCourseTerms,
 } from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
 
 import { CourseTermForm } from "@/components/lezioni/course-term-form";
+import { PackPriceForm } from "@/components/lezioni/pack-price-form";
+import { SchoolClosuresForm } from "@/components/lezioni/school-closures-form";
 import { getAdminMember } from "@/lib/admin/current-member";
 import { canManageMembers } from "@/lib/admin/roles";
 import { createClient } from "@/lib/supabase/server";
@@ -23,7 +27,11 @@ export default async function AdminLezioniImpostazioniPage() {
     );
   }
 
-  const terms = await listSchoolCourseTerms(supabase);
+  const [terms, packPrices, closures] = await Promise.all([
+    listSchoolCourseTerms(supabase),
+    listCoursePackPrices(supabase),
+    listSchoolClosures(supabase),
+  ]);
   const currentTerm = terms.find((term) => term.isCurrent) ?? null;
 
   return (
@@ -33,7 +41,7 @@ export default async function AdminLezioniImpostazioniPage() {
           Impostazioni
         </h2>
         <p className="mt-1 text-sm text-neutral-600">
-          Anno corsi della scuola.
+          Anno corsi, listino pacchetti e festività.
         </p>
       </div>
 
@@ -81,6 +89,25 @@ export default async function AdminLezioniImpostazioniPage() {
             </ul>
           )}
         </fieldset>
+
+        <PackPriceForm
+          prices={packPrices.map((row) => ({
+            id: row.id,
+            courseKind: row.courseKind,
+            durationMinutes: row.durationMinutes,
+            amountEur: row.amountEur,
+          }))}
+        />
+
+        <SchoolClosuresForm
+          closures={closures.map((row) => ({
+            id: row.id,
+            title: row.title,
+            startsOn: row.startsOn,
+            endsOn: row.endsOn,
+            repeatsYearly: row.repeatsYearly,
+          }))}
+        />
       </div>
     </div>
   );

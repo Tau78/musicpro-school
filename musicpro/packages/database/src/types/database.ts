@@ -1100,6 +1100,9 @@ export interface Database {
           closed_on: string | null;
           rejected_at: string | null;
           created_by: string | null;
+          is_trial: boolean;
+          trial_reschedule_used: boolean;
+          converted_to_course_id: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -1131,6 +1134,9 @@ export interface Database {
           closed_on?: string | null;
           rejected_at?: string | null;
           created_by?: string | null;
+          is_trial?: boolean;
+          trial_reschedule_used?: boolean;
+          converted_to_course_id?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["courses"]["Insert"]>;
         Relationships: [];
@@ -1188,8 +1194,17 @@ export interface Database {
           ends_at: string | null;
           room_id: string | null;
           booking_id: string | null;
-          placement: "scheduled" | "da_piazzare";
+          placement: "scheduled" | "da_piazzare" | "da_recuperare";
           cancelled_at: string | null;
+          kind: "regular" | "recupero" | "prova";
+          recovered_from_lesson_id: string | null;
+          makeup_member_id: string | null;
+          parked_reason:
+            | "giustificato"
+            | "cancellata_scuola"
+            | "docente_assente"
+            | null;
+          original_starts_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -1201,10 +1216,237 @@ export interface Database {
           ends_at?: string | null;
           room_id?: string | null;
           booking_id?: string | null;
-          placement?: "scheduled" | "da_piazzare";
+          placement?: "scheduled" | "da_piazzare" | "da_recuperare";
           cancelled_at?: string | null;
+          kind?: "regular" | "recupero" | "prova";
+          recovered_from_lesson_id?: string | null;
+          makeup_member_id?: string | null;
+          parked_reason?:
+            | "giustificato"
+            | "cancellata_scuola"
+            | "docente_assente"
+            | null;
+          original_starts_at?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["lessons"]["Insert"]>;
+        Relationships: [];
+      };
+      lesson_attendances: {
+        Row: {
+          id: string;
+          lesson_id: string;
+          member_id: string;
+          status: "presente" | "assente" | "assente_giustificato";
+          marked_by: string | null;
+          marked_at: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          lesson_id: string;
+          member_id: string;
+          status: "presente" | "assente" | "assente_giustificato";
+          marked_by?: string | null;
+          marked_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["lesson_attendances"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      lesson_family_accounts: {
+        Row: {
+          family_key: string;
+          leftover_eur: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          family_key: string;
+          leftover_eur?: number;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["lesson_family_accounts"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      lesson_fees: {
+        Row: {
+          id: string;
+          course_enrollment_id: string | null;
+          member_id: string;
+          course_id: string | null;
+          kind: "pack" | "quota";
+          status: "aperta" | "parziale" | "saldata" | "abbuonata";
+          amount_eur: number;
+          remaining_eur: number;
+          due_on: string;
+          last_dunning_at: string | null;
+          dunning_count: number;
+          note: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          course_enrollment_id?: string | null;
+          member_id: string;
+          course_id?: string | null;
+          kind: "pack" | "quota";
+          status?: "aperta" | "parziale" | "saldata" | "abbuonata";
+          amount_eur: number;
+          remaining_eur: number;
+          due_on: string;
+          last_dunning_at?: string | null;
+          dunning_count?: number;
+          note?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["lesson_fees"]["Insert"]>;
+        Relationships: [];
+      };
+      lesson_pack_payments: {
+        Row: {
+          id: string;
+          family_key: string;
+          member_id: string;
+          amount_eur: number;
+          method: "stripe" | "bonifico" | "contanti" | "altro";
+          status: "pending" | "completed" | "failed";
+          paid_on: string | null;
+          note: string | null;
+          cro: string | null;
+          include_quota: boolean;
+          stripe_payment_intent_id: string | null;
+          stripe_payment_link_id: string | null;
+          stripe_payment_link_url: string | null;
+          stripe_event_id: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          family_key: string;
+          member_id: string;
+          amount_eur: number;
+          method: "stripe" | "bonifico" | "contanti" | "altro";
+          status?: "pending" | "completed" | "failed";
+          paid_on?: string | null;
+          note?: string | null;
+          cro?: string | null;
+          include_quota?: boolean;
+          stripe_payment_intent_id?: string | null;
+          stripe_payment_link_id?: string | null;
+          stripe_payment_link_url?: string | null;
+          stripe_event_id?: string | null;
+          created_by?: string | null;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["lesson_pack_payments"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      lesson_fee_allocations: {
+        Row: {
+          id: string;
+          payment_id: string;
+          fee_id: string;
+          amount_eur: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          payment_id: string;
+          fee_id: string;
+          amount_eur: number;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["lesson_fee_allocations"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      lesson_credit_ledger: {
+        Row: {
+          id: string;
+          course_enrollment_id: string;
+          member_id: string;
+          course_id: string;
+          delta: number;
+          kind:
+            | "saldo_iniziale"
+            | "pack"
+            | "anticipo_famiglia"
+            | "consumo"
+            | "rettifica"
+            | "spostamento_out"
+            | "spostamento_in"
+            | "abbuono"
+            | "rimborso";
+          lesson_id: string | null;
+          lesson_fee_id: string | null;
+          lesson_payment_id: string | null;
+          note: string | null;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          course_enrollment_id: string;
+          member_id: string;
+          course_id: string;
+          delta: number;
+          kind:
+            | "saldo_iniziale"
+            | "pack"
+            | "anticipo_famiglia"
+            | "consumo"
+            | "rettifica"
+            | "spostamento_out"
+            | "spostamento_in"
+            | "abbuono"
+            | "rimborso";
+          lesson_id?: string | null;
+          lesson_fee_id?: string | null;
+          lesson_payment_id?: string | null;
+          note?: string | null;
+          created_by?: string | null;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["lesson_credit_ledger"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      lesson_change_requests: {
+        Row: {
+          id: string;
+          lesson_id: string;
+          course_id: string;
+          requested_starts_at: string;
+          requested_room_id: string | null;
+          scope: "this" | "future";
+          note: string | null;
+          status: "pending" | "approved" | "rejected";
+          hold_booking_id: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          lesson_id: string;
+          course_id: string;
+          requested_starts_at: string;
+          requested_room_id?: string | null;
+          scope?: "this" | "future";
+          note?: string | null;
+          status?: "pending" | "approved" | "rejected";
+          hold_booking_id?: string | null;
+          created_by?: string | null;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["lesson_change_requests"]["Insert"]
+        >;
         Relationships: [];
       };
     };
@@ -1352,6 +1594,29 @@ export interface Database {
         Args: {
           p_member_ids: string[];
           p_fiscal_year?: number | null;
+        };
+        Returns: Json;
+      };
+      lesson_family_key: {
+        Args: { p_member_id: string };
+        Returns: string;
+      };
+      sync_lesson_wallet_after_attendance: {
+        Args: { p_lesson_id: string };
+        Returns: Json;
+      };
+      apply_lesson_pack_payment: {
+        Args: { p_payment_id: string };
+        Returns: Json;
+      };
+      apply_stripe_lesson_pack_payment: {
+        Args: {
+          p_stripe_event_id: string;
+          p_stripe_event_type: string;
+          p_payment_intent_id: string;
+          p_payment_link_id: string;
+          p_amount_cents: number;
+          p_payment_id: string;
         };
         Returns: Json;
       };

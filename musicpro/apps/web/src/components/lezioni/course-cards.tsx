@@ -6,6 +6,8 @@ import {
   courseSlotLabel,
   courseStatusClass,
   courseStatusLabel,
+  courseTrialBadgeClass,
+  courseTrialLabel,
 } from "@/components/lezioni/course-labels";
 
 export function CourseCards({
@@ -39,6 +41,13 @@ export function CourseCards({
                 {courseSlotLabel(course)}
               </p>
             </div>
+            {course.isTrial ? (
+              <span
+                className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${courseTrialBadgeClass()}`}
+              >
+                {courseTrialLabel()}
+              </span>
+            ) : null}
             <span
               className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${courseStatusClass(course.status)}`}
             >

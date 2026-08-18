@@ -132,6 +132,36 @@ async function sendEmailViaResend(params: {
   return { ok: true };
 }
 
+export type SendSingleEmailInput = {
+  to: string;
+  subject: string;
+  body: string;
+};
+
+export type SendSingleEmailResult =
+  | { ok: true }
+  | { ok: false; error: string; skipped?: boolean };
+
+/**
+ * Invio email singolo via Resend (niente campagna). Se manca la chiave, skipped.
+ */
+export async function sendSingleEmail(
+  client: MessagingClient,
+  input: SendSingleEmailInput,
+): Promise<SendSingleEmailResult> {
+  const to = input.to.trim();
+  if (!to) {
+    return { ok: false, skipped: true, error: "Destinatario email mancante." };
+  }
+  const from = await resolveEmailFrom(client);
+  return sendEmailViaResend({
+    from,
+    to,
+    subject: input.subject,
+    body: input.body,
+  });
+}
+
 async function sendTelegramMessage(
   chatId: string,
   text: string,
