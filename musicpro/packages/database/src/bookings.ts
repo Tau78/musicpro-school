@@ -345,19 +345,27 @@ export async function requestRoomBookingPaymentUrl(
 export interface BookingPriceOptions {
   /** Sconto cumulativo da fasce durata (€) */
   durationDiscountEur?: number;
-  /** Sconto PROVI DA SOLO (€) */
+  /** Sconto PROVI DA SOLO orario (€/h) */
   proviDaSoloDiscountEur?: number;
   /** Somma addon selezionati (€) */
   addonTotalEur?: number;
+}
+
+/** Totale sconto PROVI DA SOLO: importo orario × ore. */
+export function proviDaSoloDiscountTotalEur(
+  hourlyDiscountEur: number,
+  durationMinutes: number,
+): number {
+  if (!Number.isFinite(hourlyDiscountEur) || hourlyDiscountEur <= 0) return 0;
+  if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) return 0;
+  return Math.round(hourlyDiscountEur * (durationMinutes / 60) * 100) / 100;
 }
 
 /**
  * Prezzo prenotazione sala.
  *
  * Formula ufficiale:
- * `totale = tariffa × ore − sconti durata − sconto PROVI DA SOLO + addon`
- *
- * Fase 1: solo base (tariffa × ore). Opzioni per sconti/addon in Fase 2.
+ * `totale = (tariffa − sconto PROVI DA SOLO) × ore − sconti durata + addon`
  */
 export function calculateBookingPrice(
   room: Pick<Room, "hourly_rate_eur">,
@@ -368,7 +376,10 @@ export function calculateBookingPrice(
   const total =
     base -
     (options.durationDiscountEur ?? 0) -
-    (options.proviDaSoloDiscountEur ?? 0) +
+    proviDaSoloDiscountTotalEur(
+      options.proviDaSoloDiscountEur ?? 0,
+      durationMinutes,
+    ) +
     (options.addonTotalEur ?? 0);
 
   return Math.round(Math.max(0, total) * 100) / 100;
@@ -893,6 +904,98 @@ export async function listAdminBookings(
     ...booking,
     room: roomById.get(booking.room_id) ?? null,
     member: memberById.get(booking.member_id) ?? null,
+  }));
+}
+
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function resolveBookingRangeBound(value: string, label: string): string {
+  const trimmed = value.trim();
+  if (ISO_DATE_RE.test(trimmed)) {
+    return getRomeDayBoundsUtc(trimmed).startUtc;
+  }
+  const ms = Date.parse(trimmed);
+  if (!Number.isFinite(ms)) {
+    throw new Error(`${label} non è valida.`);
+  }
+  return new Date(ms).toISOString();
+}
+
+export async function listBookingsInRange(
+  client: BookingsClient,
+  input: { from: string; to: string; roomId?: string },
+): Promise<AdminBookingListItem[]> {
+  const from = resolveBookingRangeBound(input.from, "La data di inizio");
+  const to = resolveBookingRangeBound(input.to, "La data di fine");
+  if (from >= to) return [];
+
+  let query = client
+    .from("bookings")
+    .select(BOOKING_SELECT)
+    .neq("status", "cancelled")
+    .gte("start_at", from)
+    .lt("start_at", to)
+    .order("start_at", { ascending: true });
+
+  if (input.roomId) {
+    query = query.eq("room_id", input.roomId);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    throw new Error(`Impossibile caricare le prenotazioni: ${error.message}`);
+  }
+
+  const bookings = (data ?? []) as Booking[];
+  if (bookings.length === 0) return [];
+
+  const roomIds = [...new Set(bookings.map((b) => b.room_id))];
+  const memberIds = [...new Set(bookings.map((b) => b.member_id))];
+  const bandIds = [
+    ...new Set(
+      bookings
+        .map((b) => b.band_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+
+  const [roomsRes, membersRes, bandsRes] = await Promise.all([
+    client.from("rooms").select("id, name, slug").in("id", roomIds),
+    client
+      .from("members")
+      .select("id, first_name, last_name, email")
+      .in("id", memberIds),
+    bandIds.length > 0
+      ? client.from("bands").select("id, name").in("id", bandIds)
+      : Promise.resolve({ data: [] as { id: string; name: string }[], error: null }),
+  ]);
+
+  if (roomsRes.error) {
+    throw new Error(`Impossibile caricare le sale: ${roomsRes.error.message}`);
+  }
+  if (membersRes.error) {
+    throw new Error(
+      `Impossibile caricare gli associati: ${membersRes.error.message}`,
+    );
+  }
+  if (bandsRes.error) {
+    throw new Error(`Impossibile caricare le band: ${bandsRes.error.message}`);
+  }
+
+  const roomById = new Map(
+    (roomsRes.data ?? []).map((room) => [
+      room.id,
+      room as Pick<Room, "id" | "name" | "slug">,
+    ]),
+  );
+  const memberById = new Map((membersRes.data ?? []).map((m) => [m.id, m]));
+  const bandById = new Map((bandsRes.data ?? []).map((b) => [b.id, b]));
+
+  return bookings.map((booking) => ({
+    ...booking,
+    room: roomById.get(booking.room_id) ?? null,
+    member: memberById.get(booking.member_id) ?? null,
+    band: booking.band_id ? (bandById.get(booking.band_id) ?? null) : null,
   }));
 }
 

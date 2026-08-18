@@ -13,9 +13,11 @@ import {
 export function CourseCards({
   courses,
   hrefFor,
+  badge,
 }: {
   courses: Course[];
   hrefFor: (id: string) => string;
+  badge?: string;
 }) {
   if (courses.length === 0) {
     return (
@@ -41,6 +43,11 @@ export function CourseCards({
                 {courseSlotLabel(course)}
               </p>
             </div>
+            {badge ? (
+              <span className="shrink-0 rounded-full bg-violet-50 px-2.5 py-0.5 text-xs font-medium text-violet-800">
+                {badge}
+              </span>
+            ) : null}
             {course.isTrial ? (
               <span
                 className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${courseTrialBadgeClass()}`}

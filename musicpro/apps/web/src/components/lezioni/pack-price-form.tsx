@@ -9,14 +9,12 @@ import {
   type CoursePackPrice,
 } from "@musicpro/database";
 
+import { settingsInputClass } from "@/components/admin/settings-chrome";
 import { COURSE_KIND_LABELS } from "@/components/lezioni/course-labels";
 import { createClient } from "@/lib/supabase/client";
 
 const KINDS: CourseKind[] = ["individuale", "gruppo", "online"];
 const DURATIONS = [30, 45, 60, 90] as const;
-
-const inputClass =
-  "w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)]";
 
 export type PackPriceFormRow = {
   id: string;
@@ -128,61 +126,57 @@ export function PackPriceForm({ prices }: PackPriceFormProps) {
         </p>
       ) : null}
 
-      <fieldset className="space-y-4 rounded-xl border border-neutral-200 bg-white p-6">
-        <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
-          Listino pacchetti
-        </legend>
-        <p className="text-sm text-neutral-600">
-          Prezzo del pacchetto da 4 lezioni. Vuoto = non configurato (blocca
-          l’approvazione). 0 € è consentito.
-        </p>
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead>
-              <tr className="border-b border-neutral-200 text-left text-neutral-500">
-                <th className="py-2 pr-4 font-medium">Tipo</th>
-                {DURATIONS.map((duration) => (
-                  <th key={duration} className="px-2 py-2 font-medium">
-                    {duration} min
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {KINDS.map((kind) => (
-                <tr key={kind} className="border-b border-neutral-100">
-                  <td className="py-2 pr-4 font-medium text-neutral-900">
-                    {COURSE_KIND_LABELS[kind]}
-                  </td>
-                  {DURATIONS.map((duration) => {
-                    const key = cellKey(kind, duration);
-                    const row = byKey.get(key);
-                    return (
-                      <td key={key} className="px-2 py-2">
-                        {row ? (
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            value={drafts[key] ?? ""}
-                            onChange={(e) =>
-                              setCell(kind, duration, e.target.value)
-                            }
-                            placeholder="—"
-                            className={inputClass}
-                            aria-label={`${COURSE_KIND_LABELS[kind]} ${duration} minuti`}
-                          />
-                        ) : (
-                          <span className="text-neutral-400">—</span>
-                        )}
-                      </td>
-                    );
-                  })}
-                </tr>
+      <p className="text-sm text-neutral-600">
+        Prezzo del pacchetto da 4 lezioni. Vuoto = non configurato. 0 € è
+        consentito.
+      </p>
+
+      <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white">
+        <table className="min-w-full text-sm">
+          <thead>
+            <tr className="border-b border-neutral-200 text-left text-neutral-500">
+              <th className="px-4 py-2 font-medium">Tipo</th>
+              {DURATIONS.map((duration) => (
+                <th key={duration} className="px-2 py-2 font-medium">
+                  {duration} min
+                </th>
               ))}
-            </tbody>
-          </table>
-        </div>
-      </fieldset>
+            </tr>
+          </thead>
+          <tbody>
+            {KINDS.map((kind) => (
+              <tr key={kind} className="border-b border-neutral-100 last:border-0">
+                <td className="px-4 py-2 font-medium text-neutral-900">
+                  {COURSE_KIND_LABELS[kind]}
+                </td>
+                {DURATIONS.map((duration) => {
+                  const key = cellKey(kind, duration);
+                  const row = byKey.get(key);
+                  return (
+                    <td key={key} className="px-2 py-2">
+                      {row ? (
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={drafts[key] ?? ""}
+                          onChange={(e) =>
+                            setCell(kind, duration, e.target.value)
+                          }
+                          placeholder="—"
+                          className={settingsInputClass}
+                          aria-label={`${COURSE_KIND_LABELS[kind]} ${duration} minuti`}
+                        />
+                      ) : (
+                        <span className="text-neutral-400">—</span>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       <button
         type="submit"

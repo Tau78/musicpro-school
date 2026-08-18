@@ -11,6 +11,7 @@ export default function RootLayout() {
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="login" options={{ title: "Accedi" }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="calendario-lezioni" options={{ title: "Calendario" }} />
       </Stack>
     </AuthProvider>
   );

@@ -5,6 +5,7 @@ import {
   expireDueHolds,
   getCurrentMemberWithRoles,
   getTeacherProfile,
+  listCoordinatedCourses,
   listCourses,
 } from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
@@ -22,8 +23,9 @@ export default async function LezioniCorsiPage() {
 
   await expireDueHolds(supabase);
 
-  const [courses, profile] = await Promise.all([
+  const [courses, coordinated, profile] = await Promise.all([
     listCourses(supabase, { titularMemberId: member.id }),
+    listCoordinatedCourses(supabase, member.id),
     getTeacherProfile(supabase, member.id),
   ]);
 
@@ -49,6 +51,19 @@ export default async function LezioniCorsiPage() {
       ) : null}
 
       <CourseCards courses={courses} hrefFor={(id) => `/lezioni/corsi/${id}`} />
+
+      {coordinated.length > 0 ? (
+        <section className="mt-8 space-y-4">
+          <h3 className="text-lg font-semibold text-[var(--brand)]">
+            Che coordino
+          </h3>
+          <CourseCards
+            courses={coordinated}
+            hrefFor={(id) => `/lezioni/corsi/${id}`}
+            badge="Coordino"
+          />
+        </section>
+      ) : null}
     </div>
   );
 }

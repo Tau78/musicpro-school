@@ -120,6 +120,12 @@
                 <span>Accetto lo statuto e dichiaro di aver letto l'<a href="http://www.musicproeventi.it/gdpr.pdf" target="_blank">Informativa Privacy</a>.</span>
             </label>
         </div>
+        <div class="form-group">
+            <label style="font-size:0.9em; display:flex; align-items:flex-start; gap:10px;">
+                <input type="checkbox" id="photo-check" style="width:auto; margin-top:3px;">
+                <span>Autorizzo MusicPro Eventi all'utilizzo di foto e video dell'associato per attivit&agrave; istituzionali e didattiche e per la comunicazione sui canali dell'associazione, secondo l'<a href="http://www.musicproeventi.it/gdpr.pdf" target="_blank">Informativa Privacy</a>.</span>
+            </label>
+        </div>
         <div class="signature-wrapper" id="sig-wrap">
             <canvas id="signature-pad"></canvas>
             <button type="button" class="clear-btn" id="clear-signature">Cancella</button>
@@ -300,6 +306,14 @@
             document.getElementById('data_nascita').dispatchEvent(new Event('change'));
         }
         document.getElementById('privacy-check').checked = true;
+        var photoCheck = document.getElementById('photo-check');
+        if (photoCheck) {
+            var rawPhoto = fields.photo_consent;
+            photoCheck.checked = rawPhoto === true
+                || rawPhoto === 'true'
+                || rawPhoto === 'on'
+                || !!dati.photoAccepted;
+        }
         isRinnovoAssociato = true;
         quotaGiaPagata = !!dati.quotaGiaPagata;
         document.getElementById('rinnovo-banner').classList.remove('hidden');
@@ -379,6 +393,7 @@
         var data = {};
         formData.forEach(function(v, k) { data[k] = v; });
         data.privacy_accepted = document.getElementById('privacy-check').checked;
+        data.photo_consent = document.getElementById('photo-check').checked;
         data.signatureData = signaturePad.toDataURL();
         if (isRinnovoAssociato) data.rinnovo_associato = true;
         if (activeIscrizioneToken) {

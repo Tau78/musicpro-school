@@ -4,6 +4,7 @@ import {
   expireDueHolds,
   getCourse,
   getLessonSchoolSettings,
+  listPendingCourseCloseRequests,
   listPendingCourses,
   listPendingLessonChangeRequests,
   listRooms,
@@ -19,6 +20,7 @@ import { MemberRole } from "@musicpro/shared";
 
 import { CashAdvanceActions } from "@/components/lezioni/cash-advance-actions";
 import { ChangeRequestActions } from "@/components/lezioni/change-request-actions";
+import { CloseRequestActions } from "@/components/lezioni/close-request-actions";
 import { CourseQueueActions } from "@/components/lezioni/course-queue-actions";
 import { PlaceLessonForm } from "@/components/lezioni/place-lesson-form";
 import { getAdminMember } from "@/lib/admin/current-member";
@@ -114,6 +116,9 @@ export default async function AdminLezioniCodaPage() {
   let rooms: Awaited<ReturnType<typeof listRooms>> = [];
   let settings: Awaited<ReturnType<typeof getLessonSchoolSettings>> = null;
   let cashAdvances: Awaited<ReturnType<typeof listTeacherCashAdvances>> = [];
+  let closeRequests: Awaited<
+    ReturnType<typeof listPendingCourseCloseRequests>
+  > = [];
   const detailsById = new Map<string, CourseDetail>();
   const today = todayInRome();
 
@@ -125,6 +130,7 @@ export default async function AdminLezioniCodaPage() {
       roomRows,
       schoolSettings,
       advanceRows,
+      closeRequestRows,
     ] =
       await Promise.all([
         listPendingCourses(supabase),
@@ -133,6 +139,7 @@ export default async function AdminLezioniCodaPage() {
         listRooms(supabase),
         getLessonSchoolSettings(supabase),
         listTeacherCashAdvances(supabase, { status: "pending" }),
+        listPendingCourseCloseRequests(supabase),
       ]);
     pending = pendingRows;
     unplaced = unplacedRows;
@@ -140,6 +147,7 @@ export default async function AdminLezioniCodaPage() {
     rooms = roomRows;
     settings = schoolSettings;
     cashAdvances = advanceRows;
+    closeRequests = closeRequestRows;
 
     const courseIds = [
       ...new Set([
@@ -188,6 +196,11 @@ export default async function AdminLezioniCodaPage() {
 
       <CashAdvanceActions
         advances={cashAdvances}
+        actorMemberId={member.id}
+      />
+
+      <CloseRequestActions
+        requests={closeRequests}
         actorMemberId={member.id}
       />
 

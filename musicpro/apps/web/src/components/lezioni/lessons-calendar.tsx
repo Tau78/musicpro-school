@@ -47,6 +47,9 @@ export interface CalendarLesson {
   titularLastName: string | null;
   roomName: string | null;
   hasAttendance?: boolean;
+  source?: "lesson" | "booking" | "external";
+  bookingStatus?: "pending" | "pending_approval" | "confirmed" | "cancelled";
+  proviDaSolo?: boolean;
 }
 
 export interface LessonsCalendarProps {
@@ -57,6 +60,7 @@ export interface LessonsCalendarProps {
   sundayVisible: boolean;
   gridOpenMinute: number;
   gridCloseMinute: number;
+  slotGranularityMinutes?: number;
   canDrag: boolean;
   showTeacherName: boolean;
   rooms: { id: string; name: string }[];
@@ -75,7 +79,7 @@ export interface LessonsCalendarProps {
 }
 
 const ROME = "Europe/Rome";
-const SLOT_MINUTES = 15;
+const DEFAULT_SLOT_MINUTES = 15;
 const PX_PER_HOUR_FALLBACK = 32;
 const PX_PER_HOUR_MIN = 20;
 const PX_PER_HOUR_MAX = 48;
@@ -140,6 +144,7 @@ export function LessonsCalendar({
   sundayVisible,
   gridOpenMinute,
   gridCloseMinute,
+  slotGranularityMinutes = DEFAULT_SLOT_MINUTES,
   canDrag,
   showTeacherName,
   rooms,
@@ -155,8 +160,14 @@ export function LessonsCalendar({
     Number.isFinite(gridCloseMinute) && gridCloseMinute > openMinute
       ? gridCloseMinute
       : 1380;
+  const slotMinutes = [5, 15, 30].includes(slotGranularityMinutes)
+    ? slotGranularityMinutes
+    : DEFAULT_SLOT_MINUTES;
 
-  const placed = useMemo(() => placeLessons(lessons), [lessons]);
+  const placed = useMemo(
+    () => placeLessons(lessons, slotMinutes),
+    [lessons, slotMinutes],
+  );
   const weekStart = startOfWeek(anchorDate);
   const weekDays = sundayVisible ? 7 : 6;
   const weekDates = useMemo(
@@ -217,7 +228,7 @@ export function LessonsCalendar({
 
   function beginDrag(lesson: PlacedLesson) {
     dragLessonRef.current = lesson;
-    setDragDuration(Math.max(SLOT_MINUTES, lesson.endMinute - lesson.startMinute));
+    setDragDuration(Math.max(slotMinutes, lesson.endMinute - lesson.startMinute));
   }
 
   function endDrag() {
@@ -231,8 +242,14 @@ export function LessonsCalendar({
       dragLessonRef.current ??
       (lessonId ? placed.find((row) => row.id === lessonId) : undefined);
     if (!lesson) return;
-    const duration = Math.max(SLOT_MINUTES, lesson.endMinute - lesson.startMinute);
-    const snapped = snapMinute(startMinute, openMinute, closeMinute, duration);
+    const duration = Math.max(slotMinutes, lesson.endMinute - lesson.startMinute);
+    const snapped = snapMinute(
+      startMinute,
+      openMinute,
+      closeMinute,
+      duration,
+      slotMinutes,
+    );
     let startsAtIso: string;
     try {
       startsAtIso = romeLocalInputToUtcIso(
@@ -289,6 +306,7 @@ export function LessonsCalendar({
             lessons={visibleLessons}
             openMinute={openMinute}
             closeMinute={closeMinute}
+            slotMinutes={slotMinutes}
             canDrag={canDrag}
             showTeacherName={showTeacherName}
             highlightDay={highlightDay}
@@ -339,6 +357,7 @@ function WeekGrid({
   lessons,
   openMinute,
   closeMinute,
+  slotMinutes,
   canDrag,
   showTeacherName,
   highlightDay,
@@ -354,6 +373,7 @@ function WeekGrid({
   lessons: PlacedLesson[];
   openMinute: number;
   closeMinute: number;
+  slotMinutes: number;
   canDrag: boolean;
   showTeacherName: boolean;
   highlightDay?: string | null;
@@ -440,6 +460,7 @@ function WeekGrid({
             lessons={byDate.get(date) ?? []}
             openMinute={openMinute}
             closeMinute={closeMinute}
+            slotMinutes={slotMinutes}
             height={gridHeight}
             pxPerHour={pxPerHour}
             hourMarks={hourMarks}
@@ -468,6 +489,7 @@ function DayColumn({
   lessons,
   openMinute,
   closeMinute,
+  slotMinutes,
   height,
   pxPerHour,
   hourMarks,
@@ -489,6 +511,7 @@ function DayColumn({
   lessons: PlacedLesson[];
   openMinute: number;
   closeMinute: number;
+  slotMinutes: number;
   height: number;
   pxPerHour: number;
   hourMarks: number[];
@@ -534,6 +557,7 @@ function DayColumn({
           openMinute,
           closeMinute,
           duration,
+          slotMinutes,
         );
         onHover({ date, startMinute, durationMinutes: duration });
       }}
@@ -632,7 +656,10 @@ function LessonCard({
   const title = lessonTitle(lesson);
   const time = `${minutesToTimeLabel(lesson.startMinute)}–${minutesToTimeLabel(lesson.endMinute)}`;
   const isHold = lesson.id.startsWith("hold:");
-  const draggable = canDrag && !isHold && !lesson.hasAttendance;
+  const isBooking = isCalendarBooking(lesson);
+  const isExternal = isCalendarExternal(lesson);
+  const draggable =
+    canDrag && !isHold && !isBooking && !isExternal && !lesson.hasAttendance;
 
   function open() {
     if (dragged.current) return;
@@ -684,7 +711,17 @@ function LessonCard({
       {showTeacherName && teacher ? (
         <p className="truncate text-[9px] text-neutral-600">{teacher}</p>
       ) : null}
-      {lesson.hasAttendance && !isHold ? (
+      {isBooking ? (
+        <p className="truncate text-[9px] font-medium text-neutral-600">
+          {bookingChipLabel(lesson)}
+        </p>
+      ) : null}
+      {isExternal ? (
+        <p className="truncate text-[9px] font-medium text-neutral-600">
+          Calendario
+        </p>
+      ) : null}
+      {lesson.hasAttendance && !isHold && !isBooking ? (
         <p className="truncate text-[9px] font-medium uppercase tracking-wide text-neutral-500">
           Presenze
         </p>
@@ -784,7 +821,7 @@ function MonthGrid({
                       }}
                       className={`block truncate rounded border px-1 py-0.5 text-[10px] font-medium ${lessonCardClass(lesson)}`}
                     >
-                      {`#${lesson.sequenceNumber} ${chipName(lesson)}`}
+                      {lessonTitle(lesson)}
                     </span>
                   </li>
                 ))}
@@ -907,7 +944,10 @@ function MoveLessonModal({
   );
 }
 
-function placeLessons(lessons: CalendarLesson[]): PlacedLesson[] {
+function placeLessons(
+  lessons: CalendarLesson[],
+  slotMinutes: number,
+): PlacedLesson[] {
   const rows: PlacedLesson[] = [];
   for (const lesson of lessons) {
     if (!lesson.startsAt || !lesson.endsAt) continue;
@@ -920,7 +960,7 @@ function placeLessons(lessons: CalendarLesson[]): PlacedLesson[] {
       endsAt: lesson.endsAt,
       date: romeDateFromIso(lesson.startsAt),
       startMinute,
-      endMinute: endMinute > startMinute ? endMinute : startMinute + SLOT_MINUTES,
+      endMinute: endMinute > startMinute ? endMinute : startMinute + slotMinutes,
     });
   }
   return rows;
@@ -971,7 +1011,29 @@ function layoutOverlaps(lessons: PlacedLesson[]): {
   return result;
 }
 
+function isCalendarBooking(lesson: CalendarLesson): boolean {
+  return lesson.source === "booking" || lesson.id.startsWith("booking:");
+}
+
+function isCalendarExternal(lesson: CalendarLesson): boolean {
+  return lesson.source === "external" || lesson.id.startsWith("external:");
+}
+
+function bookingChipLabel(lesson: CalendarLesson): string {
+  if (lesson.bookingStatus === "pending_approval") return "Da approvare";
+  if (lesson.proviDaSolo) return "Da solo";
+  return "Sala";
+}
+
 function lessonCardClass(lesson: CalendarLesson): string {
+  if (isCalendarExternal(lesson)) {
+    return "bg-neutral-100 border-neutral-400";
+  }
+  if (isCalendarBooking(lesson)) {
+    return lesson.bookingStatus === "pending_approval"
+      ? "bg-emerald-50 border-dashed border-emerald-400"
+      : "bg-emerald-100 border-emerald-300";
+  }
   const dashed =
     lesson.courseStatus === "in_attesa" ? "border-dashed border-amber-400" : "";
   if (lesson.isTrial) {
@@ -989,6 +1051,9 @@ function lessonCardClass(lesson: CalendarLesson): string {
 }
 
 function lessonTitle(lesson: CalendarLesson): string {
+  if (isCalendarBooking(lesson) || isCalendarExternal(lesson)) {
+    return chipName(lesson);
+  }
   return `#${lesson.sequenceNumber} ${chipName(lesson)}`;
 }
 
@@ -1027,8 +1092,10 @@ function snapMinute(
   openMinute: number,
   closeMinute: number,
   duration: number,
+  slotMinutes: number,
 ): number {
-  const snapped = Math.round(minute / SLOT_MINUTES) * SLOT_MINUTES;
+  const step = slotMinutes > 0 ? slotMinutes : DEFAULT_SLOT_MINUTES;
+  const snapped = Math.round(minute / step) * step;
   const maxStart = Math.max(openMinute, closeMinute - duration);
   return clamp(snapped, openMinute, maxStart);
 }

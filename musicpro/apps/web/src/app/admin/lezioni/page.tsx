@@ -16,5 +16,5 @@ export default async function AdminLezioniHubPage() {
     );
   }
 
-  redirect("/admin/lezioni/oggi");
+  redirect("/admin/lezioni/calendario");
 }

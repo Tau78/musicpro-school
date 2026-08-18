@@ -6,7 +6,6 @@ import {
 } from "@musicpro/database";
 
 import { RoomForm } from "@/components/admin/room-form";
-import { RoomExternalCalendarsPanel } from "@/components/admin/room-external-calendars-panel";
 import { getAdminMember } from "@/lib/admin/current-member";
 import { canManageRooms } from "@/lib/admin/roles";
 import { createClient } from "@/lib/supabase/server";
@@ -39,19 +38,12 @@ export default async function SalaDetailPage({ params }: PageProps) {
         >
           ← Torna alle sale
         </Link>
-        <h2 className="mt-2 text-2xl font-semibold text-[var(--brand)]">
+        <h2 className="mt-2 text-3xl font-semibold text-[var(--brand)]">
           {room.name}
         </h2>
-        <p className="mt-1 text-sm text-neutral-600">
-          Slug: {room.slug}
-        </p>
       </div>
 
       <RoomForm room={room} />
-
-      <div className="mt-8">
-        <RoomExternalCalendarsPanel roomId={room.id} />
-      </div>
     </div>
   );
 }

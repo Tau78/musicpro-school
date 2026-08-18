@@ -48,6 +48,7 @@ export default async function NuovoCorsoDocentePage() {
         sundayVisible={data.sundayVisible}
         gridOpenMinute={data.gridOpenMinute}
         gridCloseMinute={data.gridCloseMinute}
+        slotGranularityMinutes={data.slotGranularityMinutes}
         defaultGroupCapacity={data.defaultGroupCapacity}
         currentTerm={data.currentTerm}
       />

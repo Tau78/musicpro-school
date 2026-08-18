@@ -23,6 +23,7 @@ export interface TrialCreateFormProps {
   rooms: { id: string; name: string }[];
   currentTerm: CourseCreateFormTerm | null;
   teachers?: CourseCreateFormTeacher[];
+  slotStepMinutes?: number;
 }
 
 const DURATIONS = [30, 45, 60] as const;
@@ -47,6 +48,7 @@ export function TrialCreateForm({
   rooms,
   currentTerm,
   teachers,
+  slotStepMinutes = 15,
 }: TrialCreateFormProps) {
   const router = useRouter();
   const supabase = createClient();
@@ -363,7 +365,7 @@ export function TrialCreateForm({
             <input
               type="datetime-local"
               required
-              step={15 * 60}
+              step={slotStepMinutes * 60}
               value={startsLocal}
               onChange={(e) => setStartsLocal(e.target.value)}
               className={inputClass}

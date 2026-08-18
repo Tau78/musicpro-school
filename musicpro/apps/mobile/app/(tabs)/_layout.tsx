@@ -1,8 +1,13 @@
 import { Tabs } from "expo-router";
 
-import { APP_NAME } from "@musicpro/shared";
+import { APP_NAME, MemberRole } from "@musicpro/shared";
+
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function TabsLayout() {
+  const { roles } = useAuth();
+  const isDocente = roles.includes(MemberRole.Docente);
+
   return (
     <Tabs
       screenOptions={{
@@ -24,6 +29,14 @@ export default function TabsLayout() {
         options={{
           title: "Prenotazioni",
           headerTitle: APP_NAME,
+        }}
+      />
+      <Tabs.Screen
+        name="lezioni"
+        options={{
+          title: "Lezioni",
+          headerTitle: APP_NAME,
+          href: isDocente ? "/(tabs)/lezioni" : null,
         }}
       />
     </Tabs>

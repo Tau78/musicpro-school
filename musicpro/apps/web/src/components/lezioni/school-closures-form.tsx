@@ -9,10 +9,12 @@ import {
   formatDateItalian,
 } from "@musicpro/database";
 
+import {
+  FieldLabel,
+  ToggleRow,
+  settingsInputClass,
+} from "@/components/admin/settings-chrome";
 import { createClient } from "@/lib/supabase/client";
-
-const inputClass =
-  "w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)]";
 
 export type SchoolClosureFormRow = {
   id: string;
@@ -86,7 +88,7 @@ export function SchoolClosuresForm({ closures }: SchoolClosuresFormProps) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-8">
       {error ? (
         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
@@ -98,18 +100,18 @@ export function SchoolClosuresForm({ closures }: SchoolClosuresFormProps) {
         </p>
       ) : null}
 
-      <fieldset className="space-y-3 rounded-xl border border-neutral-200 bg-white p-6">
-        <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
+      <section className="space-y-3">
+        <h3 className="text-base font-semibold text-[var(--brand)]">
           Festività
-        </legend>
+        </h3>
         {closures.length === 0 ? (
           <p className="text-sm text-neutral-500">Nessuna festività.</p>
         ) : (
-          <ul className="divide-y divide-neutral-100">
+          <ul className="divide-y divide-neutral-100 rounded-xl border border-neutral-200 bg-white">
             {closures.map((closure) => (
               <li
                 key={closure.id}
-                className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"
+                className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm"
               >
                 <div>
                   <p className="font-medium text-neutral-900">{closure.title}</p>
@@ -131,55 +133,49 @@ export function SchoolClosuresForm({ closures }: SchoolClosuresFormProps) {
             ))}
           </ul>
         )}
-      </fieldset>
+      </section>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <fieldset className="space-y-4 rounded-xl border border-neutral-200 bg-white p-6">
-          <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
-            Nuova festività
-          </legend>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block text-sm sm:col-span-2">
-              <span className="mb-1 block text-neutral-600">Titolo *</span>
-              <input
-                required
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="es. Natale"
-                className={inputClass}
-              />
-            </label>
-            <label className="block text-sm">
-              <span className="mb-1 block text-neutral-600">Dal *</span>
-              <input
-                type="date"
-                required
-                value={startsOn}
-                onChange={(e) => setStartsOn(e.target.value)}
-                className={inputClass}
-              />
-            </label>
-            <label className="block text-sm">
-              <span className="mb-1 block text-neutral-600">Al *</span>
-              <input
-                type="date"
-                required
-                value={endsOn}
-                onChange={(e) => setEndsOn(e.target.value)}
-                className={inputClass}
-              />
-            </label>
-          </div>
-          <label className="flex items-center gap-2 text-sm">
+        <h3 className="text-base font-semibold text-[var(--brand)]">
+          Nuova festività
+        </h3>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block sm:col-span-2">
+            <FieldLabel>Titolo</FieldLabel>
             <input
-              type="checkbox"
-              checked={repeatsYearly}
-              onChange={(e) => setRepeatsYearly(e.target.checked)}
-              className="rounded border-neutral-300"
+              required
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="es. Natale"
+              className={settingsInputClass}
             />
-            Si ripete ogni anno
           </label>
-        </fieldset>
+          <label className="block">
+            <FieldLabel>Dal</FieldLabel>
+            <input
+              type="date"
+              required
+              value={startsOn}
+              onChange={(e) => setStartsOn(e.target.value)}
+              className={settingsInputClass}
+            />
+          </label>
+          <label className="block">
+            <FieldLabel>Al</FieldLabel>
+            <input
+              type="date"
+              required
+              value={endsOn}
+              onChange={(e) => setEndsOn(e.target.value)}
+              className={settingsInputClass}
+            />
+          </label>
+        </div>
+        <ToggleRow
+          label="Si ripete ogni anno"
+          checked={repeatsYearly}
+          onChange={setRepeatsYearly}
+        />
 
         <button
           type="submit"

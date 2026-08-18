@@ -1,5 +1,3 @@
-import type { ReactNode } from "react";
-
 import type { PaymentVisibility } from "@musicpro/database";
 
 const PAYMENT_VISIBILITY_LABELS: Record<PaymentVisibility, string> = {
@@ -18,7 +16,6 @@ export type TeacherProfileReadonlyProps = {
   canReschedule: boolean;
   canCloseCourses: boolean;
   paymentVisibility: PaymentVisibility;
-  children?: ReactNode;
 };
 
 function displayValue(value: string | null | undefined): string {
@@ -49,7 +46,6 @@ export function TeacherProfileReadonly({
   canReschedule,
   canCloseCourses,
   paymentVisibility,
-  children,
 }: TeacherProfileReadonlyProps) {
   const fullName = `${firstName} ${lastName}`.trim();
   const subjectsLabel =
@@ -57,24 +53,18 @@ export function TeacherProfileReadonly({
 
   return (
     <div className="space-y-8">
-      <fieldset className="space-y-4 rounded-xl border border-neutral-200 bg-white p-6">
-        <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
-          Anagrafica
-        </legend>
+      <section className="space-y-3">
+        <h3 className="text-base font-semibold text-[var(--brand)]">Anagrafica</h3>
         <dl className="grid gap-3 text-sm sm:grid-cols-2">
           <Row label="Nome" value={displayValue(fullName)} />
           <Row label="Email" value={displayValue(email)} />
           <Row label="Telefono" value={displayValue(phone)} />
           <Row label="Materie insegnate" value={subjectsLabel} />
         </dl>
-      </fieldset>
+      </section>
 
-      {children}
-
-      <fieldset className="space-y-4 rounded-xl border border-neutral-200 bg-white p-6">
-        <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
-          Permessi
-        </legend>
+      <section className="space-y-3">
+        <h3 className="text-base font-semibold text-[var(--brand)]">Permessi</h3>
         <dl className="grid gap-3 text-sm sm:grid-cols-2">
           <Row label="Puoi creare corsi" value={yesNo(canCreateCourses)} />
           <Row label="Puoi spostare lezioni" value={yesNo(canReschedule)} />
@@ -84,7 +74,7 @@ export function TeacherProfileReadonly({
             value={PAYMENT_VISIBILITY_LABELS[paymentVisibility]}
           />
         </dl>
-      </fieldset>
+      </section>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { getRomeDayBoundsUtc } from "./bookings";
 import type { Database } from "./types/database";
 
 type ExternalCalendarsClient = SupabaseClient<Database>;
@@ -168,32 +169,125 @@ export async function deleteRoomExternalCalendar(
   return { success: true };
 }
 
+export type ExternalCalendarEvent = {
+  id: string;
+  roomId: string;
+  roomName: string | null;
+  calendarName: string;
+  summary: string | null;
+  startsAt: string;
+  endsAt: string;
+};
+
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function resolveRangeBound(value: string, label: string): string {
+  const trimmed = value.trim();
+  if (ISO_DATE_RE.test(trimmed)) {
+    return getRomeDayBoundsUtc(trimmed).startUtc;
+  }
+  const ms = Date.parse(trimmed);
+  if (!Number.isFinite(ms)) {
+    throw new Error(`${label} non è valida.`);
+  }
+  return new Date(ms).toISOString();
+}
+
+export async function listExternalCalendarEventsInRange(
+  client: ExternalCalendarsClient,
+  input: { from: string; to: string; roomId?: string },
+): Promise<ExternalCalendarEvent[]> {
+  const from = resolveRangeBound(input.from, "La data di inizio");
+  const to = resolveRangeBound(input.to, "La data di fine");
+  if (from >= to) return [];
+
+  let calendarsQuery = client
+    .from("room_external_calendars")
+    .select("id, room_id, name, enabled")
+    .eq("enabled", true);
+  if (input.roomId) {
+    calendarsQuery = calendarsQuery.eq("room_id", input.roomId);
+  }
+
+  const { data: calendars, error: calendarsError } = await calendarsQuery;
+  if (calendarsError) {
+    throw new Error(
+      `Impossibile caricare i calendari esterni: ${calendarsError.message}`,
+    );
+  }
+  if (!calendars?.length) return [];
+
+  const calendarIds = calendars.map((row) => row.id);
+  const { data: events, error: eventsError } = await client
+    .from("external_calendar_events")
+    .select("id, external_calendar_id, start_at, end_at, summary")
+    .in("external_calendar_id", calendarIds)
+    .lt("start_at", to)
+    .gt("end_at", from)
+    .order("start_at", { ascending: true });
+
+  if (eventsError) {
+    throw new Error(
+      `Impossibile caricare gli eventi esterni: ${eventsError.message}`,
+    );
+  }
+  if (!events?.length) return [];
+
+  const roomIds = [...new Set(calendars.map((row) => row.room_id))];
+  const { data: rooms } = await client
+    .from("rooms")
+    .select("id, name")
+    .in("id", roomIds);
+  const roomNameById = new Map((rooms ?? []).map((row) => [row.id, row.name]));
+  const calendarById = new Map(calendars.map((row) => [row.id, row]));
+
+  return events.flatMap((event) => {
+    const calendar = calendarById.get(event.external_calendar_id);
+    if (!calendar) return [];
+    return [
+      {
+        id: event.id,
+        roomId: calendar.room_id,
+        roomName: roomNameById.get(calendar.room_id) ?? null,
+        calendarName: calendar.name,
+        summary: event.summary,
+        startsAt: event.start_at,
+        endsAt: event.end_at,
+      },
+    ];
+  });
+}
+
 /** Richiede POST /api/admin/external-calendars/sync (solo web). */
 export async function requestExternalCalendarSync(params: {
   roomId: string;
   calendarId?: string;
 }): Promise<{ success: boolean; message?: string }> {
-  const resp = await fetch("/api/admin/external-calendars/sync", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      roomId: params.roomId,
-      calendarId: params.calendarId,
-    }),
-    credentials: "same-origin",
-  });
+  try {
+    const resp = await fetch("/api/admin/external-calendars/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        roomId: params.roomId,
+        calendarId: params.calendarId,
+      }),
+      credentials: "same-origin",
+    });
 
-  const data = (await resp.json()) as {
-    success?: boolean;
-    message?: string;
-  };
-
-  if (!resp.ok || !data.success) {
-    return {
-      success: false,
-      message: data.message ?? "Sincronizzazione non riuscita.",
+    const data = (await resp.json().catch(() => ({}))) as {
+      success?: boolean;
+      message?: string;
     };
-  }
 
-  return { success: true, message: data.message };
+    if (!resp.ok || !data.success) {
+      return {
+        success: false,
+        message: data.message ?? "Sincronizzazione non riuscita.",
+      };
+    }
+
+    return { success: true, message: data.message };
+  } catch {
+    return { success: false, message: "Sincronizzazione non riuscita." };
+  }
 }

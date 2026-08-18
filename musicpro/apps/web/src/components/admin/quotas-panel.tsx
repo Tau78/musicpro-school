@@ -17,6 +17,11 @@ import {
   upsertMemberAnnualQuotas,
 } from "@musicpro/database";
 
+import {
+  FieldLabel,
+  SettingsTabs,
+  settingsInputClass,
+} from "@/components/admin/settings-chrome";
 import { createClient } from "@/lib/supabase/client";
 
 interface QuotasPanelProps {
@@ -32,6 +37,8 @@ type BulkRow = {
   paidAt: string;
   locked: boolean;
 };
+
+type QuotaTab = "impostazioni" | "registrazione";
 
 function emptySettingInput(defaultYear: number): AnnualQuotaSettingInput {
   return {
@@ -61,9 +68,6 @@ function newBulkRow(fiscalYear: number, paidAt = ""): BulkRow {
   };
 }
 
-const inputClass =
-  "w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)]";
-
 export function QuotasPanel({
   settings,
   members,
@@ -89,6 +93,7 @@ export function QuotasPanel({
     return map;
   }, [existingQuotas]);
 
+  const [tab, setTab] = useState<QuotaTab>("impostazioni");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [settingForm, setSettingForm] = useState<AnnualQuotaSettingInput>(
     emptySettingInput(defaultYear),
@@ -128,6 +133,7 @@ export function QuotasPanel({
       fiscalYear: setting.fiscalYear,
       amountEur: setting.amountEur,
     });
+    setTab("impostazioni");
     setError(null);
     setSuccess(null);
   }
@@ -296,7 +302,7 @@ export function QuotasPanel({
   }
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-6">
       {error ? (
         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
@@ -308,84 +314,81 @@ export function QuotasPanel({
         </p>
       ) : null}
 
-      <section className="space-y-4">
-        <div>
-          <h3 className="text-lg font-semibold text-[var(--brand)]">
-            Impostazioni quote
-          </h3>
-          <p className="mt-1 text-sm text-neutral-600">
-            Importo della quota associativa per anno fiscale.
-          </p>
-        </div>
+      <SettingsTabs
+        tabs={[
+          { id: "impostazioni", label: "Impostazioni quote" },
+          { id: "registrazione", label: "Registrazione massive" },
+        ]}
+        value={tab}
+        onChange={setTab}
+      />
 
-        <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
-          <table className="min-w-full divide-y divide-neutral-200 text-sm">
-            <thead className="bg-neutral-50">
-              <tr>
-                <th className="px-4 py-3 text-left font-medium text-neutral-600">
-                  Anno
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-neutral-600">
-                  Importo
-                </th>
-                <th className="px-4 py-3 text-right font-medium text-neutral-600">
-                  Azioni
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-200">
-              {settings.length === 0 ? (
+      {tab === "impostazioni" ? (
+        <div className="space-y-6">
+          <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
+            <table className="min-w-full divide-y divide-neutral-200 text-sm">
+              <thead className="bg-neutral-50">
                 <tr>
-                  <td
-                    colSpan={3}
-                    className="px-4 py-8 text-center text-neutral-500"
-                  >
-                    Nessuna impostazione configurata.
-                  </td>
+                  <th className="px-4 py-3 text-left font-medium text-neutral-600">
+                    Anno
+                  </th>
+                  <th className="px-4 py-3 text-left font-medium text-neutral-600">
+                    Importo
+                  </th>
+                  <th className="px-4 py-3 text-right font-medium text-neutral-600">
+                    Azioni
+                  </th>
                 </tr>
-              ) : (
-                settings.map((setting) => (
-                  <tr key={setting.id} className="hover:bg-neutral-50">
-                    <td className="px-4 py-3 text-neutral-900">
-                      {setting.fiscalYear}
-                    </td>
-                    <td className="px-4 py-3 text-neutral-900">
-                      {formatQuotaEuro(setting.amountEur)}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() => startEditSetting(setting)}
-                          className="rounded border border-neutral-300 px-3 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
-                        >
-                          Modifica
-                        </button>
-                        <button
-                          type="button"
-                          disabled={deletingId === setting.id}
-                          onClick={() => void handleDeleteSetting(setting.id)}
-                          className="rounded border border-red-300 px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
-                        >
-                          {deletingId === setting.id ? "…" : "Elimina"}
-                        </button>
-                      </div>
+              </thead>
+              <tbody className="divide-y divide-neutral-200">
+                {settings.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={3}
+                      className="px-4 py-8 text-center text-neutral-500"
+                    >
+                      Nessuna impostazione configurata.
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ) : (
+                  settings.map((setting) => (
+                    <tr key={setting.id} className="hover:bg-neutral-50">
+                      <td className="px-4 py-3 text-neutral-900">
+                        {setting.fiscalYear}
+                      </td>
+                      <td className="px-4 py-3 text-neutral-900">
+                        {formatQuotaEuro(setting.amountEur)}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => startEditSetting(setting)}
+                            className="rounded border border-neutral-300 px-3 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                          >
+                            Modifica
+                          </button>
+                          <button
+                            type="button"
+                            disabled={deletingId === setting.id}
+                            onClick={() => void handleDeleteSetting(setting.id)}
+                            className="rounded border border-red-300 px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                          >
+                            {deletingId === setting.id ? "…" : "Elimina"}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
 
-        <form onSubmit={handleSettingSubmit} className="space-y-4">
-          <fieldset className="space-y-4 rounded-xl border border-neutral-200 bg-white p-6">
-            <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
-              {editingId ? "Modifica importo" : "Nuovo importo annuale"}
-            </legend>
+          <form onSubmit={handleSettingSubmit} className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
-              <label className="block space-y-1 text-sm">
-                <span className="font-medium text-neutral-700">Anno *</span>
+              <label className="block">
+                <FieldLabel>Anno</FieldLabel>
                 <input
                   type="number"
                   min={2000}
@@ -397,13 +400,11 @@ export function QuotasPanel({
                       Number(e.target.value) || defaultYear,
                     )
                   }
-                  className={inputClass}
+                  className={settingsInputClass}
                 />
               </label>
-              <label className="block space-y-1 text-sm">
-                <span className="font-medium text-neutral-700">
-                  Importo (€) *
-                </span>
+              <label className="block">
+                <FieldLabel>Importo</FieldLabel>
                 <input
                   type="number"
                   min={0}
@@ -416,7 +417,7 @@ export function QuotasPanel({
                       Number(e.target.value) || 0,
                     )
                   }
-                  className={inputClass}
+                  className={settingsInputClass}
                 />
               </label>
             </div>
@@ -442,21 +443,9 @@ export function QuotasPanel({
                 </button>
               ) : null}
             </div>
-          </fieldset>
-        </form>
-      </section>
-
-      <section className="space-y-4">
-        <div>
-          <h3 className="text-lg font-semibold text-[var(--brand)]">
-            Registrazione massive
-          </h3>
-          <p className="mt-1 text-sm text-neutral-600">
-            Registra il pagamento della quota per più associati. Le quote già
-            pagate risultano bloccate.
-          </p>
+          </form>
         </div>
-
+      ) : (
         <form onSubmit={handleBulkSave} className="space-y-4">
           <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white">
             <table className="min-w-full divide-y divide-neutral-200 text-sm">
@@ -496,7 +485,7 @@ export function QuotasPanel({
                               memberId: e.target.value,
                             })
                           }
-                          className={inputClass}
+                          className={settingsInputClass}
                           required={!row.locked}
                         >
                           <option value="">Seleziona associato…</option>
@@ -524,7 +513,7 @@ export function QuotasPanel({
                               fiscalYear: Number(e.target.value),
                             })
                           }
-                          className={inputClass}
+                          className={settingsInputClass}
                         >
                           {settings.length === 0 ? (
                             <option value={defaultYear}>{defaultYear}</option>
@@ -547,7 +536,7 @@ export function QuotasPanel({
                           value={
                             amount != null ? formatQuotaEuro(amount) : "—"
                           }
-                          className={`${inputClass} bg-neutral-50 text-neutral-600`}
+                          className={`${settingsInputClass} bg-neutral-50 text-neutral-600`}
                         />
                       </td>
                       <td className="px-3 py-2">
@@ -559,7 +548,7 @@ export function QuotasPanel({
                           onChange={(e) =>
                             updateBulkRow(row.key, { paidAt: e.target.value })
                           }
-                          className={inputClass}
+                          className={settingsInputClass}
                         />
                       </td>
                       <td className="px-3 py-2 text-right">
@@ -596,7 +585,7 @@ export function QuotasPanel({
             </button>
           </div>
         </form>
-      </section>
+      )}
     </div>
   );
 }

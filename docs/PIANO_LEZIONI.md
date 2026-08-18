@@ -1,11 +1,11 @@
 # Piano Lezioni — area docente e didattica
 
 **Data:** 2026-08-18  
-**Stato:** specifica V1 chiusa (§20–36). **Fette 1–10b + 14 + hotfix 7 fatte. 11 in corso.** Cutover form Supabase + webhook pack al prossimo VAI.  
+**Stato:** specifica V1 chiusa (§20–41). **Scrittura fette 1–16 + hotfix 7 completa.** Dominio corsi/lezioni in Supabase (`029`–`045`). Non in produzione finché non si fa VAI.  
 **Riferimento UX:** planning settimanale tipo ScuolaSemplice / screenshot docente (card gialle, ore totali, Oggi, DnD, vista mensile)  
 **Stack:** monorepo `musicpro/` + Supabase (stesso di [`PIANO_PRENOTAZIONI.md`](PIANO_PRENOTAZIONI.md))
 
-Oggi il ruolo `docente` esiste (`member_roles`) e copre rimborsi propri + prenotazione sale senza quota. **Non esiste** un dominio corsi/lezioni: `enrollments` è solo iscrizione associativa.
+Il ruolo `docente` (`member_roles`) copre rimborsi propri, prenotazione sale e l’area **Lezioni**. `enrollments` resta la quota associativa; i corsi usano `course_enrollments` + wallet lezione.
 
 ---
 
@@ -13,7 +13,7 @@ Oggi il ruolo `docente` esiste (`member_roles`) e copre rimborsi propri + prenot
 
 Portare in MusicPro la didattica oggi gestita in **ScuolaSemplice**: calendario docente, corsi (individuali e gruppo), presenze, prove, pacchetti da 4 lezioni, occupazione sale (blocco prenotazioni associati), notule generate dalle lezioni presenti, permessi a due livelli.
 
-Implementare **a fette** seguendo §16. Non partire da un import CSV ScuolaSemplice (non urgente).
+Le fette §16 sono **scritte**. Non partire da un import CSV ScuolaSemplice (non urgente; V2).
 
 ---
 
@@ -38,7 +38,7 @@ Implementare **a fette** seguendo §16. Non partire da un import CSV ScuolaSempl
 - **Ricevute fiscali:** matrice in sede (storico + export) + copia a allievo/tutore; emissione automatica all’incasso (es. corso + primo pacchetto)
 - Notule mensili da lezioni **presente** (firma in app, fattura opzionale)
 - Coordinatore: visivo, nascosto al titolare, no overlap, no edit
-- Flag globali + override corso; stesse azioni in admin
+- Flag globali (override per-corso **non implementato**: solo flag + staff); stesse azioni in admin
 - Expo: parità Oggi / calendario / presenze (niente push)
 - GCal docente + GCal sala con nome allievo
 - Reminder email famiglia (anche prova)
@@ -479,12 +479,12 @@ Ordine consigliato (ogni fetta consegnabile e testabile):
 | 9b | **Rette da incassare** + Registra incasso (anticipo famiglia) + saldo iniziale SS | **UI fatta** (lista + incasso + saldo; export Excel dopo) |
 | 10 | Contanti → conferma staff → crediti lezione + **anticipo docente** | **UI fatta** (`038` applicata) |
 | 10b | Ricevute: matrice + copia, auto su incasso, registro/export | **UI fatta** (`/admin/lezioni/ricevute`) |
-| 11 | Notule da presenti + firma + extra + chiusura mese + job giorno 8 | **In corso** (`039`) |
-| 12 | Coordinatore read-only + sezione «Che coordino» | Ruolo visivo |
-| 13 | Pausa / chiudi / rimuovi iscritto / undo 24h / code email | Ciclo vita |
+| 11 | Notule da presenti + firma + extra + chiusura mese + job giorno 8 | **UI fatta** (`039` applicata) |
+| 12 | Coordinatore read-only + sezione «Che coordino» | **UI fatta** (`040` applicata) |
+| 13 | Pausa / chiudi / rimuovi iscritto / undo 24h / code email | **UI fatta** (`042` + `044`) |
 | 14 | GCal docente + titolo sala; reminder email; stampa PDF; flag tessera | **UI fatta** (OAuth = stub se mancano chiavi; cron reminder orario) |
-| 15 | Expo parità (Oggi, calendario, presenze) | Mobile |
-| 16 | Consenso foto nel modulo iscrizione | Form |
+| 15 | Expo parità (Oggi, calendario, presenze) | **UI fatta** |
+| 16 | Consenso foto nel modulo iscrizione | **UI fatta** (`045`) |
 
 ---
 
@@ -900,4 +900,81 @@ Distinte da `/admin/rimborsi` (spese). Una riga `lesson_payrolls` per docente ×
 | UI | Staff `/admin/lezioni/notule`. Docente `/lezioni/notule` (ore + € anche in anteprima) |
 | Fuori | Sezione «Che coordino» (12), bollo, cassa fisica |
 
-*Fine specifica V1. Implementare solo a fette (§16), senza allargare il perimetro V2.*
+## 37. Coordinatore (fetta 12, 2026-08-18)
+
+Ruolo visivo su `course_teachers.role=coordinatore`. Paga già in fetta 11. RLS: titolare non vede la riga coordinatore.
+
+| Tema | Decisione |
+|------|-----------|
+| Chi assegna | Solo staff, sul dettaglio corso. Non può essere il titolare. Max 1 attivo |
+| Decorrenza | `starts_on` / `ends_on`. Cambio = chiude il precedente il giorno prima |
+| Titolare | Non vede nome, badge, mail del coordinatore |
+| Coordinatore | Sezione **Che coordino** in `/lezioni/corsi`. Dettaglio `readOnly` (stesso layout, zero azioni) |
+| Calendario / Oggi | Restano le lezioni da **titolare**. Coordinare non occupa lo slot docente |
+| Fuori | Multidocenza, edit programma corso |
+
+## 38. Ciclo vita corso (fetta 13, 2026-08-18)
+
+Pausa / chiusura / rimozione iscritto. Email coda a tutta `admin`+`segreteria`. Famiglia solo su chiusura e uscita.
+
+| Tema | Decisione |
+|------|-----------|
+| Chi può | Staff sempre. Titolare solo con `teacher_profiles.can_close_courses`. Coordinatore read-only (già 12) |
+| Override corso | `course_permission_overrides` **non esiste**: V1 usa solo flag globale + staff |
+| Pausa | `attivo` → `in_pausa`. Cancella lezioni **future scheduled** senza presenza; libera sala; `starts_at` resta per undo. Ripresa: ripristina snapshot + riempie settimane mancanti (`generateCourseLessons` non va: esce se esiste già una lezione). Occupato → `da_piazzare` |
+| Chiudi | Solo **individuale/online**. `closed_on` obbligatorio (anche retroattivo). Cancella lezioni con data Rome **> closed_on** senza presenza. Gruppo = «Rimuovi iscritto» |
+| Rimuovi | Solo gruppo. `course_enrollments.left_at`. Lezioni di gruppo restano. Stesso riepilogo wallet + rette aperte |
+| Undo 24h | Su pausa / chiusura / rimozione se sale ancora libere (undo stretto: se occupata, fallisce). Ripresa e richiesta non si undano |
+| Senza flag | Titolare: solo **Richiedi chiusura** (riga in Coda). Staff chiude o scarta |
+| Email | Staff: pausa, ripresa, chiudi, rimuovi, richiesta, undo. Famiglia: corso chiuso / uscita. Due To, no BCC |
+| Prova | Fuori: restano le azioni prova |
+| RLS | Titolare UPDATE corsi `attivo/in_pausa/chiuso` + UPDATE enrollments (`042`) |
+| Fuori | Override per corso, chiusura gruppo come corso, Expo |
+
+## 39. Expo Lezioni (fetta 15, 2026-08-18)
+
+Parità **Oggi / calendario / presenze** per il ruolo `docente`. Niente push (V2).
+
+| Tema | Decisione |
+|------|-----------|
+| Tab | **Lezioni** visibile solo con ruolo docente. Landing = Oggi |
+| Oggi | Stesso elenco web: lezioni del giorno, badge da inserire, tap → presenze |
+| Calendario | Settimana + mese. Long-press / «Sposta» se `can_reschedule` (due tap: lezione → slot), no dipendenze gesture extra |
+| Presenze | Stesso helper `saveLessonAttendance` / `getLessonRoster`. Default tutti presenti |
+| Coordinatore | Come web: calendario = lezioni da **titolare**. Niente push, corsi, notule, coda |
+| Colori | Individuale ambra, gruppo sky, online viola, prova rosa |
+| Fuori | Staff admin su Expo, GCal, stampa PDF, ciclo vita |
+
+## 40. Consenso foto (fetta 16, 2026-08-18)
+
+Campo distinto da `gdpr_consent` (statuto / informativa).
+
+| Tema | Decisione |
+|------|-----------|
+| Colonne | `members.photo_consent` (default false), `photo_consent_at` |
+| Modulo | Checkbox **opzionale** su `iscrizione.html` (testo uso foto/video istituzionale + link informativa). Salvato in `form_payload` e, se c’è un `members` (token/rinnovo), scritto in rubrica |
+| Scheda | Staff vede e modifica il flag in `/admin` rubrica, accanto al GDPR |
+| Non obbligatorio | Si iscrive anche senza consenso foto |
+| Fuori | Testo legale .doc originale (non in repo): copy istituzionale allineata all’informativa; export Sheets |
+
+## 41. Chiusura scrittura V1 (2026-08-18)
+
+Le 16 fette sono **scritte** (UI + helper + migrazioni `029`–`045`). Non si aggiungono fette V1.
+
+| Cosa | Stato |
+|------|--------|
+| Codice web Lezioni (docente + staff) | Fatto |
+| Expo Oggi / calendario / presenze | Fatto (niente store) |
+| Consenso foto modulo + rubrica | Fatto (`045`); form live al VAI |
+| Cutover iscrizione Supabase (8b) | Codice fatto; **dual spento** finché VAI non setta env |
+| Webhook Stripe pack | Al VAI |
+| GCal docente OAuth | Stub se mancano chiavi; titolo sala `Lezione: Cognome` già sync |
+| `course_permission_overrides` | Non esiste; V1 = flag globale + staff |
+| Export Excel rette / ZIP PDF ricevute | Lasciati dopo |
+| V2 | Bloccato (§2) |
+
+Audit post-scrittura (2026-08-18): fix P0 su Expo (route `/lezioni` vs calendario), cron notule (ora UTC ≠ Rome), email coda da docente (`list_lesson_staff_emails`), contanti titolare (RLS `046`). Restano accettati: GCal OAuth stub, dual iscrizione, webhook pack al VAI, photo_consent su nuovo iscritto solo se c’è già un `members` (token).
+
+Prossimo passo operativo: **VAI** (main, Supabase, Edge, Vercel, FTP iscrizione, smoke). Poi uso reale, non nuove fette.
+
+*Fine specifica V1. Non allargare il perimetro V2.*

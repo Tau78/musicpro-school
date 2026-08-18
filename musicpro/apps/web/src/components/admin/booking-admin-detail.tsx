@@ -10,6 +10,7 @@ import {
   bookingPaymentMethodLabel,
   bookingStatusLabel,
   calculateBookingPrice,
+  proviDaSoloDiscountTotalEur,
   durationOptionsForRoom,
   formatBookingDateTime,
   formatCreditsCount,
@@ -111,7 +112,14 @@ export function BookingAdminDetail({ booking, rooms }: BookingAdminDetailProps) 
       booking.provi_da_solo &&
       selectedRoom.provi_da_solo_discount_eur > 0
     ) {
-      price = Math.max(0, price - selectedRoom.provi_da_solo_discount_eur);
+      price = Math.max(
+        0,
+        price -
+          proviDaSoloDiscountTotalEur(
+            selectedRoom.provi_da_solo_discount_eur,
+            durationMinutes,
+          ),
+      );
     }
     return price;
   }, [selectedRoom, durationMinutes, booking.provi_da_solo, booking.total_price_eur]);

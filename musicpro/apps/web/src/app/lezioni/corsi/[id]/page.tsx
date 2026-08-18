@@ -4,6 +4,7 @@ import {
   getCourse,
   getCurrentMemberWithRoles,
   getTeacherProfile,
+  isActiveCourseCoordinator,
   listRooms,
 } from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
@@ -39,6 +40,17 @@ export default async function CorsoDocenteDetailPage({ params }: PageProps) {
     notFound();
   }
 
+  const isTitular = course.titularMemberId === member.id;
+  const isCoordinator = isTitular
+    ? false
+    : await isActiveCourseCoordinator(supabase, course.id, member.id);
+
+  if (!isTitular && !isCoordinator) {
+    notFound();
+  }
+
+  const readOnly = isCoordinator && !isTitular;
+
   return (
     <CourseDetailView
       course={course}
@@ -48,9 +60,11 @@ export default async function CorsoDocenteDetailPage({ params }: PageProps) {
       backHref="/lezioni/corsi"
       actorMemberId={member.id}
       isStaff={false}
-      showPrice={profile?.paymentVisibility !== "hidden"}
-      canCreateCourses={profile?.canCreateCourses ?? false}
-      canReschedule={profile?.canReschedule ?? false}
+      readOnly={readOnly}
+      showPrice={readOnly ? false : profile?.paymentVisibility !== "hidden"}
+      canCreateCourses={readOnly ? false : (profile?.canCreateCourses ?? false)}
+      canReschedule={readOnly ? false : (profile?.canReschedule ?? false)}
+      canCloseCourses={readOnly ? false : (profile?.canCloseCourses ?? false)}
     />
   );
 }

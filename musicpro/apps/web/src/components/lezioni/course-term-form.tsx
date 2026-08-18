@@ -8,6 +8,11 @@ import {
   upsertSchoolCourseTerm,
 } from "@musicpro/database";
 
+import {
+  FieldLabel,
+  ToggleRow,
+  settingsInputClass,
+} from "@/components/admin/settings-chrome";
 import { createClient } from "@/lib/supabase/client";
 
 export type CourseTermSummary = {
@@ -20,9 +25,6 @@ export type CourseTermSummary = {
 interface CourseTermFormProps {
   currentTerm: CourseTermSummary | null;
 }
-
-const inputClass =
-  "w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)]";
 
 export function CourseTermForm({ currentTerm }: CourseTermFormProps) {
   const router = useRouter();
@@ -89,49 +91,40 @@ export function CourseTermForm({ currentTerm }: CourseTermFormProps) {
         </p>
       ) : null}
 
-      <fieldset className="space-y-4 rounded-xl border border-neutral-200 bg-white p-6">
-        <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
-          Anno corsi
-        </legend>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Nome *" className="sm:col-span-2">
-            <input
-              required
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              placeholder="es. 2026/2027"
-              className={inputClass}
-            />
-          </Field>
-          <Field label="Inizio *">
-            <input
-              type="date"
-              required
-              value={startsOn}
-              onChange={(e) => setStartsOn(e.target.value)}
-              className={inputClass}
-            />
-          </Field>
-          <Field label="Fine *">
-            <input
-              type="date"
-              required
-              value={endsOn}
-              onChange={(e) => setEndsOn(e.target.value)}
-              className={inputClass}
-            />
-          </Field>
-        </div>
-        <label className="flex items-center gap-2 text-sm">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Nome" className="sm:col-span-2">
           <input
-            type="checkbox"
-            checked={isCurrent}
-            onChange={(e) => setIsCurrent(e.target.checked)}
-            className="rounded border-neutral-300"
+            required
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder="es. 2026/2027"
+            className={settingsInputClass}
           />
-          Imposta come anno corrente
-        </label>
-      </fieldset>
+        </Field>
+        <Field label="Inizio">
+          <input
+            type="date"
+            required
+            value={startsOn}
+            onChange={(e) => setStartsOn(e.target.value)}
+            className={settingsInputClass}
+          />
+        </Field>
+        <Field label="Fine">
+          <input
+            type="date"
+            required
+            value={endsOn}
+            onChange={(e) => setEndsOn(e.target.value)}
+            className={settingsInputClass}
+          />
+        </Field>
+      </div>
+      <ToggleRow
+        label="Imposta come anno corrente"
+        checked={isCurrent}
+        onChange={setIsCurrent}
+      />
 
       <button
         type="submit"
@@ -154,8 +147,8 @@ function Field({
   className?: string;
 }) {
   return (
-    <label className={`block text-sm ${className}`}>
-      <span className="mb-1 block text-neutral-600">{label}</span>
+    <label className={`block ${className}`}>
+      <FieldLabel>{label}</FieldLabel>
       {children}
     </label>
   );

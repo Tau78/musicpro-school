@@ -4,7 +4,6 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import {
-  closeMinuteHint,
   closeMinuteToTimeInput,
   formatDurationLabel,
   formatEuro,
@@ -20,7 +19,17 @@ import {
   type RoomInput,
 } from "@musicpro/database";
 
+import { RoomExternalCalendarsPanel } from "@/components/admin/room-external-calendars-panel";
+import {
+  ChipGroup,
+  FieldLabel,
+  SettingsTabs,
+  ToggleRow,
+  settingsInputClass,
+} from "@/components/admin/settings-chrome";
 import { createClient } from "@/lib/supabase/client";
+
+type RoomTab = "sala" | "orari" | "dasolo" | "calendari";
 
 interface DayScheduleRow {
   dayOfWeek: number;
@@ -32,6 +41,58 @@ interface DayScheduleRow {
 interface RoomFormProps {
   room: Room;
 }
+
+const ROOM_TABS: { id: RoomTab; label: string }[] = [
+  { id: "sala", label: "Sala" },
+  { id: "orari", label: "Orari" },
+  { id: "dasolo", label: "Da solo" },
+  { id: "calendari", label: "Calendari" },
+];
+
+const SLOT_OPTIONS = [
+  { value: "15", label: "15 min" },
+  { value: "30", label: "30 min" },
+  { value: "60", label: "1 ora" },
+];
+
+const DEFAULT_DURATION_OPTIONS = [
+  { value: "60", label: "1 ora" },
+  { value: "90", label: "1,5 ore" },
+  { value: "120", label: "2 ore" },
+  { value: "180", label: "3 ore" },
+  { value: "240", label: "4 ore" },
+];
+
+const MIN_DURATION_OPTIONS = [
+  { value: "30", label: "30 min" },
+  { value: "45", label: "45 min" },
+  { value: "60", label: "1 ora" },
+  { value: "90", label: "1,5 ore" },
+];
+
+const MAX_DURATION_OPTIONS = [
+  { value: "120", label: "2 ore" },
+  { value: "180", label: "3 ore" },
+  { value: "240", label: "4 ore" },
+  { value: "360", label: "6 ore" },
+];
+
+const GOOGLE_COLOR_OPTIONS = [
+  { value: "1", label: "Lavanda" },
+  { value: "2", label: "Salvia" },
+  { value: "3", label: "Uva" },
+  { value: "4", label: "Fenicottero" },
+  { value: "5", label: "Banana" },
+  { value: "6", label: "Tangerino" },
+  { value: "7", label: "Pavone" },
+  { value: "8", label: "Grafite" },
+  { value: "9", label: "Mirtillo" },
+  { value: "10", label: "Basilico" },
+  { value: "11", label: "Pomodoro" },
+];
+
+const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0] as const;
+const DAY_SHORT = ["Dom", "Lun", "Mar", "Mer", "Gio", "Ven", "Sab"] as const;
 
 function defaultDayRows(): DayScheduleRow[] {
   return Array.from({ length: 7 }, (_, dayOfWeek) => ({
@@ -77,10 +138,50 @@ function dayRowsToSchedule(
     .filter((row) => row.endMinute > row.startMinute);
 }
 
+function optionsWithCurrent(
+  options: { value: string; label: string }[],
+  current: string,
+  extraLabel: (value: string) => string,
+) {
+  if (!current || options.some((option) => option.value === current)) {
+    return options;
+  }
+  return [...options, { value: current, label: extraLabel(current) }];
+}
+
+function buildTimeOptions(extra?: string): string[] {
+  const options: string[] = [];
+  for (let minute = 0; minute < 24 * 60; minute += 30) {
+    options.push(minutesToTimeLabel(minute));
+  }
+  if (extra && !options.includes(extra)) {
+    options.push(extra);
+    options.sort();
+  }
+  return options;
+}
+
+function hoursPhrase(minutes: number): string {
+  const hours = minutes / 60;
+  if (hours === 1) return "1 ora";
+  const text = Number.isInteger(hours)
+    ? String(hours)
+    : hours.toLocaleString("it-IT", { maximumFractionDigits: 2 });
+  return `${text} ore`;
+}
+
+function formatPlainEuro(amount: number): string {
+  return amount.toLocaleString("it-IT", {
+    minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 export function RoomForm({ room }: RoomFormProps) {
   const router = useRouter();
   const supabase = createClient();
 
+  const [tab, setTab] = useState<RoomTab>("sala");
   const [form, setForm] = useState<RoomInput>(() => roomToInput(room));
   const [dayRows, setDayRows] = useState<DayScheduleRow[]>(defaultDayRows());
   const [loadingSchedule, setLoadingSchedule] = useState(true);
@@ -100,7 +201,7 @@ export function RoomForm({ room }: RoomFormProps) {
           setError(
             err instanceof Error
               ? err.message
-              : "Impossibile caricare la griglia PROVI DA SOLO.",
+              : "Impossibile caricare gli orari da solo.",
           );
         }
       })
@@ -144,7 +245,7 @@ export function RoomForm({ room }: RoomFormProps) {
 
     try {
       await saveProviSchedule(supabase, room.id, dayRowsToSchedule(dayRows));
-      setSuccess("Configurazione sala salvata.");
+      setSuccess("Sala salvata.");
       router.refresh();
     } catch (err) {
       setError(
@@ -155,346 +256,393 @@ export function RoomForm({ room }: RoomFormProps) {
     }
   }
 
+  const defaultBlockPrice =
+    (form.hourlyRateEur * form.defaultDurationMinutes) / 60;
+  const soloPayPerHour = Math.max(
+    0,
+    form.hourlyRateEur - form.proviDaSoloDiscountEur,
+  );
+  const openTimeValue = minutesToTimeLabel(form.openMinute);
+  const closeTimeValue = closeMinuteToTimeInput(form.closeMinute);
+  const openTimeOptions = buildTimeOptions(openTimeValue);
+  const closeTimeOptions = buildTimeOptions(closeTimeValue);
+  const colorValue = form.googleCalendarColorId ?? "";
+
   return (
-    <form
-      onSubmit={(e) => void handleSubmit(e)}
-      className="max-w-3xl space-y-8 rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm"
-    >
-      <section className="space-y-4">
-        <h3 className="text-lg font-semibold text-[var(--brand)]">
-          Tariffe e orari
-        </h3>
-
-        <div>
-          <label htmlFor="name" className="block text-sm font-medium text-neutral-700">
-            Nome
-          </label>
-          <input
-            id="name"
-            type="text"
-            value={form.name}
-            onChange={(e) => updateField("name", e.target.value)}
-            className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
-          />
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label
-              htmlFor="hourlyRateEur"
-              className="block text-sm font-medium text-neutral-700"
-            >
-              Tariffa oraria (€)
-            </label>
-            <input
-              id="hourlyRateEur"
-              type="number"
-              min={0}
-              step={0.5}
-              value={form.hourlyRateEur}
-              onChange={(e) =>
-                updateField("hourlyRateEur", Number(e.target.value))
-              }
-              className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
-            />
-          </div>
-
-          <div className="flex items-end">
-            <label className="flex items-center gap-2 text-sm text-neutral-700">
-              <input
-                type="checkbox"
-                checked={form.isActive}
-                onChange={(e) => updateField("isActive", e.target.checked)}
-                className="rounded border-neutral-300"
-              />
-              Sala attiva
-            </label>
-          </div>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label htmlFor="openMinute" className="block text-sm font-medium text-neutral-700">
-              Apertura
-            </label>
-            <input
-              id="openMinute"
-              type="time"
-              value={minutesToTimeLabel(form.openMinute)}
-              onChange={(e) => {
-                const openMinute = timeLabelToMinutes(e.target.value);
-                setForm((prev) => ({
-                  ...prev,
-                  openMinute,
-                  closeMinute: timeInputToCloseMinute(
-                    openMinute,
-                    closeMinuteToTimeInput(prev.closeMinute),
-                  ),
-                }));
-              }}
-              className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
-            />
-          </div>
-          <div>
-            <label htmlFor="closeMinute" className="block text-sm font-medium text-neutral-700">
-              Chiusura
-            </label>
-            <input
-              id="closeMinute"
-              type="time"
-              value={closeMinuteToTimeInput(form.closeMinute)}
-              onChange={(e) =>
-                updateField(
-                  "closeMinute",
-                  timeInputToCloseMinute(form.openMinute, e.target.value),
-                )
-              }
-              className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
-            />
-            <p className="mt-1 text-xs text-neutral-500">
-              {closeMinuteHint(form.openMinute, form.closeMinute)}. 00:00 =
-              mezzanotte; un orario prima dell&apos;apertura è il giorno dopo.
-            </p>
-          </div>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label
-              htmlFor="slotGranularityMinutes"
-              className="block text-sm font-medium text-neutral-700"
-            >
-              Granularità slot (min)
-            </label>
-            <input
-              id="slotGranularityMinutes"
-              type="number"
-              min={15}
-              step={15}
-              value={form.slotGranularityMinutes}
-              onChange={(e) =>
-                updateField("slotGranularityMinutes", Number(e.target.value))
-              }
-              className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="googleCalendarColorId"
-              className="block text-sm font-medium text-neutral-700"
-            >
-              Colore Google Calendar
-            </label>
-            <input
-              id="googleCalendarColorId"
-              type="text"
-              value={form.googleCalendarColorId ?? ""}
-              onChange={(e) =>
-                updateField("googleCalendarColorId", e.target.value || null)
-              }
-              placeholder="es. 11"
-              className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
-            />
-          </div>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-3">
-          <div>
-            <label
-              htmlFor="defaultDurationMinutes"
-              className="block text-sm font-medium text-neutral-700"
-            >
-              Durata default
-            </label>
-            <input
-              id="defaultDurationMinutes"
-              type="number"
-              min={15}
-              step={15}
-              value={form.defaultDurationMinutes}
-              onChange={(e) =>
-                updateField("defaultDurationMinutes", Number(e.target.value))
-              }
-              className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
-            />
-            <p className="mt-1 text-xs text-neutral-500">
-              {formatDurationLabel(form.defaultDurationMinutes)}
-            </p>
-          </div>
-          <div>
-            <label
-              htmlFor="minDurationMinutes"
-              className="block text-sm font-medium text-neutral-700"
-            >
-              Durata min
-            </label>
-            <input
-              id="minDurationMinutes"
-              type="number"
-              min={15}
-              step={15}
-              value={form.minDurationMinutes}
-              onChange={(e) =>
-                updateField("minDurationMinutes", Number(e.target.value))
-              }
-              className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="maxDurationMinutes"
-              className="block text-sm font-medium text-neutral-700"
-            >
-              Durata max
-            </label>
-            <input
-              id="maxDurationMinutes"
-              type="number"
-              min={15}
-              step={15}
-              value={form.maxDurationMinutes}
-              onChange={(e) =>
-                updateField("maxDurationMinutes", Number(e.target.value))
-              }
-              className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
-            />
-          </div>
-        </div>
-      </section>
-
-      <section className="space-y-4 border-t border-neutral-100 pt-6">
-        <div>
-          <h3 className="text-lg font-semibold text-[var(--brand)]">
-            PROVI DA SOLO
-          </h3>
-          <p className="mt-1 text-sm text-neutral-600">
-            Permette agli associati di prenotare senza banda durante le fasce
-            configurate, con sconto fisso sul totale.
-          </p>
-        </div>
-
-        <label className="flex items-center gap-2 text-sm font-medium text-neutral-700">
-          <input
-            type="checkbox"
-            checked={form.proviDaSoloEnabled}
-            onChange={(e) => updateField("proviDaSoloEnabled", e.target.checked)}
-            className="rounded border-neutral-300"
-          />
-          Abilita PROVI DA SOLO per questa sala
-        </label>
-
-        <div>
-          <label
-            htmlFor="proviDaSoloDiscountEur"
-            className="block text-sm font-medium text-neutral-700"
-          >
-            Sconto PROVI DA SOLO (€)
-          </label>
-          <input
-            id="proviDaSoloDiscountEur"
-            type="number"
-            min={0}
-            step={0.5}
-            value={form.proviDaSoloDiscountEur}
-            onChange={(e) =>
-              updateField("proviDaSoloDiscountEur", Number(e.target.value))
-            }
-            className="mt-1 w-full max-w-xs rounded-lg border border-neutral-300 px-3 py-2 text-sm"
-          />
-          <p className="mt-1 text-xs text-neutral-500">
-            Es. {formatEuro(2)} — sconto applicato al totale prenotazione.
-          </p>
-        </div>
-
-        <div>
-          <h4 className="text-sm font-medium text-neutral-700">
-            Griglia settimanale (orario locale Roma)
-          </h4>
-          {loadingSchedule ? (
-            <p className="mt-3 text-sm text-neutral-500">Caricamento griglia…</p>
-          ) : (
-            <div className="mt-3 overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead>
-                  <tr className="border-b border-neutral-200 text-left text-neutral-500">
-                    <th className="py-2 pr-4 font-medium">Giorno</th>
-                    <th className="py-2 pr-4 font-medium">Attivo</th>
-                    <th className="py-2 pr-4 font-medium">Dalle</th>
-                    <th className="py-2 font-medium">Alle</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {dayRows.map((row) => (
-                    <tr key={row.dayOfWeek} className="border-b border-neutral-100">
-                      <td className="py-2 pr-4 font-medium text-neutral-800">
-                        {proviDayLabel(row.dayOfWeek)}
-                      </td>
-                      <td className="py-2 pr-4">
-                        <input
-                          type="checkbox"
-                          checked={row.enabled}
-                          onChange={(e) =>
-                            updateDayRow(row.dayOfWeek, {
-                              enabled: e.target.checked,
-                            })
-                          }
-                          className="rounded border-neutral-300"
-                        />
-                      </td>
-                      <td className="py-2 pr-4">
-                        <input
-                          type="time"
-                          value={row.startTime}
-                          disabled={!row.enabled}
-                          onChange={(e) =>
-                            updateDayRow(row.dayOfWeek, {
-                              startTime: e.target.value,
-                            })
-                          }
-                          className="rounded-lg border border-neutral-300 px-2 py-1 disabled:bg-neutral-50"
-                        />
-                      </td>
-                      <td className="py-2">
-                        <input
-                          type="time"
-                          value={row.endTime}
-                          disabled={!row.enabled}
-                          onChange={(e) =>
-                            updateDayRow(row.dayOfWeek, {
-                              endTime: e.target.value,
-                            })
-                          }
-                          className="rounded-lg border border-neutral-300 px-2 py-1 disabled:bg-neutral-50"
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </section>
-
-      {error && (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-          {error}
-        </p>
-      )}
-
-      {success && (
-        <p className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
-          {success}
-        </p>
-      )}
-
-      <button
-        type="submit"
-        disabled={saving || loadingSchedule}
-        className="rounded-lg bg-[var(--brand)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-60"
+    <div className="max-w-3xl space-y-4">
+      <form
+        onSubmit={(e) => void handleSubmit(e)}
+        className="space-y-4"
       >
-        {saving ? "Salvataggio…" : "Salva configurazione"}
-      </button>
-    </form>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-[8rem]">
+            <ToggleRow
+              label="Aperta"
+              checked={form.isActive}
+              onChange={(checked) => updateField("isActive", checked)}
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={saving || loadingSchedule}
+            className="rounded-lg bg-[var(--brand)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-60"
+          >
+            {saving ? "Salvataggio…" : "Salva"}
+          </button>
+        </div>
+
+        {error && (
+          <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            {error}
+          </p>
+        )}
+
+        {success && (
+          <p className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+            {success}
+          </p>
+        )}
+
+        <SettingsTabs tabs={ROOM_TABS} value={tab} onChange={setTab} />
+
+        {tab === "sala" && (
+          <div className="space-y-5">
+            <div>
+              <label htmlFor="name">
+                <FieldLabel>Nome</FieldLabel>
+              </label>
+              <input
+                id="name"
+                type="text"
+                value={form.name}
+                onChange={(e) => updateField("name", e.target.value)}
+                className={settingsInputClass}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="hourlyRateEur">
+                <FieldLabel>Prezzo all’ora</FieldLabel>
+              </label>
+              <input
+                id="hourlyRateEur"
+                type="number"
+                min={0}
+                step={0.5}
+                value={form.hourlyRateEur}
+                onChange={(e) =>
+                  updateField("hourlyRateEur", Number(e.target.value))
+                }
+                className={settingsInputClass}
+              />
+              <p className="mt-1 text-xs text-neutral-500">
+                {hoursPhrase(form.defaultDurationMinutes)} ={" "}
+                {formatPlainEuro(defaultBlockPrice)} €
+              </p>
+            </div>
+
+            <div>
+              <FieldLabel>Colore</FieldLabel>
+              <input
+                id="googleCalendarColorId"
+                type="hidden"
+                value={colorValue}
+              />
+              <ChipGroup
+                value={colorValue}
+                options={optionsWithCurrent(
+                  GOOGLE_COLOR_OPTIONS,
+                  colorValue,
+                  (value) => value,
+                )}
+                onChange={(value) =>
+                  updateField("googleCalendarColorId", value || null)
+                }
+              />
+            </div>
+          </div>
+        )}
+
+        {tab === "orari" && (
+          <div className="space-y-5">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="openMinute">
+                  <FieldLabel>Apertura</FieldLabel>
+                </label>
+                <select
+                  id="openMinute"
+                  value={openTimeValue}
+                  onChange={(e) => {
+                    const openMinute = timeLabelToMinutes(e.target.value);
+                    setForm((prev) => ({
+                      ...prev,
+                      openMinute,
+                      closeMinute: timeInputToCloseMinute(
+                        openMinute,
+                        closeMinuteToTimeInput(prev.closeMinute),
+                      ),
+                    }));
+                  }}
+                  className={settingsInputClass}
+                >
+                  {openTimeOptions.map((time) => (
+                    <option key={time} value={time}>
+                      {time}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="closeMinute">
+                  <FieldLabel>Chiusura</FieldLabel>
+                </label>
+                <select
+                  id="closeMinute"
+                  value={closeTimeValue}
+                  onChange={(e) =>
+                    updateField(
+                      "closeMinute",
+                      timeInputToCloseMinute(form.openMinute, e.target.value),
+                    )
+                  }
+                  className={settingsInputClass}
+                >
+                  {closeTimeOptions.map((time) => (
+                    <option key={time} value={time}>
+                      {time}
+                    </option>
+                  ))}
+                </select>
+                {form.closeMinute >= 1440 ? (
+                  <p className="mt-1 text-xs text-neutral-500">
+                    {form.closeMinute === 1440 ? "Mezzanotte" : "Giorno dopo"}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+
+            <div>
+              <FieldLabel>Ogni</FieldLabel>
+              <input
+                id="slotGranularityMinutes"
+                type="hidden"
+                value={form.slotGranularityMinutes}
+              />
+              <ChipGroup
+                value={String(form.slotGranularityMinutes)}
+                options={optionsWithCurrent(
+                  SLOT_OPTIONS,
+                  String(form.slotGranularityMinutes),
+                  (value) => formatDurationLabel(Number(value)),
+                )}
+                onChange={(value) =>
+                  updateField("slotGranularityMinutes", Number(value))
+                }
+              />
+            </div>
+
+            <div>
+              <FieldLabel>Durata predefinita</FieldLabel>
+              <input
+                id="defaultDurationMinutes"
+                type="hidden"
+                value={form.defaultDurationMinutes}
+              />
+              <ChipGroup
+                value={String(form.defaultDurationMinutes)}
+                options={optionsWithCurrent(
+                  DEFAULT_DURATION_OPTIONS,
+                  String(form.defaultDurationMinutes),
+                  (value) => formatDurationLabel(Number(value)),
+                )}
+                onChange={(value) =>
+                  updateField("defaultDurationMinutes", Number(value))
+                }
+              />
+            </div>
+
+            <div>
+              <FieldLabel>Durata minima</FieldLabel>
+              <input
+                id="minDurationMinutes"
+                type="hidden"
+                value={form.minDurationMinutes}
+              />
+              <ChipGroup
+                value={String(form.minDurationMinutes)}
+                options={optionsWithCurrent(
+                  MIN_DURATION_OPTIONS,
+                  String(form.minDurationMinutes),
+                  (value) => formatDurationLabel(Number(value)),
+                )}
+                onChange={(value) =>
+                  updateField("minDurationMinutes", Number(value))
+                }
+              />
+            </div>
+
+            <div>
+              <FieldLabel>Durata massima</FieldLabel>
+              <input
+                id="maxDurationMinutes"
+                type="hidden"
+                value={form.maxDurationMinutes}
+              />
+              <ChipGroup
+                value={String(form.maxDurationMinutes)}
+                options={optionsWithCurrent(
+                  MAX_DURATION_OPTIONS,
+                  String(form.maxDurationMinutes),
+                  (value) => formatDurationLabel(Number(value)),
+                )}
+                onChange={(value) =>
+                  updateField("maxDurationMinutes", Number(value))
+                }
+              />
+            </div>
+          </div>
+        )}
+
+        {tab === "dasolo" && (
+          <div className="space-y-5">
+            <ToggleRow
+              label="Prenota da solo"
+              checked={form.proviDaSoloEnabled}
+              onChange={(checked) =>
+                updateField("proviDaSoloEnabled", checked)
+              }
+            />
+
+            {!form.proviDaSoloEnabled ? (
+              <p className="text-sm text-neutral-600">
+                Spento. Nessuno può prenotare da solo.
+              </p>
+            ) : (
+              <>
+                <div>
+                  <label htmlFor="proviDaSoloDiscountEur">
+                    <FieldLabel>Sconto all’ora</FieldLabel>
+                  </label>
+                  <input
+                    id="proviDaSoloDiscountEur"
+                    type="number"
+                    min={0}
+                    step={0.5}
+                    value={form.proviDaSoloDiscountEur}
+                    onChange={(e) =>
+                      updateField(
+                        "proviDaSoloDiscountEur",
+                        Number(e.target.value),
+                      )
+                    }
+                    className={settingsInputClass}
+                  />
+                  <p className="mt-1 text-xs text-neutral-500">
+                    Paga {formatEuro(soloPayPerHour)} / ora
+                  </p>
+                </div>
+
+                <div>
+                  <FieldLabel>Giorni</FieldLabel>
+                  {loadingSchedule ? (
+                    <p className="text-sm text-neutral-500">
+                      Caricamento orari…
+                    </p>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="flex flex-wrap gap-1.5">
+                        {DAY_ORDER.map((dayOfWeek) => {
+                          const row = dayRows.find(
+                            (item) => item.dayOfWeek === dayOfWeek,
+                          );
+                          const enabled = row?.enabled ?? false;
+                          return (
+                            <button
+                              key={dayOfWeek}
+                              type="button"
+                              aria-pressed={enabled}
+                              onClick={() =>
+                                updateDayRow(dayOfWeek, { enabled: !enabled })
+                              }
+                              className={
+                                enabled
+                                  ? "rounded-lg bg-[var(--brand)] px-3 py-1.5 text-sm font-medium text-white"
+                                  : "rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+                              }
+                            >
+                              {DAY_SHORT[dayOfWeek]}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {DAY_ORDER.map((dayOfWeek) => {
+                        const row = dayRows.find(
+                          (item) => item.dayOfWeek === dayOfWeek,
+                        );
+                        if (!row?.enabled) return null;
+                        const startOptions = buildTimeOptions(row.startTime);
+                        const endOptions = buildTimeOptions(row.endTime);
+                        return (
+                          <div
+                            key={`hours-${dayOfWeek}`}
+                            className="grid gap-3 sm:grid-cols-[7rem_1fr_1fr] sm:items-end"
+                          >
+                            <p className="text-sm font-medium text-neutral-800">
+                              {proviDayLabel(dayOfWeek)}
+                            </p>
+                            <div>
+                              <FieldLabel>Dalle</FieldLabel>
+                              <select
+                                value={row.startTime}
+                                onChange={(e) =>
+                                  updateDayRow(dayOfWeek, {
+                                    startTime: e.target.value,
+                                  })
+                                }
+                                className={settingsInputClass}
+                              >
+                                {startOptions.map((time) => (
+                                  <option key={time} value={time}>
+                                    {time}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <FieldLabel>Alle</FieldLabel>
+                              <select
+                                value={row.endTime}
+                                onChange={(e) =>
+                                  updateDayRow(dayOfWeek, {
+                                    endTime: e.target.value,
+                                  })
+                                }
+                                className={settingsInputClass}
+                              >
+                                {endOptions.map((time) => (
+                                  <option key={time} value={time}>
+                                    {time}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </form>
+
+      <div hidden={tab !== "calendari"}>
+        <RoomExternalCalendarsPanel roomId={room.id} />
+      </div>
+    </div>
   );
 }

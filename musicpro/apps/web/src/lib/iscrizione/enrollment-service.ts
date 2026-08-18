@@ -28,6 +28,7 @@ export interface EnrollmentFormData {
   telefono?: string;
   signatureData?: string;
   privacy_accepted?: boolean | string;
+  photo_consent?: boolean | string;
   rinnovo_associato?: boolean | string;
   [key: string]: unknown;
 }
@@ -45,6 +46,29 @@ function isRinnovo(data: EnrollmentFormData): boolean {
     data.rinnovo_associato === true ||
     String(data.rinnovo_associato || "").toLowerCase() === "true"
   );
+}
+
+function isFormFlagTrue(value: unknown): boolean {
+  return (
+    value === true ||
+    String(value || "").toLowerCase() === "true" ||
+    String(value || "") === "on"
+  );
+}
+
+function photoConsentFromForm(data: EnrollmentFormData): boolean {
+  return isFormFlagTrue(data.photo_consent);
+}
+
+function photoConsentPatch(consented: boolean) {
+  return {
+    photo_consent: consented,
+    photo_consent_at: consented ? new Date().toISOString() : null,
+  };
+}
+
+function formText(value: unknown): string {
+  return String(value || "").trim();
 }
 
 function memberToFormFields(member: MemberRow): Record<string, string | boolean> {
@@ -70,6 +94,7 @@ function memberToFormFields(member: MemberRow): Record<string, string | boolean>
     tutore_cf: String(member.manual_tutor_tax_code || "").toUpperCase().trim(),
     corso: "",
     rinnovo_associato: true,
+    photo_consent: Boolean(member.photo_consent),
   };
 }
 
@@ -424,10 +449,12 @@ export async function validateIscrizioneToken(token: string) {
   return {
     found: true,
     rinnovo: true,
+    quotaGiaPagata: await hasQuotaPaidThisYear(db, String(fields.cf || "")),
     nome: fields.nome,
     cognome: fields.cognome,
     fields,
     privacyAccepted: true,
+    photoAccepted: Boolean(member.photo_consent),
   };
 }
 
@@ -488,6 +515,18 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
   const dup = await valutaDuplicatoIscrizione(db, data);
   if (dup.blocked) {
     return { success: false, code: dup.code, message: dup.message };
+  }
+
+  if (tokenMember) {
+    const { error: photoErr } = await db
+      .from("members")
+      .update(photoConsentPatch(photoConsentFromForm(data)))
+      .eq("id", tokenMember.id);
+    if (photoErr) {
+      throw new Error(
+        photoErr.message || "Impossibile aggiornare il consenso foto.",
+      );
+    }
   }
 
   const idIscrizione = randomUUID();
@@ -616,6 +655,79 @@ export async function handleGetOp(
   return { success: false, message: `Operazione GET non valida: ${op}` };
 }
 
+export async function salvaAggiornamentoAssociatoIscrizione(
+  data: EnrollmentFormData,
+) {
+  if (!isRinnovo(data)) {
+    throw new Error("Operazione riservata agli associati già registrati.");
+  }
+  if (!formText(data.nome) || !formText(data.cognome)) {
+    throw new Error("Nome e cognome obbligatori.");
+  }
+  if (!formText(data.cf)) {
+    throw new Error("Codice fiscale obbligatorio.");
+  }
+  if (!data.signatureData) {
+    throw new Error("Firma digitale obbligatoria.");
+  }
+
+  const db = createServiceRoleClient();
+  const tokenMember = await memberFromIscrizioneToken(db, tokenFromForm(data));
+  const member = tokenMember ?? (await findMemberByCf(db, formText(data.cf)));
+  if (!member) {
+    throw new Error("Associato non trovato in rubrica. Contatta la segreteria.");
+  }
+
+  const cf = formText(member.tax_code || data.cf).toUpperCase();
+  if (!(await hasQuotaPaidThisYear(db, cf))) {
+    return {
+      success: false,
+      code: "QUOTA_NON_PAGATA",
+      message:
+        "La quota associativa per quest'anno non risulta ancora pagata. Procedi al pagamento.",
+    };
+  }
+
+  const patch: Database["public"]["Tables"]["members"]["Update"] = {
+    first_name: formText(data.nome),
+    last_name: formText(data.cognome),
+    birth_place: formText(data.luogo_nascita) || null,
+    birth_province: formText(data.prov_nascita).toUpperCase() || null,
+    address_street: formText(data.indirizzo) || null,
+    address_postal_code: formText(data.cap) || null,
+    address_city: formText(data.citta) || null,
+    address_province: formText(data.prov).toUpperCase() || null,
+    tax_code: formText(data.cf).toUpperCase() || null,
+    phone: formText(data.telefono) || null,
+    email: formText(data.email) || null,
+    manual_tutor_first_name: formText(data.tutore_nome) || null,
+    manual_tutor_last_name: formText(data.tutore_cognome) || null,
+    manual_tutor_phone: formText(data.tutore_telefono) || null,
+    manual_tutor_email: formText(data.tutore_email) || null,
+    manual_tutor_tax_code: formText(data.tutore_cf).toUpperCase() || null,
+    ...photoConsentPatch(photoConsentFromForm(data)),
+  };
+  const dataNascita = formText(data.data_nascita);
+  if (dataNascita) {
+    patch.birth_date = dataNascita.substring(0, 10);
+  }
+
+  const { error } = await db.from("members").update(patch).eq("id", member.id);
+  if (error) {
+    throw new Error(
+      error.message || "Impossibile aggiornare i dati dell'associato.",
+    );
+  }
+
+  return {
+    success: true,
+    skipPayment: true,
+    message:
+      "Dati aggiornati con successo. La quota per quest'anno risulta già pagata.",
+    nome: formText(data.nome),
+  };
+}
+
 export async function handlePostAction(body: Record<string, unknown>) {
   const action = String(body.action || "inviaIscrizione").trim();
 
@@ -633,6 +745,10 @@ export async function handlePostAction(body: Record<string, unknown>) {
 
   if (action === "getStatoIscrizione") {
     return getStatoIscrizione(String(body.idIscrizione || body.id || ""));
+  }
+
+  if (action === "salvaAggiornamentoAssociatoIscrizione") {
+    return salvaAggiornamentoAssociatoIscrizione(body as EnrollmentFormData);
   }
 
   if (

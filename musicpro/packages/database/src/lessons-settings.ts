@@ -350,10 +350,103 @@ export async function getLessonSchoolSettings(
   return mapSettings(data);
 }
 
+function isPositiveInt(value: number | undefined): boolean {
+  return value === undefined || (Number.isInteger(value) && value >= 1);
+}
+
+function validateSettingsPatch(
+  patch: LessonSchoolSettingsPatch,
+): string | null {
+  if (patch.gridOpenMinute !== undefined) {
+    if (
+      !Number.isInteger(patch.gridOpenMinute) ||
+      patch.gridOpenMinute < 0 ||
+      patch.gridOpenMinute >= 1440
+    ) {
+      return "L'orario di apertura griglia non è valido.";
+    }
+  }
+  if (patch.gridCloseMinute !== undefined) {
+    if (
+      !Number.isInteger(patch.gridCloseMinute) ||
+      patch.gridCloseMinute <= 0 ||
+      patch.gridCloseMinute > 1440
+    ) {
+      return "L'orario di chiusura griglia non è valido.";
+    }
+  }
+  if (
+    patch.gridOpenMinute !== undefined &&
+    patch.gridCloseMinute !== undefined &&
+    patch.gridCloseMinute <= patch.gridOpenMinute
+  ) {
+    return "La chiusura griglia deve essere dopo l'apertura.";
+  }
+  if (
+    patch.slotGranularityMinutes !== undefined &&
+    ![5, 15, 30].includes(patch.slotGranularityMinutes)
+  ) {
+    return "Il passo slot deve essere 5, 15 o 30 minuti.";
+  }
+  if (
+    patch.defaultGroupCapacity !== undefined &&
+    (!Number.isInteger(patch.defaultGroupCapacity) ||
+      patch.defaultGroupCapacity < 1)
+  ) {
+    return "La capienza di gruppo deve essere almeno 1.";
+  }
+  if (!isPositiveInt(patch.attendanceEditDays)) {
+    return "La finestra presenze deve essere almeno 1 giorno.";
+  }
+  if (!isPositiveInt(patch.holdHours)) {
+    return "Le ore di hold devono essere almeno 1.";
+  }
+  if (!isPositiveInt(patch.reminderWeekHours)) {
+    return "Il reminder lungo deve essere almeno 1 ora.";
+  }
+  if (!isPositiveInt(patch.reminderDayHours)) {
+    return "Il reminder 24h deve essere almeno 1 ora.";
+  }
+  if (!isPositiveInt(patch.reminderSoonHours)) {
+    return "Il reminder breve deve essere almeno 1 ora.";
+  }
+  if (!isPositiveInt(patch.packRemindHours1)) {
+    return "Il sollecito pacchetto (1) deve essere almeno 1 ora.";
+  }
+  if (!isPositiveInt(patch.packRemindHours2)) {
+    return "Il sollecito pacchetto (2) deve essere almeno 1 ora.";
+  }
+  if (
+    patch.notulaJobDay !== undefined &&
+    (!Number.isInteger(patch.notulaJobDay) ||
+      patch.notulaJobDay < 1 ||
+      patch.notulaJobDay > 28)
+  ) {
+    return "Il giorno del job notule deve essere tra 1 e 28.";
+  }
+  if (
+    patch.notulaJobHour !== undefined &&
+    (!Number.isInteger(patch.notulaJobHour) ||
+      patch.notulaJobHour < 0 ||
+      patch.notulaJobHour > 23)
+  ) {
+    return "L'ora del job notule deve essere tra 0 e 23.";
+  }
+  if (!isPositiveInt(patch.notulaSignDeadlineDays)) {
+    return "La scadenza firma notula deve essere almeno 1 giorno.";
+  }
+  return null;
+}
+
 export async function updateLessonSchoolSettings(
   client: LessonsClient,
   patch: LessonSchoolSettingsPatch,
 ): Promise<LessonSettingsMutationResult> {
+  const validationError = validateSettingsPatch(patch);
+  if (validationError) {
+    return { success: false, errorMessage: validationError };
+  }
+
   const row = mapSettingsPatch(patch);
   if (Object.keys(row).length === 0) {
     return {
@@ -563,6 +656,139 @@ export async function listLessonSubjects(
   }
 
   return (data ?? []).map(mapSubject);
+}
+
+function slugifySubjectName(name: string): string {
+  const slug = name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+  return slug || "materia";
+}
+
+function uniqueSubjectSlug(base: string, existing: Set<string>): string {
+  if (!existing.has(base)) return base;
+  let n = 2;
+  while (existing.has(`${base}-${n}`)) {
+    n += 1;
+  }
+  return `${base}-${n}`;
+}
+
+export async function createLessonSubject(
+  client: LessonsClient,
+  name: string,
+): Promise<LessonSettingsMutationResult> {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    return { success: false, errorMessage: "Il nome della materia è obbligatorio." };
+  }
+
+  const { data: existing, error: listError } = await client
+    .from("lesson_subjects")
+    .select("slug, sort_order");
+  if (listError) {
+    return {
+      success: false,
+      errorMessage: listError.message || "Impossibile creare la materia.",
+    };
+  }
+
+  const slugs = new Set((existing ?? []).map((row) => row.slug));
+  const maxSort = (existing ?? []).reduce(
+    (max, row) => (row.sort_order > max ? row.sort_order : max),
+    0,
+  );
+
+  const { data, error } = await client
+    .from("lesson_subjects")
+    .insert({
+      name: trimmed,
+      slug: uniqueSubjectSlug(slugifySubjectName(trimmed), slugs),
+      sort_order: maxSort + 10,
+      is_active: true,
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    if (error.code === "23505") {
+      return { success: false, errorMessage: "Esiste già una materia con questo nome." };
+    }
+    return {
+      success: false,
+      errorMessage: error.message || "Impossibile creare la materia.",
+    };
+  }
+
+  return { success: true, id: data.id };
+}
+
+export async function renameLessonSubject(
+  client: LessonsClient,
+  id: string,
+  name: string,
+): Promise<LessonSettingsMutationResult> {
+  const trimmed = name.trim();
+  if (!id.trim()) {
+    return { success: false, errorMessage: "Materia non valida." };
+  }
+  if (!trimmed) {
+    return { success: false, errorMessage: "Il nome della materia è obbligatorio." };
+  }
+
+  const { data, error } = await client
+    .from("lesson_subjects")
+    .update({ name: trimmed })
+    .eq("id", id)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    if (error.code === "23505") {
+      return { success: false, errorMessage: "Esiste già una materia con questo nome." };
+    }
+    return {
+      success: false,
+      errorMessage: error.message || "Impossibile rinominare la materia.",
+    };
+  }
+  if (!data) {
+    return { success: false, errorMessage: "Materia non trovata." };
+  }
+  return { success: true, id: data.id };
+}
+
+export async function setLessonSubjectActive(
+  client: LessonsClient,
+  id: string,
+  isActive: boolean,
+): Promise<LessonSettingsMutationResult> {
+  if (!id.trim()) {
+    return { success: false, errorMessage: "Materia non valida." };
+  }
+
+  const { data, error } = await client
+    .from("lesson_subjects")
+    .update({ is_active: isActive })
+    .eq("id", id)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    return {
+      success: false,
+      errorMessage:
+        error.message || "Impossibile aggiornare lo stato della materia.",
+    };
+  }
+  if (!data) {
+    return { success: false, errorMessage: "Materia non trovata." };
+  }
+  return { success: true, id: data.id };
 }
 
 export async function listSchoolClosures(

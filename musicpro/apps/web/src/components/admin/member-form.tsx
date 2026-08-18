@@ -92,6 +92,8 @@ function emptyMemberInput(defaultMemberNumber?: number): MemberInput {
     telegramChatId: null,
     gdprConsent: false,
     gdprConsentAt: null,
+    photoConsent: false,
+    photoConsentAt: null,
     isActive: true,
     membershipCardPickedUpAt: null,
     gadgetsPickedUpAt: null,
@@ -518,6 +520,15 @@ export function MemberForm({
               className="rounded border-neutral-300"
             />
             Consenso GDPR
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={form.photoConsent}
+              onChange={(e) => updateField("photoConsent", e.target.checked)}
+              className="rounded border-neutral-300"
+            />
+            Consenso foto/video
           </label>
           <label className="flex items-center gap-2 text-sm">
             <input

@@ -5,6 +5,8 @@ import { useCallback, useMemo, useRef, useState } from "react";
 
 import {
   getCurrentMemberWithRoles,
+  listBookingsInRange,
+  listExternalCalendarEventsInRange,
   listLessonsInRange,
   moveLesson,
   requestLessonMove,
@@ -12,6 +14,11 @@ import {
   utcIsoToRomeLocalInput,
 } from "@musicpro/database";
 
+import {
+  mergeCalendarEvents,
+  parseBookingId,
+  parseExternalEventId,
+} from "@/components/lezioni/calendar-bookings";
 import { LessonAttendancePanel } from "@/components/lezioni/lesson-attendance-panel";
 import {
   LessonsCalendar,
@@ -32,6 +39,7 @@ export interface LessonsCalendarPageProps {
     sundayVisible: boolean;
     gridOpenMinute: number;
     gridCloseMinute: number;
+    slotGranularityMinutes?: number;
   };
   rooms: { id: string; name: string }[];
   teachers?: { id: string; label: string }[];
@@ -114,6 +122,10 @@ export function LessonsCalendarPage({
           ? monthBounds(next.date)
           : weekBounds(next.date, sundayVisible);
       try {
+        const roomFilter =
+          isStaff && next.mode === "sala" && next.roomId
+            ? next.roomId
+            : undefined;
         const rows = await listLessonsInRange(supabase, {
           from: bounds.from,
           to: bounds.to,
@@ -123,13 +135,24 @@ export function LessonsCalendarPage({
               ? next.teacherId
               : undefined
             : memberId,
-          roomId:
-            isStaff && next.mode === "sala" && next.roomId
-              ? next.roomId
-              : undefined,
+          roomId: roomFilter,
         });
+        const bookings = isStaff
+          ? await listBookingsInRange(supabase, {
+              from: bounds.from,
+              to: bounds.to,
+              roomId: roomFilter,
+            })
+          : [];
+        const externals = isStaff
+          ? await listExternalCalendarEventsInRange(supabase, {
+              from: bounds.from,
+              to: bounds.to,
+              roomId: roomFilter,
+            })
+          : [];
         if (gen !== fetchGen.current) return;
-        setLessons(rows);
+        setLessons(mergeCalendarEvents(rows, bookings, externals));
       } catch {
         if (gen !== fetchGen.current) return;
       } finally {
@@ -206,6 +229,12 @@ export function LessonsCalendarPage({
   }
 
   function handleOpenLesson(lessonId: string) {
+    const bookingId = parseBookingId(lessonId);
+    if (bookingId) {
+      router.push(`/admin/prenotazioni/${bookingId}`);
+      return;
+    }
+    if (parseExternalEventId(lessonId)) return;
     const lesson = lessons.find((row) => row.id === lessonId);
     if (!lesson) return;
     const hold = lessonId.startsWith("hold:");
@@ -243,6 +272,7 @@ export function LessonsCalendarPage({
     nextRoomId: string | null,
     scope: MoveScope,
   ) {
+    if (parseBookingId(lessonId) || parseExternalEventId(lessonId)) return;
     const lesson = lessons.find((row) => row.id === lessonId);
     if (lesson?.hasAttendance) {
       throw new Error(
@@ -377,6 +407,17 @@ export function LessonsCalendarPage({
               ))}
             </select>
           )}
+
+          <span className="ml-1 inline-flex items-center gap-3 text-[11px] text-neutral-500">
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-sm bg-amber-300" />
+              Lezioni
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-sm bg-emerald-400" />
+              Sale
+            </span>
+          </span>
         </div>
       ) : null}
 
@@ -395,6 +436,7 @@ export function LessonsCalendarPage({
           sundayVisible={settings.sundayVisible}
           gridOpenMinute={settings.gridOpenMinute}
           gridCloseMinute={settings.gridCloseMinute}
+          slotGranularityMinutes={settings.slotGranularityMinutes}
           canDrag={canDrag}
           showTeacherName={isStaff}
           rooms={rooms}
@@ -423,7 +465,9 @@ export function LessonsCalendarPage({
           </p>
           {attendanceLesson.hasAttendance && !isStaff ? (
             <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-              Lezione già presenziata: sblocca la presenza in segreteria.
+              Presenze già segnate: puoi modificarle se il mese è aperto e
+              sei nella finestra di 14 giorni. Per spostare la lezione serve
+              prima lo sblocco in segreteria.
             </p>
           ) : null}
           <div className="mt-4">

@@ -96,6 +96,7 @@ export async function loadCourseCreateData(client: Client, includeTeachers: bool
     sundayVisible: settings?.sundayVisible ?? false,
     gridOpenMinute: settings?.gridOpenMinute ?? 600,
     gridCloseMinute: settings?.gridCloseMinute ?? 1380,
+    slotGranularityMinutes: settings?.slotGranularityMinutes ?? 15,
     defaultGroupCapacity: settings?.defaultGroupCapacity ?? 8,
     currentTerm: term,
     teachers,

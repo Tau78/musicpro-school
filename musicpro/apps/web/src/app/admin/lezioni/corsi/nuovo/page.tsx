@@ -47,6 +47,7 @@ export default async function AdminNuovoCorsoPage() {
         sundayVisible={data.sundayVisible}
         gridOpenMinute={data.gridOpenMinute}
         gridCloseMinute={data.gridCloseMinute}
+        slotGranularityMinutes={data.slotGranularityMinutes}
         defaultGroupCapacity={data.defaultGroupCapacity}
         currentTerm={data.currentTerm}
         teachers={data.teachers}

@@ -45,6 +45,7 @@ export default async function AdminNuovaProvaPage() {
         rooms={data.rooms}
         currentTerm={data.currentTerm}
         teachers={data.teachers}
+        slotStepMinutes={data.slotGranularityMinutes}
       />
     </div>
   );
