@@ -31,6 +31,7 @@ EDGE_FUNCTIONS=(
   calendar-availability
   send-booking-email
   external-calendar-sync
+  stripe-lesson-pack-webhook
 )
 
 STAMP="$(date +%Y%m%d-%H%M)"
