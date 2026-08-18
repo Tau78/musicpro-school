@@ -3,7 +3,7 @@ const {
   LOG_SHEET_NAME,
 } = require('../config');
 const { readSheet } = require('../sheets-reader');
-const { upsertBatched, loadMemberLookup, resolveMemberId } = require('../supabase-client');
+const { upsertBatched, loadMemberLookup, resolveMemberId, getSupabase } = require('../supabase-client');
 const {
   createStats,
   normalizeWhitespace,
@@ -59,9 +59,9 @@ function mapReimbursementRows(lookup, rows) {
       receipts_amount_eur:
         parseEuroAmount(row[LOG_COL_INDEX.IMPORTO_RICEVUTE]) ?? 0,
       receipts_notes: normalizeWhitespace(row[LOG_COL_INDEX.RICEVUTE]) || null,
-      pdf_url: null,
+      pdf_url: normalizeWhitespace(row[LOG_COL_INDEX.URL_PDF]) || null,
       legacy_sheet_row: sheetRowNumber,
-      signature_required: true,
+      signature_required: false,
     });
   }
 
@@ -93,15 +93,14 @@ async function migrateReimbursements(dryRun) {
 
   if (!valid.length) return stats;
 
-  try {
-    const chunks = [];
-    const seen = new Map();
-    for (const row of valid) {
-      const key = `${row.member_id}|${row.fiscal_year}|${row.progressive}`;
-      seen.set(key, row);
-    }
-    const deduped = [...seen.values()];
+  const seen = new Map();
+  for (const row of valid) {
+    const key = `${row.member_id}|${row.fiscal_year}|${row.progressive}`;
+    seen.set(key, row);
+  }
+  const deduped = [...seen.values()];
 
+  try {
     const result = await upsertBatched(
       'reimbursements',
       deduped,
@@ -113,7 +112,41 @@ async function migrateReimbursements(dryRun) {
     stats.errors.push(err.message);
   }
 
+  try {
+    const pdfBackfill = await backfillDrivePdfUrls(deduped, dryRun);
+    stats.pdfUrls = pdfBackfill;
+  } catch (err) {
+    stats.errors.push(`pdf_url backfill: ${err.message}`);
+  }
+
   return stats;
+}
+
+/**
+ * Fills pdf_url from Drive only when the DB row still has none.
+ * Does not overwrite Storage URLs generated after cutover.
+ */
+async function backfillDrivePdfUrls(rows, dryRun) {
+  const withUrl = rows.filter((row) => row.pdf_url);
+  if (dryRun) {
+    return { candidates: withUrl.length, updated: 0 };
+  }
+
+  const supabase = getSupabase();
+  let updated = 0;
+  for (const row of withUrl) {
+    const { data, error } = await supabase
+      .from('reimbursements')
+      .update({ pdf_url: row.pdf_url })
+      .eq('member_id', row.member_id)
+      .eq('fiscal_year', row.fiscal_year)
+      .eq('progressive', row.progressive)
+      .is('pdf_url', null)
+      .select('id');
+    if (error) throw new Error(error.message);
+    updated += data?.length ?? 0;
+  }
+  return { candidates: withUrl.length, updated };
 }
 
 module.exports = { migrateReimbursements };

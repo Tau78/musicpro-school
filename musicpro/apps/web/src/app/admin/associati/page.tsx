@@ -3,9 +3,11 @@ import { redirect } from "next/navigation";
 
 import {
   listMemberAvailableCredits,
+  listMemberIdsWithRole,
   listMembers,
   listMembersDetail,
 } from "@musicpro/database";
+import { MemberRole } from "@musicpro/shared";
 
 import { AssociatesBookButton } from "@/components/admin/associates-book-button";
 import { MemberList } from "@/components/admin/member-list";
@@ -24,11 +26,15 @@ export default async function AssociatiPage() {
     redirect("/admin/rimborsi");
   }
 
-  const [members, memberDetails, availableCredits] = await Promise.all([
-    listMembers(supabase),
-    listMembersDetail(supabase),
-    listMemberAvailableCredits(supabase).catch(() => ({}) as Record<string, number>),
-  ]);
+  const [members, memberDetails, availableCredits, docenteIds] =
+    await Promise.all([
+      listMembers(supabase),
+      listMembersDetail(supabase),
+      listMemberAvailableCredits(supabase).catch(
+        () => ({}) as Record<string, number>,
+      ),
+      listMemberIdsWithRole(supabase, MemberRole.Docente),
+    ]);
   const showMerge = canMergeDuplicates(member.roles);
 
   const creditBalances = Object.fromEntries(
@@ -59,7 +65,12 @@ export default async function AssociatiPage() {
         </div>
       </div>
 
-      <MemberList members={members} canAdd creditBalances={creditBalances} />
+      <MemberList
+        members={members}
+        canAdd
+        creditBalances={creditBalances}
+        docenteIds={docenteIds}
+      />
     </div>
   );
 }

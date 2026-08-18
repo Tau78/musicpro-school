@@ -34,7 +34,11 @@ export default async function NuovoAssociatoPage() {
         </h2>
       </div>
 
-      <MemberForm defaultMemberNumber={nextNumber} />
+      <MemberForm
+        defaultMemberNumber={nextNumber}
+        currentStaffMemberId={member.id}
+        currentStaffRoles={member.roles}
+      />
     </div>
   );
 }

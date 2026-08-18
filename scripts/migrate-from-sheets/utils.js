@@ -229,6 +229,11 @@ function logSheetSummary(sheetName, stats) {
   console.log(`\n--- ${sheetName} ---`);
   console.log(`  inserted/upserted: ${stats.inserted}`);
   console.log(`  skipped:           ${stats.skipped}`);
+  if (stats.pdfUrls) {
+    console.log(
+      `  pdf_url Drive:      ${stats.pdfUrls.updated}/${stats.pdfUrls.candidates} (solo se era vuoto)`
+    );
+  }
   if (stats.errors.length) {
     console.log(`  errors (${stats.errors.length}):`);
     for (const err of stats.errors.slice(0, 20)) {

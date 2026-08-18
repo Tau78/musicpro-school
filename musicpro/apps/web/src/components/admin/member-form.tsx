@@ -13,8 +13,15 @@ import {
   deleteMember,
   formatQuotaDateItalian,
   formatQuotaEuro,
+  setMemberHasRole,
   updateMember,
+  upsertTeacherProfile,
 } from "@musicpro/database";
+import {
+  MEMBER_ROLE_LABELS,
+  MemberRole,
+  type MemberRoleValue,
+} from "@musicpro/shared";
 
 import { createClient } from "@/lib/supabase/client";
 
@@ -23,6 +30,28 @@ interface MemberFormProps {
   defaultMemberNumber?: number;
   canDelete?: boolean;
   quotas?: MemberAnnualQuota[];
+  currentStaffMemberId?: string;
+  currentStaffRoles?: MemberRoleValue[];
+  initialIsDocente?: boolean;
+}
+
+const CREATE_ASSIGNABLE_ROLES: MemberRoleValue[] = [
+  MemberRole.Admin,
+  MemberRole.Segreteria,
+  MemberRole.Docente,
+];
+
+function canAssignRoleOnCreate(
+  role: MemberRoleValue,
+  staffRoles: MemberRoleValue[],
+): boolean {
+  if (role === MemberRole.Admin) {
+    return staffRoles.includes(MemberRole.Admin);
+  }
+  return (
+    staffRoles.includes(MemberRole.Admin) ||
+    staffRoles.includes(MemberRole.Segreteria)
+  );
 }
 
 function toDateInputValue(iso: string | null): string {
@@ -77,6 +106,9 @@ export function MemberForm({
   defaultMemberNumber,
   canDelete = false,
   quotas = [],
+  currentStaffMemberId,
+  currentStaffRoles = [],
+  initialIsDocente = false,
 }: MemberFormProps) {
   const router = useRouter();
   const supabase = createClient();
@@ -84,6 +116,9 @@ export function MemberForm({
 
   const [form, setForm] = useState<MemberInput>(
     member ? memberToInput(member) : emptyMemberInput(defaultMemberNumber),
+  );
+  const [createRoles, setCreateRoles] = useState<Set<MemberRoleValue>>(
+    () => new Set(initialIsDocente ? [MemberRole.Docente] : []),
   );
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -114,21 +149,71 @@ export function MemberForm({
       ? await updateMember(supabase, member!.id, form)
       : await createMember(supabase, form);
 
-    setSaving(false);
-
     if (!result.success) {
+      setSaving(false);
       setError(result.errorMessage ?? "Errore durante il salvataggio.");
       return;
     }
 
-    setSuccess(isEdit ? "Associato aggiornato." : "Associato creato.");
-
     if (!isEdit && result.id) {
+      const rolesToGrant = CREATE_ASSIGNABLE_ROLES.filter(
+        (role) =>
+          createRoles.has(role) &&
+          canAssignRoleOnCreate(role, currentStaffRoles),
+      );
+
+      if (rolesToGrant.length > 0 && currentStaffMemberId) {
+        for (const role of rolesToGrant) {
+          const roleResult = await setMemberHasRole(
+            supabase,
+            result.id,
+            role,
+            true,
+            currentStaffMemberId,
+          );
+
+          if (!roleResult.success) {
+            const label = MEMBER_ROLE_LABELS[role as MemberRole] ?? role;
+            setSaving(false);
+            setError(
+              `Anagrafica salvata, ma non è stato possibile assegnare il ruolo ${label}. Puoi riprovare dalla scheda.`,
+            );
+            router.push(`/admin/associati/${result.id}`);
+            router.refresh();
+            return;
+          }
+        }
+
+        if (rolesToGrant.includes(MemberRole.Docente)) {
+          const profileResult = await upsertTeacherProfile(supabase, result.id, {
+            canCreateCourses: false,
+            canReschedule: false,
+            canCloseCourses: false,
+            paymentVisibility: "hidden",
+          });
+
+          if (!profileResult.success) {
+            setSaving(false);
+            setError(
+              "Anagrafica e ruolo salvati, ma il profilo docente non è stato creato. Puoi riprovare dalla scheda.",
+            );
+            router.push(`/admin/associati/${result.id}`);
+            router.refresh();
+            return;
+          }
+        }
+      }
+
+      setSaving(false);
+      setSuccess("Associato creato.");
       router.push(`/admin/associati/${result.id}`);
       router.refresh();
-    } else {
-      router.refresh();
+      return;
     }
+
+    setSaving(false);
+    setSuccess("Associato aggiornato.");
+    router.refresh();
   }
 
   async function handleDelete() {
@@ -475,6 +560,39 @@ export function MemberForm({
           </div>
         ) : null}
       </fieldset>
+
+      {!isEdit ? (
+        <fieldset className="space-y-4 rounded-xl border border-neutral-200 bg-white p-6">
+          <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
+            Ruoli
+          </legend>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {CREATE_ASSIGNABLE_ROLES.map((role) => {
+              const allowed = canAssignRoleOnCreate(role, currentStaffRoles);
+              return (
+                <label key={role} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={createRoles.has(role)}
+                    disabled={!allowed}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setCreateRoles((prev) => {
+                        const next = new Set(prev);
+                        if (checked) next.add(role);
+                        else next.delete(role);
+                        return next;
+                      });
+                    }}
+                    className="rounded border-neutral-300"
+                  />
+                  {MEMBER_ROLE_LABELS[role as MemberRole] ?? role}
+                </label>
+              );
+            })}
+          </div>
+        </fieldset>
+      ) : null}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex gap-3">

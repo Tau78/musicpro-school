@@ -15,11 +15,14 @@ export interface ReimbursementDisplay {
   grossAmountEur: number;
   generatedAt: string;
   receiptsAmountEur: number;
+  receiptsNotes: string | null;
   receiptsStatus: ReceiptsStatus;
   paymentMethod: string | null;
   paymentDate: string | null;
   pdfUrl: string | null;
   pdfStoragePath: string | null;
+  signatureRequired: boolean;
+  signedAt: string | null;
 }
 
 export interface ReimbursementListResult {
@@ -48,15 +51,18 @@ type ReimbursementRow = {
   gross_amount_eur: number;
   generated_at: string;
   receipts_amount_eur: number | null;
+  receipts_notes: string | null;
   receipts_status: ReceiptsStatus;
   payment_method: string | null;
   payment_date: string | null;
   pdf_url: string | null;
   pdf_storage_path: string | null;
+  signature_required: boolean;
+  signed_at: string | null;
 };
 
 const REIMBURSEMENT_COLUMNS =
-  "id, member_id, fiscal_year, progressive, gross_amount_eur, generated_at, receipts_amount_eur, receipts_status, payment_method, payment_date, pdf_url, pdf_storage_path";
+  "id, member_id, fiscal_year, progressive, gross_amount_eur, generated_at, receipts_amount_eur, receipts_notes, receipts_status, payment_method, payment_date, pdf_url, pdf_storage_path, signature_required, signed_at";
 
 function mapReimbursement(
   row: ReimbursementRow,
@@ -71,11 +77,14 @@ function mapReimbursement(
     grossAmountEur: Number(row.gross_amount_eur),
     generatedAt: row.generated_at,
     receiptsAmountEur: Number(row.receipts_amount_eur ?? 0),
+    receiptsNotes: row.receipts_notes,
     receiptsStatus: row.receipts_status,
     paymentMethod: row.payment_method,
     paymentDate: row.payment_date,
     pdfUrl: row.pdf_url,
     pdfStoragePath: row.pdf_storage_path,
+    signatureRequired: row.signature_required,
+    signedAt: row.signed_at,
   };
 }
 
@@ -107,13 +116,16 @@ async function loadMemberNames(
 
 export async function listReimbursements(
   client: ReimbursementsClient,
-  params: { fiscalYear: number; memberId?: string },
+  params: { fiscalYear?: number; memberId?: string } = {},
 ): Promise<ReimbursementListResult> {
   let query = client
     .from("reimbursements")
     .select(REIMBURSEMENT_COLUMNS)
-    .eq("fiscal_year", params.fiscalYear)
     .order("generated_at", { ascending: false });
+
+  if (params.fiscalYear != null) {
+    query = query.eq("fiscal_year", params.fiscalYear);
+  }
 
   if (params.memberId) {
     query = query.eq("member_id", params.memberId);
@@ -173,9 +185,26 @@ export async function updateReceiptsAmount(
   id: string,
   receiptsAmountEur: number,
 ): Promise<ReimbursementMutationResult> {
+  const current = await getReimbursementById(client, id);
+  if (!current) {
+    return { success: false, errorMessage: "Rimborso non trovato." };
+  }
+
+  const historic = await getMemberReceiptsBalance(client, current.memberId, {
+    excludeId: id,
+  });
+  const receiptsNotes = buildReceiptsNote({
+    grossAmountEur: current.grossAmountEur,
+    receiptsAmountEur,
+    historicBalanceEur: historic.balanceEur,
+  });
+
   const { error } = await client
     .from("reimbursements")
-    .update({ receipts_amount_eur: receiptsAmountEur } as never)
+    .update({
+      receipts_amount_eur: receiptsAmountEur,
+      receipts_notes: receiptsNotes,
+    } as never)
     .eq("id", id);
 
   if (error) {
@@ -251,14 +280,46 @@ export async function updateReimbursementPdf(
  * Balance = SUM(receipts) - SUM(gross) across all reimbursements for the member.
  * Positive = surplus (credit from past receipts); negative = debt.
  */
+export function buildReceiptsNote(params: {
+  grossAmountEur: number;
+  receiptsAmountEur: number;
+  historicBalanceEur: number;
+}): string {
+  const receipts = formatEuro(params.receiptsAmountEur);
+  const delta = params.grossAmountEur - params.receiptsAmountEur;
+  let line = `Importo consegnato: ${receipts}`;
+  if (delta > 0.01) {
+    if (params.historicBalanceEur >= delta - 0.01) {
+      line += `\nScontrini precedentemente ricevuti: ${formatEuro(delta)}`;
+    } else {
+      line += `\nRicevute ancora da consegnare (anticipo): ${formatEuro(delta)}`;
+    }
+  } else if (delta < -0.01) {
+    line += `\nEccedenza a credito per prossimi rimborsi: ${formatEuro(Math.abs(delta))}`;
+  }
+  return line;
+}
+
+export function isExternalPdfUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  return /^https?:\/\//i.test(url) && !url.includes("/storage/v1/object/");
+}
+
 export async function getMemberReceiptsBalance(
   client: ReimbursementsClient,
   memberId: string,
+  options?: { excludeId?: string },
 ): Promise<MemberReceiptsBalance> {
-  const { data, error } = await client
+  let query = client
     .from("reimbursements")
-    .select("gross_amount_eur, receipts_amount_eur")
+    .select("id, gross_amount_eur, receipts_amount_eur")
     .eq("member_id", memberId);
+
+  if (options?.excludeId) {
+    query = query.neq("id", options.excludeId);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     throw new Error(`Impossibile calcolare il saldo ricevute: ${error.message}`);
@@ -268,6 +329,7 @@ export async function getMemberReceiptsBalance(
   let totalReceiptsEur = 0;
 
   for (const row of (data ?? []) as {
+    id: string;
     gross_amount_eur: number;
     receipts_amount_eur: number | null;
   }[]) {
@@ -405,6 +467,12 @@ export async function generateReimbursement(
 
     const gross = input.grossAmountEur;
     const receipts = input.receiptsAmountEur ?? 0;
+    const historic = await getMemberReceiptsBalance(client, input.memberId);
+    const receiptsNotes = buildReceiptsNote({
+      grossAmountEur: gross,
+      receiptsAmountEur: receipts,
+      historicBalanceEur: historic.balanceEur,
+    });
 
     const { data, error } = await client
       .from("reimbursements")
@@ -419,8 +487,10 @@ export async function generateReimbursement(
         payment_method: input.paymentMethod,
         payment_date: input.paymentDate ?? null,
         receipts_amount_eur: receipts,
+        receipts_notes: receiptsNotes,
         pdf_url: null,
         pdf_storage_path: null,
+        signature_required: true,
       } as never)
       .select("id")
       .single();
@@ -518,6 +588,61 @@ export async function generateReimbursementsBatch(
       ? undefined
       : "Alcuni rimborsi non sono stati generati. Controlla i dettagli.",
   };
+}
+
+export async function signReimbursement(
+  client: ReimbursementsClient,
+  id: string,
+): Promise<ReimbursementMutationResult> {
+  const current = await getReimbursementById(client, id);
+  if (!current) {
+    return { success: false, errorMessage: "Rimborso non trovato." };
+  }
+  if (!current.signatureRequired) {
+    return { success: false, errorMessage: "Questa notula non richiede firma." };
+  }
+  if (current.signedAt) {
+    return { success: true, id };
+  }
+
+  const { error } = await client
+    .from("reimbursements")
+    .update({ signed_at: new Date().toISOString() } as never)
+    .eq("id", id)
+    .is("signed_at", null);
+
+  if (error) {
+    return { success: false, errorMessage: error.message };
+  }
+
+  return { success: true, id };
+}
+
+export async function ensureReceiptsNotes(
+  client: ReimbursementsClient,
+  reimbursement: ReimbursementDisplay,
+): Promise<string> {
+  if (reimbursement.receiptsNotes?.trim()) {
+    return reimbursement.receiptsNotes.trim();
+  }
+
+  const historic = await getMemberReceiptsBalance(
+    client,
+    reimbursement.memberId,
+    { excludeId: reimbursement.id },
+  );
+  const notes = buildReceiptsNote({
+    grossAmountEur: reimbursement.grossAmountEur,
+    receiptsAmountEur: reimbursement.receiptsAmountEur,
+    historicBalanceEur: historic.balanceEur,
+  });
+
+  await client
+    .from("reimbursements")
+    .update({ receipts_notes: notes } as never)
+    .eq("id", reimbursement.id);
+
+  return notes;
 }
 
 export const RECEIPTS_STATUS_LABELS: Record<ReceiptsStatus, string> = {

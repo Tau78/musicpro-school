@@ -1,6 +1,10 @@
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
-import { formatEuro, formatDateItalian } from "@musicpro/database";
+import {
+  buildReceiptsNote,
+  formatDateItalian,
+  formatEuro,
+} from "@musicpro/database";
 
 export interface NotulaPdfInput {
   progressive: string;
@@ -13,7 +17,9 @@ export interface NotulaPdfInput {
   paymentDate: string | null;
   receiptsAmountEur: number;
   receiptsNote?: string | null;
+  historicBalanceEur?: number;
   generatedAt?: string | null;
+  signedAt?: string | null;
 }
 
 export interface GeneratedNotulaPdf {
@@ -34,16 +40,11 @@ function formatPaymentDate(value: string | null | undefined): string {
 
 function buildReceiptsLine(input: NotulaPdfInput): string {
   if (input.receiptsNote?.trim()) return input.receiptsNote.trim();
-  const receipts = formatEuro(input.receiptsAmountEur);
-  const gross = input.grossAmountEur;
-  const delta = gross - input.receiptsAmountEur;
-  let line = `Importo consegnato: ${receipts}`;
-  if (delta > 0.01) {
-    line += `\nRicevute ancora da consegnare (anticipo): ${formatEuro(delta)}`;
-  } else if (delta < -0.01) {
-    line += `\nEccedenza a credito per prossimi rimborsi: ${formatEuro(Math.abs(delta))}`;
-  }
-  return line;
+  return buildReceiptsNote({
+    grossAmountEur: input.grossAmountEur,
+    receiptsAmountEur: input.receiptsAmountEur,
+    historicBalanceEur: input.historicBalanceEur ?? 0,
+  });
 }
 
 /**
@@ -117,10 +118,16 @@ export async function generateReimbursementPdf(
     "Documento generato automaticamente dal sistema MusicPro School.",
     { size: 9, color: muted },
   );
-  draw("Firma associato: _______________________________", {
-    size: 10,
-    color: muted,
-  });
+  if (input.signedAt) {
+    draw(`Firmato dall'associato il ${formatDateItalian(input.signedAt)}`, {
+      size: 10,
+    });
+  } else {
+    draw("Firma associato: _______________________________", {
+      size: 10,
+      color: muted,
+    });
+  }
 
   const bytes = await doc.save();
   const safeName = input.associateName
@@ -193,7 +200,11 @@ export function generateReimbursementHtml(input: NotulaPdfInput): string {
     <div class="row">${receipts}</div>
   </div>
   <p class="muted" style="margin-top:36px">Documento generato automaticamente dal sistema MusicPro School.</p>
-  <p class="muted">Firma associato: _______________________________</p>
+  <p class="muted">${
+    input.signedAt
+      ? `Firmato dall'associato il ${escapeHtml(formatDateItalian(input.signedAt))}`
+      : "Firma associato: _______________________________"
+  }</p>
   <script>window.onload=function(){/* ready for print */}</script>
 </body>
 </html>`;

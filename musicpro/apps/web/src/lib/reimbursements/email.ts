@@ -20,9 +20,9 @@ export async function sendReimbursementEmailViaResend(params: {
   const apiKey = process.env.RESEND_API_KEY?.trim();
   if (!apiKey) {
     return {
-      ok: true,
-      skipped: true,
-      reason: "RESEND_API_KEY assente — invio email saltato (dev mode)",
+      ok: false,
+      error:
+        "RESEND_API_KEY assente: l'email della notula non è stata inviata.",
     };
   }
 
@@ -67,23 +67,34 @@ export async function sendReimbursementEmailViaResend(params: {
 export function buildNotulaEmailContent(params: {
   associateName: string;
   docLabel: string;
+  pdfLink?: string | null;
 }): { subject: string; html: string; text: string } {
   const firstName = params.associateName.trim().split(/\s+/)[0] || "Associato";
   const subject = `Generazione Rimborso: ${params.docLabel}`;
+  const linkLine = params.pdfLink
+    ? `\nPuoi anche aprire il documento originale:\n${params.pdfLink}\n`
+    : "";
   const text = [
     `Ciao ${firstName},`,
     "",
     "in allegato trovi il rimborso appena generato.",
-    "",
+    linkLine,
     "Saluti.",
     "MusicPro School",
-  ].join("\n");
+  ]
+    .filter((line) => line !== "")
+    .join("\n");
+
+  const htmlLink = params.pdfLink
+    ? `<p>Puoi anche aprire il <a href="${escapeHtml(params.pdfLink)}">documento originale</a>.</p>`
+    : "";
 
   const html = `<!DOCTYPE html>
 <html lang="it">
 <body style="font-family:system-ui,-apple-system,sans-serif;line-height:1.5;color:#1a1a1a;max-width:560px;margin:0 auto;padding:24px;">
   <p>Ciao <strong>${escapeHtml(firstName)}</strong>,</p>
   <p>in allegato trovi il rimborso appena generato.</p>
+  ${htmlLink}
   <p style="margin-top:32px;font-size:12px;color:#888;">MusicPro School</p>
 </body>
 </html>`;

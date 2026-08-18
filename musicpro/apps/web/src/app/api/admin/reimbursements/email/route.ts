@@ -13,15 +13,12 @@ import {
   sendReimbursementEmailViaResend,
   uint8ToBase64,
 } from "@/lib/reimbursements/email";
+import { reimbursementPdfLink, toNotulaPdfInput } from "@/lib/reimbursements/notula";
 import { generateReimbursementPdf } from "@/lib/reimbursements/pdf";
 import { createClient } from "@/lib/supabase/server";
 
 const STORAGE_BUCKET = "reimbursements";
 
-/**
- * Bulk email for selected reimbursements.
- * Body: { ids: string[] }
- */
 export async function POST(request: Request) {
   const supabase = await createClient();
   const {
@@ -98,6 +95,7 @@ export async function POST(request: Request) {
     const content = buildNotulaEmailContent({
       associateName: reimbursement.associateName,
       docLabel,
+      pdfLink: reimbursementPdfLink(reimbursement),
     });
 
     let attachment:
@@ -120,16 +118,9 @@ export async function POST(request: Request) {
     }
 
     if (!attachment) {
-      const pdf = await generateReimbursementPdf({
-        progressive: reimbursement.progressive,
-        fiscalYear: reimbursement.fiscalYear,
-        associateName: reimbursement.associateName,
-        grossAmountEur: reimbursement.grossAmountEur,
-        paymentMethod: reimbursement.paymentMethod,
-        paymentDate: reimbursement.paymentDate,
-        receiptsAmountEur: reimbursement.receiptsAmountEur,
-        generatedAt: reimbursement.generatedAt,
-      });
+      const pdf = await generateReimbursementPdf(
+        await toNotulaPdfInput(supabase, reimbursement),
+      );
       attachment = {
         filename: pdf.filename,
         content: uint8ToBase64(pdf.bytes),
@@ -147,17 +138,6 @@ export async function POST(request: Request) {
 
     if (!result.ok) {
       results.push({ id, success: false, message: result.error, recipient });
-      continue;
-    }
-
-    if ("skipped" in result && result.skipped) {
-      results.push({
-        id,
-        success: true,
-        skipped: true,
-        message: result.reason,
-        recipient,
-      });
       continue;
     }
 
@@ -180,5 +160,9 @@ export async function POST(request: Request) {
     skipped,
     failed,
     results,
+    message:
+      failed > 0
+        ? `${failed} email non inviate. Controlla RESEND_API_KEY e gli indirizzi associati.`
+        : undefined,
   });
 }
