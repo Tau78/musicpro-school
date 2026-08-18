@@ -3,7 +3,8 @@
   "private": true,
   "scripts": {
     "deploy:iscrizione": "node deploy-iscrizione.js",
-    "migrate:sheets": "node scripts/migrate-from-sheets/index.js"
+    "migrate:sheets": "node scripts/migrate-from-sheets/index.js",
+    "vai": "bash scripts/vai.sh"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.8",

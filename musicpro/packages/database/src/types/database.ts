@@ -53,6 +53,10 @@ export interface Database {
           gdpr_consent: boolean;
           gdpr_consent_at: string | null;
           is_active: boolean;
+          is_enrollment_draft: boolean;
+          draft_expires_at: string | null;
+          membership_card_picked_up_at: string | null;
+          gadgets_picked_up_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -84,6 +88,10 @@ export interface Database {
           gdpr_consent?: boolean;
           gdpr_consent_at?: string | null;
           is_active?: boolean;
+          is_enrollment_draft?: boolean;
+          draft_expires_at?: string | null;
+          membership_card_picked_up_at?: string | null;
+          gadgets_picked_up_at?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["members"]["Insert"]>;
         Relationships: [];
@@ -133,6 +141,9 @@ export interface Database {
           receipts_status: "mancante" | "parziale" | "completo";
           pdf_url: string | null;
           pdf_storage_path: string | null;
+          signature_required: boolean;
+          signed_at: string | null;
+          signature_storage_path: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -152,6 +163,9 @@ export interface Database {
           receipts_notes?: string | null;
           pdf_url?: string | null;
           pdf_storage_path?: string | null;
+          signature_required?: boolean;
+          signed_at?: string | null;
+          signature_storage_path?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["reimbursements"]["Insert"]> & {
           receipts_status?: "mancante" | "parziale" | "completo";
@@ -266,6 +280,7 @@ export interface Database {
           provi_da_solo: boolean;
           band_id: string | null;
           member_snapshot: Json | null;
+          source: "booking" | "calendar" | "lesson";
           created_at: string;
           updated_at: string;
         };
@@ -302,6 +317,7 @@ export interface Database {
           google_calendar_event_id?: string | null;
           google_calendar_synced_at?: string | null;
           google_calendar_sync_error?: string | null;
+          source?: "booking" | "calendar" | "lesson";
         };
         Update: Partial<Database["public"]["Tables"]["bookings"]["Insert"]> & {
           cancelled_at?: string | null;
@@ -814,6 +830,383 @@ export interface Database {
         >;
         Relationships: [];
       };
+      lesson_subjects: {
+        Row: {
+          id: string;
+          name: string;
+          slug: string;
+          sort_order: number;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          slug: string;
+          sort_order?: number;
+          is_active?: boolean;
+        };
+        Update: Partial<Database["public"]["Tables"]["lesson_subjects"]["Insert"]>;
+        Relationships: [];
+      };
+      school_lesson_settings: {
+        Row: {
+          id: boolean;
+          grid_open_minute: number;
+          grid_close_minute: number;
+          sunday_visible: boolean;
+          slot_granularity_minutes: number;
+          default_group_capacity: number;
+          attendance_edit_days: number;
+          hold_hours: number;
+          reminder_week_hours: number;
+          reminder_day_hours: number;
+          reminder_soon_hours: number;
+          pack_remind_hours_1: number;
+          pack_remind_hours_2: number;
+          notula_job_day: number;
+          notula_job_hour: number;
+          notula_sign_deadline_days: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: boolean;
+          grid_open_minute?: number;
+          grid_close_minute?: number;
+          sunday_visible?: boolean;
+          slot_granularity_minutes?: number;
+          default_group_capacity?: number;
+          attendance_edit_days?: number;
+          hold_hours?: number;
+          reminder_week_hours?: number;
+          reminder_day_hours?: number;
+          reminder_soon_hours?: number;
+          pack_remind_hours_1?: number;
+          pack_remind_hours_2?: number;
+          notula_job_day?: number;
+          notula_job_hour?: number;
+          notula_sign_deadline_days?: number;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["school_lesson_settings"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      school_course_terms: {
+        Row: {
+          id: string;
+          label: string;
+          starts_on: string;
+          ends_on: string;
+          is_current: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          label: string;
+          starts_on: string;
+          ends_on: string;
+          is_current?: boolean;
+        };
+        Update: Partial<Database["public"]["Tables"]["school_course_terms"]["Insert"]>;
+        Relationships: [];
+      };
+      school_closures: {
+        Row: {
+          id: string;
+          starts_on: string;
+          ends_on: string;
+          title: string;
+          repeats_yearly: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          starts_on: string;
+          ends_on: string;
+          title: string;
+          repeats_yearly?: boolean;
+        };
+        Update: Partial<Database["public"]["Tables"]["school_closures"]["Insert"]>;
+        Relationships: [];
+      };
+      course_pack_prices: {
+        Row: {
+          id: string;
+          course_kind: "individuale" | "gruppo" | "online";
+          duration_minutes: number;
+          amount_eur: number | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          course_kind: "individuale" | "gruppo" | "online";
+          duration_minutes: number;
+          amount_eur?: number | null;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["course_pack_prices"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      pay_rate_types: {
+        Row: {
+          id: string;
+          slug: string;
+          label: string;
+          unit: "hourly" | "per_head_per_lesson";
+          is_system: boolean;
+          is_active: boolean;
+          sort_order: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          slug: string;
+          label: string;
+          unit: "hourly" | "per_head_per_lesson";
+          is_system?: boolean;
+          is_active?: boolean;
+          sort_order?: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["pay_rate_types"]["Insert"]>;
+        Relationships: [];
+      };
+      teacher_profiles: {
+        Row: {
+          member_id: string;
+          can_create_courses: boolean;
+          can_reschedule: boolean;
+          can_close_courses: boolean;
+          payment_visibility: "status" | "amounts" | "hidden";
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          member_id: string;
+          can_create_courses?: boolean;
+          can_reschedule?: boolean;
+          can_close_courses?: boolean;
+          payment_visibility?: "status" | "amounts" | "hidden";
+        };
+        Update: Partial<Database["public"]["Tables"]["teacher_profiles"]["Insert"]>;
+        Relationships: [];
+      };
+      teacher_pay_rates: {
+        Row: {
+          id: string;
+          member_id: string;
+          pay_rate_type_id: string;
+          amount_eur: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          member_id: string;
+          pay_rate_type_id: string;
+          amount_eur: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["teacher_pay_rates"]["Insert"]>;
+        Relationships: [];
+      };
+      teacher_subjects: {
+        Row: {
+          member_id: string;
+          subject_id: string;
+        };
+        Insert: {
+          member_id: string;
+          subject_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["teacher_subjects"]["Insert"]>;
+        Relationships: [];
+      };
+      teacher_availability: {
+        Row: {
+          id: string;
+          member_id: string;
+          /** ISO weekday: 1=Monday … 7=Sunday */
+          day_of_week: number;
+          start_minute: number;
+          end_minute: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          member_id: string;
+          day_of_week: number;
+          start_minute: number;
+          end_minute: number;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["teacher_availability"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      teacher_time_off: {
+        Row: {
+          id: string;
+          member_id: string;
+          starts_at: string;
+          ends_at: string;
+          reason: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          member_id: string;
+          starts_at: string;
+          ends_at: string;
+          reason?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["teacher_time_off"]["Insert"]>;
+        Relationships: [];
+      };
+      courses: {
+        Row: {
+          id: string;
+          name: string;
+          course_kind: "individuale" | "gruppo" | "online";
+          status:
+            | "in_attesa"
+            | "attivo"
+            | "rifiutato"
+            | "in_pausa"
+            | "chiuso";
+          subject_id: string;
+          titular_member_id: string;
+          room_id: string | null;
+          duration_minutes: number;
+          weekly_dow: number;
+          weekly_start_minute: number;
+          starts_on: string;
+          term_id: string;
+          max_students: number;
+          price_eur: number;
+          pay_rate_type_id: string | null;
+          pay_amount_eur: number | null;
+          counts_as_hour: boolean;
+          hold_until: string | null;
+          hold_booking_id: string | null;
+          closed_on: string | null;
+          rejected_at: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          course_kind: "individuale" | "gruppo" | "online";
+          status?:
+            | "in_attesa"
+            | "attivo"
+            | "rifiutato"
+            | "in_pausa"
+            | "chiuso";
+          subject_id: string;
+          titular_member_id: string;
+          room_id?: string | null;
+          duration_minutes: number;
+          weekly_dow: number;
+          weekly_start_minute: number;
+          starts_on: string;
+          term_id: string;
+          max_students?: number;
+          price_eur?: number;
+          pay_rate_type_id?: string | null;
+          pay_amount_eur?: number | null;
+          counts_as_hour?: boolean;
+          hold_until?: string | null;
+          hold_booking_id?: string | null;
+          closed_on?: string | null;
+          rejected_at?: string | null;
+          created_by?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["courses"]["Insert"]>;
+        Relationships: [];
+      };
+      course_enrollments: {
+        Row: {
+          id: string;
+          course_id: string;
+          member_id: string;
+          opening_prepaid_lessons: number;
+          left_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          course_id: string;
+          member_id: string;
+          opening_prepaid_lessons?: number;
+          left_at?: string | null;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["course_enrollments"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      course_teachers: {
+        Row: {
+          id: string;
+          course_id: string;
+          member_id: string;
+          role: "titolare" | "coordinatore";
+          starts_on: string;
+          ends_on: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          course_id: string;
+          member_id: string;
+          role: "titolare" | "coordinatore";
+          starts_on: string;
+          ends_on?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["course_teachers"]["Insert"]>;
+        Relationships: [];
+      };
+      lessons: {
+        Row: {
+          id: string;
+          course_id: string;
+          sequence_number: number;
+          starts_at: string | null;
+          ends_at: string | null;
+          room_id: string | null;
+          booking_id: string | null;
+          placement: "scheduled" | "da_piazzare";
+          cancelled_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          course_id: string;
+          sequence_number: number;
+          starts_at?: string | null;
+          ends_at?: string | null;
+          room_id?: string | null;
+          booking_id?: string | null;
+          placement?: "scheduled" | "da_piazzare";
+          cancelled_at?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["lessons"]["Insert"]>;
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -972,6 +1365,22 @@ export interface Database {
           p_flow: string;
           p_enrollment_id?: string | null;
           p_quota_payment_id?: string | null;
+        };
+        Returns: Json;
+      };
+      create_lesson_booking: {
+        Args: {
+          p_room_id: string;
+          p_member_id: string;
+          p_start_at: string;
+          p_end_at: string;
+          p_title: string;
+        };
+        Returns: Json;
+      };
+      cancel_lesson_booking: {
+        Args: {
+          p_booking_id: string;
         };
         Returns: Json;
       };

@@ -7,6 +7,7 @@ import { isSettingsPath } from "@/lib/admin/settings-nav";
 
 interface AdminNavProps {
   showRubrica: boolean;
+  showLezioni: boolean;
   showPrenotazioni: boolean;
   showRimborsi: boolean;
   showImpostazioni: boolean;
@@ -15,6 +16,7 @@ interface AdminNavProps {
 
 const navItems = [
   { href: "/admin/associati", label: "Rubrica", key: "rubrica" as const },
+  { href: "/admin/lezioni", label: "Lezioni", key: "lezioni" as const },
   {
     href: "/admin/prenotazioni",
     label: "Prenotazioni",
@@ -30,6 +32,7 @@ const navItems = [
 
 export function AdminNav({
   showRubrica,
+  showLezioni,
   showPrenotazioni,
   showRimborsi,
   showImpostazioni,
@@ -40,6 +43,7 @@ export function AdminNav({
   const visibleItems = navItems
     .filter((item) => {
       if (item.key === "rubrica") return showRubrica;
+      if (item.key === "lezioni") return showLezioni;
       if (item.key === "prenotazioni") return showPrenotazioni;
       if (item.key === "rimborsi") return showRimborsi;
       if (item.key === "impostazioni") return showImpostazioni;

@@ -247,6 +247,7 @@ Supabase data from failed cutover is **not** auto-synced back to Sheets.
 | Booking rules | `musicpro/packages/database/README.md` |
 | Booking product plan | `docs/PIANO_PRENOTAZIONI.md` |
 | Booking gap analysis | `docs/PIANO_PRENOTAZIONI_ALLINEAMENTO.md` |
+| Lessons / teacher portal (V1 spec) | `docs/PIANO_LEZIONI.md` |
 | Iscrizione FTP deploy | `deploy-iscrizione.js`, `.env.example` |
 | Stripe GAS webhook | `StripePagamenti.js` (lines 11–14, 411–565) |
 

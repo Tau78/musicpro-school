@@ -80,12 +80,10 @@ try {
 
   // Test 1: band facoltativa → prenotazione singola ammessa (non BAND_REQUIRED)
   ok("1. band facoltativa → prenotazione senza band non è BAND_REQUIRED…");
-  if (bandRequiredDefault) {
-    await service.from("app_settings").upsert({
-      key: "booking_band_required",
-      value: "false",
-    });
-  }
+  await service.from("app_settings").upsert({
+    key: "booking_band_required",
+    value: "false",
+  });
 
   const { data: soloBooking, error: soloErr } = await client.rpc("create_booking_safe", {
     ...bookingArgs,

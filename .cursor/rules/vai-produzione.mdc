@@ -1,0 +1,22 @@
+---
+description: Quando l'utente scrive VAI, esegui lo script unico di produzione.
+alwaysApply: true
+---
+
+# VAI = produzione
+
+Se il messaggio dell'utente è **VAI** (o equivalente: «vai», «VAI in produzione»), lancia subito lo script e basta:
+
+```bash
+cd "/Users/mauroandreoni/Cursor/MusicPro School" && npm run vai
+```
+
+- Non chiedere conferma. VAI è l'autorizzazione.
+- Non saltare passi e non sostituire lo script con comandi sparsi.
+- Timeout lungo: il deploy Vercel + Edge può superare i 10 minuti (`block_until_ms` ≥ 900000).
+- A fine corsa riporta solo l'esito: PR mergiate, SHA di main, URL Vercel, FTP, smoke HTTP.
+- Non eseguire VAI in automatico dopo altre modifiche. Solo se l'utente lo scrive.
+- `npm run vai -- --dry-run` solo se l'utente chiede una prova senza pubblicare.
+
+Lo script fa: fetch, commit (niente secret), PR, merge su main, `supabase db push`, Edge Functions, `vercel --prod`, FTP iscrizione, smoke HTTP.
+Non fa: clasp/GAS, import Sheets, creazione webhook Stripe.

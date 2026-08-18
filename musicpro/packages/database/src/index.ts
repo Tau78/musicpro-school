@@ -5,6 +5,13 @@ export {
   getMemberRoles,
   getSession,
 } from "./auth";
+export {
+  grantMemberRole,
+  listMemberIdsWithRole,
+  revokeMemberRole,
+  setMemberHasRole,
+} from "./member-roles";
+export type { RoleMutationResult } from "./member-roles";
 export { createBrowserClient } from "./browser";
 export { createServerClient } from "./server";
 export { createMobileClient } from "./mobile";
@@ -272,8 +279,10 @@ export type {
 export {
   DEFAULT_PAYMENT_METHODS,
   RECEIPTS_STATUS_LABELS,
+  buildReceiptsNote,
   deleteReimbursement,
   deleteReimbursements,
+  ensureReceiptsNotes,
   formatDateItalian as formatReimbursementDateItalian,
   formatEuro,
   formatPaymentAmountIt,
@@ -283,8 +292,10 @@ export {
   getMemberReceiptsBalance,
   getNextProgressive,
   getReimbursementById,
+  isExternalPdfUrl,
   listReimbursements,
   paymentPartsMatchGross,
+  signReimbursement,
   sumPaymentParts,
   updateReceiptsAmount,
   updateReimbursementPdf,
@@ -299,3 +310,90 @@ export type {
   ReimbursementListResult,
   ReimbursementMutationResult,
 } from "./reimbursements";
+export {
+  getLessonSchoolSettings,
+  updateLessonSchoolSettings,
+  listSchoolCourseTerms,
+  getCurrentSchoolCourseTerm,
+  upsertSchoolCourseTerm,
+  setCurrentSchoolCourseTerm,
+  listLessonSubjects,
+  listSchoolClosures,
+  listCoursePackPrices,
+  updateCoursePackPrice,
+  listPayRateTypes,
+  createPayRateType,
+  getTeacherProfile,
+  listTeacherPayRates,
+  listTeacherSubjects,
+  upsertTeacherProfile,
+  setTeacherPayRate,
+  setTeacherSubjects,
+} from "./lessons-settings";
+export type {
+  CourseKind,
+  CoursePackPrice,
+  CreatePayRateTypeInput,
+  IsoWeekday,
+  LessonSchoolSettings,
+  LessonSchoolSettingsPatch,
+  LessonSettingsMutationResult,
+  LessonSubject,
+  SchoolCourseTerm,
+  SchoolCourseTermInput,
+  PayRateType,
+  PayRateUnit,
+  PaymentVisibility,
+  SchoolClosure,
+  TeacherPayRate,
+  TeacherProfile,
+  TeacherProfilePatch,
+  TeacherSubject,
+} from "./lessons-settings";
+export {
+  approveCourse,
+  createCourse,
+  expireDueHolds,
+  extendCourseHold,
+  generateCourseLessons,
+  getCourse,
+  listCourses,
+  listPendingCourses,
+  listUnplacedLessons,
+  placeLesson,
+  rejectCourse,
+} from "./courses";
+export type {
+  Course,
+  CourseDetail,
+  CourseDurationMinutes,
+  CourseEnrollment,
+  CourseEnrollmentWithMember,
+  CourseMutationResult,
+  CourseStatus,
+  CourseTeacher,
+  CourseTeacherRole,
+  CourseTitular,
+  CreateCourseActor,
+  CreateCourseInput,
+  Lesson,
+  LessonPlacement,
+  ListCoursesOptions,
+} from "./courses";
+export {
+  availabilityConflictsWithLessons,
+  createTeacherTimeOff,
+  deleteTeacherTimeOff,
+  listTeacherAvailability,
+  listTeacherTimeOff,
+  replaceTeacherAvailability,
+  updateTeacherTimeOff,
+} from "./teacher-availability";
+export type {
+  CreateTeacherTimeOffInput,
+  TeacherAvailabilityMutationResult,
+  TeacherAvailabilitySlot,
+  TeacherAvailabilitySlotInput,
+  TeacherTimeOff,
+  TeacherTimeOffPatch,
+} from "./teacher-availability";

@@ -84,6 +84,7 @@ export default async function AdminLayout({
         </div>
         <AdminNav
           showRubrica={showRubrica}
+          showLezioni={showRubrica}
           showPrenotazioni={showPrenotazioni}
           showRimborsi={showRimborsi}
           showImpostazioni={showImpostazioni}

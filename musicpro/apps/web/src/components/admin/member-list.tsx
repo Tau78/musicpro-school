@@ -11,23 +11,39 @@ interface MemberListProps {
   members: MemberSummary[];
   canAdd: boolean;
   creditBalances?: Record<string, number | null>;
+  docenteIds?: string[];
 }
 
-export function MemberList({ members, canAdd, creditBalances }: MemberListProps) {
+export function MemberList({
+  members,
+  canAdd,
+  creditBalances,
+  docenteIds,
+}: MemberListProps) {
   const [search, setSearch] = useState("");
+  const [docentiOnly, setDocentiOnly] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [messageOpen, setMessageOpen] = useState(false);
 
+  const docenteIdSet = useMemo(
+    () => new Set(docenteIds ?? []),
+    [docenteIds],
+  );
+
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return members;
 
-    return members.filter(
-      (member) =>
+    return members.filter((member) => {
+      if (docentiOnly && !docenteIdSet.has(member.id)) {
+        return false;
+      }
+      if (!term) return true;
+      return (
         member.firstName.toLowerCase().includes(term) ||
-        member.lastName.toLowerCase().includes(term),
-    );
-  }, [members, search]);
+        member.lastName.toLowerCase().includes(term)
+      );
+    });
+  }, [members, search, docentiOnly, docenteIdSet]);
 
   const allFilteredSelected =
     filtered.length > 0 && filtered.every((m) => selectedIds.has(m.id));
@@ -61,13 +77,27 @@ export function MemberList({ members, canAdd, creditBalances }: MemberListProps)
   return (
     <div>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <input
-          type="search"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Cerca per nome o cognome…"
-          className="w-full rounded-lg border border-neutral-300 px-4 py-2 text-sm focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)] sm:max-w-sm"
-        />
+        <div className="flex w-full flex-wrap items-center gap-2 sm:max-w-xl">
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Cerca per nome o cognome…"
+            className="min-w-0 flex-1 rounded-lg border border-neutral-300 px-4 py-2 text-sm focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)] sm:max-w-sm"
+          />
+          <button
+            type="button"
+            onClick={() => setDocentiOnly((prev) => !prev)}
+            aria-pressed={docentiOnly}
+            className={
+              docentiOnly
+                ? "inline-flex items-center justify-center rounded-full border border-[var(--brand)] bg-[var(--brand)]/10 px-3 py-1.5 text-sm font-medium text-[var(--brand)]"
+                : "inline-flex items-center justify-center rounded-full border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+            }
+          >
+            Docenti
+          </button>
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           {selectedIds.size > 0 ? (
             <button
@@ -142,6 +172,11 @@ export function MemberList({ members, canAdd, creditBalances }: MemberListProps)
                     {member.email ?? member.phone ?? "—"}
                   </p>
                 </div>
+                {docenteIdSet.has(member.id) ? (
+                  <span className="shrink-0 rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600">
+                    Docente
+                  </span>
+                ) : null}
                 {member.memberNumber ? (
                   <span className="shrink-0 text-xs text-neutral-400">
                     n. {member.memberNumber}

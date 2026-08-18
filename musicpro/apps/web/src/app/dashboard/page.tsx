@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { getCurrentMemberWithRoles } from "@musicpro/database";
+import {
+  getCurrentMemberWithRoles,
+  listReimbursements,
+} from "@musicpro/database";
 import {
   APP_NAME,
   MEMBER_ROLE_LABELS,
@@ -9,6 +12,7 @@ import {
 } from "@musicpro/shared";
 
 import { SignOutButton } from "@/components/auth/sign-out-button";
+import { MyReimbursements } from "@/components/dashboard/my-reimbursements";
 import { canAccessAdmin } from "@/lib/admin/roles";
 import { createClient } from "@/lib/supabase/server";
 
@@ -21,6 +25,9 @@ export default async function DashboardPage() {
   }
 
   const showAdminLink = canAccessAdmin(member.roles);
+  const myReimbursements = await listReimbursements(supabase, {
+    memberId: member.id,
+  });
 
   return (
     <main className="min-h-screen">
@@ -35,6 +42,14 @@ export default async function DashboardPage() {
             </h1>
           </div>
           <div className="flex items-center gap-3">
+            {member.roles.includes(MemberRole.Docente) ? (
+              <Link
+                href="/lezioni"
+                className="text-sm text-neutral-600 hover:text-[var(--brand)]"
+              >
+                Lezioni
+              </Link>
+            ) : null}
             {showAdminLink ? (
               <Link
                 href="/admin"
@@ -93,6 +108,16 @@ export default async function DashboardPage() {
               Nessun ruolo assegnato. Contatta la segreteria.
             </p>
           )}
+        </section>
+
+        <section className="mt-8 rounded-xl border border-neutral-200 bg-white p-6">
+          <h2 className="text-lg font-medium text-[var(--brand)]">
+            Le mie notule
+          </h2>
+          <p className="mt-2 text-sm text-neutral-600">
+            Firma le notule di rimborso spese per confermare la ricezione.
+          </p>
+          <MyReimbursements initialRows={myReimbursements.reimbursements} />
         </section>
 
         <section className="mt-8 rounded-xl border border-neutral-200 bg-white p-6">

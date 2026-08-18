@@ -13,6 +13,7 @@ import {
   sendReimbursementEmailViaResend,
   uint8ToBase64,
 } from "@/lib/reimbursements/email";
+import { reimbursementPdfLink, toNotulaPdfInput } from "@/lib/reimbursements/notula";
 import { generateReimbursementPdf } from "@/lib/reimbursements/pdf";
 import { createClient } from "@/lib/supabase/server";
 
@@ -24,21 +25,10 @@ type RouteContext = {
 
 async function loadPdfAttachment(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  reimbursement: {
-    id: string;
-    progressive: string;
-    fiscalYear: number;
-    associateName: string;
-    memberId: string;
-    grossAmountEur: number;
-    paymentMethod: string | null;
-    paymentDate: string | null;
-    receiptsAmountEur: number;
-    generatedAt: string;
-    pdfUrl: string | null;
-    pdfStoragePath: string | null;
-  },
+  reimbursement: Awaited<ReturnType<typeof getReimbursementById>>,
 ): Promise<{ filename: string; content: string; content_type: string } | null> {
+  if (!reimbursement) return null;
+
   if (reimbursement.pdfStoragePath) {
     const { data, error } = await supabase.storage
       .from(STORAGE_BUCKET)
@@ -53,30 +43,8 @@ async function loadPdfAttachment(
     }
   }
 
-  const member = await getMemberById(supabase, reimbursement.memberId);
-  const pdf = await generateReimbursementPdf({
-    progressive: reimbursement.progressive,
-    fiscalYear: reimbursement.fiscalYear,
-    associateName: reimbursement.associateName,
-    address: member
-      ? [
-          member.addressStreet,
-          [member.addressPostalCode, member.addressCity]
-            .filter(Boolean)
-            .join(" "),
-          member.addressProvince ? `(${member.addressProvince})` : null,
-        ]
-          .filter(Boolean)
-          .join(", ")
-      : null,
-    taxCode: member?.taxCode ?? null,
-    grossAmountEur: reimbursement.grossAmountEur,
-    paymentMethod: reimbursement.paymentMethod,
-    paymentDate: reimbursement.paymentDate,
-    receiptsAmountEur: reimbursement.receiptsAmountEur,
-    generatedAt: reimbursement.generatedAt,
-  });
-
+  const input = await toNotulaPdfInput(supabase, reimbursement);
+  const pdf = await generateReimbursementPdf(input);
   return {
     filename: pdf.filename,
     content: uint8ToBase64(pdf.bytes),
@@ -147,6 +115,7 @@ export async function POST(_request: Request, context: RouteContext) {
   const content = buildNotulaEmailContent({
     associateName: reimbursement.associateName,
     docLabel,
+    pdfLink: reimbursementPdfLink(reimbursement),
   });
 
   const attachment = await loadPdfAttachment(supabase, reimbursement);
@@ -164,16 +133,6 @@ export async function POST(_request: Request, context: RouteContext) {
       { success: false, message: result.error, id },
       { status: 502 },
     );
-  }
-
-  if ("skipped" in result && result.skipped) {
-    return NextResponse.json({
-      success: true,
-      skipped: true,
-      message: result.reason,
-      id,
-      recipient,
-    });
   }
 
   return NextResponse.json({

@@ -12,6 +12,7 @@ import {
   generateReimbursementsBatch,
   getCurrentMember,
   getMemberReceiptsBalance,
+  isExternalPdfUrl,
   listReimbursements,
   paymentPartsMatchGross,
   updateReceiptsAmount,
@@ -316,6 +317,8 @@ export function ReimbursementsPanel({
       let pdfOk = 0;
       let emailSent = 0;
       let emailSkipped = 0;
+      let emailFailed = 0;
+      const emailErrors: string[] = [];
 
       for (let i = 0; i < batch.results.length; i++) {
         const result = batch.results[i];
@@ -342,11 +345,16 @@ export function ReimbursementsPanel({
             const payload = (await emailRes.json().catch(() => ({}))) as {
               sent?: boolean;
               skipped?: boolean;
+              message?: string;
             };
             if (payload.sent) emailSent += 1;
             else if (payload.skipped) emailSkipped += 1;
+            else {
+              emailFailed += 1;
+              if (payload.message) emailErrors.push(payload.message);
+            }
           } catch {
-            emailSkipped += 1;
+            emailFailed += 1;
           }
         }
       }
@@ -355,11 +363,18 @@ export function ReimbursementsPanel({
         `${batch.createdIds.length} rimborso/i registrato/i`,
         pdfOk ? `${pdfOk} PDF` : null,
         emailSent ? `${emailSent} email inviate` : null,
-        emailSkipped ? `${emailSkipped} email saltate` : null,
+        emailSkipped ? `${emailSkipped} senza email associato` : null,
+        emailFailed ? `${emailFailed} email NON inviate` : null,
         batch.success ? null : "(alcuni errori in generazione)",
       ].filter(Boolean);
 
       setGenerateMessage(partsMsg.join(" · "));
+      if (emailFailed > 0) {
+        setError(
+          emailErrors[0] ??
+            "Una o più email non sono state inviate. Controlla RESEND_API_KEY.",
+        );
+      }
       setCards([
         createEmptyCard(isDocenteOnly ? (currentMemberId ?? "") : ""),
       ]);
@@ -403,13 +418,15 @@ export function ReimbursementsPanel({
         failed?: number;
         message?: string;
       };
-      if (!res.ok && !payload.success) {
-        setError(payload.message ?? "Errore invio email bulk.");
-      } else {
-        setGenerateMessage(
-          `Email bulk: ${payload.sent ?? 0} inviate, ${payload.skipped ?? 0} saltate, ${payload.failed ?? 0} errori.`,
+      if ((payload.failed ?? 0) > 0 || (!res.ok && !payload.success)) {
+        setError(
+          payload.message ??
+            "Errore invio email. Controlla RESEND_API_KEY e gli indirizzi associati.",
         );
       }
+      setGenerateMessage(
+        `Email bulk: ${payload.sent ?? 0} inviate, ${payload.skipped ?? 0} senza email associato, ${payload.failed ?? 0} errori.`,
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Errore email bulk.");
     } finally {
@@ -418,24 +435,33 @@ export function ReimbursementsPanel({
   }
 
   async function openPdf(item: ReimbursementDisplay) {
-    if (item.pdfUrl) {
+    if (item.pdfUrl && isExternalPdfUrl(item.pdfUrl)) {
       window.open(item.pdfUrl, "_blank", "noopener,noreferrer");
       return;
     }
 
-    try {
+    const openPayload = async (method: "GET" | "POST") => {
       const res = await fetch(
         `/api/admin/reimbursements/${encodeURIComponent(item.id)}/pdf`,
-        { method: "POST" },
+        { method },
       );
-      const payload = (await res.json()) as {
+      return (await res.json()) as {
         pdfUrl?: string | null;
         pdfBase64?: string;
         success?: boolean;
       };
+    };
+
+    try {
+      let payload = item.pdfStoragePath
+        ? await openPayload("GET")
+        : { success: false as boolean | undefined };
+      if (!payload.pdfUrl && !payload.pdfBase64) {
+        payload = await openPayload("POST");
+        void loadData();
+      }
       if (payload.pdfUrl) {
         window.open(payload.pdfUrl, "_blank", "noopener,noreferrer");
-        void loadData();
         return;
       }
       if (payload.pdfBase64) {
@@ -459,7 +485,9 @@ export function ReimbursementsPanel({
         paymentMethod: item.paymentMethod,
         paymentDate: item.paymentDate,
         receiptsAmountEur: item.receiptsAmountEur,
+        receiptsNote: item.receiptsNotes,
         generatedAt: item.generatedAt,
+        signedAt: item.signedAt,
       }),
     );
   }
@@ -785,6 +813,7 @@ export function ReimbursementsPanel({
                   <th className="px-4 py-3 font-medium">Data</th>
                   <th className="px-4 py-3 font-medium">Ricevute</th>
                   <th className="px-4 py-3 font-medium">Stato</th>
+                  <th className="px-4 py-3 font-medium">Firma</th>
                   <th className="px-4 py-3 font-medium">PDF</th>
                   {canDelete ? (
                     <th className="px-4 py-3 font-medium">Azioni</th>
@@ -864,12 +893,27 @@ export function ReimbursementsPanel({
                       <StatusBadge status={item.receiptsStatus} />
                     </td>
                     <td className="px-4 py-3">
+                      {item.signedAt ? (
+                        <span className="inline-flex rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                          Firmata {formatReimbursementDateItalian(item.signedAt)}
+                        </span>
+                      ) : item.signatureRequired ? (
+                        <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                          Da firmare
+                        </span>
+                      ) : (
+                        <span className="text-neutral-400">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
                       <button
                         type="button"
                         onClick={() => void openPdf(item)}
                         className="text-[var(--brand)] hover:underline"
                       >
-                        {item.pdfUrl ? "Visualizza PDF" : "Genera PDF"}
+                        {item.pdfUrl || item.pdfStoragePath
+                          ? "Visualizza PDF"
+                          : "Genera PDF"}
                       </button>
                     </td>
                     {canDelete ? (
