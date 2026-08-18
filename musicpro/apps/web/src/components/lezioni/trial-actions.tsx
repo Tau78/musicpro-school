@@ -7,6 +7,7 @@ import { useMemo, useState } from "react";
 import {
   cancelTrial,
   convertTrialToCourse,
+  notifyPackPaymentLink,
   rescheduleTrial,
   romeLocalInputToUtcIso,
   sendTrialWelcomeEmail,
@@ -61,49 +62,59 @@ export function TrialActions({
 
   const actor = { memberId: actorMemberId, isStaff, canCreateCourses };
 
-  async function handlePaymentLink(convertedCourseId: string) {
-    setError(null);
-    setNotice(null);
-    setBusy("pay");
-
+  async function createPackCheckout(
+    convertedCourseId: string,
+  ): Promise<{ url: string } | { error: string }> {
     const { data: enrollment, error: enrollError } = await supabase
       .from("course_enrollments")
-      .select("id")
+      .select("id, member_id")
       .eq("course_id", convertedCourseId)
       .is("left_at", null)
       .limit(1)
       .maybeSingle();
 
     if (enrollError || !enrollment) {
-      setBusy(null);
-      setError(
-        enrollError?.message ||
+      return {
+        error:
+          enrollError?.message ||
           "Iscrizione al corso convertito non trovata. Usa Rette per il link.",
-      );
-      return;
+      };
     }
 
-    let payload: { url?: string; message?: string } = {};
     try {
       const res = await fetch("/api/lezioni/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ enrollmentId: enrollment.id }),
       });
-      payload = (await res.json()) as { url?: string; message?: string };
+      const payload = (await res.json()) as { url?: string; message?: string };
       if (!res.ok || !payload.url) {
-        setBusy(null);
-        setError(payload.message ?? "Impossibile creare il link di pagamento.");
-        return;
+        return {
+          error: payload.message ?? "Impossibile creare il link di pagamento.",
+        };
       }
+      await notifyPackPaymentLink(supabase, {
+        memberId: enrollment.member_id,
+        courseName: course.name,
+        checkoutUrl: payload.url,
+      });
+      return { url: payload.url };
     } catch {
-      setBusy(null);
-      setError("Impossibile creare il link di pagamento.");
+      return { error: "Impossibile creare il link di pagamento." };
+    }
+  }
+
+  async function handlePaymentLink(convertedCourseId: string) {
+    setError(null);
+    setNotice(null);
+    setBusy("pay");
+    const created = await createPackCheckout(convertedCourseId);
+    setBusy(null);
+    if ("error" in created) {
+      setError(created.error);
       return;
     }
-
-    setBusy(null);
-    window.open(payload.url, "_blank", "noopener,noreferrer");
+    window.open(created.url, "_blank", "noopener,noreferrer");
   }
 
   if (!course.isTrial) return null;
@@ -234,6 +245,12 @@ export function TrialActions({
       setNotice(result.warnings.join(" "));
     }
     if (result.id) {
+      const checkout = await createPackCheckout(result.id);
+      if ("error" in checkout) {
+        setNotice(
+          [result.warnings?.join(" "), checkout.error].filter(Boolean).join(" "),
+        );
+      }
       router.push(detailHref(result.id));
     }
     router.refresh();

@@ -36,15 +36,6 @@ export default async function AdminLezioniImpostazioniPage() {
 
   return (
     <div>
-      <div className="mb-6">
-        <h2 className="text-2xl font-semibold text-[var(--brand)]">
-          Impostazioni
-        </h2>
-        <p className="mt-1 text-sm text-neutral-600">
-          Anno corsi, listino pacchetti e festività.
-        </p>
-      </div>
-
       <div className="space-y-8">
         <CourseTermForm
           currentTerm={

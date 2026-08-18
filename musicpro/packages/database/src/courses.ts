@@ -12,6 +12,7 @@ import {
   type SchoolClosure,
   type SchoolCourseTerm,
 } from "./lessons-settings";
+import { notifyCourseApproved } from "./lessons-notify";
 import {
   ensureOpenPackFee,
   maybeSendPackReminders,
@@ -42,6 +43,12 @@ export type LessonParkedReason =
 export type CourseTeacherRole = "titolare" | "coordinatore";
 
 export type CourseDurationMinutes = 30 | 45 | 60 | 90;
+
+export type LessonScheduleActor = {
+  memberId: string;
+  isStaff: boolean;
+  canReschedule: boolean;
+};
 
 export type CreateCourseActor = {
   memberId: string;
@@ -457,6 +464,37 @@ async function rejectCourseRow(
   return null;
 }
 
+export function lessonCalendarTitle(
+  studentLastName: string | null | undefined,
+): string {
+  const last = studentLastName?.trim();
+  return last ? `Lezione: ${last}` : "Lezione";
+}
+
+export async function resolveLessonCalendarTitle(
+  client: CoursesClient,
+  courseId: string,
+  fallbackLastName?: string | null,
+): Promise<string> {
+  if (fallbackLastName?.trim()) {
+    return lessonCalendarTitle(fallbackLastName);
+  }
+  const { data: enrollment } = await client
+    .from("course_enrollments")
+    .select("member_id")
+    .eq("course_id", courseId)
+    .is("left_at", null)
+    .limit(1)
+    .maybeSingle();
+  if (!enrollment) return "Lezione";
+  const { data: member } = await client
+    .from("members")
+    .select("last_name")
+    .eq("id", enrollment.member_id)
+    .maybeSingle();
+  return lessonCalendarTitle(member?.last_name);
+}
+
 export async function createLessonBooking(
   client: CoursesClient,
   params: {
@@ -668,7 +706,7 @@ export async function listPendingCourses(
 
 export async function listUnplacedLessons(
   client: CoursesClient,
-  options: { courseId?: string } = {},
+  options: { courseId?: string; titularMemberId?: string } = {},
 ): Promise<Lesson[]> {
   let query = client
     .from("lessons")
@@ -688,7 +726,23 @@ export async function listUnplacedLessons(
       `Impossibile caricare le lezioni da piazzare: ${error.message}`,
     );
   }
-  return (data ?? []).map(mapLesson);
+  const lessons = (data ?? []).map(mapLesson);
+  if (!options.titularMemberId) return lessons;
+
+  const courseIds = [...new Set(lessons.map((row) => row.courseId))];
+  if (courseIds.length === 0) return lessons;
+  const { data: courseRows, error: courseError } = await client
+    .from("courses")
+    .select("id")
+    .in("id", courseIds)
+    .eq("titular_member_id", options.titularMemberId);
+  if (courseError) {
+    throw new Error(
+      `Impossibile filtrare le lezioni da piazzare: ${courseError.message}`,
+    );
+  }
+  const allowed = new Set((courseRows ?? []).map((row) => row.id));
+  return lessons.filter((row) => allowed.has(row.courseId));
 }
 
 export async function createCourse(
@@ -991,7 +1045,7 @@ export async function createCourse(
         memberId: input.titularMemberId,
         startAt: occurrence.startAt,
         endAt: occurrence.endAt,
-        title: `Lezione: ${name}`,
+        title: await resolveLessonCalendarTitle(client, courseId),
       });
       if (booked.bookingId) {
         const { error: holdError } = await client
@@ -1056,6 +1110,11 @@ export async function approveCourse(
   client: CoursesClient,
   courseId: string,
   _actorMemberId: string,
+  slot?: {
+    roomId?: string | null;
+    weeklyDow?: IsoWeekday | number;
+    weeklyStartMinute?: number;
+  },
 ): Promise<CourseMutationResult> {
   const expired = await expireDueHolds(client);
   if (!expired.success) return expired;
@@ -1069,6 +1128,33 @@ export async function approveCourse(
   }
   if (course.holdUntil && course.holdUntil < new Date().toISOString()) {
     return fail("L'hold della sala è scaduto.", { warnings: expired.warnings });
+  }
+
+  const nextRoomId =
+    slot && "roomId" in slot
+      ? course.courseKind === "online"
+        ? null
+        : (slot.roomId ?? course.roomId)
+      : course.roomId;
+  const nextDow =
+    slot?.weeklyDow != null ? slot.weeklyDow : course.weeklyDow;
+  const nextStart =
+    slot?.weeklyStartMinute != null
+      ? slot.weeklyStartMinute
+      : course.weeklyStartMinute;
+
+  if (!isIsoWeekday(nextDow)) {
+    return fail("Giorno della settimana non valido.");
+  }
+  if (
+    !Number.isInteger(nextStart) ||
+    nextStart < 0 ||
+    nextStart > 1439
+  ) {
+    return fail("L'orario settimanale non è valido.");
+  }
+  if (course.courseKind !== "online" && !nextRoomId) {
+    return fail("La sala è obbligatoria per i corsi in presenza.");
   }
 
   const packPrices = await listCoursePackPrices(client);
@@ -1090,6 +1176,9 @@ export async function approveCourse(
       status: "attivo",
       hold_until: null,
       hold_booking_id: null,
+      room_id: nextRoomId,
+      weekly_dow: nextDow,
+      weekly_start_minute: nextStart,
     })
     .eq("id", courseId);
 
@@ -1128,6 +1217,8 @@ export async function approveCourse(
       if (fee.warnings) warnings.push(...fee.warnings);
     }
   }
+
+  void notifyCourseApproved(client, { courseId }).catch(() => undefined);
 
   return ok(courseId, warnings);
 }
@@ -1236,7 +1327,7 @@ export async function generateCourseLessons(
   };
   const closures = await listSchoolClosures(client);
   const from = maxDate(course.startsOn, term.startsOn);
-  const title = `Lezione: ${course.name}`;
+  const title = await resolveLessonCalendarTitle(client, courseId);
   const warnings: string[] = [];
   const rows: Database["public"]["Tables"]["lessons"]["Insert"][] = [];
   let sequence = 1;
@@ -1363,7 +1454,11 @@ export async function generateCourseLessons(
 export async function placeLesson(
   client: CoursesClient,
   lessonId: string,
-  input: { startsAt: string; roomId: string | null },
+  input: {
+    startsAt: string;
+    roomId: string | null;
+    actor: LessonScheduleActor;
+  },
 ): Promise<CourseMutationResult> {
   const startsMs = Date.parse(input.startsAt);
   if (!Number.isFinite(startsMs)) {
@@ -1394,6 +1489,14 @@ export async function placeLesson(
   if (!course) {
     return fail("Corso non trovato.");
   }
+  if (!input.actor.isStaff) {
+    if (course.titularMemberId !== input.actor.memberId) {
+      return fail("Puoi piazzare solo le lezioni dei tuoi corsi.");
+    }
+    if (!input.actor.canReschedule) {
+      return fail("Non hai il permesso di piazzare o recuperare lezioni.");
+    }
+  }
 
   const roomId = course.courseKind === "online" ? null : input.roomId;
   if (course.courseKind !== "online" && !roomId) {
@@ -1413,7 +1516,7 @@ export async function placeLesson(
       memberId: course.titularMemberId,
       startAt: startsAt,
       endAt: endsAt,
-      title: `Lezione: ${course.name}`,
+      title: await resolveLessonCalendarTitle(client, course.id),
     });
     if (!booked.bookingId) {
       return fail(

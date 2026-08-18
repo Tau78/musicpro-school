@@ -7,6 +7,7 @@ import {
   cancelLessonAsSchool,
   getLessonRoster,
   saveLessonAttendance,
+  unlockLessonAttendance,
   type AttendanceStatus,
   type LessonRoster,
 } from "@musicpro/database";
@@ -57,7 +58,7 @@ export function LessonAttendancePanel({
   const [roster, setRoster] = useState<LessonRoster | null>(null);
   const [draft, setDraft] = useState<Record<string, AttendanceStatus>>({});
   const [loading, setLoading] = useState(!isHoldLessonId(lessonId));
-  const [busy, setBusy] = useState<"save" | "cancel" | null>(null);
+  const [busy, setBusy] = useState<"save" | "cancel" | "unlock" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -97,6 +98,9 @@ export function LessonAttendancePanel({
 
   const needsInsert = Boolean(
     roster?.students.some((student) => student.status === null),
+  );
+  const canUnlock = Boolean(
+    isStaff && roster?.students.some((student) => student.status != null),
   );
   const firstPhone =
     roster?.students.find((student) => student.phone)?.phone ??
@@ -156,6 +160,37 @@ export function LessonAttendancePanel({
     }
 
     setSuccess("Lezione cancellata.");
+    onSaved?.();
+    router.refresh();
+  }
+
+  async function handleUnlock() {
+    if (!canUnlock) return;
+    if (
+      !window.confirm(
+        "Le presenze si cancellano. Il credito pack resta. Poi puoi spostare la lezione.",
+      )
+    ) {
+      return;
+    }
+
+    setBusy("unlock");
+    setError(null);
+    setSuccess(null);
+
+    const result = await unlockLessonAttendance(supabase, lessonId, {
+      memberId: actorMemberId,
+      isStaff,
+    });
+    setBusy(null);
+
+    if (!result.success) {
+      setError(result.errorMessage ?? "Impossibile sbloccare le presenze.");
+      return;
+    }
+
+    setSuccess("Presenze sbloccate.");
+    await loadRoster();
     onSaved?.();
     router.refresh();
   }
@@ -308,6 +343,16 @@ export function LessonAttendancePanel({
             ? "Cancello…"
             : "Lezione cancellata (scuola)"}
         </button>
+        {canUnlock ? (
+          <button
+            type="button"
+            disabled={busy != null}
+            onClick={() => void handleUnlock()}
+            className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+          >
+            {busy === "unlock" ? "Sblocco…" : "Sblocca presenza"}
+          </button>
+        ) : null}
       </div>
     </div>
   );

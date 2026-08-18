@@ -11,6 +11,7 @@ import {
   type Lesson,
   type LessonParkedReason,
 } from "./courses";
+import { notifyLessonScheduleChange } from "./lessons-notify";
 import { getLessonSchoolSettings } from "./lessons-settings";
 import type { Database } from "./types/database";
 
@@ -176,7 +177,7 @@ function editBlockForLesson(params: {
       editBlockReason: "Solo il titolare o lo staff possono modificare le presenze.",
     };
   }
-  if (!params.isStaff && params.startsAt) {
+  if (params.startsAt) {
     const lessonDate = dateInRome(params.startsAt);
     const elapsed = daysBetweenRomeDates(lessonDate, todayInRome());
     if (elapsed > params.attendanceEditDays) {
@@ -445,6 +446,15 @@ export async function parkScheduledLesson(
   if (error) {
     return fail(error.message || "Impossibile parcheggiare la lezione.");
   }
+
+  const kind = reason === "cancellata_scuola" ? "cancelled" : "to_recover";
+  void notifyLessonScheduleChange(client, {
+    lessonId,
+    kind,
+    notifyTeachers:
+      reason === "cancellata_scuola" || reason === "docente_assente",
+  }).catch(() => undefined);
+
   return ok(lessonId);
 }
 
@@ -585,6 +595,33 @@ export async function saveLessonAttendance(
   }
 
   return ok(input.lessonId, warnings);
+}
+
+/** Solo staff. Cancella le righe presenza; il consumo wallet resta. */
+export async function unlockLessonAttendance(
+  client: AttendanceClient,
+  lessonId: string,
+  actor: { memberId: string; isStaff: boolean },
+): Promise<CourseMutationResult> {
+  if (lessonId.startsWith("hold:")) {
+    return fail("Non si sblocca un hold.");
+  }
+  if (!actor.isStaff) {
+    return fail("Solo la segreteria può sbloccare le presenze.");
+  }
+
+  const loaded = await loadLesson(client, lessonId);
+  if (loaded.errorMessage) return fail(loaded.errorMessage);
+  if (!loaded.lesson) return fail("Lezione non trovata.");
+
+  const { error } = await client
+    .from("lesson_attendances")
+    .delete()
+    .eq("lesson_id", lessonId);
+  if (error) {
+    return fail(error.message || "Impossibile sbloccare le presenze.");
+  }
+  return ok(lessonId);
 }
 
 export async function cancelLessonAsSchool(

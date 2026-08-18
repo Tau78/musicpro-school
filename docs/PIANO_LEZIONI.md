@@ -1,7 +1,7 @@
 # Piano Lezioni — area docente e didattica
 
 **Data:** 2026-08-18  
-**Stato:** specifica V1 chiusa (§20–33). **Fette 1–9b UI fatte.** Audit 4 punti di vista in §32. Wallet/rette/`037` applicata. Dual iscrizione e webhook pack vanno in produzione con VAI.  
+**Stato:** specifica V1 chiusa (§20–36). **Fette 1–10b + 14 + hotfix 7 fatte. 11 in corso.** Cutover form Supabase + webhook pack al prossimo VAI.  
 **Riferimento UX:** planning settimanale tipo ScuolaSemplice / screenshot docente (card gialle, ore totali, Oggi, DnD, vista mensile)  
 **Stack:** monorepo `musicpro/` + Supabase (stesso di [`PIANO_PRENOTAZIONI.md`](PIANO_PRENOTAZIONI.md))
 
@@ -477,12 +477,12 @@ Ordine consigliato (ogni fetta consegnabile e testabile):
 | 8b | Ponte iscrizione: form produzione valida token Supabase (poi GAS) + chiudi bozza su quota | **Codice fatto** (dual spento di default; VAI deve settare env) |
 | 9 | Pacchetti da 4 + wallet crediti + checkout Stripe (quota+pack) + sollecito | **UI fatta** (`037` applicata) |
 | 9b | **Rette da incassare** + Registra incasso (anticipo famiglia) + saldo iniziale SS | **UI fatta** (lista + incasso + saldo; export Excel dopo) |
-| 10 | Contanti → conferma staff → crediti lezione + **anticipo docente** | Cassa docente |
-| 10b | Ricevute: matrice + copia, auto su incasso, registro/export | Fiscalità entrate |
-| 11 | Notule da presenti + firma + extra + chiusura mese + job giorno 8 | Compensi |
+| 10 | Contanti → conferma staff → crediti lezione + **anticipo docente** | **UI fatta** (`038` applicata) |
+| 10b | Ricevute: matrice + copia, auto su incasso, registro/export | **UI fatta** (`/admin/lezioni/ricevute`) |
+| 11 | Notule da presenti + firma + extra + chiusura mese + job giorno 8 | **In corso** (`039`) |
 | 12 | Coordinatore read-only + sezione «Che coordino» | Ruolo visivo |
 | 13 | Pausa / chiudi / rimuovi iscritto / undo 24h / code email | Ciclo vita |
-| 14 | GCal docente + titolo sala; reminder email; stampa PDF; flag tessera | Integrazioni |
+| 14 | GCal docente + titolo sala; reminder email; stampa PDF; flag tessera | **UI fatta** (OAuth = stub se mancano chiavi; cron reminder orario) |
 | 15 | Expo parità (Oggi, calendario, presenze) | Mobile |
 | 16 | Consenso foto nel modulo iscrizione | Form |
 
@@ -840,5 +840,64 @@ Default operativi chiusi. Ricevute PDF = **10b**. Contanti docente = **10**. Ema
 | UI staff | `/admin/lezioni/rette` + listino e festività in Impostazioni + campo saldo iniziale in crea corso |
 | Docente | Non vede Rette. Non vede importi se `payment_visibility` lo vieta (fix visibilità prezzo in questa fetta, sul dettaglio corso) |
 | Fuori da questa fetta | Export Excel, ricevuta PDF, contanti docente, email sposta/reminder lezione, hotfix presenze 14 giorni / piazza recupero / sblocca |
+
+---
+
+## 34. Audit gap — tap (2026-08-18)
+
+Chiusi dopo il walk quattro punti di vista. Non ririchiedere. Portale famiglia / SMS / self-book restano V2.
+
+| Tema | Decisione |
+|------|-----------|
+| Prossima fetta | **Hotfix 7:** presenze 14 giorni, piazza recuperi, sblocca. Poi il resto del piano |
+| Finestra presenze | Docente **e** staff: **14 giorni** da calendario, dettaglio e Oggi. Badge arretrati su Oggi |
+| Sblocca presenza | **Solo segreteria.** Il credito **resta** consumato (si è insegnato). Le presenze del giorno sbagliato si togliere per poter spostare; giovedì riparte pulita |
+| Piazza recupero | Se `can_reschedule`: stesso form di staff su **corso, Oggi e calendario** |
+| Approva corso | In Approva si può cambiare **sala e/o orario**, poi genera |
+| Flag in API | `can_reschedule` / allineamento `moveLesson`–`placeLesson` **nell’hotfix 7** (staff bypass). Chiudi = 13 |
+| Impostazioni docente | **3 sezioni:** Anagrafica + Disponibilità + Permessi in sola lettura |
+| Link pack dopo converti | Email automatica **e** riga in Rette (staff reinvia). Docente può ancora generare il link |
+| Form iscrizione | Al prossimo VAI: **cutover pieno Supabase** (niente fallback GAS) |
+| Destinatari mail V1 | **Tutore e allievo** se c’è `manual_tutor_email` (due To, niente BCC interno) |
+| Sale / shop | Slot lezione = etichetta **Lezione**; shop = **crediti sala** |
+| Coda richieste | Mostra **da → a** (orario/sala originali + richiesti) |
+
+---
+
+## 35. Cassa, ricevute, email (fette 10 / 10b / 14, 2026-08-18)
+
+| Tema | Decisione |
+|------|-----------|
+| Contanti | Docente (titolare) o staff registra € su un iscritto. Pagamento `contanti` **già completed** → crediti subito. Ricevuta subito. Anticipo docente in coda **da confermare** |
+| Conferma staff | Conferma o scarta l’anticipo (i crediti e la ricevuta restano: il denaro è stato preso) |
+| Ricevuta | Sezionale `S/{n}/{y}`, intestatario tutore se c’è. Una ricevuta, righe quota+pack se stesso pagamento. Auto su Stripe, incasso staff, contanti docente |
+| Storno | Nuova ricevuta + vecchia `sostituita`. Export registro esclude le sostituite dal totale |
+| Destinatari | Due email To: tutore e allievo se entrambi. Niente BCC |
+| Reminder | 24h e 2h (`reminder_day_hours`, `reminder_soon_hours`), anche prova. Cron Vercel. Skip se cancellata o presenza già segnata |
+| Sposta / cancella / approva | Email famiglia subito. Staff: checkbox Avvisa default on |
+| Pack dopo converti | Email con link checkout se c’è |
+| GCal sala | Titolo `Lezione: Cognome allievo` (già sync booking) |
+| GCal docente | Collegamento in Impostazioni (OAuth se env); senza env, avviso. Sync eventi = stesso canale sale quando c’è token |
+| Stampa | PDF/print settimana docente + registro del giorno |
+| Tessera / gadget | Flag in scheda associato staff (`membership_card_picked_up_at`, `gadgets_picked_up_at`) |
+| Fuori | Bollo, ZIP PDF massivo, notula didattica (11), OAuth Google se mancano le chiavi |
+
+## 36. Notule didattiche (fetta 11, 2026-08-18)
+
+Distinte da `/admin/rimborsi` (spese). Una riga `lesson_payrolls` per docente × mese solare Europe/Rome.
+
+| Tema | Decisione |
+|------|-----------|
+| Paga insegnamento | Individuale: solo `presente`, €/h × minuti (o 1h se `counts_as_hour`). Gruppo: tariffa per testa × n. presenti. Prova esclusa. Snapshot `courses.pay_amount_eur` |
+| Coordinamento | Riga se ≥1 presente e `course_teachers.role=coordinatore` attivo quel giorno. Tariffa voce `coordinamento` del coordinatore. Il titolare non vede quelle righe (altra notula) |
+| Senza presenze | Dopo `notula_sign_deadline_days` dal fine mese → slip al mese dopo |
+| Anticipi | `teacher_cash_advances` confirmed non agganciati: si sottraggono. Eccesso = `carry_out` sul mese dopo |
+| Extra | Saggio/riunione, riga `is_manual` (sopravvive alla rigenerazione) |
+| Firma | Canvas PNG **oppure** fattura caricata → `signed`. Staff chiude solo se `signed` |
+| Chiudi | Staff, uno o tutti. Blocco se il mese prima dello stesso docente è ancora `draft` |
+| Sblocca | Staff → torna `draft` e rigenera. Docente non edita presenze se mese `closed` |
+| Job | Giorno `notula_job_day` ora `notula_job_hour` Europe/Rome: genera bozze del **mese precedente** + email docente |
+| UI | Staff `/admin/lezioni/notule`. Docente `/lezioni/notule` (ore + € anche in anteprima) |
+| Fuori | Sezione «Che coordino» (12), bollo, cassa fisica |
 
 *Fine specifica V1. Implementare solo a fette (§16), senza allargare il perimetro V2.*

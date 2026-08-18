@@ -8,6 +8,7 @@ export {
 export {
   grantMemberRole,
   listMemberIdsWithRole,
+  listMemberLabelsWithRole,
   revokeMemberRole,
   setMemberHasRole,
 } from "./member-roles";
@@ -215,9 +216,11 @@ export type {
 export {
   applyMessagePlaceholders,
   sendBulkMessages,
+  sendLessonFamilyEmail,
   sendSingleEmail,
 } from "./messaging";
 export type {
+  EmailAttachment,
   MessageChannel,
   PlaceholderContext,
   SendBulkMessageInput,
@@ -383,6 +386,7 @@ export type {
   CourseTitular,
   CreateCourseActor,
   CreateCourseInput,
+  LessonScheduleActor,
   Lesson,
   LessonKind,
   LessonParkedReason,
@@ -401,6 +405,7 @@ export {
   markTeacherAbsent,
   parkScheduledLesson,
   saveLessonAttendance,
+  unlockLessonAttendance,
 } from "./lessons-attendance";
 export type {
   AttendanceStatus,
@@ -426,6 +431,54 @@ export type {
   LessonFeeRow,
   LessonFeeStatus,
 } from "./lessons-wallet";
+export {
+  confirmTeacherCashAdvance,
+  listTeacherCashAdvances,
+  registerTeacherCashCollection,
+  rejectTeacherCashAdvance,
+} from "./lessons-cash";
+export type { TeacherCashAdvanceRow } from "./lessons-cash";
+export {
+  emailFiscalReceiptCopy,
+  emitFiscalReceiptForPayment,
+  fiscalReceiptsCsv,
+  getFiscalReceipt,
+  listFiscalReceipts,
+  markFiscalReceiptEmailed,
+  replaceFiscalReceipt,
+} from "./lessons-receipts";
+export type { FiscalReceiptRow } from "./lessons-receipts";
+export {
+  notifyCourseApproved,
+  notifyLessonScheduleChange,
+  notifyPackPaymentLink,
+  sendDueLessonReminders,
+} from "./lessons-notify";
+export type { LessonScheduleNotifyKind } from "./lessons-notify";
+export {
+  addLessonPayrollExtra,
+  addMonths,
+  closeLessonPayroll,
+  generateDueLessonPayrollDrafts,
+  generateLessonPayroll,
+  getLessonPayroll,
+  isPayrollMonthClosed,
+  listLessonPayrolls,
+  markLessonPayrollPaid,
+  previewLessonPayroll,
+  requestLessonPayrollDraft,
+  setLessonPayrollWithholding,
+  signLessonPayroll,
+  unlockLessonPayroll,
+  yearMonthFromRomeDate,
+} from "./lessons-payroll";
+export type {
+  LessonPayroll,
+  LessonPayrollLine,
+  LessonPayrollLineKind,
+  LessonPayrollStatus,
+  PayrollPreview,
+} from "./lessons-payroll";
 export {
   cancelTrial,
   convertTrialToCourse,

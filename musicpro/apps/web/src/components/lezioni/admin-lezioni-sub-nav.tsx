@@ -11,6 +11,7 @@ const ITEMS = [
   { href: "/admin/lezioni/disponibilita", label: "Disponibilità" },
   { href: "/admin/lezioni/calendario", label: "Calendario" },
   { href: "/admin/lezioni/rette", label: "Rette" },
+  { href: "/admin/lezioni/ricevute", label: "Ricevute" },
   { href: "/admin/lezioni/impostazioni", label: "Impostazioni" },
 ] as const;
 

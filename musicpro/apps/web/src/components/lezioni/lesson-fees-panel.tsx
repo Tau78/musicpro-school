@@ -15,6 +15,7 @@ import {
   type MemberSummary,
 } from "@musicpro/database";
 
+import { issueAndEmailReceiptCopy } from "@/lib/lezioni/issue-receipt-copy";
 import { createClient } from "@/lib/supabase/client";
 
 type StatusFilter = "default" | "open" | "paid" | "all";
@@ -271,20 +272,35 @@ export function LessonFeesPanel({
     setCollectMethod("bonifico");
     setCollectCro("");
     setCollectNote("");
-    setNotice("Incasso registrato. I crediti si aggiornano entro un minuto.");
+
+    let extra = "";
+    if (result.id) {
+      try {
+        const emailed = await issueAndEmailReceiptCopy(
+          supabase,
+          result.id,
+          actorMemberId,
+        );
+        if (!emailed.success) {
+          extra =
+            emailed.errorMessage ??
+            "Ricevuta da inviare dalla scheda Ricevute.";
+        }
+      } catch {
+        extra = "Ricevuta da inviare dalla scheda Ricevute.";
+      }
+    }
+
+    setNotice(
+      extra
+        ? `Incasso registrato. ${extra}`
+        : "Incasso registrato. Ricevuta inviata alla famiglia.",
+    );
     await loadFees();
   }
 
   return (
     <div className="space-y-8">
-      <div>
-        <h2 className="text-2xl font-semibold text-[var(--brand)]">Rette</h2>
-        <p className="mt-1 text-sm text-neutral-600">
-          Scadute e in scadenza nei 5 giorni, dalla più vecchia. Incasso a
-          famiglia in euro, FIFO.
-        </p>
-      </div>
-
       {error ? (
         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}

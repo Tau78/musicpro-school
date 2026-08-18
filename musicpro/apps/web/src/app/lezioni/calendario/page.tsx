@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 
 import {
@@ -11,6 +12,7 @@ import {
 import { MemberRole } from "@musicpro/shared";
 
 import { LessonsCalendarPage } from "@/components/lezioni/lessons-calendar-page";
+import { UnplacedLessonsBlock } from "@/components/lezioni/unplaced-lessons-block";
 import {
   isIsoDate,
   monthBounds,
@@ -63,15 +65,21 @@ export default async function LezioniCalendarioPage({
   });
 
   return (
-    <div>
-      <div className="mb-6">
-        <h2 className="text-2xl font-semibold text-[var(--brand)]">
-          Calendario
-        </h2>
-        <p className="mt-1 text-sm text-neutral-600">
-          Le tue lezioni in settimana e mese.
-        </p>
-      </div>
+    <div className="space-y-3">
+      {profile?.canReschedule ? (
+        <Suspense fallback={null}>
+          <UnplacedLessonsBlock
+            actor={{
+              memberId: member.id,
+              isStaff: false,
+              canReschedule: true,
+            }}
+            rooms={rooms.map((room) => ({ id: room.id, name: room.name }))}
+            courseDetailBaseHref="/lezioni/corsi"
+            titularMemberId={member.id}
+          />
+        </Suspense>
+      ) : null}
 
       <LessonsCalendarPage
         initialLessons={lessons}
