@@ -111,7 +111,10 @@ export async function fetchPublicGoogleIcal(
     if (res.ok && text.includes('BEGIN:VCALENDAR')) {
       return text;
     }
-    lastError = `iCal ${res.status}`;
+    lastError =
+      res.status === 404
+        ? 'Calendario non pubblico (iCal 404). Condividilo con il service account o rendi pubblico il feed.'
+        : `iCal ${res.status}`;
   }
   throw new Error(lastError);
 }

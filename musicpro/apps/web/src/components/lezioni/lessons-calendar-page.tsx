@@ -6,6 +6,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import {
   getCurrentMemberWithRoles,
   listBookingsInRange,
+  listExternalCalendarEventsInRange,
   listLessonsInRange,
   moveLesson,
   requestLessonMove,
@@ -13,7 +14,11 @@ import {
   utcIsoToRomeLocalInput,
 } from "@musicpro/database";
 
-import { mergeCalendarEvents, parseBookingId } from "@/components/lezioni/calendar-bookings";
+import {
+  mergeCalendarEvents,
+  parseBookingId,
+  parseExternalEventId,
+} from "@/components/lezioni/calendar-bookings";
 import { LessonAttendancePanel } from "@/components/lezioni/lesson-attendance-panel";
 import {
   LessonsCalendar,
@@ -139,8 +144,15 @@ export function LessonsCalendarPage({
               roomId: roomFilter,
             })
           : [];
+        const externals = isStaff
+          ? await listExternalCalendarEventsInRange(supabase, {
+              from: bounds.from,
+              to: bounds.to,
+              roomId: roomFilter,
+            })
+          : [];
         if (gen !== fetchGen.current) return;
-        setLessons(mergeCalendarEvents(rows, bookings));
+        setLessons(mergeCalendarEvents(rows, bookings, externals));
       } catch {
         if (gen !== fetchGen.current) return;
       } finally {
@@ -222,6 +234,7 @@ export function LessonsCalendarPage({
       router.push(`/admin/prenotazioni/${bookingId}`);
       return;
     }
+    if (parseExternalEventId(lessonId)) return;
     const lesson = lessons.find((row) => row.id === lessonId);
     if (!lesson) return;
     const hold = lessonId.startsWith("hold:");
@@ -259,7 +272,7 @@ export function LessonsCalendarPage({
     nextRoomId: string | null,
     scope: MoveScope,
   ) {
-    if (parseBookingId(lessonId)) return;
+    if (parseBookingId(lessonId) || parseExternalEventId(lessonId)) return;
     const lesson = lessons.find((row) => row.id === lessonId);
     if (lesson?.hasAttendance) {
       throw new Error(

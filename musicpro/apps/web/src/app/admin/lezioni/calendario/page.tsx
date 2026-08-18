@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import {
   getLessonSchoolSettings,
   listBookingsInRange,
+  listExternalCalendarEventsInRange,
   listLessonsInRange,
   listMemberLabelsWithRole,
   listRooms,
@@ -80,7 +81,7 @@ export default async function AdminLezioniCalendarioPage({
       : weekBounds(anchorDate, sundayVisible);
 
   const roomFilter = mode === "sala" && roomId ? roomId : undefined;
-  const [lessons, bookings] = await Promise.all([
+  const [lessons, bookings, externals] = await Promise.all([
     listLessonsInRange(supabase, {
       from: bounds.from,
       to: bounds.to,
@@ -90,6 +91,11 @@ export default async function AdminLezioniCalendarioPage({
       roomId: roomFilter,
     }),
     listBookingsInRange(supabase, {
+      from: bounds.from,
+      to: bounds.to,
+      roomId: roomFilter,
+    }),
+    listExternalCalendarEventsInRange(supabase, {
       from: bounds.from,
       to: bounds.to,
       roomId: roomFilter,
@@ -111,7 +117,7 @@ export default async function AdminLezioniCalendarioPage({
       </Suspense>
 
       <LessonsCalendarPage
-        initialLessons={mergeCalendarEvents(lessons, bookings)}
+        initialLessons={mergeCalendarEvents(lessons, bookings, externals)}
         settings={{
           sundayVisible,
           gridOpenMinute: settings?.gridOpenMinute ?? 600,

@@ -49,6 +49,16 @@ function calendarStatus(
   return calendar.enabled ? "Attivo" : "Spento";
 }
 
+function formatSyncAt(iso: string): string {
+  return new Intl.DateTimeFormat("it-IT", {
+    timeZone: "Europe/Rome",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(iso));
+}
+
 export function RoomExternalCalendarsPanel({
   roomId,
 }: RoomExternalCalendarsPanelProps) {
@@ -229,6 +239,19 @@ export function RoomExternalCalendarsPanel({
                     {status}
                   </span>
                 </div>
+                <p className="mt-1 break-all text-xs text-neutral-500">
+                  {calendar.googleCalendarId}
+                </p>
+                <p className="mt-1 text-xs text-neutral-500">
+                  {calendar.lastSyncedAt
+                    ? `Ultima sync: ${formatSyncAt(calendar.lastSyncedAt)}`
+                    : "Mai sincronizzato"}
+                </p>
+                {calendar.lastSyncError ? (
+                  <p className="mt-1 text-xs text-red-700">
+                    {calendar.lastSyncError}
+                  </p>
+                ) : null}
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button
                     type="button"
@@ -270,6 +293,12 @@ export function RoomExternalCalendarsPanel({
         onSubmit={(e) => void handleSubmit(e)}
         className="space-y-4 border-t border-neutral-100 pt-6"
       >
+        <p className="text-sm text-neutral-600">
+          Gli eventi importati compaiono in Lezioni → Calendario, vista Sala,
+          su questa stanza. Il calendario deve essere condiviso con il service
+          account Google oppure pubblico (feed iCal).
+        </p>
+
         <h4 className="text-sm font-medium text-neutral-800">
           {editingId ? "Modifica calendario" : "Aggiungi calendario"}
         </h4>

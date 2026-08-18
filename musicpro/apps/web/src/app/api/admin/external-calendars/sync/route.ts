@@ -80,6 +80,7 @@ export async function POST(request: Request) {
   const payload = (await edgeRes.json().catch(() => ({}))) as {
     success?: boolean;
     message?: string;
+    events?: number;
   };
 
   return NextResponse.json(
@@ -90,6 +91,7 @@ export async function POST(request: Request) {
         (edgeRes.ok
           ? "Calendario sincronizzato."
           : `Sincronizzazione non riuscita (${edgeRes.status}).`),
+      events: payload.events ?? 0,
     },
     { status: edgeRes.ok ? 200 : edgeRes.status },
   );

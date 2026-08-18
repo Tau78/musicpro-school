@@ -111,6 +111,7 @@ Deno.serve(async (req) => {
   const timeMax = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000).toISOString();
 
   let syncedCount = 0;
+  let eventCount = 0;
   const errors: string[] = [];
 
   for (const calendar of calendars) {
@@ -178,6 +179,7 @@ Deno.serve(async (req) => {
       await markCalendarSync(service, calendar.id, null);
 
       syncedCount += 1;
+      eventCount += rows.length;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       errors.push(`${calendar.name}: ${message}`);
@@ -185,13 +187,19 @@ Deno.serve(async (req) => {
     }
   }
 
+  const emptyHint =
+    errors.length === 0 && eventCount === 0
+      ? " Nessun evento nei prossimi 90 giorni. Se il calendario ha lezioni, condividilo con il service account Google o rendilo pubblico (iCal)."
+      : "";
+
   return json({
     success: errors.length === 0,
     synced: syncedCount,
+    events: eventCount,
     total: calendars.length,
     message:
       errors.length === 0
-        ? `Sincronizzati ${syncedCount} calendari.`
+        ? `Sincronizzati ${syncedCount} calendari, ${eventCount} eventi.${emptyHint}`
         : errors.join(' · '),
     errors,
   }, errors.length > 0 && syncedCount === 0 ? 502 : 200);
