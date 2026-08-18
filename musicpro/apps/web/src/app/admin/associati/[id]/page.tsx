@@ -93,6 +93,20 @@ export default async function AssociatoDetailPage({ params }: PageProps) {
         <h2 className="mt-2 text-2xl font-semibold text-[var(--brand)]">
           {member.lastName} {member.firstName}
         </h2>
+        {member.isEnrollmentDraft ? (
+          <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            Bozza anagrafica — scade il{" "}
+            {member.draftExpiresAt
+              ? new Date(member.draftExpiresAt).toLocaleDateString("it-IT", {
+                  timeZone: "Europe/Rome",
+                  day: "2-digit",
+                  month: "2-digit",
+                  year: "numeric",
+                })
+              : "—"}{" "}
+            (30g)
+          </p>
+        ) : null}
       </div>
 
       <MemberRolesPanel

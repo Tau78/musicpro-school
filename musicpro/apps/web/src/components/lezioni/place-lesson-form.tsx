@@ -16,6 +16,9 @@ interface PlaceLessonFormProps {
   requiresRoom: boolean;
   defaultRoomId: string | null;
   slotStepMinutes?: number;
+  /** YYYY-MM-DD — blocca datetime-local prima di questo giorno. */
+  minDate?: string;
+  label?: string;
 }
 
 export function PlaceLessonForm({
@@ -24,6 +27,8 @@ export function PlaceLessonForm({
   requiresRoom,
   defaultRoomId,
   slotStepMinutes = 15,
+  minDate,
+  label = "Data e ora",
 }: PlaceLessonFormProps) {
   const router = useRouter();
   const supabase = createClient();
@@ -41,6 +46,10 @@ export function PlaceLessonForm({
 
     if (!startsLocal) {
       setError("Inserisci data e ora della lezione.");
+      return;
+    }
+    if (minDate && startsLocal.slice(0, 10) < minDate) {
+      setError("Il recupero non si può piazzare nel passato.");
       return;
     }
     if (requiresRoom && !roomId) {
@@ -91,10 +100,11 @@ export function PlaceLessonForm({
 
       <div className="flex flex-wrap items-end gap-2">
         <label className="flex flex-col gap-1 text-xs text-neutral-600">
-          Data e ora
+          {label}
           <input
             type="datetime-local"
             value={startsLocal}
+            min={minDate ? `${minDate}T00:00` : undefined}
             step={slotStepMinutes * 60}
             disabled={busy}
             onChange={(e) => setStartsLocal(e.target.value)}

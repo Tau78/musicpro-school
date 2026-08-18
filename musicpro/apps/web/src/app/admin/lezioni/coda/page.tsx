@@ -6,14 +6,18 @@ import {
   getCourse,
   getLessonSchoolSettings,
   listPendingCourses,
+  listPendingLessonChangeRequests,
   listRooms,
   listUnplacedLessons,
   minutesToTimeLabel,
+  todayInRome,
   type CourseDetail,
   type IsoWeekday,
+  type LessonParkedReason,
 } from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
 
+import { ChangeRequestActions } from "@/components/lezioni/change-request-actions";
 import { CourseQueueActions } from "@/components/lezioni/course-queue-actions";
 import { PlaceLessonForm } from "@/components/lezioni/place-lesson-form";
 import { getAdminMember } from "@/lib/admin/current-member";
@@ -52,6 +56,17 @@ function titularLabel(detail: CourseDetail | undefined): string {
   return `${detail.titular.lastName} ${detail.titular.firstName}`.trim() || "—";
 }
 
+const PARKED_REASON_LABELS: Record<LessonParkedReason, string> = {
+  giustificato: "Giustificato",
+  cancellata_scuola: "Cancellata scuola",
+  docente_assente: "Docente assente",
+};
+
+const SCOPE_LABELS = {
+  this: "Solo questa lezione",
+  future: "Questa e le future",
+} as const;
+
 function roomLabel(
   roomId: string | null,
   roomsById: Map<string, string>,
@@ -79,20 +94,26 @@ export default async function AdminLezioniCodaPage() {
   let loadError: string | null = null;
   let pending: Awaited<ReturnType<typeof listPendingCourses>> = [];
   let unplaced: Awaited<ReturnType<typeof listUnplacedLessons>> = [];
+  let changeRequests: Awaited<
+    ReturnType<typeof listPendingLessonChangeRequests>
+  > = [];
   let rooms: Awaited<ReturnType<typeof listRooms>> = [];
   let settings: Awaited<ReturnType<typeof getLessonSchoolSettings>> = null;
   const detailsById = new Map<string, CourseDetail>();
+  const today = todayInRome();
 
   try {
-    const [pendingRows, unplacedRows, roomRows, schoolSettings] =
+    const [pendingRows, unplacedRows, requestRows, roomRows, schoolSettings] =
       await Promise.all([
         listPendingCourses(supabase),
         listUnplacedLessons(supabase),
+        listPendingLessonChangeRequests(supabase),
         listRooms(supabase),
         getLessonSchoolSettings(supabase),
       ]);
     pending = pendingRows;
     unplaced = unplacedRows;
+    changeRequests = requestRows;
     rooms = roomRows;
     settings = schoolSettings;
 
@@ -100,6 +121,7 @@ export default async function AdminLezioniCodaPage() {
       ...new Set([
         ...pending.map((course) => course.id),
         ...unplaced.map((lesson) => lesson.courseId),
+        ...changeRequests.map((request) => request.courseId),
       ]),
     ];
     const details = await Promise.all(
@@ -231,17 +253,18 @@ export default async function AdminLezioniCodaPage() {
 
       <section className="space-y-4">
         <h3 className="text-lg font-semibold text-[var(--brand)]">
-          Da piazzare
+          Da piazzare / da recuperare
         </h3>
         {unplaced.length === 0 ? (
           <p className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 px-4 py-4 text-sm text-neutral-600">
-            Nessuna lezione da piazzare.
+            Nessuna lezione da piazzare o da recuperare.
           </p>
         ) : (
           <ul className="space-y-3">
             {unplaced.map((lesson) => {
               const detail = detailsById.get(lesson.courseId);
               const online = detail?.courseKind === "online";
+              const isRecovery = lesson.placement === "da_recuperare";
               return (
                 <li
                   key={lesson.id}
@@ -259,12 +282,83 @@ export default async function AdminLezioniCodaPage() {
                       {roomLabel(lesson.roomId, roomsById, Boolean(online))}
                     </p>
                   </div>
+                  {isRecovery ? (
+                    <div className="flex flex-wrap items-center gap-2 text-sm">
+                      <span className="rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800">
+                        Da recuperare
+                      </span>
+                      {lesson.parkedReason ? (
+                        <span className="text-neutral-600">
+                          {PARKED_REASON_LABELS[lesson.parkedReason]}
+                        </span>
+                      ) : null}
+                      {lesson.originalStartsAt ? (
+                        <span className="text-neutral-500">
+                          Originale: {formatDateTimeIt(lesson.originalStartsAt)}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
                   <PlaceLessonForm
                     lessonId={lesson.id}
                     rooms={roomOptions}
                     requiresRoom={!online}
                     defaultRoomId={lesson.roomId}
                     slotStepMinutes={slotStepMinutes}
+                    minDate={isRecovery ? today : undefined}
+                    label={isRecovery ? "Nuova data e ora" : undefined}
+                  />
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
+      <section className="space-y-4">
+        <h3 className="text-lg font-semibold text-[var(--brand)]">
+          Richieste spostamento
+        </h3>
+        {changeRequests.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 px-4 py-4 text-sm text-neutral-600">
+            Nessuna richiesta di spostamento.
+          </p>
+        ) : (
+          <ul className="space-y-3">
+            {changeRequests.map((request) => {
+              const detail = detailsById.get(request.courseId);
+              return (
+                <li
+                  key={request.id}
+                  className="space-y-3 rounded-xl border border-neutral-200 bg-white p-4"
+                >
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <p className="font-medium text-neutral-900">
+                      {detail?.name ?? "Corso"}
+                    </p>
+                    <p className="text-sm text-neutral-600">
+                      {SCOPE_LABELS[request.scope] ?? request.scope}
+                    </p>
+                  </div>
+                  <dl className="grid gap-2 text-sm text-neutral-600 sm:grid-cols-2">
+                    <div>
+                      <dt className="text-xs uppercase tracking-wide text-neutral-500">
+                        Orario richiesto
+                      </dt>
+                      <dd>{formatDateTimeIt(request.requestedStartsAt)}</dd>
+                    </div>
+                    {request.note ? (
+                      <div>
+                        <dt className="text-xs uppercase tracking-wide text-neutral-500">
+                          Nota
+                        </dt>
+                        <dd>{request.note}</dd>
+                      </div>
+                    ) : null}
+                  </dl>
+                  <ChangeRequestActions
+                    requestId={request.id}
+                    actorMemberId={member.id}
                   />
                 </li>
               );

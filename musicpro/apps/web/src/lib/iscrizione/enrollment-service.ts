@@ -90,6 +90,7 @@ async function findMemberByEmail(db: Db, email: string): Promise<MemberRow | nul
   const target = String(email || "").toLowerCase().trim();
   if (!target) return null;
 
+  // Stessa tabella: include le bozze (is_enrollment_draft), nessun filtro.
   const { data } = await db
     .from("members")
     .select("*")
@@ -259,9 +260,14 @@ export async function sincronizzaPagamento(idIscrizione: string) {
   return { ...stato, pagato: false, idIscrizione };
 }
 
-async function storeMagicToken(db: Db, email: string): Promise<string> {
+async function storeMagicToken(
+  db: Db,
+  email: string,
+  ttlMs?: number,
+): Promise<string> {
   const token = randomUUID();
-  const expiresAt = new Date(Date.now() + MAGIC_LINK_TTL_MS).toISOString();
+  const ttl = ttlMs ?? MAGIC_LINK_TTL_MS;
+  const expiresAt = new Date(Date.now() + ttl).toISOString();
 
   await db.from("app_settings").upsert({
     key: `${TOKEN_KEY_PREFIX}${token}`,
@@ -279,21 +285,82 @@ function magicLinkBaseUrl(): string {
     .replace(/\/?$/, "/");
 }
 
-async function sendMagicLinkEmailStub(email: string, link: string, nome: string) {
-  console.info(
-    `[iscrizione] Magic link stub → ${email} (${nome}): ${link}`,
-  );
+function iscrizioneLinkFromToken(token: string): string {
+  return `${magicLinkBaseUrl()}?iscrizioneToken=${encodeURIComponent(token)}`;
+}
+
+/** Full iscrizione URL. Default TTL 24h (rinnovo); pass ttlMs for prova (30g). */
+export async function createIscrizioneMagicLink(
+  db: Db,
+  email: string,
+  ttlMs?: number,
+): Promise<string> {
+  const token = await storeMagicToken(db, email, ttlMs);
+  return iscrizioneLinkFromToken(token);
+}
+
+async function sendMagicLinkEmail(email: string, link: string, nome: string) {
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  const from =
+    process.env.EMAIL_FROM?.trim() ||
+    process.env.BOOKING_EMAIL_FROM?.trim() ||
+    "MusicPro School <noreply@school.musicproeventi.it>";
+  const subject = "Il tuo link per l'iscrizione MusicPro";
+  const body = [
+    `Ciao ${nome},`,
+    "",
+    "Usa questo link per aggiornare i dati e completare l'iscrizione:",
+    link,
+    "",
+    "Se non hai richiesto tu questo messaggio, puoi ignorarlo.",
+    "",
+    "MusicPro School",
+  ].join("\n");
+
+  if (!apiKey) {
+    console.warn(
+      `[iscrizione] RESEND_API_KEY assente: magic link non inviato a ${email} (${nome}): ${link}`,
+    );
+    return;
+  }
+
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from,
+      to: [email],
+      subject,
+      text: body,
+      html: body
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/\r\n|\r|\n/g, "<br />"),
+    }),
+  });
+
+  if (!res.ok) {
+    const errBody = await res.text().catch(() => "");
+    console.error(
+      `[iscrizione] Resend ${res.status} inviando magic link a ${email}: ${errBody.slice(0, 400)}`,
+    );
+  }
 }
 
 async function createAndSendMagicLink(db: Db, member: MemberRow) {
   if (!member.email) return false;
-  const token = await storeMagicToken(db, member.email);
-  const link = `${magicLinkBaseUrl()}?iscrizioneToken=${encodeURIComponent(token)}`;
+  const link = await createIscrizioneMagicLink(db, member.email);
   const fields = memberToFormFields(member);
-  await sendMagicLinkEmailStub(
+  const tutorNome = String(member.manual_tutor_first_name || "").trim();
+  await sendMagicLinkEmail(
     member.email,
     link,
-    String(fields.nome || "Associato"),
+    tutorNome || String(fields.nome || "Associato"),
   );
   return true;
 }
@@ -313,34 +380,45 @@ export async function richiediLinkIscrizioneAssociato(identifier: string) {
   return { success: true, message: msg };
 }
 
-export async function validateIscrizioneToken(token: string) {
-  const tok = String(token || "").trim();
-  if (!tok) return { found: false, message: "Token mancante." };
+function tokenFromForm(data: EnrollmentFormData): string {
+  return String(data.iscrizioneToken || data.token || "").trim();
+}
 
-  const db = createServiceRoleClient();
+async function memberFromIscrizioneToken(
+  db: Db,
+  token: string,
+): Promise<MemberRow | null> {
+  const tok = String(token || "").trim();
+  if (!tok) return null;
+
   const { data: setting } = await db
     .from("app_settings")
     .select("value")
     .eq("key", `${TOKEN_KEY_PREFIX}${tok}`)
     .maybeSingle();
 
-  if (!setting?.value) {
-    return { found: false, message: "Link non valido o scaduto." };
-  }
+  if (!setting?.value) return null;
 
   let rowInfo: { email: string; expiresAt: string; usedAt: string | null };
   try {
     rowInfo = JSON.parse(setting.value) as typeof rowInfo;
   } catch {
-    return { found: false, message: "Link non valido." };
+    return null;
   }
 
-  if (new Date() > new Date(rowInfo.expiresAt)) {
-    return { found: false, message: "Link scaduto. Richiedine uno nuovo." };
-  }
+  if (new Date() > new Date(rowInfo.expiresAt)) return null;
+  return findMemberByEmail(db, rowInfo.email);
+}
 
-  const member = await findMemberByEmail(db, rowInfo.email);
-  if (!member) return { found: false, message: "Associato non trovato." };
+export async function validateIscrizioneToken(token: string) {
+  const tok = String(token || "").trim();
+  if (!tok) return { found: false, message: "Token mancante." };
+
+  const db = createServiceRoleClient();
+  const member = await memberFromIscrizioneToken(db, tok);
+  if (!member) {
+    return { found: false, message: "Link non valido o scaduto." };
+  }
 
   const fields = memberToFormFields(member);
   return {
@@ -369,6 +447,9 @@ async function valutaDuplicatoIscrizione(
   }
 
   if (isRinnovo(data)) return { blocked: false };
+
+  const tokenMember = await memberFromIscrizioneToken(db, tokenFromForm(data));
+  if (tokenMember) return { blocked: false };
 
   const member = await findMemberByCf(db, cf);
   if (member) {
@@ -403,6 +484,7 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
   }
 
   const db = createServiceRoleClient();
+  const tokenMember = await memberFromIscrizioneToken(db, tokenFromForm(data));
   const dup = await valutaDuplicatoIscrizione(db, data);
   if (dup.blocked) {
     return { success: false, code: dup.code, message: dup.message };
@@ -422,6 +504,7 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
     .insert({
       id: idIscrizione,
       legacy_enrollment_id: idIscrizione,
+      member_id: tokenMember?.id ?? null,
       first_name: String(data.nome || "").trim(),
       last_name: String(data.cognome || "").trim(),
       email: String(data.email || "").trim(),
@@ -441,6 +524,7 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
 
   const linkRes = await createStripePaymentLinkQuotaAssociativa({
     idIscrizione,
+    memberId: tokenMember?.id,
     nome: String(data.nome || ""),
     cognome: String(data.cognome || ""),
     importoCentesimi: importoCents,

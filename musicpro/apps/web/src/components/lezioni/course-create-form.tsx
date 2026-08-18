@@ -124,6 +124,7 @@ export function CourseCreateForm({
   );
   const [maxStudents, setMaxStudents] = useState(defaultGroupCapacity);
   const [priceEur, setPriceEur] = useState("");
+  const [openingPrepaid, setOpeningPrepaid] = useState("");
   const [titularMemberId, setTitularMemberId] = useState(
     teachers && teachers.length > 0 ? teachers[0].id : actorMemberId,
   );
@@ -194,6 +195,20 @@ export function CourseCreateForm({
         : Number(priceEur)
       : undefined;
 
+    let openingPrepaidLessons: number | undefined;
+    if (isStaff) {
+      const raw = openingPrepaid.trim();
+      openingPrepaidLessons = raw === "" ? 0 : Number(raw);
+      if (
+        !Number.isInteger(openingPrepaidLessons) ||
+        openingPrepaidLessons < 0
+      ) {
+        setSaving(false);
+        setError("Le lezioni già pagate devono essere un intero ≥ 0.");
+        return;
+      }
+    }
+
     const result = await createCourse(
       supabase,
       {
@@ -208,6 +223,7 @@ export function CourseCreateForm({
         startsOn,
         maxStudents: kind === "gruppo" ? maxStudents : 1,
         priceEur: parsedPrice,
+        openingPrepaidLessons,
       },
       { memberId: actorMemberId, isStaff, canCreateCourses },
     );
@@ -437,6 +453,19 @@ export function CourseCreateForm({
                 value={priceEur}
                 onChange={(e) => setPriceEur(e.target.value)}
                 placeholder="0"
+                className={inputClass}
+              />
+            </Field>
+          ) : null}
+          {isStaff ? (
+            <Field label="Lezioni già pagate (saldo iniziale)">
+              <input
+                type="number"
+                min={0}
+                step={1}
+                value={openingPrepaid}
+                onChange={(e) => setOpeningPrepaid(e.target.value)}
+                placeholder="Transizione ScuolaSemplice"
                 className={inputClass}
               />
             </Field>

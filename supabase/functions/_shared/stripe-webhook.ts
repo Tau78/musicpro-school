@@ -356,3 +356,124 @@ export async function resolveQuotaFromEvent(
     flow: '',
   };
 }
+
+export const LESSON_PACK_FLOW = 'lesson_pack';
+
+export function metadataPaymentId(
+  metadata: Stripe.Metadata | null | undefined,
+): string {
+  if (!metadata) return '';
+  return String(metadata.mp_payment_id ?? '').trim();
+}
+
+export function metadataLessonEnrollmentId(
+  metadata: Stripe.Metadata | null | undefined,
+): string {
+  if (!metadata) return '';
+  return String(metadata.mp_enrollment_id ?? '').trim();
+}
+
+async function resolveLessonPackMetadataFromStripeObject(
+  stripe: Stripe,
+  obj: Stripe.Checkout.Session | Stripe.PaymentIntent,
+  eventType: string,
+): Promise<{
+  paymentId: string;
+  enrollmentId: string;
+  memberId: string;
+  paymentIntentId: string;
+  paymentLinkId: string;
+  amountCents: number;
+  flow: string;
+}> {
+  const session = eventType.startsWith('checkout.session')
+    ? (obj as Stripe.Checkout.Session)
+    : null;
+  const piDirect = eventType === 'payment_intent.succeeded'
+    ? (obj as Stripe.PaymentIntent)
+    : null;
+
+  const metaSource = session?.metadata ?? piDirect?.metadata ?? undefined;
+  let paymentId = metadataPaymentId(metaSource);
+  let enrollmentId = metadataLessonEnrollmentId(metaSource);
+  let memberId = metadataMemberId(metaSource);
+  let flow = metadataFlow(metaSource);
+  let paymentIntentId = paymentIntentIdFromObject(obj);
+  let paymentLinkId = session ? paymentLinkIdFromSession(session) : '';
+  let amountCents = session
+    ? Number(session.amount_total ?? 0)
+    : Number(piDirect?.amount_received ?? piDirect?.amount ?? 0);
+
+  if ((!paymentId || !enrollmentId || !memberId || !flow) && paymentIntentId) {
+    const pi = piDirect ?? (await stripe.paymentIntents.retrieve(paymentIntentId));
+    if (!paymentId) paymentId = metadataPaymentId(pi.metadata);
+    if (!enrollmentId) enrollmentId = metadataLessonEnrollmentId(pi.metadata);
+    if (!memberId) memberId = metadataMemberId(pi.metadata);
+    if (!flow) flow = metadataFlow(pi.metadata);
+    if (!amountCents) {
+      amountCents = Number(pi.amount_received ?? pi.amount ?? 0);
+    }
+  }
+
+  if (!paymentLinkId && paymentIntentId) {
+    const sessions = await stripe.checkout.sessions.list({
+      payment_intent: paymentIntentId,
+      limit: 1,
+    });
+    if (sessions.data[0]) {
+      paymentLinkId = paymentLinkIdFromSession(sessions.data[0]);
+      const sessionMeta = sessions.data[0].metadata ?? undefined;
+      if (!paymentId) paymentId = metadataPaymentId(sessionMeta);
+      if (!enrollmentId) enrollmentId = metadataLessonEnrollmentId(sessionMeta);
+      if (!memberId) memberId = metadataMemberId(sessionMeta);
+      if (!flow) flow = metadataFlow(sessionMeta);
+    }
+  }
+
+  if (!paymentId && session?.client_reference_id) {
+    paymentId = String(session.client_reference_id).trim();
+  }
+
+  return {
+    paymentId,
+    enrollmentId,
+    memberId,
+    paymentIntentId,
+    paymentLinkId,
+    amountCents,
+    flow,
+  };
+}
+
+export async function resolveLessonPackFromEvent(
+  stripe: Stripe,
+  event: Stripe.Event,
+): Promise<{
+  paymentId: string;
+  enrollmentId: string;
+  memberId: string;
+  paymentIntentId: string;
+  paymentLinkId: string;
+  amountCents: number;
+  flow: string;
+}> {
+  const obj = event.data.object;
+
+  if (event.type.startsWith('checkout.session') || event.type === 'payment_intent.succeeded') {
+    return resolveLessonPackMetadataFromStripeObject(
+      stripe,
+      obj as Stripe.Checkout.Session | Stripe.PaymentIntent,
+      event.type,
+    );
+  }
+
+  return {
+    paymentId: '',
+    enrollmentId: '',
+    memberId: '',
+    paymentIntentId: '',
+    paymentLinkId: '',
+    amountCents: 0,
+    flow: '',
+  };
+}

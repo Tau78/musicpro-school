@@ -8,6 +8,12 @@ import { canManageMembers } from "@/lib/admin/roles";
 
 const SECTIONS = [
   {
+    href: "/admin/lezioni/oggi",
+    label: "Oggi",
+    description: "Lezioni di oggi e registro presenze.",
+    ready: true,
+  },
+  {
     href: "/admin/lezioni/corsi",
     label: "Corsi",
     description: "Elenco, nuovo corso, dettaglio lezioni.",
@@ -16,7 +22,7 @@ const SECTIONS = [
   {
     href: "/admin/lezioni/coda",
     label: "Coda",
-    description: "Da approvare, hold, da piazzare.",
+    description: "Da approvare, hold, da piazzare, recuperi e richieste.",
     ready: true,
   },
   {
@@ -28,20 +34,20 @@ const SECTIONS = [
   {
     href: "/admin/lezioni/impostazioni",
     label: "Impostazioni",
-    description: "Anno corsi (dal / al).",
+    description: "Anno corsi, listino e festività.",
     ready: true,
   },
   {
     href: "/admin/lezioni/calendario",
     label: "Calendario",
-    description: "Settimana e mese — in arrivo.",
-    ready: false,
+    description: "Settimana e mese, filtri docente e sala.",
+    ready: true,
   },
   {
     href: "/admin/lezioni/rette",
     label: "Rette",
-    description: "Rette da incassare — in arrivo.",
-    ready: false,
+    description: "Scadute, solleciti e Registra incasso famiglia.",
+    ready: true,
   },
 ] as const;
 
@@ -61,8 +67,7 @@ export default async function AdminLezioniHubPage() {
       <div className="mb-6">
         <h2 className="text-2xl font-semibold text-[var(--brand)]">Lezioni</h2>
         <p className="mt-1 text-sm text-neutral-600">
-          Corsi, disponibilità docenti, coda di approvazione. Calendario e
-          rette arrivano nelle prossime fette.
+          Corsi, disponibilità docenti, coda, calendario e rette.
         </p>
       </div>
 

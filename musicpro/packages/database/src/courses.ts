@@ -12,6 +12,11 @@ import {
   type SchoolClosure,
   type SchoolCourseTerm,
 } from "./lessons-settings";
+import {
+  ensureOpenPackFee,
+  maybeSendPackReminders,
+  seedOpeningPrepaidCredits,
+} from "./lessons-wallet";
 import type { Database } from "./types/database";
 
 type CoursesClient = SupabaseClient<Database>;
@@ -25,7 +30,14 @@ export type CourseStatus =
   | "in_pausa"
   | "chiuso";
 
-export type LessonPlacement = "scheduled" | "da_piazzare";
+export type LessonPlacement = "scheduled" | "da_piazzare" | "da_recuperare";
+
+export type LessonKind = "regular" | "recupero" | "prova";
+
+export type LessonParkedReason =
+  | "giustificato"
+  | "cancellata_scuola"
+  | "docente_assente";
 
 export type CourseTeacherRole = "titolare" | "coordinatore";
 
@@ -50,6 +62,8 @@ export type CreateCourseInput = {
   maxStudents?: number;
   priceEur?: number;
   openingPrepaidLessons?: number;
+  /** Solo conversione prova: staff può iscrivere una bozza. */
+  allowDraftEnrollment?: boolean;
 };
 
 export type ListCoursesOptions = {
@@ -88,6 +102,9 @@ export interface Course {
   closedOn: string | null;
   rejectedAt: string | null;
   createdBy: string | null;
+  isTrial: boolean;
+  trialRescheduleUsed: boolean;
+  convertedToCourseId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -141,6 +158,11 @@ export interface Lesson {
   bookingId: string | null;
   placement: LessonPlacement;
   cancelledAt: string | null;
+  kind: LessonKind;
+  recoveredFromLessonId: string | null;
+  makeupMemberId: string | null;
+  parkedReason: LessonParkedReason | null;
+  originalStartsAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -170,13 +192,13 @@ const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const DURATION_MINUTES = new Set<number>([30, 45, 60, 90]);
 
 const COURSE_COLUMNS =
-  "id, name, course_kind, status, subject_id, titular_member_id, room_id, duration_minutes, weekly_dow, weekly_start_minute, starts_on, term_id, max_students, price_eur, pay_rate_type_id, pay_amount_eur, counts_as_hour, hold_until, hold_booking_id, closed_on, rejected_at, created_by, created_at, updated_at";
+  "id, name, course_kind, status, subject_id, titular_member_id, room_id, duration_minutes, weekly_dow, weekly_start_minute, starts_on, term_id, max_students, price_eur, pay_rate_type_id, pay_amount_eur, counts_as_hour, hold_until, hold_booking_id, closed_on, rejected_at, created_by, is_trial, trial_reschedule_used, converted_to_course_id, created_at, updated_at";
 
 const ENROLLMENT_COLUMNS =
   "id, course_id, member_id, opening_prepaid_lessons, left_at, created_at, updated_at";
 
 const LESSON_COLUMNS =
-  "id, course_id, sequence_number, starts_at, ends_at, room_id, booking_id, placement, cancelled_at, created_at, updated_at";
+  "id, course_id, sequence_number, starts_at, ends_at, room_id, booking_id, placement, cancelled_at, kind, recovered_from_lesson_id, makeup_member_id, parked_reason, original_starts_at, created_at, updated_at";
 
 function fail(errorMessage: string, extras: Partial<CourseMutationResult> = {}): CourseMutationResult {
   return { success: false, errorMessage, ...extras };
@@ -225,6 +247,9 @@ function mapCourse(row: CourseRow): Course {
     closedOn: row.closed_on,
     rejectedAt: row.rejected_at,
     createdBy: row.created_by,
+    isTrial: row.is_trial,
+    trialRescheduleUsed: row.trial_reschedule_used,
+    convertedToCourseId: row.converted_to_course_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -253,6 +278,11 @@ function mapLesson(row: LessonRow): Lesson {
     bookingId: row.booking_id,
     placement: row.placement,
     cancelledAt: row.cancelled_at,
+    kind: row.kind,
+    recoveredFromLessonId: row.recovered_from_lesson_id,
+    makeupMemberId: row.makeup_member_id,
+    parkedReason: row.parked_reason,
+    originalStartsAt: row.original_starts_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -265,6 +295,15 @@ function todayInRome(): string {
     month: "2-digit",
     day: "2-digit",
   }).format(new Date());
+}
+
+function dateInRome(iso: string): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: ROME,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(iso));
 }
 
 function addDays(date: string, days: number): string {
@@ -364,7 +403,7 @@ async function loadCourse(
   return data ? mapCourse(data) : null;
 }
 
-async function cancelHoldBooking(
+export async function cancelHoldBooking(
   client: CoursesClient,
   bookingId: string | null,
 ): Promise<string | null> {
@@ -418,7 +457,7 @@ async function rejectCourseRow(
   return null;
 }
 
-async function createLessonBooking(
+export async function createLessonBooking(
   client: CoursesClient,
   params: {
     roomId: string;
@@ -634,7 +673,7 @@ export async function listUnplacedLessons(
   let query = client
     .from("lessons")
     .select(LESSON_COLUMNS)
-    .eq("placement", "da_piazzare")
+    .in("placement", ["da_piazzare", "da_recuperare"])
     .is("cancelled_at", null)
     .order("course_id", { ascending: true })
     .order("sequence_number", { ascending: true });
@@ -760,9 +799,15 @@ export async function createCourse(
       );
     }
     if (student.is_enrollment_draft) {
-      return fail(
-        `Non si può iscrivere una bozza anagrafica (${memberLabel(student.last_name, student.first_name)}) a un corso.`,
-      );
+      if (input.allowDraftEnrollment && actor.isStaff) {
+        warnings.push(
+          `Iscrizione in bozza per ${memberLabel(student.last_name, student.first_name)}: completa il modulo di iscrizione.`,
+        );
+      } else {
+        return fail(
+          `Non si può iscrivere una bozza anagrafica (${memberLabel(student.last_name, student.first_name)}) a un corso.`,
+        );
+      }
     }
   }
 
@@ -869,7 +914,7 @@ export async function createCourse(
     return fail(teacherError.message || "Impossibile assegnare il titolare.");
   }
 
-  const { error: enrollmentError } = await client
+  const { data: insertedEnrollments, error: enrollmentError } = await client
     .from("course_enrollments")
     .insert(
       studentMemberIds.map((memberId) => ({
@@ -877,12 +922,38 @@ export async function createCourse(
         member_id: memberId,
         opening_prepaid_lessons: openingPrepaidLessons,
       })),
-    );
+    )
+    .select("id, opening_prepaid_lessons");
   if (enrollmentError) {
     await client.from("courses").delete().eq("id", courseId);
     return fail(
       enrollmentError.message || "Impossibile iscrivere gli allievi.",
     );
+  }
+
+  for (const enrollment of insertedEnrollments ?? []) {
+    if (enrollment.opening_prepaid_lessons > 0) {
+      const seeded = await seedOpeningPrepaidCredits(client, {
+        enrollmentId: enrollment.id,
+        lessons: enrollment.opening_prepaid_lessons,
+        note: "Saldo iniziale",
+        actorMemberId: actor.memberId,
+      });
+      if (!seeded.success && seeded.errorMessage) {
+        warnings.push(seeded.errorMessage);
+      }
+      if (seeded.warnings) warnings.push(...seeded.warnings);
+    }
+  }
+
+  if (isStaff) {
+    for (const enrollment of insertedEnrollments ?? []) {
+      const fee = await ensureOpenPackFee(client, enrollment.id);
+      if (!fee.success && fee.errorMessage) {
+        warnings.push(fee.errorMessage);
+      }
+      if (fee.warnings) warnings.push(...fee.warnings);
+    }
   }
 
   if (input.roomId) {
@@ -1038,6 +1109,26 @@ export async function approveCourse(
     ...(expired.warnings ?? []),
     ...(generated.warnings ?? []),
   ];
+
+  const { data: enrollmentRows, error: enrollmentsError } = await client
+    .from("course_enrollments")
+    .select("id")
+    .eq("course_id", courseId)
+    .is("left_at", null);
+  if (enrollmentsError) {
+    warnings.push(
+      enrollmentsError.message || "Impossibile aprire le rette del corso.",
+    );
+  } else {
+    for (const row of enrollmentRows ?? []) {
+      const fee = await ensureOpenPackFee(client, row.id);
+      if (!fee.success && fee.errorMessage) {
+        warnings.push(fee.errorMessage);
+      }
+      if (fee.warnings) warnings.push(...fee.warnings);
+    }
+  }
+
   return ok(courseId, warnings);
 }
 
@@ -1256,6 +1347,16 @@ export async function generateCourseLessons(
     );
   }
 
+  try {
+    await maybeSendPackReminders(client, courseId);
+  } catch (err) {
+    warnings.push(
+      err instanceof Error
+        ? err.message
+        : "Impossibile valutare i solleciti pacchetto.",
+    );
+  }
+
   return ok(courseId, warnings);
 }
 
@@ -1285,7 +1386,7 @@ export async function placeLesson(
   if (lesson.cancelledAt) {
     return fail("La lezione è stata annullata.");
   }
-  if (lesson.placement !== "da_piazzare") {
+  if (lesson.placement !== "da_piazzare" && lesson.placement !== "da_recuperare") {
     return fail("La lezione è già piazzata.");
   }
 
@@ -1300,6 +1401,9 @@ export async function placeLesson(
   }
 
   const startsAt = new Date(startsMs).toISOString();
+  if (lesson.placement === "da_recuperare" && dateInRome(startsAt) < todayInRome()) {
+    return fail("Non si piazza un recupero nel passato.");
+  }
   const endsAt = addMinutesIso(startsAt, course.durationMinutes);
   let bookingId: string | null = null;
 
@@ -1336,4 +1440,86 @@ export async function placeLesson(
     return fail(error.message || "Impossibile piazzare la lezione.");
   }
   return ok(lessonId);
+}
+
+export async function transferCourseTitular(
+  client: CoursesClient,
+  courseId: string,
+  newTitularMemberId: string,
+  actor: { memberId: string; isStaff: boolean },
+): Promise<CourseMutationResult> {
+  if (!actor.isStaff) {
+    return fail("Solo lo staff può cambiare il titolare.");
+  }
+
+  const course = await loadCourse(client, courseId);
+  if (!course) {
+    return fail("Corso non trovato.");
+  }
+  if (course.status !== "attivo" && course.status !== "in_pausa") {
+    return fail("Si può cambiare il titolare solo su un corso attivo o in pausa.");
+  }
+  if (course.titularMemberId === newTitularMemberId) {
+    return fail("Il docente è già titolare di questo corso.");
+  }
+
+  const { data: roleRow, error: roleError } = await client
+    .from("member_roles")
+    .select("id")
+    .eq("member_id", newTitularMemberId)
+    .eq("role", "docente")
+    .is("revoked_at", null)
+    .maybeSingle();
+  if (roleError) {
+    return fail(roleError.message || "Impossibile verificare il ruolo docente.");
+  }
+  if (!roleRow) {
+    return fail("Il nuovo titolare deve avere il ruolo docente.");
+  }
+
+  const today = todayInRome();
+  const { data: currentTitular, error: currentError } = await client
+    .from("course_teachers")
+    .select("id, starts_on")
+    .eq("course_id", courseId)
+    .eq("role", "titolare")
+    .is("ends_on", null)
+    .maybeSingle();
+  if (currentError) {
+    return fail(
+      currentError.message || "Impossibile caricare il titolare attuale.",
+    );
+  }
+
+  if (currentTitular) {
+    const endsOn =
+      currentTitular.starts_on > today ? currentTitular.starts_on : today;
+    const { error: closeError } = await client
+      .from("course_teachers")
+      .update({ ends_on: endsOn })
+      .eq("id", currentTitular.id);
+    if (closeError) {
+      return fail(closeError.message || "Impossibile chiudere il titolare attuale.");
+    }
+  }
+
+  const { error: insertError } = await client.from("course_teachers").insert({
+    course_id: courseId,
+    member_id: newTitularMemberId,
+    role: "titolare",
+    starts_on: today,
+  });
+  if (insertError) {
+    return fail(insertError.message || "Impossibile assegnare il nuovo titolare.");
+  }
+
+  const { error: updateError } = await client
+    .from("courses")
+    .update({ titular_member_id: newTitularMemberId })
+    .eq("id", courseId);
+  if (updateError) {
+    return fail(updateError.message || "Impossibile aggiornare il titolare del corso.");
+  }
+
+  return ok(courseId);
 }

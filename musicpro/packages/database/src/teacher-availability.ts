@@ -1,5 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import {
+  getRomeDayOfWeek,
+  getRomeMinutesFromMidnight,
+} from "./bookings";
 import type { IsoWeekday } from "./lessons-settings";
 import type { Database } from "./types/database";
 
@@ -36,6 +40,12 @@ export type CreateTeacherTimeOffInput = {
 };
 
 export type TeacherTimeOffPatch = Partial<CreateTeacherTimeOffInput>;
+
+export type LessonAvailabilityConflict = {
+  lessonId: string;
+  startsAt: string;
+  courseId: string;
+};
 
 export interface TeacherAvailabilityMutationResult {
   success: boolean;
@@ -204,6 +214,29 @@ export async function replaceTeacherAvailability(
 
   const mergedSlots = mergeAvailabilitySlots(slots);
 
+  try {
+    const { conflicts } = await availabilityConflictsWithLessons(
+      client,
+      memberId,
+      mergedSlots,
+    );
+    if (conflicts.length > 0) {
+      return {
+        success: false,
+        errorMessage:
+          "Ci sono lezioni già in calendario in quelle fasce. Spostale o usa «Docente assente».",
+      };
+    }
+  } catch (err) {
+    return {
+      success: false,
+      errorMessage:
+        err instanceof Error
+          ? err.message
+          : "Impossibile verificare i conflitti con le lezioni.",
+    };
+  }
+
   const { error: deleteError } = await client
     .from("teacher_availability")
     .delete()
@@ -284,6 +317,30 @@ export async function createTeacherTimeOff(
     return { success: false, errorMessage: rangeError };
   }
 
+  try {
+    const { conflicts } = await availabilityConflictsWithLessons(
+      client,
+      memberId,
+      undefined,
+      { from: input.startsAt, to: input.endsAt },
+    );
+    if (conflicts.length > 0) {
+      return {
+        success: false,
+        errorMessage:
+          "Ci sono lezioni già in calendario in quelle fasce. Spostale o usa «Docente assente».",
+      };
+    }
+  } catch (err) {
+    return {
+      success: false,
+      errorMessage:
+        err instanceof Error
+          ? err.message
+          : "Impossibile verificare i conflitti con le lezioni.",
+    };
+  }
+
   const { data, error } = await client
     .from("teacher_time_off")
     .insert({
@@ -354,15 +411,86 @@ export async function deleteTeacherTimeOff(
   return { success: true, id };
 }
 
-/**
- * Stub: la tabella lessons non esiste ancora.
- * Fetta 5/7 compilerà i conflitti (non restringere la disponibilità
- * sotto lezioni già messe). Non inventare una query lezioni qui.
- */
+function romeIsoWeekday(iso: string): IsoWeekday {
+  const dow = getRomeDayOfWeek(iso);
+  return (dow === 0 ? 7 : dow) as IsoWeekday;
+}
+
+function lessonFitsAvailabilitySlot(
+  startsAt: string,
+  endsAt: string | null,
+  slots: TeacherAvailabilitySlotInput[],
+): boolean {
+  const weekday = romeIsoWeekday(startsAt);
+  const startMinute = getRomeMinutesFromMidnight(startsAt);
+  const endMinute = endsAt
+    ? getRomeMinutesFromMidnight(endsAt)
+    : startMinute;
+  const daySlots = slots.filter((slot) => slot.dayOfWeek === weekday);
+  if (daySlots.length === 0) {
+    // Domenica nascosta: senza fascia non è un conflitto.
+    return weekday === 7;
+  }
+  return daySlots.some(
+    (slot) =>
+      startMinute >= slot.startMinute && endMinute <= slot.endMinute,
+  );
+}
+
 export async function availabilityConflictsWithLessons(
-  _client: AvailabilityClient,
-  _memberId: string,
-  _slots?: TeacherAvailabilitySlotInput[],
-): Promise<{ conflicts: [] }> {
-  return { conflicts: [] };
+  client: AvailabilityClient,
+  memberId: string,
+  slots?: TeacherAvailabilitySlotInput[],
+  range?: { from: string; to: string },
+): Promise<{ conflicts: LessonAvailabilityConflict[] }> {
+  if (!range && (slots == null || slots.length === 0)) {
+    return { conflicts: [] };
+  }
+
+  const { data: courses, error: coursesError } = await client
+    .from("courses")
+    .select("id")
+    .eq("titular_member_id", memberId);
+  if (coursesError) {
+    throw new Error(
+      `Impossibile caricare i corsi del docente: ${coursesError.message}`,
+    );
+  }
+  const courseIds = (courses ?? []).map((row) => row.id);
+  if (courseIds.length === 0) return { conflicts: [] };
+
+  const { data: lessonRows, error: lessonsError } = await client
+    .from("lessons")
+    .select("id, course_id, starts_at, ends_at")
+    .in("course_id", courseIds)
+    .eq("placement", "scheduled")
+    .is("cancelled_at", null)
+    .not("starts_at", "is", null);
+  if (lessonsError) {
+    throw new Error(
+      `Impossibile caricare le lezioni del docente: ${lessonsError.message}`,
+    );
+  }
+
+  const conflicts: LessonAvailabilityConflict[] = [];
+  for (const row of lessonRows ?? []) {
+    if (!row.starts_at) continue;
+    if (range) {
+      const endsAt = row.ends_at ?? row.starts_at;
+      if (!(row.starts_at < range.to && endsAt > range.from)) continue;
+    } else if (slots) {
+      if (lessonFitsAvailabilitySlot(row.starts_at, row.ends_at, slots)) {
+        continue;
+      }
+    } else {
+      continue;
+    }
+    conflicts.push({
+      lessonId: row.id,
+      startsAt: row.starts_at,
+      courseId: row.course_id,
+    });
+  }
+
+  return { conflicts };
 }

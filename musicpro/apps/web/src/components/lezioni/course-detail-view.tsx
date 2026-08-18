@@ -12,20 +12,36 @@ import {
   courseSlotLabel,
   courseStatusClass,
   courseStatusLabel,
+  courseTrialBadgeClass,
+  courseTrialLabel,
 } from "@/components/lezioni/course-labels";
+import { TransferTitularForm } from "@/components/lezioni/transfer-titular-form";
+import { TrialActions } from "@/components/lezioni/trial-actions";
 
 export function CourseDetailView({
   course,
   lessons,
   roomsById,
+  rooms = [],
   backHref,
   pendingNote = false,
+  isStaff = false,
+  showPrice = true,
+  actorMemberId,
+  canCreateCourses = false,
+  teachers = [],
 }: {
   course: CourseDetail;
   lessons: Lesson[];
   roomsById: Record<string, string>;
+  rooms?: { id: string; name: string }[];
   backHref: string;
   pendingNote?: boolean;
+  isStaff?: boolean;
+  showPrice?: boolean;
+  actorMemberId?: string;
+  canCreateCourses?: boolean;
+  teachers?: { id: string; label: string }[];
 }) {
   const titularLabel = course.titular
     ? `${course.titular.lastName} ${course.titular.firstName}`.trim()
@@ -50,6 +66,13 @@ export function CourseDetailView({
           <h2 className="text-2xl font-semibold text-[var(--brand)]">
             {course.name}
           </h2>
+          {course.isTrial ? (
+            <span
+              className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${courseTrialBadgeClass()}`}
+            >
+              {courseTrialLabel()}
+            </span>
+          ) : null}
           <span
             className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${courseStatusClass(course.status)}`}
           >
@@ -78,9 +101,40 @@ export function CourseDetailView({
           {course.courseKind === "gruppo" ? (
             <Row label="Capienza" value={String(course.maxStudents)} />
           ) : null}
-          <Row label="Prezzo" value={formatEuro(course.priceEur)} />
+          {showPrice ? (
+            <Row label="Prezzo" value={formatEuro(course.priceEur)} />
+          ) : null}
         </dl>
       </fieldset>
+
+      {course.isTrial && actorMemberId ? (
+        <TrialActions
+          course={course}
+          lessons={lessons}
+          rooms={rooms}
+          actorMemberId={actorMemberId}
+          isStaff={isStaff}
+          canCreateCourses={canCreateCourses}
+        />
+      ) : null}
+
+      {isStaff &&
+      !course.isTrial &&
+      actorMemberId &&
+      (course.status === "attivo" || course.status === "in_pausa") ? (
+        <fieldset className="space-y-3 rounded-xl border border-neutral-200 bg-white p-6">
+          <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
+            Cambio titolare
+          </legend>
+          <TransferTitularForm
+            key={course.titularMemberId}
+            courseId={course.id}
+            currentTitularId={course.titularMemberId}
+            actorMemberId={actorMemberId}
+            teachers={teachers}
+          />
+        </fieldset>
+      ) : null}
 
       <fieldset className="space-y-3 rounded-xl border border-neutral-200 bg-white p-6">
         <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
@@ -139,6 +193,11 @@ export function CourseDetailView({
                   {lesson.placement === "da_piazzare" ? (
                     <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">
                       Da piazzare
+                    </span>
+                  ) : null}
+                  {lesson.placement === "da_recuperare" ? (
+                    <span className="rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800">
+                      Da recuperare
                     </span>
                   ) : null}
                 </li>

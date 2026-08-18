@@ -581,6 +581,72 @@ export async function listSchoolClosures(
   return (data ?? []).map(mapClosure);
 }
 
+export type CreateSchoolClosureInput = {
+  title: string;
+  startsOn: string;
+  endsOn: string;
+  repeatsYearly: boolean;
+};
+
+export async function createSchoolClosure(
+  client: LessonsClient,
+  input: CreateSchoolClosureInput,
+): Promise<LessonSettingsMutationResult> {
+  const title = input.title.trim();
+  if (!title) {
+    return { success: false, errorMessage: "Il titolo è obbligatorio." };
+  }
+  if (!ISO_DATE_RE.test(input.startsOn) || !ISO_DATE_RE.test(input.endsOn)) {
+    return { success: false, errorMessage: "Le date non sono valide." };
+  }
+  if (input.endsOn < input.startsOn) {
+    return {
+      success: false,
+      errorMessage: "La fine deve essere successiva o uguale all'inizio.",
+    };
+  }
+
+  const { data, error } = await client
+    .from("school_closures")
+    .insert({
+      title,
+      starts_on: input.startsOn,
+      ends_on: input.endsOn,
+      repeats_yearly: input.repeatsYearly,
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    return {
+      success: false,
+      errorMessage: error.message || "Impossibile salvare la festività.",
+    };
+  }
+
+  return { success: true, id: data.id };
+}
+
+export async function deleteSchoolClosure(
+  client: LessonsClient,
+  id: string,
+): Promise<LessonSettingsMutationResult> {
+  if (!id.trim()) {
+    return { success: false, errorMessage: "Festività non valida." };
+  }
+
+  const { error } = await client.from("school_closures").delete().eq("id", id);
+
+  if (error) {
+    return {
+      success: false,
+      errorMessage: error.message || "Impossibile eliminare la festività.",
+    };
+  }
+
+  return { success: true, id };
+}
+
 export async function listCoursePackPrices(
   client: LessonsClient,
 ): Promise<CoursePackPrice[]> {

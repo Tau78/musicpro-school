@@ -421,6 +421,9 @@ verify_jwt = false
 [functions.stripe-quota-webhook]
 verify_jwt = false
 
+[functions.stripe-lesson-pack-webhook]
+verify_jwt = false
+
 [functions.booking-calendar-sync]
 verify_jwt = false
 

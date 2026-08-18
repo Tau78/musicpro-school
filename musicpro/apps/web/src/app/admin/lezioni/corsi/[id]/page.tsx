@@ -1,6 +1,11 @@
 import { notFound, redirect } from "next/navigation";
 
-import { getCourse, listRooms } from "@musicpro/database";
+import {
+  getCourse,
+  listMemberIdsWithRole,
+  listMembers,
+  listRooms,
+} from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
 
 import { CourseDetailView } from "@/components/lezioni/course-detail-view";
@@ -29,23 +34,39 @@ export default async function AdminCorsoDetailPage({ params }: PageProps) {
     );
   }
 
-  const [course, lessons, rooms] = await Promise.all([
+  const [course, lessons, rooms, docenteIds, members] = await Promise.all([
     getCourse(supabase, id),
     loadCourseLessons(supabase, id),
     listRooms(supabase),
+    listMemberIdsWithRole(supabase, MemberRole.Docente),
+    listMembers(supabase),
   ]);
 
   if (!course) {
     notFound();
   }
 
+  const docenteIdSet = new Set(docenteIds);
+  const teachers = members
+    .filter((row) => docenteIdSet.has(row.id))
+    .map((row) => ({
+      id: row.id,
+      label: `${row.lastName} ${row.firstName}`.trim(),
+    }));
+
   return (
     <CourseDetailView
       course={course}
       lessons={lessons}
       roomsById={roomsByIdFromList(rooms)}
+      rooms={rooms.map((room) => ({ id: room.id, name: room.name }))}
       backHref="/admin/lezioni/corsi"
       pendingNote
+      isStaff
+      showPrice
+      actorMemberId={member.id}
+      canCreateCourses
+      teachers={teachers}
     />
   );
 }

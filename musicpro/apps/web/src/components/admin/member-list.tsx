@@ -22,6 +22,7 @@ export function MemberList({
 }: MemberListProps) {
   const [search, setSearch] = useState("");
   const [docentiOnly, setDocentiOnly] = useState(false);
+  const [bozzeOnly, setBozzeOnly] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [messageOpen, setMessageOpen] = useState(false);
 
@@ -37,13 +38,16 @@ export function MemberList({
       if (docentiOnly && !docenteIdSet.has(member.id)) {
         return false;
       }
+      if (bozzeOnly && !member.isEnrollmentDraft) {
+        return false;
+      }
       if (!term) return true;
       return (
         member.firstName.toLowerCase().includes(term) ||
         member.lastName.toLowerCase().includes(term)
       );
     });
-  }, [members, search, docentiOnly, docenteIdSet]);
+  }, [members, search, docentiOnly, bozzeOnly, docenteIdSet]);
 
   const allFilteredSelected =
     filtered.length > 0 && filtered.every((m) => selectedIds.has(m.id));
@@ -96,6 +100,18 @@ export function MemberList({
             }
           >
             Docenti
+          </button>
+          <button
+            type="button"
+            onClick={() => setBozzeOnly((prev) => !prev)}
+            aria-pressed={bozzeOnly}
+            className={
+              bozzeOnly
+                ? "inline-flex items-center justify-center rounded-full border border-amber-500 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-800"
+                : "inline-flex items-center justify-center rounded-full border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+            }
+          >
+            Bozze
           </button>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -172,6 +188,11 @@ export function MemberList({
                     {member.email ?? member.phone ?? "—"}
                   </p>
                 </div>
+                {member.isEnrollmentDraft ? (
+                  <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                    Bozza
+                  </span>
+                ) : null}
                 {docenteIdSet.has(member.id) ? (
                   <span className="shrink-0 rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600">
                     Docente
