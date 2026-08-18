@@ -16,6 +16,7 @@ import {
   todayInRome,
   type CalendarLesson,
 } from "@musicpro/database";
+import { MemberRole } from "@musicpro/shared";
 
 import { OggiList } from "@/components/lezioni/oggi-list";
 import { useAuth } from "@/contexts/AuthContext";
@@ -24,8 +25,9 @@ import { createClient } from "@/lib/supabase";
 
 export default function LezioniScreen() {
   const router = useRouter();
-  const { member } = useAuth();
+  const { member, roles, isLoading: authLoading } = useAuth();
   const supabase = useMemo(() => createClient(), []);
+  const isDocente = roles.includes(MemberRole.Docente);
   const today = useMemo(() => todayInRome(), []);
 
   const [lessons, setLessons] = useState<CalendarLesson[]>([]);
@@ -84,8 +86,16 @@ export default function LezioniScreen() {
   );
 
   useEffect(() => {
+    if (authLoading) return;
+    if (!isDocente) {
+      router.replace("/(tabs)/area-personale");
+    }
+  }, [authLoading, isDocente, router]);
+
+  useEffect(() => {
+    if (!isDocente) return;
     void load("initial");
-  }, [load]);
+  }, [isDocente, load]);
 
   return (
     <ScrollView

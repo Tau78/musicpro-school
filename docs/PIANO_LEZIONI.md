@@ -1,7 +1,7 @@
 # Piano Lezioni — area docente e didattica
 
 **Data:** 2026-08-18  
-**Stato:** specifica V1 chiusa (§20–41). **Scrittura fette 1–16 + hotfix 7 completa.** Dominio corsi/lezioni in Supabase (`029`–`045`). Non in produzione finché non si fa VAI.  
+**Stato:** specifica V1 chiusa (§20–41). **Scrittura fette 1–16 + hotfix 7 completa.** Dominio corsi/lezioni in Supabase (`029`–`049`). Non in produzione finché non si fa VAI.  
 **Riferimento UX:** planning settimanale tipo ScuolaSemplice / screenshot docente (card gialle, ore totali, Oggi, DnD, vista mensile)  
 **Stack:** monorepo `musicpro/` + Supabase (stesso di [`PIANO_PRENOTAZIONI.md`](PIANO_PRENOTAZIONI.md))
 
@@ -959,7 +959,7 @@ Campo distinto da `gdpr_consent` (statuto / informativa).
 
 ## 41. Chiusura scrittura V1 (2026-08-18)
 
-Le 16 fette sono **scritte** (UI + helper + migrazioni `029`–`045`). Non si aggiungono fette V1.
+Le 16 fette sono **scritte** (UI + helper + migrazioni `029`–`049`). Non si aggiungono fette V1.
 
 | Cosa | Stato |
 |------|--------|
@@ -973,7 +973,15 @@ Le 16 fette sono **scritte** (UI + helper + migrazioni `029`–`045`). Non si ag
 | Export Excel rette / ZIP PDF ricevute | Lasciati dopo |
 | V2 | Bloccato (§2) |
 
-Audit post-scrittura (2026-08-18): fix P0 su Expo (route `/lezioni` vs calendario), cron notule (ora UTC ≠ Rome), email coda da docente (`list_lesson_staff_emails`), contanti titolare (RLS `046`). Restano accettati: GCal OAuth stub, dual iscrizione, webhook pack al VAI, photo_consent su nuovo iscritto solo se c’è già un `members` (token).
+Audit 1 (2026-08-18): Expo route `/lezioni` vs calendario, cron notule (UTC ≠ Rome), email coda (`list_lesson_staff_emails`), contanti titolare (RLS `046`).
+
+Audit 2 (2026-08-18): RPC pack solo titolare+contanti propri (`047`); reminder notula senza gate ora Rome; staff emails solo docente/staff; Oggi non apre hold; `requestLessonMove` solo titolare; park con presenze (salvo giustificato); reminder lezione skip `in_pausa`/`chiuso`; dunning marca solo se inviato; resume non duplica settimane cancellate; slot griglia sul dettaglio corso.
+
+Audit 3 (2026-08-19): sblocco presenze ripristina consumi (`048`); insert titolare solo contanti; Stripe apply solo webhook + leftover famiglia + unique pack (`049`); trigger colonne corso; reminder log dopo send + cron orario; rollback booking; Expo solo docente; unplaced/drag solo `attivo`.
+
+Audit 4 (2026-08-19): cancelTrial libera `booking_id`; una sola richiesta spostamento pending; generate con lezioni esistenti avvisa; resume fallisce e torna in pausa se lo snapshot non si ripristina; welcome prova due To; step slot anche sulla prova.
+
+Restano accettati: GCal OAuth stub, dual iscrizione, webhook pack al VAI, photo_consent su nuovo iscritto solo se c’è già un `members` (token).
 
 Prossimo passo operativo: **VAI** (main, Supabase, Edge, Vercel, FTP iscrizione, smoke). Poi uso reale, non nuove fette.
 

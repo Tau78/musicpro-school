@@ -14,6 +14,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import {
   getRomeMinutesFromMidnight,
+  googleEventColorStyle,
   minutesToTimeLabel,
   romeLocalInputToUtcIso,
   todayInRome,
@@ -50,6 +51,7 @@ export interface CalendarLesson {
   source?: "lesson" | "booking" | "external";
   bookingStatus?: "pending" | "pending_approval" | "confirmed" | "cancelled";
   proviDaSolo?: boolean;
+  calendarColorId?: string | null;
 }
 
 export interface LessonsCalendarProps {
@@ -659,7 +661,12 @@ function LessonCard({
   const isBooking = isCalendarBooking(lesson);
   const isExternal = isCalendarExternal(lesson);
   const draggable =
-    canDrag && !isHold && !isBooking && !isExternal && !lesson.hasAttendance;
+    canDrag &&
+    !isHold &&
+    !isBooking &&
+    !isExternal &&
+    !lesson.hasAttendance &&
+    lesson.courseStatus === "attivo";
 
   function open() {
     if (dragged.current) return;
@@ -699,7 +706,7 @@ function LessonCard({
       className={`absolute z-10 overflow-hidden rounded-sm border px-1 py-px text-left leading-tight ${lessonCardClass(lesson)} ${
         draggable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
       } ${lesson.hasAttendance && !isHold ? "opacity-80" : ""}`}
-      style={style}
+      style={{ ...style, ...calendarColorCss(lesson) }}
     >
       <p className="truncate text-[10px] font-semibold text-neutral-900">
         {title}
@@ -820,6 +827,7 @@ function MonthGrid({
                         onOpenLesson(lesson.id);
                       }}
                       className={`block truncate rounded border px-1 py-0.5 text-[10px] font-medium ${lessonCardClass(lesson)}`}
+                      style={calendarColorCss(lesson)}
                     >
                       {lessonTitle(lesson)}
                     </span>
@@ -1025,9 +1033,19 @@ function bookingChipLabel(lesson: CalendarLesson): string {
   return "Sala";
 }
 
+function calendarColorCss(
+  lesson: CalendarLesson,
+): { backgroundColor: string; borderColor: string } | undefined {
+  const colors = googleEventColorStyle(lesson.calendarColorId);
+  if (!colors) return undefined;
+  return { backgroundColor: colors.bg, borderColor: colors.border };
+}
+
 function lessonCardClass(lesson: CalendarLesson): string {
   if (isCalendarExternal(lesson)) {
-    return "bg-neutral-100 border-neutral-400";
+    return lesson.calendarColorId
+      ? "border"
+      : "bg-neutral-100 border-neutral-400";
   }
   if (isCalendarBooking(lesson)) {
     return lesson.bookingStatus === "pending_approval"

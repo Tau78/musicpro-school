@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import {
   getCourse,
   getCurrentMemberWithRoles,
+  getLessonSchoolSettings,
   getTeacherProfile,
   isActiveCourseCoordinator,
   listRooms,
@@ -29,11 +30,12 @@ export default async function CorsoDocenteDetailPage({ params }: PageProps) {
     redirect("/lezioni");
   }
 
-  const [course, lessons, rooms, profile] = await Promise.all([
+  const [course, lessons, rooms, profile, settings] = await Promise.all([
     getCourse(supabase, id),
     loadCourseLessons(supabase, id),
     listRooms(supabase),
     getTeacherProfile(supabase, member.id),
+    getLessonSchoolSettings(supabase),
   ]);
 
   if (!course) {
@@ -65,6 +67,7 @@ export default async function CorsoDocenteDetailPage({ params }: PageProps) {
       canCreateCourses={readOnly ? false : (profile?.canCreateCourses ?? false)}
       canReschedule={readOnly ? false : (profile?.canReschedule ?? false)}
       canCloseCourses={readOnly ? false : (profile?.canCloseCourses ?? false)}
+      slotStepMinutes={settings?.slotGranularityMinutes ?? 15}
     />
   );
 }

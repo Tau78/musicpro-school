@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import {
   getActiveCourseCoordinator,
   getCourse,
+  getLessonSchoolSettings,
   listMemberIdsWithRole,
   listMembers,
   listRooms,
@@ -36,7 +37,7 @@ export default async function AdminCorsoDetailPage({ params }: PageProps) {
     );
   }
 
-  const [course, lessons, rooms, docenteIds, members, coordinator] =
+  const [course, lessons, rooms, docenteIds, members, coordinator, settings] =
     await Promise.all([
       getCourse(supabase, id),
       loadCourseLessons(supabase, id),
@@ -44,6 +45,7 @@ export default async function AdminCorsoDetailPage({ params }: PageProps) {
       listMemberIdsWithRole(supabase, MemberRole.Docente),
       listMembers(supabase),
       getActiveCourseCoordinator(supabase, id),
+      getLessonSchoolSettings(supabase),
     ]);
 
   if (!course) {
@@ -73,6 +75,7 @@ export default async function AdminCorsoDetailPage({ params }: PageProps) {
         canCreateCourses
         canReschedule
         teachers={teachers}
+        slotStepMinutes={settings?.slotGranularityMinutes ?? 15}
       />
       {!course.isTrial ? (
         <AssignCoordinatorForm

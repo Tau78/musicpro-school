@@ -293,12 +293,6 @@ export function RoomExternalCalendarsPanel({
         onSubmit={(e) => void handleSubmit(e)}
         className="space-y-4 border-t border-neutral-100 pt-6"
       >
-        <p className="text-sm text-neutral-600">
-          Gli eventi importati compaiono in Lezioni → Calendario, vista Sala,
-          su questa stanza. Il calendario deve essere condiviso con il service
-          account Google oppure pubblico (feed iCal).
-        </p>
-
         <h4 className="text-sm font-medium text-neutral-800">
           {editingId ? "Modifica calendario" : "Aggiungi calendario"}
         </h4>

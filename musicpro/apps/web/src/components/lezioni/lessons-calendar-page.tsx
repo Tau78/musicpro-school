@@ -280,17 +280,18 @@ export function LessonsCalendarPage({
       );
     }
 
+    if (!memberId) {
+      throw new Error("Impossibile identificare l'operatore.");
+    }
     const result = await moveLesson(supabase, lessonId, {
       startsAt: startsAtIso,
       roomId: nextRoomId,
       scope,
-      actor: memberId
-        ? {
-            memberId,
-            isStaff,
-            canReschedule: canDrag,
-          }
-        : undefined,
+      actor: {
+        memberId,
+        isStaff,
+        canReschedule: canDrag,
+      },
     });
     if (!result.success) {
       throw new Error(result.errorMessage || "Impossibile spostare la lezione.");

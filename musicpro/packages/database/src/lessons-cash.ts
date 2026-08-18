@@ -142,13 +142,16 @@ export async function registerTeacherCashCollection(
 
   const { data: course, error: courseError } = await client
     .from("courses")
-    .select("id, name, titular_member_id")
+    .select("id, name, titular_member_id, is_trial, status")
     .eq("id", enrollment.course_id)
     .maybeSingle();
   if (courseError) {
     return fail(courseError.message || "Impossibile caricare il corso.");
   }
   if (!course) return fail("Corso non trovato.");
+  if (course.is_trial) {
+    return fail("La prova non si incassa come pacchetto.");
+  }
 
   const isTitular = course.titular_member_id === input.actorMemberId;
   const isStaff = await isStaffMember(client, input.actorMemberId);
@@ -156,6 +159,9 @@ export async function registerTeacherCashCollection(
     return fail(
       "Solo il titolare del corso o lo staff può registrare i contanti.",
     );
+  }
+  if (course.status !== "attivo" && !isStaff) {
+    return fail("Si possono registrare contanti solo su un corso attivo.");
   }
 
   const family = await lessonFamilyKey(client, enrollment.member_id);

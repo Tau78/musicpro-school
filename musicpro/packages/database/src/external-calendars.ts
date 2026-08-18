@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getRomeDayBoundsUtc } from "./bookings";
+import { matchRoomFromEventSummary } from "./google-calendar-colors";
 import type { Database } from "./types/database";
 
 type ExternalCalendarsClient = SupabaseClient<Database>;
@@ -177,6 +178,7 @@ export type ExternalCalendarEvent = {
   summary: string | null;
   startsAt: string;
   endsAt: string;
+  calendarColorId: string | null;
 };
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -233,26 +235,38 @@ export async function listExternalCalendarEventsInRange(
   }
   if (!events?.length) return [];
 
-  const roomIds = [...new Set(calendars.map((row) => row.room_id))];
   const { data: rooms } = await client
     .from("rooms")
-    .select("id, name")
-    .in("id", roomIds);
-  const roomNameById = new Map((rooms ?? []).map((row) => [row.id, row.name]));
+    .select("id, name, google_calendar_color_id");
+  const roomById = new Map(
+    (rooms ?? []).map((row) => [
+      row.id,
+      {
+        id: row.id,
+        name: row.name,
+        googleCalendarColorId: row.google_calendar_color_id ?? null,
+      },
+    ]),
+  );
+  const roomMatches = [...roomById.values()];
   const calendarById = new Map(calendars.map((row) => [row.id, row]));
 
   return events.flatMap((event) => {
     const calendar = calendarById.get(event.external_calendar_id);
     if (!calendar) return [];
+    const host = roomById.get(calendar.room_id) ?? null;
+    const matched = matchRoomFromEventSummary(event.summary, roomMatches);
+    const room = matched ?? host;
     return [
       {
         id: event.id,
-        roomId: calendar.room_id,
-        roomName: roomNameById.get(calendar.room_id) ?? null,
+        roomId: room?.id ?? calendar.room_id,
+        roomName: room?.name ?? null,
         calendarName: calendar.name,
         summary: event.summary,
         startsAt: event.start_at,
         endsAt: event.end_at,
+        calendarColorId: room?.googleCalendarColorId ?? null,
       },
     ];
   });

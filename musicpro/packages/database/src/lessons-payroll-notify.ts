@@ -57,17 +57,6 @@ function signDeadlineOn(
   return addDaysIso(lastDayOfMonth(year, month), Math.max(0, deadlineDays));
 }
 
-function hourInRome(): number {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Europe/Rome",
-    hour: "2-digit",
-    hour12: false,
-  }).formatToParts(new Date());
-  const raw = Number(parts.find((part) => part.type === "hour")?.value);
-  if (!Number.isFinite(raw)) return 0;
-  return raw === 24 ? 0 : raw;
-}
-
 function generatedWithinCooldown(generatedAt: string | null | undefined): boolean {
   if (!generatedAt) return false;
   const ts = Date.parse(generatedAt);
@@ -133,11 +122,11 @@ export async function sendDuePayrollSignReminders(
   let reminded = 0;
 
   let deadlineDays = 10;
-  let jobHour = 8;
+  let jobDay = 8;
   try {
     const settings = await getLessonSchoolSettings(client);
     deadlineDays = settings?.notulaSignDeadlineDays ?? 10;
-    jobHour = settings?.notulaJobHour ?? 8;
+    jobDay = settings?.notulaJobDay ?? 8;
   } catch (err) {
     errors.push(
       err instanceof Error
@@ -147,12 +136,10 @@ export async function sendDuePayrollSignReminders(
     return { reminded, errors };
   }
 
-  // Cron orario: un sollecito al giorno (stessa ora del job), non ogni ora.
-  if (hourInRome() !== jobHour) {
+  const today = todayInRome();
+  if (Number(today.slice(8, 10)) !== jobDay) {
     return { reminded, errors };
   }
-
-  const today = todayInRome();
   const drafts = await listLessonPayrolls(client, { status: "draft" });
 
   for (const payroll of drafts) {

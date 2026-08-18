@@ -719,14 +719,15 @@ export async function moveLesson(
   if (!course) {
     return fail("Corso non trovato.");
   }
-  if (input.actor) {
-    if (!input.actor.isStaff) {
-      if (course.titularMemberId !== input.actor.memberId) {
-        return fail("Puoi spostare solo le lezioni dei tuoi corsi.");
-      }
-      if (!input.actor.canReschedule) {
-        return fail("Non hai il permesso di spostare le lezioni.");
-      }
+  if (!input.actor) {
+    return fail("Manca l'operatore dello spostamento.");
+  }
+  if (!input.actor.isStaff) {
+    if (course.titularMemberId !== input.actor.memberId) {
+      return fail("Puoi spostare solo le lezioni dei tuoi corsi.");
+    }
+    if (!input.actor.canReschedule) {
+      return fail("Non hai il permesso di spostare le lezioni.");
     }
   }
   if (course.status === "in_attesa") {
@@ -836,6 +837,9 @@ export async function moveLesson(
     .eq("id", lessonId);
 
   if (updateError) {
+    if (booked.bookingId) {
+      await cancelHoldBooking(client, booked.bookingId);
+    }
     return fail(updateError.message || "Impossibile aggiornare la lezione.");
   }
 
@@ -908,9 +912,27 @@ export async function moveLesson(
       .eq("id", future.id);
 
     if (futureUpdateError) {
+      if (futureBooked.bookingId) {
+        await cancelHoldBooking(client, futureBooked.bookingId);
+      }
+      const { error: unplaceError } = await client
+        .from("lessons")
+        .update({
+          starts_at: null,
+          ends_at: null,
+          booking_id: null,
+          room_id: futureRoomId,
+          placement: "da_piazzare",
+        })
+        .eq("id", future.id);
       warnings.push(
         `Lezione #${future.sequenceNumber}: ${futureUpdateError.message}`,
       );
+      if (unplaceError) {
+        warnings.push(
+          `Lezione #${future.sequenceNumber}: ${unplaceError.message}`,
+        );
+      }
     }
   }
 
@@ -957,8 +979,30 @@ export async function requestLessonMove(
   if (!course) {
     return fail("Corso non trovato.");
   }
+  if (course.titularMemberId !== input.createdBy) {
+    return fail("Puoi richiedere lo spostamento solo sui tuoi corsi.");
+  }
   if (course.status !== "attivo" && course.status !== "in_attesa") {
     return fail("Si possono richiedere spostamenti solo per corsi attivi o in attesa.");
+  }
+  if (course.status === "in_attesa" && input.scope !== "this") {
+    return fail("Su un corso in attesa si può richiedere solo questa lezione.");
+  }
+
+  const { data: pendingExisting, error: pendingError } = await client
+    .from("lesson_change_requests")
+    .select("id")
+    .eq("lesson_id", lesson.id)
+    .eq("status", "pending")
+    .limit(1)
+    .maybeSingle();
+  if (pendingError) {
+    return fail(
+      pendingError.message || "Impossibile verificare le richieste aperte.",
+    );
+  }
+  if (pendingExisting) {
+    return fail("C'è già una richiesta di spostamento in coda per questa lezione.");
   }
 
   const startsAt = new Date(startsMs).toISOString();

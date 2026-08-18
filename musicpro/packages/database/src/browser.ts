@@ -8,5 +8,10 @@ export function createBrowserClient(): SupabaseClient<Database> {
   return createSupabaseBrowserClient<Database>(
     getSupabaseUrl("web"),
     getSupabaseAnonKey("web"),
+    {
+      auth: {
+        experimental: { passkey: true },
+      },
+    },
   ) as unknown as SupabaseClient<Database>;
 }

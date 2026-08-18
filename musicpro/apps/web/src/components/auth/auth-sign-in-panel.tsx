@@ -6,10 +6,11 @@ import { FormEvent, useMemo, useState } from "react";
 
 import { ensureMemberLinked } from "@musicpro/database";
 
+import { passkeyErrorMessage } from "@/lib/auth/passkey-errors";
 import { authCallbackUrl } from "@/lib/auth/redirect-url";
 import { createClient } from "@/lib/supabase/client";
 
-type AuthMode = "password" | "magic";
+type AuthMode = "password" | "magic" | "passkey";
 
 type AuthSignInPanelProps = {
   defaultRedirect?: string;
@@ -118,42 +119,62 @@ export function AuthSignInPanel({
     );
   }
 
+  async function handlePasskeySignIn() {
+    setError(null);
+    setMessage(null);
+    setIsLoading(true);
+    try {
+      const supabase = createClient();
+      const auth = supabase.auth as typeof supabase.auth & {
+        signInWithPasskey?: () => Promise<{ error: Error | null }>;
+      };
+      if (!auth.signInWithPasskey) {
+        setError("Passkey non disponibili in questa versione.");
+        return;
+      }
+      const { error: passkeyError } = await auth.signInWithPasskey();
+      if (passkeyError) {
+        setError(passkeyErrorMessage(passkeyError));
+        return;
+      }
+      await finishSignIn();
+    } catch (err) {
+      setError(passkeyErrorMessage(err));
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   return (
     <div className="w-full rounded-2xl border border-neutral-200 bg-white p-6 shadow-lg shadow-[var(--brand)]/5 sm:p-8">
       <h2 className="text-xl font-semibold text-[var(--brand)]">{title}</h2>
       <p className="mt-2 text-sm text-neutral-600">{subtitle}</p>
 
       <div className="mt-6 flex rounded-lg bg-neutral-100 p-1 text-sm">
-        <button
-          type="button"
-          onClick={() => {
-            setMode("password");
-            setError(null);
-            setMessage(null);
-          }}
-          className={`flex-1 rounded-md px-3 py-2 font-medium transition ${
-            mode === "password"
-              ? "bg-white text-[var(--brand)] shadow-sm"
-              : "text-neutral-600 hover:text-neutral-900"
-          }`}
-        >
-          Email e password
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setMode("magic");
-            setError(null);
-            setMessage(null);
-          }}
-          className={`flex-1 rounded-md px-3 py-2 font-medium transition ${
-            mode === "magic"
-              ? "bg-white text-[var(--brand)] shadow-sm"
-              : "text-neutral-600 hover:text-neutral-900"
-          }`}
-        >
-          Magic link
-        </button>
+        {(
+          [
+            ["password", "Password"],
+            ["magic", "Link email"],
+            ["passkey", "Passkey"],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => {
+              setMode(id);
+              setError(null);
+              setMessage(null);
+            }}
+            className={`flex-1 rounded-md px-2 py-2 font-medium transition ${
+              mode === id
+                ? "bg-white text-[var(--brand)] shadow-sm"
+                : "text-neutral-600 hover:text-neutral-900"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       {mode === "password" ? (
@@ -212,7 +233,7 @@ export function AuthSignInPanel({
             {isLoading ? "Accesso in corso…" : "Accedi"}
           </button>
         </form>
-      ) : (
+      ) : mode === "magic" ? (
         <form className="mt-6 space-y-4" onSubmit={handleMagicLinkSubmit}>
           <div>
             <label htmlFor="magic-email" className="block text-sm font-medium text-neutral-700">
@@ -254,7 +275,27 @@ export function AuthSignInPanel({
             {isLoading ? "Invio in corso…" : "Invia magic link"}
           </button>
         </form>
-      )}
+      ) : mode === "passkey" ? (
+        <div className="mt-6 space-y-4">
+          <p className="text-sm text-neutral-600">
+            Face ID, impronta o chiave del computer. La prima volta entra con la
+            password e aggiungi la passkey dalla Dashboard.
+          </p>
+          {error ? (
+            <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+              {error}
+            </p>
+          ) : null}
+          <button
+            type="button"
+            disabled={isLoading}
+            onClick={() => void handlePasskeySignIn()}
+            className="w-full rounded-lg bg-[var(--brand)] px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-[var(--brand)]/90 disabled:opacity-60"
+          >
+            {isLoading ? "Accesso in corso…" : "Accedi con passkey"}
+          </button>
+        </div>
+      ) : null}
 
       {showSignupLink ? (
         <p className="mt-6 text-center text-sm text-neutral-600">

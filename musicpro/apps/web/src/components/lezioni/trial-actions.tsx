@@ -25,6 +25,7 @@ export interface TrialActionsProps {
   actorMemberId: string;
   isStaff: boolean;
   canCreateCourses: boolean;
+  slotStepMinutes?: number;
 }
 
 const inputClass =
@@ -37,6 +38,7 @@ export function TrialActions({
   actorMemberId,
   isStaff,
   canCreateCourses,
+  slotStepMinutes = 15,
 }: TrialActionsProps) {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
@@ -307,7 +309,7 @@ export function TrialActions({
               <input
                 type="datetime-local"
                 required
-                step={15 * 60}
+                step={slotStepMinutes * 60}
                 value={startsLocal}
                 disabled={busy != null}
                 onChange={(e) => setStartsLocal(e.target.value)}

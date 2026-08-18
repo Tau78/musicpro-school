@@ -966,6 +966,9 @@ export async function unlockLessonPayroll(
       closed_by: null,
       signed_at: null,
       signature_png_base64: null,
+      invoice_base64: null,
+      invoice_uploaded_at: null,
+      invoice_filename: null,
     })
     .eq("id", input.payrollId);
   if (error) return fail(error.message || "Impossibile sbloccare il mese.");
@@ -1015,6 +1018,11 @@ export async function markLessonPayrollPaid(
 ): Promise<CourseMutationResult> {
   const staff = await isStaffMember(client, input.actorMemberId);
   if (!staff) return fail("Solo lo staff registra il pagamento.");
+  const payroll = await getLessonPayroll(client, input.payrollId);
+  if (!payroll) return fail("Notula non trovata.");
+  if (payroll.status !== "signed" && payroll.status !== "closed") {
+    return fail("Si registra il pagamento solo su una notula firmata o chiusa.");
+  }
   const { error } = await client
     .from("lesson_payrolls")
     .update({

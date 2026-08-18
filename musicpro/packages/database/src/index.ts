@@ -102,6 +102,12 @@ export type {
   SettingsMutationResult,
 } from "./settings";
 export {
+  GOOGLE_EVENT_COLOR_STYLES,
+  googleEventColorStyle,
+  matchRoomFromEventSummary,
+} from "./google-calendar-colors";
+export type { RoomColorMatch } from "./google-calendar-colors";
+export {
   createRoomExternalCalendar,
   deleteRoomExternalCalendar,
   listExternalCalendarEventsInRange,

@@ -1,10 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { getMemberRoles } from "./auth";
 import { todayInRome } from "./bookings";
 import type { CourseMutationResult } from "./courses";
 import { emitFiscalReceiptForPayment } from "./lessons-receipts";
 import { getLessonSchoolSettings } from "./lessons-settings";
-import { sendSingleEmail } from "./messaging";
+import { sendLessonFamilyEmail, sendSingleEmail } from "./messaging";
 import { currentFiscalYear } from "./quotas";
 import type { Database, Json } from "./types/database";
 
@@ -560,15 +561,14 @@ async function sendFeeReminder(
     };
   }
 
-  const sent = await sendSingleEmail(client, {
-    to,
+  const sent = await sendLessonFamilyEmail(client, member.id, {
     subject: email.subject,
     body: email.body,
   });
-  if (sent.ok) return { sent: true };
+  if (sent.sent > 0) return { sent: true };
   return {
     sent: false,
-    warning: sent.error || "Impossibile inviare il sollecito.",
+    warning: sent.warnings[0] || "Impossibile inviare il sollecito.",
   };
 }
 
@@ -1054,6 +1054,13 @@ export async function registerFamilyCollection(
     actorMemberId: string;
   },
 ): Promise<CourseMutationResult> {
+  if (!input.actorMemberId.trim()) {
+    return fail("Manca l'operatore dell'incasso.");
+  }
+  const roles = await getMemberRoles(client, input.actorMemberId);
+  if (!roles.includes("admin") && !roles.includes("segreteria")) {
+    return fail("Solo lo staff può registrare un incasso famiglia.");
+  }
   if (!Number.isFinite(input.amountEur) || input.amountEur <= 0) {
     return fail("L'importo da incassare non è valido.");
   }
@@ -1159,6 +1166,10 @@ export async function sendFeeDunning(
   if (!actorMemberId.trim()) {
     return fail("Manca l'operatore del sollecito.");
   }
+  const dunningRoles = await getMemberRoles(client, actorMemberId);
+  if (!dunningRoles.includes("admin") && !dunningRoles.includes("segreteria")) {
+    return fail("Solo lo staff può inviare i solleciti.");
+  }
   const uniqueIds = [...new Set(feeIds.filter((id) => id.trim()))];
   if (uniqueIds.length === 0) {
     return fail("Nessuna retta selezionata.");
@@ -1211,13 +1222,14 @@ export async function sendFeeDunning(
     }
     const result = await sendFeeReminder(client, fee, member);
     if (result.warning) warnings.push(result.warning);
+    if (!result.sent) continue;
     const updateError = await markFeeDunned(
       client,
       fee.id,
       fee.dunningCount,
     );
     if (updateError) warnings.push(updateError);
-    if (result.sent) sentCount += 1;
+    sentCount += 1;
   }
 
   if (sentCount === 0 && warnings.length > 0 && !process.env.RESEND_API_KEY?.trim()) {
@@ -1327,9 +1339,7 @@ export async function maybeSendPackReminders(
       },
       member,
     );
-    if (!result.sent && result.warning && process.env.RESEND_API_KEY?.trim()) {
-      continue;
-    }
+    if (!result.sent) continue;
     await markFeeDunned(client, fee.id, Math.max(fee.dunning_count, threshold - 1));
   }
 }
@@ -1343,6 +1353,10 @@ export async function waiveLessonFee(
   const trimmed = note.trim();
   if (!trimmed) return fail("La nota di abbuono è obbligatoria.");
   if (!actorMemberId.trim()) return fail("Manca l'operatore dell'abbuono.");
+  const waiveRoles = await getMemberRoles(client, actorMemberId);
+  if (!waiveRoles.includes("admin") && !waiveRoles.includes("segreteria")) {
+    return fail("Solo lo staff può abbuonare una retta.");
+  }
   if (feeId.startsWith("quota:")) {
     const materialized = await materializeVirtualQuota(
       client,
