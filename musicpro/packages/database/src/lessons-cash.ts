@@ -174,7 +174,7 @@ export async function registerTeacherCashCollection(
       member_id: enrollment.member_id,
       amount_eur: input.amountEur,
       method: "contanti",
-      status: "completed",
+      status: "pending",
       paid_on: input.paidOn,
       note: input.note?.trim() || null,
       created_by: input.actorMemberId,

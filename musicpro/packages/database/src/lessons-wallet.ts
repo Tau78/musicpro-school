@@ -1115,7 +1115,7 @@ export async function registerFamilyCollection(
       member_id: input.memberId,
       amount_eur: input.amountEur,
       method: input.method,
-      status: "completed",
+      status: "pending",
       paid_on: input.paidOn,
       note: input.note?.trim() || null,
       cro: input.cro?.trim() || null,

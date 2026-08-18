@@ -125,9 +125,13 @@ Deno.serve(async (req) => {
   ).replace(/\/$/, '');
   const cronSecret = Deno.env.get('CRON_SECRET') ?? '';
   const appliedPaymentId = String(result.payment_id ?? paymentId ?? '');
-  if (appUrl && cronSecret && appliedPaymentId && result.duplicate !== true) {
+  if (!appUrl || !cronSecret) {
+    console.error(
+      '[stripe-lesson-pack-webhook] ricevuta saltata: manca NEXT_PUBLIC_APP_URL o CRON_SECRET',
+    );
+  } else if (appliedPaymentId && result.duplicate !== true) {
     try {
-      await fetch(`${appUrl}/api/lezioni/receipts/from-payment`, {
+      const emitRes = await fetch(`${appUrl}/api/lezioni/receipts/from-payment`, {
         method: 'POST',
         headers: {
           authorization: `Bearer ${cronSecret}`,
@@ -135,6 +139,13 @@ Deno.serve(async (req) => {
         },
         body: JSON.stringify({ paymentId: appliedPaymentId }),
       });
+      if (!emitRes.ok) {
+        console.error(
+          '[stripe-lesson-pack-webhook] receipt emit HTTP',
+          emitRes.status,
+          await emitRes.text(),
+        );
+      }
     } catch (emitError) {
       console.error(
         '[stripe-lesson-pack-webhook] receipt emit',
