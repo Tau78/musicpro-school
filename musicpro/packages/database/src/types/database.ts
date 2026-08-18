@@ -52,6 +52,8 @@ export interface Database {
           telegram_chat_id: string | null;
           gdpr_consent: boolean;
           gdpr_consent_at: string | null;
+          photo_consent: boolean;
+          photo_consent_at: string | null;
           is_active: boolean;
           is_enrollment_draft: boolean;
           draft_expires_at: string | null;
@@ -87,6 +89,8 @@ export interface Database {
           telegram_chat_id?: string | null;
           gdpr_consent?: boolean;
           gdpr_consent_at?: string | null;
+          photo_consent?: boolean;
+          photo_consent_at?: string | null;
           is_active?: boolean;
           is_enrollment_draft?: boolean;
           draft_expires_at?: string | null;
@@ -1701,6 +1705,47 @@ export interface Database {
         };
         Update: Partial<
           Database["public"]["Tables"]["lesson_change_requests"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      course_lifecycle_events: {
+        Row: {
+          id: string;
+          course_id: string;
+          enrollment_id: string | null;
+          kind:
+            | "pause"
+            | "resume"
+            | "close"
+            | "remove_enrollment"
+            | "close_request"
+            | "undo";
+          payload: Json;
+          created_by: string | null;
+          created_at: string;
+          undo_until: string | null;
+          undone_at: string | null;
+          resolved_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          course_id: string;
+          enrollment_id?: string | null;
+          kind:
+            | "pause"
+            | "resume"
+            | "close"
+            | "remove_enrollment"
+            | "close_request"
+            | "undo";
+          payload?: Json;
+          created_by?: string | null;
+          undo_until?: string | null;
+          undone_at?: string | null;
+          resolved_at?: string | null;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["course_lifecycle_events"]["Insert"]
         >;
         Relationships: [];
       };

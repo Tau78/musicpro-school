@@ -173,27 +173,31 @@ export async function requestExternalCalendarSync(params: {
   roomId: string;
   calendarId?: string;
 }): Promise<{ success: boolean; message?: string }> {
-  const resp = await fetch("/api/admin/external-calendars/sync", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      roomId: params.roomId,
-      calendarId: params.calendarId,
-    }),
-    credentials: "same-origin",
-  });
+  try {
+    const resp = await fetch("/api/admin/external-calendars/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        roomId: params.roomId,
+        calendarId: params.calendarId,
+      }),
+      credentials: "same-origin",
+    });
 
-  const data = (await resp.json()) as {
-    success?: boolean;
-    message?: string;
-  };
-
-  if (!resp.ok || !data.success) {
-    return {
-      success: false,
-      message: data.message ?? "Sincronizzazione non riuscita.",
+    const data = (await resp.json().catch(() => ({}))) as {
+      success?: boolean;
+      message?: string;
     };
-  }
 
-  return { success: true, message: data.message };
+    if (!resp.ok || !data.success) {
+      return {
+        success: false,
+        message: data.message ?? "Sincronizzazione non riuscita.",
+      };
+    }
+
+    return { success: true, message: data.message };
+  } catch {
+    return { success: false, message: "Sincronizzazione non riuscita." };
+  }
 }

@@ -6,6 +6,7 @@ import {
 } from "@musicpro/database";
 
 import { AppSettingsPanel } from "@/components/admin/app-settings-panel";
+import { CollapsibleSection } from "@/components/admin/collapsible-section";
 import { MessageTemplatesPanel } from "@/components/admin/message-templates-panel";
 import { getAdminMember } from "@/lib/admin/current-member";
 import { canManageSettings, canManageTemplates } from "@/lib/admin/roles";
@@ -31,19 +32,16 @@ export default async function ImpostazioniTemplatePage() {
   return (
     <div className="space-y-10">
       {canManageTemplates(member.roles) ? (
-        <section>
-          <h3 className="mb-2 text-lg font-semibold text-[var(--brand)]">
-            Modelli messaggio
-          </h3>
-          <p className="mb-6 text-sm text-neutral-600">
-            Template per messaggi massivi email e Telegram (rubrica → selezione
-            associati → Invia messaggio).
-          </p>
+        <CollapsibleSection
+          title="Modelli messaggio"
+          description="Template per messaggi massivi email e Telegram (rubrica → selezione associati → Invia messaggio)."
+          defaultOpen
+        >
           <MessageTemplatesPanel
             templates={templates}
             createdBy={member.id}
           />
-        </section>
+        </CollapsibleSection>
       ) : null}
 
       {canManageSettings(member.roles) ? (

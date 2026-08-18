@@ -2,13 +2,18 @@ import { redirect } from "next/navigation";
 
 import {
   formatDateItalian,
+  getLessonSchoolSettings,
   listCoursePackPrices,
+  listLessonSubjects,
   listSchoolClosures,
   listSchoolCourseTerms,
 } from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
 
+import { CollapsibleSection } from "@/components/admin/collapsible-section";
 import { CourseTermForm } from "@/components/lezioni/course-term-form";
+import { LessonSchoolSettingsForm } from "@/components/lezioni/lesson-school-settings-form";
+import { LessonSubjectsForm } from "@/components/lezioni/lesson-subjects-form";
 import { PackPriceForm } from "@/components/lezioni/pack-price-form";
 import { SchoolClosuresForm } from "@/components/lezioni/school-closures-form";
 import { getAdminMember } from "@/lib/admin/current-member";
@@ -27,16 +32,25 @@ export default async function AdminLezioniImpostazioniPage() {
     );
   }
 
-  const [terms, packPrices, closures] = await Promise.all([
+  const [terms, packPrices, closures, subjects, settings] = await Promise.all([
     listSchoolCourseTerms(supabase),
     listCoursePackPrices(supabase),
     listSchoolClosures(supabase),
+    listLessonSubjects(supabase, { includeInactive: true }),
+    getLessonSchoolSettings(supabase),
   ]);
   const currentTerm = terms.find((term) => term.isCurrent) ?? null;
 
   return (
     <div>
       <div className="space-y-8">
+        {settings ? <LessonSchoolSettingsForm settings={settings} /> : (
+          <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Impostazioni scuola non trovate. Controlla la riga singleton in
+            database.
+          </p>
+        )}
+
         <CourseTermForm
           currentTerm={
             currentTerm
@@ -50,10 +64,7 @@ export default async function AdminLezioniImpostazioniPage() {
           }
         />
 
-        <fieldset className="space-y-3 rounded-xl border border-neutral-200 bg-white p-6">
-          <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
-            Anni corsi
-          </legend>
+        <CollapsibleSection title="Anni corsi">
           {terms.length === 0 ? (
             <p className="text-sm text-neutral-500">Nessun anno corsi.</p>
           ) : (
@@ -79,7 +90,15 @@ export default async function AdminLezioniImpostazioniPage() {
               ))}
             </ul>
           )}
-        </fieldset>
+        </CollapsibleSection>
+
+        <LessonSubjectsForm
+          subjects={subjects.map((row) => ({
+            id: row.id,
+            name: row.name,
+            isActive: row.isActive,
+          }))}
+        />
 
         <PackPriceForm
           prices={packPrices.map((row) => ({

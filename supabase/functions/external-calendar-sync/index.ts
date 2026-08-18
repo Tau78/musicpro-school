@@ -7,6 +7,7 @@ import {
   parseServiceAccountJson,
   type CalendarListEvent,
 } from '../_shared/google-calendar.ts';
+import { listPublicIcalEventsInRange } from '../_shared/ical-events.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -67,7 +68,7 @@ Deno.serve(async (req) => {
 
   let query = service
     .from('room_external_calendars')
-    .select('id, room_id, name, google_calendar_id, enabled')
+    .select('id, room_id, name, google_calendar_id, ical_url, enabled')
     .eq('room_id', roomId)
     .eq('enabled', true);
 
@@ -91,15 +92,19 @@ Deno.serve(async (req) => {
   }
 
   const sa = parseServiceAccountJson(Deno.env.get('GOOGLE_SERVICE_ACCOUNT_JSON') ?? '');
-  if (!sa) {
-    return json({
-      success: false,
-      message: 'GOOGLE_SERVICE_ACCOUNT_JSON non configurato',
-    }, 502);
-  }
-
   const actAs = Deno.env.get('GOOGLE_CALENDAR_ACT_AS_EMAIL')?.trim() || null;
-  const token = await getGoogleAccessToken(sa, actAs);
+  let token: string | null = null;
+  if (sa) {
+    try {
+      token = await getGoogleAccessToken(sa, actAs);
+    } catch (err) {
+      token = null;
+      console.error(
+        'Token Google calendari esterni:',
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
 
   const now = new Date();
   const timeMin = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -110,11 +115,12 @@ Deno.serve(async (req) => {
 
   for (const calendar of calendars) {
     try {
-      const events = await listCalendarEventsInRange(
-        token,
+      const events = await loadExternalEvents(
         calendar.google_calendar_id,
+        calendar.ical_url,
         timeMin,
         timeMax,
+        token,
       );
 
       const seenIds = new Set<string>();
@@ -169,19 +175,13 @@ Deno.serve(async (req) => {
         if (upsertError) throw new Error(upsertError.message);
       }
 
-      await service.rpc('mark_external_calendar_sync', {
-        p_calendar_id: calendar.id,
-        p_error: null,
-      });
+      await markCalendarSync(service, calendar.id, null);
 
       syncedCount += 1;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       errors.push(`${calendar.name}: ${message}`);
-      await service.rpc('mark_external_calendar_sync', {
-        p_calendar_id: calendar.id,
-        p_error: message,
-      });
+      await markCalendarSync(service, calendar.id, message);
     }
   }
 
@@ -196,3 +196,59 @@ Deno.serve(async (req) => {
     errors,
   }, errors.length > 0 && syncedCount === 0 ? 502 : 200);
 });
+
+async function loadExternalEvents(
+  googleCalendarId: string | null,
+  icalUrl: string | null,
+  timeMin: string,
+  timeMax: string,
+  token: string | null,
+): Promise<CalendarListEvent[]> {
+  const calendarId = googleCalendarId?.trim() || '';
+  let apiError: string | null = null;
+
+  if (token && calendarId) {
+    try {
+      return await listCalendarEventsInRange(token, calendarId, timeMin, timeMax);
+    } catch (err) {
+      apiError = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  if (calendarId || icalUrl?.trim()) {
+    try {
+      return await listPublicIcalEventsInRange(
+        calendarId,
+        timeMin,
+        timeMax,
+        icalUrl,
+      );
+    } catch (err) {
+      const icalError = err instanceof Error ? err.message : String(err);
+      throw new Error(apiError ? `${apiError} · ${icalError}` : icalError);
+    }
+  }
+
+  throw new Error(apiError ?? 'Nessun ID Google Calendar o URL iCal.');
+}
+
+async function markCalendarSync(
+  service: ReturnType<typeof createClient>,
+  calendarId: string,
+  errorMessage: string | null,
+): Promise<void> {
+  const { error } = await service
+    .from('room_external_calendars')
+    .update({
+      last_synced_at: new Date().toISOString(),
+      last_sync_error: errorMessage,
+    })
+    .eq('id', calendarId);
+
+  if (error) {
+    await service.rpc('mark_external_calendar_sync', {
+      p_calendar_id: calendarId,
+      p_error: errorMessage,
+    });
+  }
+}

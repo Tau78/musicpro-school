@@ -43,6 +43,8 @@ export interface MemberDetail {
   telegramChatId: string | null;
   gdprConsent: boolean;
   gdprConsentAt: string | null;
+  photoConsent: boolean;
+  photoConsentAt: string | null;
   isActive: boolean;
   isEnrollmentDraft: boolean;
   draftExpiresAt: string | null;
@@ -81,6 +83,8 @@ type MemberRow = {
   telegram_chat_id: string | null;
   gdpr_consent: boolean;
   gdpr_consent_at: string | null;
+  photo_consent: boolean;
+  photo_consent_at: string | null;
   is_active: boolean;
   is_enrollment_draft: boolean;
   draft_expires_at: string | null;
@@ -92,7 +96,7 @@ const MEMBER_LIST_COLUMNS =
   "id, member_number, first_name, last_name, phone, email, telegram_chat_id, is_active, is_enrollment_draft, draft_expires_at";
 
 const MEMBER_DETAIL_COLUMNS =
-  "id, member_number, enrolled_at, first_name, last_name, birth_place, birth_province, birth_date, address_street, address_postal_code, address_city, address_province, tax_code, phone, email, legacy_tutor_member_number, legacy_tutor_full_name, manual_tutor_first_name, manual_tutor_last_name, manual_tutor_phone, manual_tutor_email, manual_tutor_tax_code, telegram_chat_id, gdpr_consent, gdpr_consent_at, is_active, is_enrollment_draft, draft_expires_at, membership_card_picked_up_at, gadgets_picked_up_at";
+  "id, member_number, enrolled_at, first_name, last_name, birth_place, birth_province, birth_date, address_street, address_postal_code, address_city, address_province, tax_code, phone, email, legacy_tutor_member_number, legacy_tutor_full_name, manual_tutor_first_name, manual_tutor_last_name, manual_tutor_phone, manual_tutor_email, manual_tutor_tax_code, telegram_chat_id, gdpr_consent, gdpr_consent_at, photo_consent, photo_consent_at, is_active, is_enrollment_draft, draft_expires_at, membership_card_picked_up_at, gadgets_picked_up_at";
 
 function mapMemberSummary(row: MemberRow): MemberSummary {
   return {
@@ -136,6 +140,8 @@ function mapMemberDetail(row: MemberRow): MemberDetail {
     telegramChatId: row.telegram_chat_id,
     gdprConsent: row.gdpr_consent,
     gdprConsentAt: row.gdpr_consent_at,
+    photoConsent: Boolean(row.photo_consent),
+    photoConsentAt: row.photo_consent_at ?? null,
     isActive: row.is_active,
     isEnrollmentDraft: Boolean(row.is_enrollment_draft),
     draftExpiresAt: row.draft_expires_at ?? null,
@@ -170,6 +176,10 @@ function memberInputToRow(input: MemberInput): Record<string, unknown> {
     telegram_chat_id: emptyToNull(input.telegramChatId),
     gdpr_consent: input.gdprConsent,
     gdpr_consent_at: input.gdprConsent ? input.gdprConsentAt ?? new Date().toISOString() : null,
+    photo_consent: input.photoConsent,
+    photo_consent_at: input.photoConsent
+      ? input.photoConsentAt ?? new Date().toISOString()
+      : null,
     is_active: input.isActive,
     membership_card_picked_up_at: input.membershipCardPickedUpAt,
     gadgets_picked_up_at: input.gadgetsPickedUpAt,

@@ -26,6 +26,7 @@ export {
   bookingStatusLabel,
   bookingPaymentMethodLabel,
   calculateBookingPrice,
+  proviDaSoloDiscountTotalEur,
   canCancelBooking,
   cancelBooking,
   createBooking,
@@ -61,6 +62,7 @@ export {
   countPendingApprovalBookings,
   getAdminBookingById,
   listAdminBookings,
+  listBookingsInRange,
   listBookingAuditLog,
   listMyBookings,
   listBookableBands,
@@ -324,6 +326,9 @@ export {
   upsertSchoolCourseTerm,
   setCurrentSchoolCourseTerm,
   listLessonSubjects,
+  createLessonSubject,
+  renameLessonSubject,
+  setLessonSubjectActive,
   listSchoolClosures,
   createSchoolClosure,
   deleteSchoolClosure,
@@ -492,6 +497,40 @@ export {
   sendTrialWelcomeEmail,
 } from "./lessons-trials";
 export type { CreateTrialActor, CreateTrialInput } from "./lessons-trials";
+export {
+  assignCourseCoordinator,
+  endCourseCoordinator,
+  getActiveCourseCoordinator,
+  isActiveCourseCoordinator,
+  listCoordinatedCourses,
+} from "./lessons-coordinator";
+export type { CourseCoordinator } from "./lessons-coordinator";
+export {
+  closeCourse,
+  dismissCourseCloseRequest,
+  getCourseAccountingSummary,
+  listPendingCourseCloseRequests,
+  listUndoableLifecycleEvents,
+  pauseCourse,
+  removeCourseEnrollment,
+  requestCourseClose,
+  resumeCourse,
+  undoCourseLifecycle,
+} from "./lessons-lifecycle";
+export type {
+  CourseCloseRequest,
+  CourseLifecycleActor,
+  CourseLifecycleEvent,
+  CourseLifecycleKind,
+  LifecycleAccountingRow,
+  LifecyclePayload,
+} from "./lessons-lifecycle";
+export { notifyCourseLifecycle } from "./lessons-lifecycle-notify";
+export type {
+  CourseLifecycleNotifyInput,
+  LifecycleAccountingLine,
+  LifecycleNotifyKind,
+} from "./lessons-lifecycle-notify";
 export {
   listLessonsInRange,
   listLessonsOnDate,

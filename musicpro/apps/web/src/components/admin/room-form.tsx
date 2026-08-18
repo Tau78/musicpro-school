@@ -20,6 +20,7 @@ import {
   type RoomInput,
 } from "@musicpro/database";
 
+import { CollapsibleSection } from "@/components/admin/collapsible-section";
 import { createClient } from "@/lib/supabase/client";
 
 interface DayScheduleRow {
@@ -158,12 +159,9 @@ export function RoomForm({ room }: RoomFormProps) {
   return (
     <form
       onSubmit={(e) => void handleSubmit(e)}
-      className="max-w-3xl space-y-8 rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm"
+      className="max-w-3xl space-y-4"
     >
-      <section className="space-y-4">
-        <h3 className="text-lg font-semibold text-[var(--brand)]">
-          Tariffe e orari
-        </h3>
+      <CollapsibleSection title="Tariffe e orari" defaultOpen>
 
         <div>
           <label htmlFor="name" className="block text-sm font-medium text-neutral-700">
@@ -360,18 +358,12 @@ export function RoomForm({ room }: RoomFormProps) {
             />
           </div>
         </div>
-      </section>
+      </CollapsibleSection>
 
-      <section className="space-y-4 border-t border-neutral-100 pt-6">
-        <div>
-          <h3 className="text-lg font-semibold text-[var(--brand)]">
-            PROVI DA SOLO
-          </h3>
-          <p className="mt-1 text-sm text-neutral-600">
-            Permette agli associati di prenotare senza banda durante le fasce
-            configurate, con sconto fisso sul totale.
-          </p>
-        </div>
+      <CollapsibleSection
+        title="PROVI DA SOLO"
+        description="Prenotazione senza banda nelle fasce configurate, con sconto orario."
+      >
 
         <label className="flex items-center gap-2 text-sm font-medium text-neutral-700">
           <input
@@ -388,7 +380,7 @@ export function RoomForm({ room }: RoomFormProps) {
             htmlFor="proviDaSoloDiscountEur"
             className="block text-sm font-medium text-neutral-700"
           >
-            Sconto PROVI DA SOLO (€)
+            Sconto PROVI DA SOLO (€/ora)
           </label>
           <input
             id="proviDaSoloDiscountEur"
@@ -402,7 +394,7 @@ export function RoomForm({ room }: RoomFormProps) {
             className="mt-1 w-full max-w-xs rounded-lg border border-neutral-300 px-3 py-2 text-sm"
           />
           <p className="mt-1 text-xs text-neutral-500">
-            Es. {formatEuro(2)} — sconto applicato al totale prenotazione.
+            Es. {formatEuro(2)} — sconto per ogni ora di prenotazione.
           </p>
         </div>
 
@@ -474,7 +466,7 @@ export function RoomForm({ room }: RoomFormProps) {
             </div>
           )}
         </div>
-      </section>
+      </CollapsibleSection>
 
       {error && (
         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">

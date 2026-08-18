@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { CollapsibleSection } from "@/components/admin/collapsible-section";
+
 import type { PaymentVisibility } from "@musicpro/database";
 
 const PAYMENT_VISIBILITY_LABELS: Record<PaymentVisibility, string> = {
@@ -57,24 +59,18 @@ export function TeacherProfileReadonly({
 
   return (
     <div className="space-y-8">
-      <fieldset className="space-y-4 rounded-xl border border-neutral-200 bg-white p-6">
-        <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
-          Anagrafica
-        </legend>
+      <CollapsibleSection title="Anagrafica" defaultOpen>
         <dl className="grid gap-3 text-sm sm:grid-cols-2">
           <Row label="Nome" value={displayValue(fullName)} />
           <Row label="Email" value={displayValue(email)} />
           <Row label="Telefono" value={displayValue(phone)} />
           <Row label="Materie insegnate" value={subjectsLabel} />
         </dl>
-      </fieldset>
+      </CollapsibleSection>
 
       {children}
 
-      <fieldset className="space-y-4 rounded-xl border border-neutral-200 bg-white p-6">
-        <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
-          Permessi
-        </legend>
+      <CollapsibleSection title="Permessi">
         <dl className="grid gap-3 text-sm sm:grid-cols-2">
           <Row label="Puoi creare corsi" value={yesNo(canCreateCourses)} />
           <Row label="Puoi spostare lezioni" value={yesNo(canReschedule)} />
@@ -84,7 +80,7 @@ export function TeacherProfileReadonly({
             value={PAYMENT_VISIBILITY_LABELS[paymentVisibility]}
           />
         </dl>
-      </fieldset>
+      </CollapsibleSection>
     </div>
   );
 }

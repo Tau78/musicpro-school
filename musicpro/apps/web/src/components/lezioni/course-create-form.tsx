@@ -38,6 +38,7 @@ export interface CourseCreateFormProps {
   sundayVisible: boolean;
   gridOpenMinute: number;
   gridCloseMinute: number;
+  slotGranularityMinutes: number;
   defaultGroupCapacity: number;
   currentTerm: CourseCreateFormTerm | null;
   teachers?: CourseCreateFormTeacher[];
@@ -74,9 +75,14 @@ function memberLabel(member: MemberSummary): string {
   return member.memberNumber != null ? `${name} (#${member.memberNumber})` : name;
 }
 
-function buildStartMinutes(open: number, close: number): number[] {
+function buildStartMinutes(
+  open: number,
+  close: number,
+  step: number,
+): number[] {
   const minutes: number[] = [];
-  for (let m = open; m < close; m += 15) {
+  const safeStep = step > 0 ? step : 15;
+  for (let m = open; m < close; m += safeStep) {
     minutes.push(m);
   }
   return minutes;
@@ -92,6 +98,7 @@ export function CourseCreateForm({
   sundayVisible,
   gridOpenMinute,
   gridCloseMinute,
+  slotGranularityMinutes,
   defaultGroupCapacity,
   currentTerm,
   teachers,
@@ -104,8 +111,13 @@ export function CourseCreateForm({
 
   const weekdays = (sundayVisible ? [1, 2, 3, 4, 5, 6, 7] : [1, 2, 3, 4, 5, 6]) as IsoWeekday[];
   const startMinutes = useMemo(
-    () => buildStartMinutes(gridOpenMinute, gridCloseMinute),
-    [gridOpenMinute, gridCloseMinute],
+    () =>
+      buildStartMinutes(
+        gridOpenMinute,
+        gridCloseMinute,
+        slotGranularityMinutes,
+      ),
+    [gridOpenMinute, gridCloseMinute, slotGranularityMinutes],
   );
 
   const [kind, setKind] = useState<CourseKind>("individuale");

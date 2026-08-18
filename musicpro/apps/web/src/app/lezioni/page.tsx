@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function LezioniPage() {
-  redirect("/lezioni/oggi");
+  redirect("/lezioni/calendario");
 }

@@ -11,6 +11,7 @@ import {
   updateCreditPackage,
 } from "@musicpro/database";
 
+import { CollapsibleSection } from "@/components/admin/collapsible-section";
 import { createClient } from "@/lib/supabase/client";
 
 interface CreditPackageFormProps {
@@ -144,10 +145,7 @@ export function CreditPackageForm({
         </p>
       ) : null}
 
-      <fieldset className="space-y-4 rounded-xl border border-neutral-200 bg-white p-6">
-        <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
-          Pacchetto crediti
-        </legend>
+      <CollapsibleSection title="Pacchetto crediti" defaultOpen>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Nome *" className="sm:col-span-2">
             <input
@@ -212,7 +210,7 @@ export function CreditPackageForm({
             Pacchetto attivo nello shop
           </label>
         </div>
-      </fieldset>
+      </CollapsibleSection>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex gap-3">

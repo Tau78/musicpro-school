@@ -13,6 +13,7 @@ import {
   type TimeSlot,
   bookingStatusLabel,
   calculateBookingPrice,
+  proviDaSoloDiscountTotalEur,
   createBooking,
   creditsForBookingDuration,
   durationOptionsForRoom,
@@ -103,12 +104,11 @@ export default function PrenotazioniPage() {
       selectedRoom.provi_da_solo_enabled &&
       selectedRoom.provi_da_solo_discount_eur > 0
     ) {
-      return Math.max(
-        0,
-        Math.round(
-          (base - selectedRoom.provi_da_solo_discount_eur) * 100,
-        ) / 100,
+      const discount = proviDaSoloDiscountTotalEur(
+        selectedRoom.provi_da_solo_discount_eur,
+        durationMinutes,
       );
+      return Math.max(0, Math.round((base - discount) * 100) / 100);
     }
     return base;
   }, [durationMinutes, proviDaSolo, selectedRoom, selectedSlot, sessionType, showBandFlow]);
@@ -854,8 +854,8 @@ export default function PrenotazioniPage() {
                         </span>
                         {selectedRoom.provi_da_solo_discount_eur > 0 && (
                           <span className="mt-0.5 block text-neutral-600">
-                            Sconto {formatEuro(selectedRoom.provi_da_solo_discount_eur)}{" "}
-                            sul totale
+                            Sconto {formatEuro(selectedRoom.provi_da_solo_discount_eur)}
+                            /ora
                           </span>
                         )}
                       </span>

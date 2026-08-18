@@ -87,6 +87,7 @@ export default async function LezioniCalendarioPage({
           sundayVisible,
           gridOpenMinute: settings?.gridOpenMinute ?? 600,
           gridCloseMinute: settings?.gridCloseMinute ?? 1380,
+          slotGranularityMinutes: settings?.slotGranularityMinutes ?? 15,
         }}
         rooms={rooms.map((room) => ({ id: room.id, name: room.name }))}
         initialView={view}

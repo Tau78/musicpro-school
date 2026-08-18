@@ -9,6 +9,7 @@ import {
   type CoursePackPrice,
 } from "@musicpro/database";
 
+import { CollapsibleSection } from "@/components/admin/collapsible-section";
 import { COURSE_KIND_LABELS } from "@/components/lezioni/course-labels";
 import { createClient } from "@/lib/supabase/client";
 
@@ -128,14 +129,10 @@ export function PackPriceForm({ prices }: PackPriceFormProps) {
         </p>
       ) : null}
 
-      <fieldset className="space-y-4 rounded-xl border border-neutral-200 bg-white p-6">
-        <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
-          Listino pacchetti
-        </legend>
-        <p className="text-sm text-neutral-600">
-          Prezzo del pacchetto da 4 lezioni. Vuoto = non configurato (blocca
-          l’approvazione). 0 € è consentito.
-        </p>
+      <CollapsibleSection
+        title="Listino pacchetti"
+        description="Prezzo del pacchetto da 4 lezioni. Vuoto = non configurato. 0 € è consentito."
+      >
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
@@ -182,7 +179,7 @@ export function PackPriceForm({ prices }: PackPriceFormProps) {
             </tbody>
           </table>
         </div>
-      </fieldset>
+      </CollapsibleSection>
 
       <button
         type="submit"

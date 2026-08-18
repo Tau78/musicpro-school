@@ -9,6 +9,7 @@ import {
   formatDateItalian,
 } from "@musicpro/database";
 
+import { CollapsibleSection } from "@/components/admin/collapsible-section";
 import { createClient } from "@/lib/supabase/client";
 
 const inputClass =
@@ -98,10 +99,7 @@ export function SchoolClosuresForm({ closures }: SchoolClosuresFormProps) {
         </p>
       ) : null}
 
-      <fieldset className="space-y-3 rounded-xl border border-neutral-200 bg-white p-6">
-        <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
-          Festività
-        </legend>
+      <CollapsibleSection title="Festività">
         {closures.length === 0 ? (
           <p className="text-sm text-neutral-500">Nessuna festività.</p>
         ) : (
@@ -131,13 +129,10 @@ export function SchoolClosuresForm({ closures }: SchoolClosuresFormProps) {
             ))}
           </ul>
         )}
-      </fieldset>
+      </CollapsibleSection>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <fieldset className="space-y-4 rounded-xl border border-neutral-200 bg-white p-6">
-          <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
-            Nuova festività
-          </legend>
+        <CollapsibleSection title="Nuova festività">
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block text-sm sm:col-span-2">
               <span className="mb-1 block text-neutral-600">Titolo *</span>
@@ -179,7 +174,7 @@ export function SchoolClosuresForm({ closures }: SchoolClosuresFormProps) {
             />
             Si ripete ogni anno
           </label>
-        </fieldset>
+        </CollapsibleSection>
 
         <button
           type="submit"

@@ -20,6 +20,7 @@ import {
   courseTrialLabel,
 } from "@/components/lezioni/course-labels";
 import { CashCollectionForm } from "@/components/lezioni/cash-collection-form";
+import { CourseLifecycleActions } from "@/components/lezioni/course-lifecycle-actions";
 import { LessonAttendancePanel } from "@/components/lezioni/lesson-attendance-panel";
 import { PlaceLessonForm } from "@/components/lezioni/place-lesson-form";
 import { TransferTitularForm } from "@/components/lezioni/transfer-titular-form";
@@ -37,7 +38,9 @@ export function CourseDetailView({
   actorMemberId,
   canCreateCourses = false,
   canReschedule = false,
+  canCloseCourses = false,
   teachers = [],
+  readOnly = false,
 }: {
   course: CourseDetail;
   lessons: Lesson[];
@@ -50,7 +53,10 @@ export function CourseDetailView({
   actorMemberId?: string;
   canCreateCourses?: boolean;
   canReschedule?: boolean;
+  canCloseCourses?: boolean;
   teachers?: { id: string; label: string }[];
+  /** Coordinatore: stesso dettaglio, nessuna azione. */
+  readOnly?: boolean;
 }) {
   const titularLabel = course.titular
     ? `${course.titular.lastName} ${course.titular.firstName}`.trim()
@@ -61,7 +67,8 @@ export function CourseDetailView({
       : course.roomId
         ? (roomsById[course.roomId] ?? "—")
         : "—";
-  const canPlace = Boolean(actorMemberId) && (isStaff || canReschedule);
+  const canMutate = !readOnly && Boolean(actorMemberId);
+  const canPlace = canMutate && (isStaff || canReschedule);
   const today = todayInRome();
   const [expandedLessonId, setExpandedLessonId] = useState<string | null>(null);
 
@@ -78,6 +85,11 @@ export function CourseDetailView({
           <h2 className="text-2xl font-semibold text-[var(--brand)]">
             {course.name}
           </h2>
+          {readOnly ? (
+            <span className="rounded-full bg-violet-50 px-2.5 py-0.5 text-xs font-medium text-violet-800">
+              Che coordino
+            </span>
+          ) : null}
           {course.isTrial ? (
             <span
               className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${courseTrialBadgeClass()}`}
@@ -116,10 +128,28 @@ export function CourseDetailView({
           {showPrice ? (
             <Row label="Prezzo" value={formatEuro(course.priceEur)} />
           ) : null}
+          {course.closedOn ? (
+            <Row label="Chiuso il" value={course.closedOn} />
+          ) : null}
         </dl>
       </fieldset>
 
-      {course.isTrial && actorMemberId ? (
+      {canMutate && actorMemberId && !course.isTrial ? (
+        <CourseLifecycleActions
+          course={course}
+          actorMemberId={actorMemberId}
+          isStaff={isStaff}
+          canCloseCourses={isStaff || canCloseCourses}
+        />
+      ) : null}
+
+      {readOnly ? (
+        <p className="rounded-lg border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900">
+          Vista coordinatore: puoi consultare il corso, non modificare nulla.
+        </p>
+      ) : null}
+
+      {course.isTrial && actorMemberId && !readOnly ? (
         <TrialActions
           course={course}
           lessons={lessons}
@@ -131,6 +161,7 @@ export function CourseDetailView({
       ) : null}
 
       {isStaff &&
+      !readOnly &&
       !course.isTrial &&
       actorMemberId &&
       (course.status === "attivo" || course.status === "in_pausa") ? (
@@ -167,7 +198,13 @@ export function CourseDetailView({
                 {enrollment.email ? (
                   <span className="text-neutral-500">{enrollment.email}</span>
                 ) : null}
-                {actorMemberId &&
+                {enrollment.leftAt ? (
+                  <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600">
+                    Uscito
+                  </span>
+                ) : null}
+                {canMutate &&
+                actorMemberId &&
                 !course.isTrial &&
                 !enrollment.leftAt &&
                 course.status === "attivo" ? (
@@ -209,7 +246,7 @@ export function CourseDetailView({
                 lesson.placement === "da_recuperare";
               const isRecovery = lesson.placement === "da_recuperare";
               const canOpenAttendance =
-                Boolean(actorMemberId) &&
+                canMutate &&
                 lesson.placement === "scheduled" &&
                 Boolean(lesson.startsAt);
               const expanded = expandedLessonId === lesson.id;
@@ -230,6 +267,11 @@ export function CourseDetailView({
                   {isRecovery ? (
                     <span className="rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800">
                       Da recuperare
+                    </span>
+                  ) : null}
+                  {lesson.cancelledAt ? (
+                    <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600">
+                      Annullata
                     </span>
                   ) : null}
                   {isRecovery && lesson.originalStartsAt ? (

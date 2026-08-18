@@ -10,6 +10,7 @@ import {
   upsertDocumentSettings,
 } from "@musicpro/database";
 
+import { CollapsibleSection } from "@/components/admin/collapsible-section";
 import { createClient } from "@/lib/supabase/client";
 
 interface AppSettingsPanelProps {
@@ -73,11 +74,7 @@ export function AppSettingsPanel({
         </p>
       ) : null}
 
-      <fieldset className="space-y-4 rounded-xl border border-neutral-200 bg-white p-6">
-        <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
-          {title}
-        </legend>
-        <p className="text-sm text-neutral-600">{description}</p>
+      <CollapsibleSection title={title} description={description} defaultOpen>
         <div className="grid gap-4">
           {(keys
             ? settings.filter((setting) => keys.includes(setting.key))
@@ -108,7 +105,7 @@ export function AppSettingsPanel({
             );
           })}
         </div>
-      </fieldset>
+      </CollapsibleSection>
 
       <div className="flex gap-3">
         <button

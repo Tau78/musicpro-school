@@ -54,25 +54,43 @@ export async function POST(request: Request) {
     );
   }
 
-  const edgeRes = await fetch(
-    `${supabaseUrl.replace(/\/$/, "")}/functions/v1/external-calendar-sync`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${serviceKey}`,
-        "Content-Type": "application/json",
+  let edgeRes: Response;
+  try {
+    edgeRes = await fetch(
+      `${supabaseUrl.replace(/\/$/, "")}/functions/v1/external-calendar-sync`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${serviceKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          room_id: roomId,
+          external_calendar_id: body.calendarId?.trim() || undefined,
+        }),
       },
-      body: JSON.stringify({
-        room_id: roomId,
-        external_calendar_id: body.calendarId?.trim() || undefined,
-      }),
+    );
+  } catch {
+    return NextResponse.json(
+      { success: false, message: "Funzione sync non raggiungibile." },
+      { status: 502 },
+    );
+  }
+
+  const payload = (await edgeRes.json().catch(() => ({}))) as {
+    success?: boolean;
+    message?: string;
+  };
+
+  return NextResponse.json(
+    {
+      success: Boolean(payload.success),
+      message:
+        payload.message ??
+        (edgeRes.ok
+          ? "Calendario sincronizzato."
+          : `Sincronizzazione non riuscita (${edgeRes.status}).`),
     },
+    { status: edgeRes.ok ? 200 : edgeRes.status },
   );
-
-  const payload = (await edgeRes.json().catch(() => ({}))) as Record<
-    string,
-    unknown
-  >;
-
-  return NextResponse.json(payload, { status: edgeRes.status });
 }

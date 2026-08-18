@@ -219,6 +219,9 @@ function getDatiIscrizionePerForm(idIscrizione) {
       || String(data.privacy_accepted || "").toLowerCase() === "true"
       || String(data.privacy_accepted || "") === "on";
     if (!privacyAccepted && signatureData) privacyAccepted = true;
+    var photoAccepted = data.photo_consent === true
+      || String(data.photo_consent || "").toLowerCase() === "true"
+      || String(data.photo_consent || "") === "on";
     return {
       found: true,
       idIscrizione: rec.id,
@@ -226,7 +229,8 @@ function getDatiIscrizionePerForm(idIscrizione) {
       inviata: !!String(rec.pdfUrl || "").trim(),
       fields: data,
       signatureData: signatureData,
-      privacyAccepted: privacyAccepted
+      privacyAccepted: privacyAccepted,
+      photoAccepted: photoAccepted
     };
   } catch (e) {
     return { found: false, message: e.message };
@@ -687,6 +691,16 @@ function _applicaAggiornamentoAssociatoDaForm_(associato, data) {
   sheet.getRange(rowNum, C.TUTORE_EMAIL_MANUALE + 1).setValue(String(data.tutore_email || "").trim());
   sheet.getRange(rowNum, C.TUTORE_CF_MANUALE + 1).setValue(String(data.tutore_cf || "").toUpperCase().trim());
 
+  var photoCol = (typeof C.CONSENSO_FOTO !== "undefined")
+    ? C.CONSENSO_FOTO
+    : (typeof C.PHOTO_CONSENT !== "undefined" ? C.PHOTO_CONSENT : null);
+  if (photoCol != null) {
+    var photoConsent = data.photo_consent === true
+      || String(data.photo_consent || "").toLowerCase() === "true"
+      || String(data.photo_consent || "") === "on";
+    sheet.getRange(rowNum, photoCol + 1).setValue(photoConsent);
+  }
+
   SpreadsheetApp.flush();
 }
 
@@ -739,7 +753,7 @@ function _associatoRowToFormFields_(row) {
     TELEFONO: 13, EMAIL: 14, TUTORE_NOME_MANUALE: 17, TUTORE_COGNOME_MANUALE: 18,
     TUTORE_CELLULARE_MANUALE: 19, TUTORE_EMAIL_MANUALE: 20, TUTORE_CF_MANUALE: 21
   };
-  return {
+  var fields = {
     nome: String(row[C.NOME] || "").trim(),
     cognome: String(row[C.COGNOME] || "").trim(),
     luogo_nascita: String(row[C.LUOGO_NASCITA] || "").trim(),
@@ -760,6 +774,18 @@ function _associatoRowToFormFields_(row) {
     corso: "",
     rinnovo_associato: true
   };
+  var photoCol = (typeof C.CONSENSO_FOTO !== "undefined")
+    ? C.CONSENSO_FOTO
+    : (typeof C.PHOTO_CONSENT !== "undefined" ? C.PHOTO_CONSENT : null);
+  if (photoCol != null) {
+    var rawPhoto = row[photoCol];
+    fields.photo_consent = rawPhoto === true
+      || String(rawPhoto || "").toLowerCase() === "true"
+      || String(rawPhoto || "") === "on"
+      || String(rawPhoto || "").toUpperCase() === "SI"
+      || String(rawPhoto || "") === "Sì";
+  }
+  return fields;
 }
 
 function _ensureIscrizioneTokenSheet_() {
@@ -894,7 +920,8 @@ function validateIscrizioneTokenAndGetForm(token) {
     nome: fields.nome,
     cognome: fields.cognome,
     fields: fields,
-    privacyAccepted: true
+    privacyAccepted: true,
+    photoAccepted: fields.photo_consent === true
   };
 }
 
@@ -932,6 +959,9 @@ function inviaIscrizioneConPagamento(data) {
   var importoCents = QUOTA_ASSOCIATIVA_CENTESIMI;
 
   data.metodo_pagamento = "Stripe";
+  data.photo_consent = data.photo_consent === true
+    || String(data.photo_consent || "").toLowerCase() === "true"
+    || String(data.photo_consent || "") === "on";
   var payloadJson = JSON.stringify(data);
 
   var row = new Array(ISCRIZIONI_HEADERS.length);

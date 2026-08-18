@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 
 import {
+  getActiveCourseCoordinator,
   getCourse,
   listMemberIdsWithRole,
   listMembers,
@@ -8,6 +9,7 @@ import {
 } from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
 
+import { AssignCoordinatorForm } from "@/components/lezioni/assign-coordinator-form";
 import { CourseDetailView } from "@/components/lezioni/course-detail-view";
 import {
   loadCourseLessons,
@@ -34,13 +36,15 @@ export default async function AdminCorsoDetailPage({ params }: PageProps) {
     );
   }
 
-  const [course, lessons, rooms, docenteIds, members] = await Promise.all([
-    getCourse(supabase, id),
-    loadCourseLessons(supabase, id),
-    listRooms(supabase),
-    listMemberIdsWithRole(supabase, MemberRole.Docente),
-    listMembers(supabase),
-  ]);
+  const [course, lessons, rooms, docenteIds, members, coordinator] =
+    await Promise.all([
+      getCourse(supabase, id),
+      loadCourseLessons(supabase, id),
+      listRooms(supabase),
+      listMemberIdsWithRole(supabase, MemberRole.Docente),
+      listMembers(supabase),
+      getActiveCourseCoordinator(supabase, id),
+    ]);
 
   if (!course) {
     notFound();
@@ -55,19 +59,40 @@ export default async function AdminCorsoDetailPage({ params }: PageProps) {
     }));
 
   return (
-    <CourseDetailView
-      course={course}
-      lessons={lessons}
-      roomsById={roomsByIdFromList(rooms)}
-      rooms={rooms.map((room) => ({ id: room.id, name: room.name }))}
-      backHref="/admin/lezioni/corsi"
-      pendingNote
-      isStaff
-      showPrice
-      actorMemberId={member.id}
-      canCreateCourses
-      canReschedule
-      teachers={teachers}
-    />
+    <div className="space-y-6">
+      <CourseDetailView
+        course={course}
+        lessons={lessons}
+        roomsById={roomsByIdFromList(rooms)}
+        rooms={rooms.map((room) => ({ id: room.id, name: room.name }))}
+        backHref="/admin/lezioni/corsi"
+        pendingNote
+        isStaff
+        showPrice
+        actorMemberId={member.id}
+        canCreateCourses
+        canReschedule
+        teachers={teachers}
+      />
+      {!course.isTrial ? (
+        <AssignCoordinatorForm
+          key={coordinator?.memberId ?? "none"}
+          courseId={course.id}
+          titularMemberId={course.titularMemberId}
+          actorMemberId={member.id}
+          teachers={teachers}
+          current={
+            coordinator
+              ? {
+                  memberId: coordinator.memberId,
+                  firstName: coordinator.firstName,
+                  lastName: coordinator.lastName,
+                  startsOn: coordinator.startsOn,
+                }
+              : null
+          }
+        />
+      ) : null}
+    </div>
   );
 }

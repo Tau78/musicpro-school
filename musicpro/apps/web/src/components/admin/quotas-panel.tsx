@@ -17,6 +17,7 @@ import {
   upsertMemberAnnualQuotas,
 } from "@musicpro/database";
 
+import { CollapsibleSection } from "@/components/admin/collapsible-section";
 import { createClient } from "@/lib/supabase/client";
 
 interface QuotasPanelProps {
@@ -308,15 +309,11 @@ export function QuotasPanel({
         </p>
       ) : null}
 
-      <section className="space-y-4">
-        <div>
-          <h3 className="text-lg font-semibold text-[var(--brand)]">
-            Impostazioni quote
-          </h3>
-          <p className="mt-1 text-sm text-neutral-600">
-            Importo della quota associativa per anno fiscale.
-          </p>
-        </div>
+      <CollapsibleSection
+        title="Impostazioni quote"
+        description="Importo della quota associativa per anno fiscale."
+        defaultOpen
+      >
 
         <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
           <table className="min-w-full divide-y divide-neutral-200 text-sm">
@@ -379,10 +376,10 @@ export function QuotasPanel({
         </div>
 
         <form onSubmit={handleSettingSubmit} className="space-y-4">
-          <fieldset className="space-y-4 rounded-xl border border-neutral-200 bg-white p-6">
-            <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
+          <div className="space-y-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+            <p className="text-sm font-semibold text-[var(--brand)]">
               {editingId ? "Modifica importo" : "Nuovo importo annuale"}
-            </legend>
+            </p>
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="block space-y-1 text-sm">
                 <span className="font-medium text-neutral-700">Anno *</span>
@@ -442,20 +439,14 @@ export function QuotasPanel({
                 </button>
               ) : null}
             </div>
-          </fieldset>
+          </div>
         </form>
-      </section>
+      </CollapsibleSection>
 
-      <section className="space-y-4">
-        <div>
-          <h3 className="text-lg font-semibold text-[var(--brand)]">
-            Registrazione massive
-          </h3>
-          <p className="mt-1 text-sm text-neutral-600">
-            Registra il pagamento della quota per più associati. Le quote già
-            pagate risultano bloccate.
-          </p>
-        </div>
+      <CollapsibleSection
+        title="Registrazione massive"
+        description="Registra il pagamento della quota per più associati. Le quote già pagate risultano bloccate."
+      >
 
         <form onSubmit={handleBulkSave} className="space-y-4">
           <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white">
@@ -596,7 +587,7 @@ export function QuotasPanel({
             </button>
           </div>
         </form>
-      </section>
+      </CollapsibleSection>
     </div>
   );
 }

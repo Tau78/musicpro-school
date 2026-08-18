@@ -14,6 +14,7 @@ import {
   timeLabelToMinutes,
 } from "@musicpro/database";
 
+import { CollapsibleSection } from "@/components/admin/collapsible-section";
 import { createClient } from "@/lib/supabase/client";
 
 export interface TeacherAvailabilitySlotProp {
@@ -389,15 +390,11 @@ export function TeacherAvailabilityPanel({
       ) : null}
 
       <form onSubmit={(e) => void handleSaveWeekly(e)} className="space-y-6">
-        <fieldset className="space-y-4 rounded-xl border border-neutral-200 bg-white p-6">
-          <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
-            Disponibilità settimanale
-          </legend>
-
-          <p className="text-sm text-neutral-600">
-            Nessuna fascia = sempre disponibile. Aggiungendo fasce, il docente
-            risulta libero solo in quelle ore.
-          </p>
+        <CollapsibleSection
+          title="Disponibilità settimanale"
+          description="Nessuna fascia = sempre disponibile. Aggiungendo fasce, il docente risulta libero solo in quelle ore."
+          defaultOpen
+        >
 
           {slots.length === 0 ? (
             <p className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 px-4 py-4 text-sm text-neutral-600">
@@ -485,7 +482,7 @@ export function TeacherAvailabilityPanel({
               );
             })}
           </div>
-        </fieldset>
+        </CollapsibleSection>
 
         {readOnly ? null : (
           <button
@@ -498,10 +495,7 @@ export function TeacherAvailabilityPanel({
         )}
       </form>
 
-      <fieldset className="space-y-4 rounded-xl border border-neutral-200 bg-white p-6">
-        <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
-          Ferie e assenze
-        </legend>
+      <CollapsibleSection title="Ferie e assenze">
 
         {timeOff.length === 0 ? (
           <p className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 px-4 py-4 text-sm text-neutral-600">
@@ -605,7 +599,7 @@ export function TeacherAvailabilityPanel({
             </button>
           </form>
         )}
-      </fieldset>
+      </CollapsibleSection>
     </section>
   );
 }

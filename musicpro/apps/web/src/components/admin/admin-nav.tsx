@@ -17,7 +17,7 @@ interface AdminNavProps {
 
 const navItems = [
   { href: "/admin/associati", label: "Rubrica", key: "rubrica" as const },
-  { href: "/admin/lezioni/oggi", label: "Lezioni", key: "lezioni" as const },
+  { href: "/admin/lezioni/calendario", label: "Lezioni", key: "lezioni" as const },
   {
     href: "/admin/prenotazioni",
     label: "Prenotazioni",

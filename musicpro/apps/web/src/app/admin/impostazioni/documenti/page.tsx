@@ -5,6 +5,7 @@ import {
 } from "@musicpro/database";
 
 import { AppSettingsPanel } from "@/components/admin/app-settings-panel";
+import { CollapsibleSection } from "@/components/admin/collapsible-section";
 import { getAdminMember } from "@/lib/admin/current-member";
 import { canManageSettings } from "@/lib/admin/roles";
 import { DOCUMENTI_SETTING_KEYS } from "@/lib/admin/settings-nav";
@@ -30,11 +31,8 @@ export default async function ImpostazioniDocumentiPage() {
         submitLabel="Salva documenti"
       />
 
-      <section className="rounded-xl border border-neutral-200 bg-neutral-50 p-6">
-        <h3 className="text-sm font-semibold text-neutral-900">
-          Import dati storici (Sheets)
-        </h3>
-        <p className="mt-2 text-sm text-neutral-600">
+      <CollapsibleSection title="Import dati storici (Sheets)">
+        <p className="text-sm text-neutral-600">
           Il wizard di import GAS non è stato ripristinato nell&apos;admin web.
           Per re-importare o verificare i dati da Google Sheets usare lo script
           one-shot dalla root del repository:
@@ -48,7 +46,7 @@ export default async function ImpostazioniDocumentiPage() {
           <code className="text-xs">scripts/migrate-from-sheets/README.md</code>{" "}
           e <code className="text-xs">docs/CUTOVER.md</code>.
         </p>
-      </section>
+      </CollapsibleSection>
     </div>
   );
 }

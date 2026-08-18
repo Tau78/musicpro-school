@@ -7,6 +7,7 @@ import {
 } from "@musicpro/database";
 
 import { BookingSettingsForm } from "@/components/admin/booking-settings-form";
+import { CollapsibleSection } from "@/components/admin/collapsible-section";
 import { PenaltyRulesPanel } from "@/components/admin/penalty-rules-panel";
 import { PrenotazioniSettingsNav } from "@/components/admin/prenotazioni-settings-nav";
 import { getAdminMember } from "@/lib/admin/current-member";
@@ -109,6 +110,7 @@ function CreditiPrenotazioniSection({
         </p>
       </div>
 
+      <CollapsibleSection title="Fasce e crediti restituiti" defaultOpen>
       <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
         <table className="min-w-full divide-y divide-neutral-200 text-sm">
           <thead className="bg-neutral-50">
@@ -165,6 +167,7 @@ function CreditiPrenotazioniSection({
           </tbody>
         </table>
       </div>
+      </CollapsibleSection>
 
       <p className="text-sm text-neutral-500">
         Le notule spese docenti restano nella tab{" "}

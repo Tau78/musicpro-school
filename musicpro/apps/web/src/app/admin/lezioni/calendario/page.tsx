@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import {
   getLessonSchoolSettings,
+  listBookingsInRange,
   listLessonsInRange,
   listMemberLabelsWithRole,
   listRooms,
@@ -10,6 +11,7 @@ import {
 } from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
 
+import { mergeCalendarEvents } from "@/components/lezioni/calendar-bookings";
 import { LessonsCalendarPage } from "@/components/lezioni/lessons-calendar-page";
 import { UnplacedLessonsBlock } from "@/components/lezioni/unplaced-lessons-block";
 import { getAdminMember } from "@/lib/admin/current-member";
@@ -77,14 +79,22 @@ export default async function AdminLezioniCalendarioPage({
       ? monthBounds(anchorDate)
       : weekBounds(anchorDate, sundayVisible);
 
-  const lessons = await listLessonsInRange(supabase, {
-    from: bounds.from,
-    to: bounds.to,
-    includePendingHold: true,
-    titularMemberId:
-      mode === "docente" && teacherId ? teacherId : undefined,
-    roomId: mode === "sala" && roomId ? roomId : undefined,
-  });
+  const roomFilter = mode === "sala" && roomId ? roomId : undefined;
+  const [lessons, bookings] = await Promise.all([
+    listLessonsInRange(supabase, {
+      from: bounds.from,
+      to: bounds.to,
+      includePendingHold: true,
+      titularMemberId:
+        mode === "docente" && teacherId ? teacherId : undefined,
+      roomId: roomFilter,
+    }),
+    listBookingsInRange(supabase, {
+      from: bounds.from,
+      to: bounds.to,
+      roomId: roomFilter,
+    }),
+  ]);
 
   return (
     <div className="space-y-3">
@@ -101,11 +111,12 @@ export default async function AdminLezioniCalendarioPage({
       </Suspense>
 
       <LessonsCalendarPage
-        initialLessons={lessons}
+        initialLessons={mergeCalendarEvents(lessons, bookings)}
         settings={{
           sundayVisible,
           gridOpenMinute: settings?.gridOpenMinute ?? 600,
           gridCloseMinute: settings?.gridCloseMinute ?? 1380,
+          slotGranularityMinutes: settings?.slotGranularityMinutes ?? 15,
         }}
         rooms={roomOptions}
         teachers={teachers}

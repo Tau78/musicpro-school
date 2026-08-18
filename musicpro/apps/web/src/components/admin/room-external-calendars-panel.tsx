@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   createRoomExternalCalendar,
@@ -15,6 +15,7 @@ import {
   type RoomExternalCalendarInput,
 } from "@musicpro/database";
 
+import { CollapsibleSection } from "@/components/admin/collapsible-section";
 import { createClient } from "@/lib/supabase/client";
 
 interface RoomExternalCalendarsPanelProps {
@@ -60,14 +61,14 @@ export function RoomExternalCalendarsPanel({
   roomId,
 }: RoomExternalCalendarsPanelProps) {
   const router = useRouter();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   const [calendars, setCalendars] = useState<RoomExternalCalendar[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<RoomExternalCalendarInput>(emptyInput());
   const [saving, setSaving] = useState(false);
-  const [syncingId, setSyncingId] = useState<string | "all" | null>(null);
+  const [syncingId, setSyncingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -119,6 +120,7 @@ export function RoomExternalCalendarsPanel({
     setError(null);
     setSuccess(null);
 
+    const wasCreate = !editingId;
     const result = editingId
       ? await updateRoomExternalCalendar(supabase, editingId, form)
       : await createRoomExternalCalendar(supabase, roomId, form);
@@ -130,11 +132,17 @@ export function RoomExternalCalendarsPanel({
       return;
     }
 
-    setSuccess(editingId ? "Calendario aggiornato." : "Calendario aggiunto.");
     setEditingId(null);
     setForm(emptyInput());
     await loadCalendars();
     router.refresh();
+
+    if (wasCreate && result.id) {
+      await handleSync(result.id, "Calendario aggiunto e sincronizzato.");
+      return;
+    }
+
+    setSuccess(wasCreate ? "Calendario aggiunto." : "Calendario aggiornato.");
   }
 
   async function handleDelete(calendarId: string) {
@@ -159,39 +167,52 @@ export function RoomExternalCalendarsPanel({
     router.refresh();
   }
 
-  async function handleSync(calendarId?: string) {
-    setSyncingId(calendarId ?? "all");
+  async function handleSync(calendarId: string, successMessage?: string) {
+    setSyncingId(calendarId);
     setError(null);
     setSuccess(null);
 
-    const result = await requestExternalCalendarSync({
-      roomId,
-      calendarId,
-    });
+    try {
+      const result = await requestExternalCalendarSync({
+        roomId,
+        calendarId,
+      });
 
-    setSyncingId(null);
+      if (!result.success) {
+        setError(result.message ?? "Sincronizzazione non riuscita.");
+        return;
+      }
 
-    if (!result.success) {
-      setError(result.message ?? "Sincronizzazione non riuscita.");
-      return;
+      setSuccess(successMessage ?? result.message ?? "Calendario sincronizzato.");
+      await loadCalendars();
+      router.refresh();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Sincronizzazione non riuscita.",
+      );
+    } finally {
+      setSyncingId(null);
     }
-
-    setSuccess(result.message ?? "Calendario sincronizzato.");
-    await loadCalendars();
-    router.refresh();
   }
 
   return (
-    <section className="max-w-3xl space-y-6 rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
-      <div>
-        <h3 className="text-lg font-semibold text-[var(--brand)]">
-          Calendari esterni
-        </h3>
-        <p className="mt-1 text-sm text-neutral-600">
-          Importa calendari Google pubblici (aule scuola) per bloccare slot già
-          occupati. Oggi: {formatDateItalian(todayInRome())}.
+    <div className="max-w-3xl">
+      <CollapsibleSection
+        title="Calendari esterni"
+        description={`Importa calendari Google pubblici per bloccare slot occupati. Oggi: ${formatDateItalian(todayInRome())}.`}
+      >
+      {error && (
+        <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          {error}
         </p>
-      </div>
+      )}
+      {success && (
+        <p className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+          {success}
+        </p>
+      )}
 
       {loading && (
         <p className="text-sm text-neutral-500">Caricamento calendari…</p>
@@ -329,28 +350,9 @@ export function RoomExternalCalendarsPanel({
               Annulla
             </button>
           )}
-          <button
-            type="button"
-            disabled={syncingId !== null || calendars.length === 0}
-            onClick={() => void handleSync()}
-            className="rounded-lg border border-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand)] hover:bg-[var(--brand)]/5 disabled:opacity-60"
-          >
-            {syncingId === "all" ? "Sincronizzazione…" : "Sincronizza calendario"}
-          </button>
         </div>
       </form>
-
-      {error && (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-          {error}
-        </p>
-      )}
-
-      {success && (
-        <p className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
-          {success}
-        </p>
-      )}
-    </section>
+      </CollapsibleSection>
+    </div>
   );
 }

@@ -12,6 +12,7 @@ import {
 } from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
 
+import { CollapsibleSection } from "@/components/admin/collapsible-section";
 import { TeacherAvailabilityPanel } from "@/components/lezioni/teacher-availability-panel";
 import { TeacherGcalConnect } from "@/components/lezioni/teacher-gcal-connect";
 import { TeacherProfileReadonly } from "@/components/lezioni/teacher-profile-readonly";
@@ -67,7 +68,9 @@ export default async function LezioniImpostazioniPage() {
       </TeacherProfileReadonly>
 
       <div className="mt-8">
-        <TeacherGcalConnect />
+        <CollapsibleSection title="Google Calendar">
+          <TeacherGcalConnect />
+        </CollapsibleSection>
       </div>
     </div>
   );

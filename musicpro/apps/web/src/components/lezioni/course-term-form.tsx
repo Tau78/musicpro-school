@@ -8,6 +8,7 @@ import {
   upsertSchoolCourseTerm,
 } from "@musicpro/database";
 
+import { CollapsibleSection } from "@/components/admin/collapsible-section";
 import { createClient } from "@/lib/supabase/client";
 
 export type CourseTermSummary = {
@@ -89,10 +90,7 @@ export function CourseTermForm({ currentTerm }: CourseTermFormProps) {
         </p>
       ) : null}
 
-      <fieldset className="space-y-4 rounded-xl border border-neutral-200 bg-white p-6">
-        <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
-          Anno corsi
-        </legend>
+      <CollapsibleSection title="Anno corsi" defaultOpen>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Nome *" className="sm:col-span-2">
             <input
@@ -131,7 +129,7 @@ export function CourseTermForm({ currentTerm }: CourseTermFormProps) {
           />
           Imposta come anno corrente
         </label>
-      </fieldset>
+      </CollapsibleSection>
 
       <button
         type="submit"

@@ -11,6 +11,7 @@ import {
   updateCancellationPenaltyRule,
 } from "@musicpro/database";
 
+import { CollapsibleSection } from "@/components/admin/collapsible-section";
 import { createClient } from "@/lib/supabase/client";
 
 interface PenaltyRulesPanelProps {
@@ -203,14 +204,11 @@ export function PenaltyRulesPanel({ rules }: PenaltyRulesPanelProps) {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <fieldset className="space-y-4 rounded-xl border border-neutral-200 bg-white p-6">
-          <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
-            {editingId ? "Modifica regola" : "Nuova regola penale"}
-          </legend>
-          <p className="text-sm text-neutral-600">
-            Definisci una fascia oraria prima dell&apos;inizio evento. Il limite
-            superiore (da ore) deve essere maggiore del limite inferiore (a ore).
-          </p>
+        <CollapsibleSection
+          title={editingId ? "Modifica regola" : "Nuova regola penale"}
+          description="Fascia oraria prima dell’inizio. Il limite superiore (da ore) deve essere maggiore del limite inferiore (a ore)."
+          defaultOpen
+        >
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <Field label="Da ore (limite superiore) *">
               <input
@@ -271,7 +269,7 @@ export function PenaltyRulesPanel({ rules }: PenaltyRulesPanelProps) {
               Attiva
             </label>
           </div>
-        </fieldset>
+        </CollapsibleSection>
 
         <div className="flex gap-3">
           <button

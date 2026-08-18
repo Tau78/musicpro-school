@@ -9,6 +9,7 @@ import {
   updateBookingSettings,
 } from "@musicpro/database";
 
+import { CollapsibleSection } from "@/components/admin/collapsible-section";
 import { createClient } from "@/lib/supabase/client";
 
 interface BookingSettingsFormProps {
@@ -74,14 +75,11 @@ export function BookingSettingsForm({ settings }: BookingSettingsFormProps) {
         </p>
       ) : null}
 
-      <fieldset className="space-y-4 rounded-xl border border-neutral-200 bg-white p-6">
-        <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
-          Soglie prenotazione
-        </legend>
-        <p className="text-sm text-neutral-600">
-          Le soglie definiscono il comportamento delle prenotazioni associate in
-          base all&apos;anticipo rispetto all&apos;inizio dell&apos;evento.
-        </p>
+      <CollapsibleSection
+        title="Soglie prenotazione"
+        description="Comportamento delle prenotazioni in base all’anticipo sull’inizio."
+        defaultOpen
+      >
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Conferma automatica (ore minime) *">
             <input
@@ -150,18 +148,12 @@ export function BookingSettingsForm({ settings }: BookingSettingsFormProps) {
             </span>
           </Field>
         </div>
-      </fieldset>
+      </CollapsibleSection>
 
-      <fieldset className="space-y-4 rounded-xl border border-neutral-200 bg-white p-6">
-        <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
-          Sistema BAND
-        </legend>
-        <p className="text-sm text-neutral-600">
-          Durante il periodo di transizione la band resta facoltativa: gli
-          associati con quota in regola possono prenotare da soli. Attiva lo
-          switch quando vuoi rendere obbligatoria la selezione band (salvo PROVI
-          DA SOLO).
-        </p>
+      <CollapsibleSection
+        title="Sistema BAND"
+        description="In transizione la band è facoltativa. Attiva lo switch per renderla obbligatoria (salvo PROVI DA SOLO)."
+      >
         <label className="flex cursor-pointer items-start gap-3 text-sm text-neutral-800">
           <input
             type="checkbox"
@@ -177,7 +169,7 @@ export function BookingSettingsForm({ settings }: BookingSettingsFormProps) {
             </span>
           </span>
         </label>
-      </fieldset>
+      </CollapsibleSection>
 
       <div className="flex gap-3">
         <button
