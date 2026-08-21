@@ -32,6 +32,7 @@ interface CourseQueueActionsProps {
   rooms: { id: string; name: string }[];
   online: boolean;
   slotStepMinutes?: number;
+  defaultHoldHours?: number;
 }
 
 function isIsoWeekday(value: number): value is IsoWeekday {
@@ -59,14 +60,21 @@ export function CourseQueueActions({
   rooms,
   online,
   slotStepMinutes = 15,
+  defaultHoldHours = 48,
 }: CourseQueueActionsProps) {
   const router = useRouter();
   const supabase = createClient();
 
+  const holdHourOptions = useMemo(() => {
+    const hours = new Set<number>(HOLD_HOURS);
+    if (defaultHoldHours > 0) hours.add(defaultHoldHours);
+    return [...hours].sort((a, b) => a - b);
+  }, [defaultHoldHours]);
+
   const [busy, setBusy] = useState<"approve" | "reject" | "extend" | null>(
     null,
   );
-  const [holdHours, setHoldHours] = useState<(typeof HOLD_HOURS)[number]>(48);
+  const [holdHours, setHoldHours] = useState(defaultHoldHours);
   const [error, setError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [dow, setDow] = useState<IsoWeekday>(weeklyDow);
@@ -215,12 +223,10 @@ export function CourseQueueActions({
           <select
             value={holdHours}
             disabled={busy != null}
-            onChange={(e) =>
-              setHoldHours(Number(e.target.value) as (typeof HOLD_HOURS)[number])
-            }
+            onChange={(e) => setHoldHours(Number(e.target.value))}
             className={inputClass}
           >
-            {HOLD_HOURS.map((hours) => (
+            {holdHourOptions.map((hours) => (
               <option key={hours} value={hours}>
                 {hours}h
               </option>

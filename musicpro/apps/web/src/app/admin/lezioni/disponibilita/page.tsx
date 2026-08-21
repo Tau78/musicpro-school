@@ -44,8 +44,6 @@ export default async function AdminLezioniDisponibilitaPage({
       ? docenteParam
       : teachers[0]?.id) ?? "";
 
-  const selectedTeacher = teachers.find((row) => row.id === selectedId);
-
   const [slots, timeOff] = selectedId
     ? await Promise.all([
         listTeacherAvailability(supabase, selectedId),
@@ -62,16 +60,6 @@ export default async function AdminLezioniDisponibilitaPage({
       ) : (
         <div className="space-y-6">
           <TeacherSelect teachers={teachers} selectedId={selectedId} />
-
-          {selectedTeacher ? (
-            <p className="text-sm text-neutral-600">
-              Stai modificando la disponibilità di{" "}
-              <span className="font-medium text-neutral-900">
-                {selectedTeacher.label}
-              </span>
-              .
-            </p>
-          ) : null}
 
           <TeacherAvailabilityPanel
             key={selectedId}

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import {
@@ -27,13 +26,13 @@ export default async function LezioniOggiPage() {
   const today = todayInRome();
   const [lessons, arrearsRange, profile, rooms] = await Promise.all([
     listLessonsOnDate(supabase, today, {
-      titularMemberId: member.id,
+      teacherMemberId: member.id,
       includePendingHold: true,
     }),
     listLessonsInRange(supabase, {
       from: addRomeDays(today, -14),
       to: today,
-      titularMemberId: member.id,
+      teacherMemberId: member.id,
     }),
     getTeacherProfile(supabase, member.id),
     listRooms(supabase),
@@ -48,15 +47,6 @@ export default async function LezioniOggiPage() {
 
   return (
     <div>
-      <div className="mb-6 flex justify-end">
-        <Link
-          href={`/lezioni/calendario?view=week&date=${today}&hl=${today}`}
-          className="inline-flex items-center justify-center rounded-lg border border-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand)] hover:bg-[var(--brand)]/5 touch-manipulation"
-        >
-          Apri calendario
-        </Link>
-      </div>
-
       <div className="space-y-6">
         <LessonsOggi
           lessons={lessons}

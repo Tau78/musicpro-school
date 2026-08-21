@@ -60,7 +60,7 @@ export default async function LezioniCalendarioPage({
   const lessons = await listLessonsInRange(supabase, {
     from: bounds.from,
     to: bounds.to,
-    titularMemberId: member.id,
+    teacherMemberId: member.id,
     includePendingHold: true,
   });
 

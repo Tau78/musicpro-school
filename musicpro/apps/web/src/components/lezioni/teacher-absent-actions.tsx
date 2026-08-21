@@ -99,8 +99,7 @@ export function TeacherAbsentActions({
           Docente assente
         </h3>
         <p className="mt-1 text-sm text-neutral-600">
-          Segna un&apos;assenza oggi o in un periodo. Le lezioni vanno in da
-          recuperare e la sala si libera.
+          Le lezioni passano in recupero e la sala si libera.
         </p>
       </div>
 

@@ -1,7 +1,7 @@
 # Piano Lezioni — area docente e didattica
 
 **Data:** 2026-08-18  
-**Stato:** specifica V1 chiusa (§20–41). **Scrittura fette 1–16 + hotfix 7 completa.** Dominio corsi/lezioni in Supabase (`029`–`050`). Non in produzione finché non si fa VAI.  
+**Stato:** specifica V1 chiusa (§20–41). **Scrittura fette 1–16 + hotfix 7 completa.** Dominio corsi/lezioni in Supabase (`029`–`052`). Non in produzione finché non si fa VAI.  
 **Riferimento UX:** planning settimanale tipo ScuolaSemplice / screenshot docente (card gialle, ore totali, Oggi, DnD, vista mensile)  
 **Stack:** monorepo `musicpro/` + Supabase (stesso di [`PIANO_PRENOTAZIONI.md`](PIANO_PRENOTAZIONI.md))
 
@@ -959,7 +959,7 @@ Campo distinto da `gdpr_consent` (statuto / informativa).
 
 ## 41. Chiusura scrittura V1 (2026-08-18)
 
-Le 16 fette sono **scritte** (UI + helper + migrazioni `029`–`050`). Non si aggiungono fette V1.
+Le 16 fette sono **scritte** (UI + helper + migrazioni `029`–`052`). Non si aggiungono fette V1.
 
 | Cosa | Stato |
 |------|--------|
@@ -979,7 +979,7 @@ Audit 2 (2026-08-18): RPC pack solo titolare+contanti propri (`047`); reminder n
 
 Audit 3 (2026-08-19): sblocco presenze ripristina consumi (`048`); insert titolare solo contanti; Stripe apply solo webhook + leftover famiglia + unique pack (`049`); trigger colonne corso; reminder log dopo send + cron orario; rollback booking; Expo solo docente; unplaced/drag solo `attivo`.
 
-Audit 4 (2026-08-19): Stripe retry se apply fallisce (`050`); leftover famiglia con lock; sync wallet solo su corso attivo; ricevuta unica per pagamento; incasso parte `pending`; job notule salta bozze vuote.
+Audit 4 (2026-08-19): cancelTrial libera `booking_id`; una sola richiesta spostamento pending; generate ignora solo lezioni vive; resume/pausa/chiusura con rollback; move future senza booking fantasma; approve coda atomica rispetto allo spostamento. Stripe retry se apply fallisce (`050`); leftover famiglia con lock; sync wallet solo su corso attivo; ricevuta unica per pagamento; incasso parte `pending`; completed solo a fine apply (`051`); job notule salta bozze vuote. Titolare può INSERT `course_teachers` (`052`); calendario/oggi/Expo includono corsi coordinati; Expo Oggi ricalcola la data; reminder `week` e hold coda usano le soglie scuola.
 
 Restano accettati: GCal OAuth stub, dual iscrizione, webhook pack al VAI, photo_consent su nuovo iscritto solo se c’è già un `members` (token).
 

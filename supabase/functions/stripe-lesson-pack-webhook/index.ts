@@ -129,7 +129,7 @@ Deno.serve(async (req) => {
     console.error(
       '[stripe-lesson-pack-webhook] ricevuta saltata: manca NEXT_PUBLIC_APP_URL o CRON_SECRET',
     );
-  } else if (appliedPaymentId && result.duplicate !== true) {
+  } else if (appliedPaymentId) {
     try {
       const emitRes = await fetch(`${appUrl}/api/lezioni/receipts/from-payment`, {
         method: 'POST',

@@ -182,7 +182,7 @@ export default function LezioniCalendarioScreen() {
       const rows = await listLessonsInRange(supabase, {
         from,
         to,
-        titularMemberId: member.id,
+        teacherMemberId: member.id,
         includePendingHold: true,
       });
       setLessons(rows);
@@ -205,7 +205,7 @@ export default function LezioniCalendarioScreen() {
       if (!member) return;
       try {
         const rows = await listLessonsOnDate(supabase, date, {
-          titularMemberId: member.id,
+          teacherMemberId: member.id,
           includePendingHold: true,
         });
         setDayLessons(rows);

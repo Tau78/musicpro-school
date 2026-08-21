@@ -11,6 +11,7 @@ import {
   MemberRole,
 } from "@musicpro/shared";
 
+import { ChangePasswordForm } from "@/components/auth/change-password-form";
 import { PasskeySettings } from "@/components/auth/passkey-settings";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { MyReimbursements } from "@/components/dashboard/my-reimbursements";
@@ -89,6 +90,12 @@ export default async function DashboardPage() {
               </div>
             ) : null}
           </dl>
+          <div className="mt-6 border-t border-neutral-100 pt-5">
+            <h3 className="text-sm font-medium text-neutral-800">Password</h3>
+            <div className="mt-3">
+              <ChangePasswordForm />
+            </div>
+          </div>
           <div className="mt-6 border-t border-neutral-100 pt-5">
             <h3 className="text-sm font-medium text-neutral-800">Passkey</h3>
             <div className="mt-3">

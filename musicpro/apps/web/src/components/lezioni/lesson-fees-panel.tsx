@@ -25,7 +25,7 @@ const inputClass =
   "w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)] disabled:bg-neutral-50 disabled:text-neutral-500";
 
 const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
-  { value: "default", label: "Scadute e in scadenza" },
+  { value: "default", label: "In scadenza" },
   { value: "open", label: "Aperte" },
   { value: "paid", label: "Saldate" },
   { value: "all", label: "Tutte" },
@@ -314,7 +314,7 @@ export function LessonFeesPanel({
 
       <div className="flex flex-wrap items-end gap-3">
         <label className="block min-w-[12rem] flex-1 text-sm">
-          <span className="mb-1 block text-neutral-600">Cerca allievo o tutore</span>
+          <span className="mb-1 block text-neutral-600">Cerca</span>
           <input
             type="search"
             value={nameQuery}

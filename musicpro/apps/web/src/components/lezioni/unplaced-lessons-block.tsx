@@ -75,7 +75,7 @@ export async function UnplacedLessonsBlock({
   return (
     <section className="space-y-2 rounded-lg border border-neutral-200 bg-white px-3 py-2">
       <h3 className="text-sm font-semibold text-[var(--brand)]">
-        Da piazzare / da recuperare
+        Da mettere in calendario
       </h3>
       <ul className="space-y-3">
         {lessons.map((lesson) => {

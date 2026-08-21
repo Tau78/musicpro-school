@@ -1,21 +1,26 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
-import {
-  getAdminRoomById,
-} from "@musicpro/database";
+import { getAdminRoomById, listAllRooms } from "@musicpro/database";
 
-import { RoomForm } from "@/components/admin/room-form";
+import {
+  RoomsSettingsWorkspace,
+  parseRoomTab,
+} from "@/components/admin/rooms-settings-workspace";
 import { getAdminMember } from "@/lib/admin/current-member";
 import { canManageRooms } from "@/lib/admin/roles";
 import { createClient } from "@/lib/supabase/server";
 
 interface PageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }
 
-export default async function SalaDetailPage({ params }: PageProps) {
+export default async function SalaDetailPage({
+  params,
+  searchParams,
+}: PageProps) {
   const { id } = await params;
+  const { tab } = await searchParams;
   const supabase = await createClient();
   const currentMember = await getAdminMember();
 
@@ -23,27 +28,20 @@ export default async function SalaDetailPage({ params }: PageProps) {
     redirect("/admin/rimborsi");
   }
 
-  const room = await getAdminRoomById(supabase, id);
+  const [room, rooms] = await Promise.all([
+    getAdminRoomById(supabase, id),
+    listAllRooms(supabase),
+  ]);
 
   if (!room) {
     notFound();
   }
 
   return (
-    <div>
-      <div className="mb-6">
-        <Link
-          href="/admin/sale"
-          className="text-sm text-[var(--brand)] hover:underline"
-        >
-          ← Torna alle sale
-        </Link>
-        <h2 className="mt-2 text-3xl font-semibold text-[var(--brand)]">
-          {room.name}
-        </h2>
-      </div>
-
-      <RoomForm room={room} />
-    </div>
+    <RoomsSettingsWorkspace
+      rooms={rooms}
+      room={room}
+      initialTab={parseRoomTab(tab)}
+    />
   );
 }

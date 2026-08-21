@@ -23,13 +23,12 @@ import { RoomExternalCalendarsPanel } from "@/components/admin/room-external-cal
 import {
   ChipGroup,
   FieldLabel,
-  SettingsTabs,
   ToggleRow,
   settingsInputClass,
 } from "@/components/admin/settings-chrome";
 import { createClient } from "@/lib/supabase/client";
 
-type RoomTab = "sala" | "orari" | "dasolo" | "calendari";
+export type RoomTab = "sala" | "orari" | "dasolo" | "calendari";
 
 interface DayScheduleRow {
   dayOfWeek: number;
@@ -40,9 +39,10 @@ interface DayScheduleRow {
 
 interface RoomFormProps {
   room: Room;
+  tab: RoomTab;
 }
 
-const ROOM_TABS: { id: RoomTab; label: string }[] = [
+export const ROOM_TABS: { id: RoomTab; label: string }[] = [
   { id: "sala", label: "Sala" },
   { id: "orari", label: "Orari" },
   { id: "dasolo", label: "Da solo" },
@@ -177,11 +177,10 @@ function formatPlainEuro(amount: number): string {
   });
 }
 
-export function RoomForm({ room }: RoomFormProps) {
+export function RoomForm({ room, tab }: RoomFormProps) {
   const router = useRouter();
   const supabase = createClient();
 
-  const [tab, setTab] = useState<RoomTab>("sala");
   const [form, setForm] = useState<RoomInput>(() => roomToInput(room));
   const [dayRows, setDayRows] = useState<DayScheduleRow[]>(defaultDayRows());
   const [loadingSchedule, setLoadingSchedule] = useState(true);
@@ -302,8 +301,6 @@ export function RoomForm({ room }: RoomFormProps) {
             {success}
           </p>
         )}
-
-        <SettingsTabs tabs={ROOM_TABS} value={tab} onChange={setTab} />
 
         {tab === "sala" && (
           <div className="space-y-5">

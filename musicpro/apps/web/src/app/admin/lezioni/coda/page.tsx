@@ -178,7 +178,7 @@ export default async function AdminLezioniCodaPage() {
       {!expireResult.success ? (
         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {expireResult.errorMessage ??
-            "Impossibile scadere gli hold in ritardo."}
+            "Impossibile liberare le sale scadute."}
         </p>
       ) : null}
       {expireResult.warnings?.length ? (
@@ -231,7 +231,7 @@ export default async function AdminLezioniCodaPage() {
                   <dl className="grid gap-2 text-sm text-neutral-600 sm:grid-cols-2 lg:grid-cols-4">
                     <div>
                       <dt className="text-xs uppercase tracking-wide text-neutral-500">
-                        Slot
+                        Quando
                       </dt>
                       <dd>{slot}</dd>
                     </div>
@@ -255,7 +255,7 @@ export default async function AdminLezioniCodaPage() {
                     </div>
                     <div>
                       <dt className="text-xs uppercase tracking-wide text-neutral-500">
-                        Hold fino a
+                        Riservata fino a
                       </dt>
                       <dd>
                         {course.holdUntil
@@ -273,6 +273,7 @@ export default async function AdminLezioniCodaPage() {
                     rooms={roomOptions}
                     online={course.courseKind === "online"}
                     slotStepMinutes={slotStepMinutes}
+                    defaultHoldHours={settings?.holdHours ?? 48}
                   />
                 </li>
               );
@@ -283,11 +284,11 @@ export default async function AdminLezioniCodaPage() {
 
       <section className="space-y-4">
         <h3 className="text-lg font-semibold text-[var(--brand)]">
-          Da piazzare / da recuperare
+          Da mettere in calendario
         </h3>
         {unplaced.length === 0 ? (
           <p className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 px-4 py-4 text-sm text-neutral-600">
-            Nessuna lezione da piazzare o da recuperare.
+            Nessuna lezione da mettere in calendario.
           </p>
         ) : (
           <ul className="space-y-3">

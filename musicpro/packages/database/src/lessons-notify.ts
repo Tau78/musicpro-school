@@ -7,6 +7,7 @@ import type { Database } from "./types/database";
 type NotifyClient = SupabaseClient<Database>;
 
 const ROME = "Europe/Rome";
+const DEFAULT_WEEK_HOURS = 168;
 const DEFAULT_DAY_HOURS = 24;
 const DEFAULT_SOON_HOURS = 2;
 const APPROVAL_SOON_MS = 24 * 60 * 60 * 1000;
@@ -344,10 +345,12 @@ export async function sendDueLessonReminders(
   let sent = 0;
   let skipped = 0;
 
+  let weekHours = DEFAULT_WEEK_HOURS;
   let dayHours = DEFAULT_DAY_HOURS;
   let soonHours = DEFAULT_SOON_HOURS;
   try {
     const settings = await getLessonSchoolSettings(client);
+    weekHours = positiveHours(settings?.reminderWeekHours, DEFAULT_WEEK_HOURS);
     dayHours = positiveHours(settings?.reminderDayHours, DEFAULT_DAY_HOURS);
     soonHours = positiveHours(settings?.reminderSoonHours, DEFAULT_SOON_HOURS);
   } catch (err) {
@@ -360,9 +363,11 @@ export async function sendDueLessonReminders(
 
   const now = Date.now();
   const nowIso = new Date(now).toISOString();
-  const dayUntilIso = new Date(now + dayHours * MS_PER_HOUR).toISOString();
+  const horizonHours = Math.max(weekHours, dayHours, soonHours);
+  const dayUntilIso = new Date(now + horizonHours * MS_PER_HOUR).toISOString();
   const soonMs = soonHours * MS_PER_HOUR;
   const dayMs = dayHours * MS_PER_HOUR;
+  const weekMs = weekHours * MS_PER_HOUR;
 
   const { data: lessons, error: lessonsError } = await client
     .from("lessons")
@@ -484,9 +489,10 @@ export async function sendDueLessonReminders(
     }
 
     const remaining = startMs - now;
-    let kind: "day" | "soon" | null = null;
+    let kind: "week" | "day" | "soon" | null = null;
     if (remaining <= soonMs) kind = "soon";
     else if (remaining <= dayMs) kind = "day";
+    else if (remaining <= weekMs) kind = "week";
     if (!kind) {
       skipped += 1;
       continue;

@@ -103,10 +103,8 @@ export function LessonSubjectsForm({
       ) : null}
 
       <section className="space-y-3">
-        <h3 className="text-base font-semibold text-[var(--brand)]">Materie</h3>
         <p className="text-sm text-neutral-600">
-          Disattivare è soft: i corsi esistenti restano, la materia non si
-          assegna più ai nuovi.
+          Se la spegni, i corsi restano. Non si assegna più ai nuovi.
         </p>
         {subjects.length === 0 ? (
           <p className="text-sm text-neutral-500">Nessuna materia.</p>

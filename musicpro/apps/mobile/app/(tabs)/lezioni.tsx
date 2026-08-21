@@ -28,13 +28,23 @@ export default function LezioniScreen() {
   const { member, roles, isLoading: authLoading } = useAuth();
   const supabase = useMemo(() => createClient(), []);
   const isDocente = roles.includes(MemberRole.Docente);
-  const today = useMemo(() => todayInRome(), []);
+  const [today, setToday] = useState(todayInRome);
 
   const [lessons, setLessons] = useState<CalendarLesson[]>([]);
   const [arrears, setArrears] = useState<CalendarLesson[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const sync = () => {
+      const next = todayInRome();
+      setToday((prev) => (prev === next ? prev : next));
+    };
+    sync();
+    const id = setInterval(sync, 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   const load = useCallback(
     async (mode: "initial" | "refresh" = "initial") => {
@@ -49,16 +59,19 @@ export default function LezioniScreen() {
       else setRefreshing(true);
       setError(null);
 
+      const day = todayInRome();
+      setToday(day);
+
       try {
         const [todayLessons, arrearsRange] = await Promise.all([
-          listLessonsOnDate(supabase, today, {
-            titularMemberId: member.id,
+          listLessonsOnDate(supabase, day, {
+            teacherMemberId: member.id,
             includePendingHold: true,
           }),
           listLessonsInRange(supabase, {
-            from: addRomeDays(today, -14),
-            to: today,
-            titularMemberId: member.id,
+            from: addRomeDays(day, -14),
+            to: day,
+            teacherMemberId: member.id,
           }),
         ]);
 
@@ -82,7 +95,7 @@ export default function LezioniScreen() {
         setRefreshing(false);
       }
     },
-    [member?.id, supabase, today],
+    [member?.id, supabase],
   );
 
   useEffect(() => {
@@ -95,7 +108,7 @@ export default function LezioniScreen() {
   useEffect(() => {
     if (!isDocente) return;
     void load("initial");
-  }, [isDocente, load]);
+  }, [isDocente, load, today]);
 
   return (
     <ScrollView

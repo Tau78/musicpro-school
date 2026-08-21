@@ -463,12 +463,9 @@ export function PayrollStaffPanel({ actorMemberId }: { actorMemberId: string }) 
 
   return (
     <div className="space-y-8">
-      <div>
-        <h2 className="text-2xl font-semibold text-[var(--brand)]">Notule</h2>
-        <p className="mt-1 text-sm text-neutral-600">
-          Notula didattica — distinta dalle notule spese in Rimborsi.
-        </p>
-      </div>
+      <p className="text-sm text-neutral-600">
+        Distinte dalle notule spese in Rimborsi.
+      </p>
 
       {error ? (
         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

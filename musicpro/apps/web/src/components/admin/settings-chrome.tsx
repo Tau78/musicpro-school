@@ -12,22 +12,71 @@ export function SettingsTabs<T extends string>({
   return (
     <div className="flex flex-wrap gap-1.5" role="tablist">
       {tabs.map((tab) => (
-        <button
+        <SettingsTabButton
           key={tab.id}
-          type="button"
-          role="tab"
-          aria-selected={value === tab.id}
+          label={tab.label}
+          selected={value === tab.id}
           onClick={() => onChange(tab.id)}
-          className={
-            value === tab.id
-              ? "rounded-lg bg-[var(--brand)] px-3 py-1.5 text-sm font-medium text-white"
-              : "rounded-lg px-3 py-1.5 text-sm font-medium text-neutral-600 hover:bg-neutral-100"
-          }
-        >
-          {tab.label}
-        </button>
+        />
       ))}
     </div>
+  );
+}
+
+export function SettingsSideNav<T extends string>({
+  tabs,
+  value,
+  onChange,
+  label,
+}: {
+  tabs: { id: T; label: string }[];
+  value: T;
+  onChange: (id: T) => void;
+  label?: string;
+}) {
+  return (
+    <nav className="md:w-36 md:shrink-0" aria-label={label}>
+      <ul className="flex flex-wrap gap-1.5 md:flex-col md:flex-nowrap">
+        {tabs.map((tab) => (
+          <li key={tab.id}>
+            <SettingsTabButton
+              label={tab.label}
+              selected={value === tab.id}
+              onClick={() => onChange(tab.id)}
+              block
+            />
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+}
+
+function SettingsTabButton({
+  label,
+  selected,
+  onClick,
+  block = false,
+}: {
+  label: string;
+  selected: boolean;
+  onClick: () => void;
+  block?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={selected}
+      onClick={onClick}
+      className={`${block ? "w-full text-left" : ""} rounded-lg px-3 py-1.5 text-sm font-medium ${
+        selected
+          ? "bg-[var(--brand)] text-white"
+          : "text-neutral-600 hover:bg-neutral-100"
+      }`}
+    >
+      {label}
+    </button>
   );
 }
 
