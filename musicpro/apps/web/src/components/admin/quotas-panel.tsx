@@ -131,7 +131,6 @@ export function QuotasPanel({
       fiscalYear: setting.fiscalYear,
       amountEur: setting.amountEur,
     });
-    setTab("impostazioni");
     setError(null);
     setSuccess(null);
   }
