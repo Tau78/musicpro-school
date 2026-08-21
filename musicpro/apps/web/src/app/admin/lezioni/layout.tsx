@@ -6,9 +6,9 @@ export default function AdminLezioniLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="-mt-2">
+    <div className="flex flex-col gap-4 md:flex-row md:items-start">
       <AdminLezioniSubNav />
-      {children}
+      <div className="min-w-0 flex-1">{children}</div>
     </div>
   );
 }

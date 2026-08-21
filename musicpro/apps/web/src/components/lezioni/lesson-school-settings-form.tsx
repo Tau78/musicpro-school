@@ -102,7 +102,7 @@ export function LessonSchoolSettingsForm({
       gridCloseMinute = timeLabelToMinutes(form.gridClose);
     } catch {
       setSaving(false);
-      setError("Gli orari della griglia non sono validi.");
+      setError("Gli orari non sono validi.");
       return;
     }
 
@@ -131,12 +131,12 @@ export function LessonSchoolSettingsForm({
       return;
     }
 
-    setSuccess("Impostazioni scuola aggiornate.");
+    setSuccess("Salvato.");
     router.refresh();
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-4">
       {error ? (
         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
@@ -152,9 +152,6 @@ export function LessonSchoolSettingsForm({
 
       {tab === "calendario" ? (
         <section className="space-y-4">
-          <p className="text-sm text-neutral-600">
-            Orari usati da calendario, disponibilità e creazione corso (Roma).
-          </p>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Apertura">
               <input
@@ -175,7 +172,7 @@ export function LessonSchoolSettingsForm({
               />
             </Field>
             <div className="sm:col-span-2">
-              <FieldLabel>Passo inizio</FieldLabel>
+              <FieldLabel>Inizio ogni</FieldLabel>
               <ChipGroup
                 value={String(form.slotGranularityMinutes)}
                 options={SLOT_OPTIONS.map((minutes) => ({
@@ -225,7 +222,7 @@ export function LessonSchoolSettingsForm({
               Giorni in cui si possono modificare le presenze passate.
             </span>
           </Field>
-          <Field label="Ore di blocco sala">
+          <Field label="Ore di riserva">
             <input
               type="number"
               min={1}
@@ -237,7 +234,7 @@ export function LessonSchoolSettingsForm({
               className={settingsInputClass}
             />
             <span className="mt-1 block text-xs text-neutral-500">
-              Blocco sulla prima lezione di un corso in attesa.
+              Sala tenuta per un corso in attesa.
             </span>
           </Field>
         </section>
@@ -246,8 +243,7 @@ export function LessonSchoolSettingsForm({
       {tab === "promemoria" ? (
         <section className="space-y-4">
           <p className="text-sm text-neutral-600">
-            Ore prima dell’evento. I promemoria lezione usano le soglie giorno e
-            imminente; quelli del pacchetto partono prima della 5ª lezione.
+            Quante ore prima avvisare.
           </p>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Settimana">
@@ -375,7 +371,7 @@ export function LessonSchoolSettingsForm({
         disabled={saving}
         className="rounded-lg bg-[var(--brand)] px-6 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
       >
-        {saving ? "Salvataggio…" : "Salva impostazioni scuola"}
+        {saving ? "Salvataggio…" : "Salva"}
       </button>
     </form>
   );

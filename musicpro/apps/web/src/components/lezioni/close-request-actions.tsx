@@ -125,7 +125,7 @@ export function CloseRequestActions({
   return (
     <section className="space-y-4">
       <h3 className="text-lg font-semibold text-[var(--brand)]">
-        Richieste chiusura corso
+        Chiusure
       </h3>
 
       {error ? (

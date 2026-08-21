@@ -17,17 +17,16 @@ import {
   upsertMemberAnnualQuotas,
 } from "@musicpro/database";
 
-import {
-  FieldLabel,
-  SettingsTabs,
-  settingsInputClass,
-} from "@/components/admin/settings-chrome";
+import { FieldLabel, settingsInputClass } from "@/components/admin/settings-chrome";
 import { createClient } from "@/lib/supabase/client";
+
+type QuotaTab = "impostazioni" | "registrazione";
 
 interface QuotasPanelProps {
   settings: AnnualQuotaSetting[];
   members: MemberSummary[];
   existingQuotas: MemberAnnualQuota[];
+  initialTab?: QuotaTab;
 }
 
 type BulkRow = {
@@ -37,8 +36,6 @@ type BulkRow = {
   paidAt: string;
   locked: boolean;
 };
-
-type QuotaTab = "impostazioni" | "registrazione";
 
 function emptySettingInput(defaultYear: number): AnnualQuotaSettingInput {
   return {
@@ -72,6 +69,7 @@ export function QuotasPanel({
   settings,
   members,
   existingQuotas,
+  initialTab = "impostazioni",
 }: QuotasPanelProps) {
   const router = useRouter();
   const supabase = createClient();
@@ -93,7 +91,7 @@ export function QuotasPanel({
     return map;
   }, [existingQuotas]);
 
-  const [tab, setTab] = useState<QuotaTab>("impostazioni");
+  const tab = initialTab;
   const [editingId, setEditingId] = useState<string | null>(null);
   const [settingForm, setSettingForm] = useState<AnnualQuotaSettingInput>(
     emptySettingInput(defaultYear),
@@ -313,15 +311,6 @@ export function QuotasPanel({
           {success}
         </p>
       ) : null}
-
-      <SettingsTabs
-        tabs={[
-          { id: "impostazioni", label: "Impostazioni quote" },
-          { id: "registrazione", label: "Registrazione massive" },
-        ]}
-        value={tab}
-        onChange={setTab}
-      />
 
       {tab === "impostazioni" ? (
         <div className="space-y-6">

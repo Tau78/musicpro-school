@@ -11,9 +11,14 @@ import { getAdminMember } from "@/lib/admin/current-member";
 import { canManageQuotas } from "@/lib/admin/roles";
 import { createClient } from "@/lib/supabase/server";
 
-export default async function AdminQuotePage() {
+interface PageProps {
+  searchParams: Promise<{ sezione?: string }>;
+}
+
+export default async function AdminQuotePage({ searchParams }: PageProps) {
   const supabase = await createClient();
   const member = await getAdminMember();
+  const { sezione } = await searchParams;
 
   if (!member || !canManageQuotas(member.roles)) {
     redirect("/admin/rimborsi");
@@ -36,21 +41,11 @@ export default async function AdminQuotePage() {
   }
 
   return (
-    <div>
-      <div className="mb-6">
-        <h2 className="text-2xl font-semibold text-[var(--brand)]">
-          Quote annuali
-        </h2>
-        <p className="mt-1 text-sm text-neutral-600">
-          Imposta gli importi per anno e registra i pagamenti degli associati.
-        </p>
-      </div>
-
-      <QuotasPanel
-        settings={settings}
-        members={members}
-        existingQuotas={existingQuotas}
-      />
-    </div>
+    <QuotasPanel
+      settings={settings}
+      members={members}
+      existingQuotas={existingQuotas}
+      initialTab={sezione === "pagamenti" ? "registrazione" : "impostazioni"}
+    />
   );
 }

@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 
-import { SettingsTabs } from "@/components/admin/settings-chrome";
+import { SettingsSideNav } from "@/components/admin/settings-chrome";
 
 type TeacherSettingsTab = "profilo" | "orari" | "calendario";
 
@@ -24,11 +24,13 @@ export function TeacherSettingsPanel({
   const [tab, setTab] = useState<TeacherSettingsTab>("profilo");
 
   return (
-    <div className="space-y-6">
-      <SettingsTabs tabs={TABS} value={tab} onChange={setTab} />
-      {tab === "profilo" ? profilo : null}
-      {tab === "orari" ? orari : null}
-      {tab === "calendario" ? calendario : null}
+    <div className="flex flex-col gap-4 md:flex-row md:items-start">
+      <SettingsSideNav tabs={TABS} value={tab} onChange={setTab} label="Scuola" />
+      <div className="min-w-0 flex-1">
+        {tab === "profilo" ? profilo : null}
+        {tab === "orari" ? orari : null}
+        {tab === "calendario" ? calendario : null}
+      </div>
     </div>
   );
 }

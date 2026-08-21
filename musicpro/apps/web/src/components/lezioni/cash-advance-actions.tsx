@@ -85,11 +85,8 @@ export function CashAdvanceActions({
     <div className="space-y-4">
       <div>
         <h2 className="text-lg font-semibold text-[var(--brand)]">
-          Anticipo docente
+          Anticipi
         </h2>
-        <p className="mt-1 text-sm text-neutral-600">
-          Anticipo docente — i crediti e la ricevuta restano.
-        </p>
       </div>
 
       {error ? (

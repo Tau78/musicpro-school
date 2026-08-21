@@ -1662,13 +1662,13 @@ export interface Database {
         Row: {
           id: string;
           lesson_id: string;
-          kind: "day" | "soon";
+          kind: "week" | "day" | "soon";
           sent_at: string;
         };
         Insert: {
           id?: string;
           lesson_id: string;
-          kind: "day" | "soon";
+          kind: "week" | "day" | "soon";
           sent_at?: string;
         };
         Update: Partial<

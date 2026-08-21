@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 
 import { APP_NAME } from "@musicpro/shared";
@@ -93,14 +94,17 @@ export default async function AdminLayout({
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
-        <SettingsSubNav
-          showQuote={showQuote}
-          showSale={showSale}
-          showShop={showShop}
-          showPrenotazioniSettings={showPrenotazioniSettings}
-          showDocumenti={showDocumenti}
-        />
-        {children}
+        <Suspense fallback={children}>
+          <SettingsSubNav
+            showQuote={showQuote}
+            showSale={showSale}
+            showShop={showShop}
+            showPrenotazioniSettings={showPrenotazioniSettings}
+            showDocumenti={showDocumenti}
+          >
+            {children}
+          </SettingsSubNav>
+        </Suspense>
       </main>
     </div>
   );

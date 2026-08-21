@@ -211,13 +211,9 @@ export function ReceiptsPanel({ actorMemberId }: { actorMemberId: string }) {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h2 className="text-2xl font-semibold text-[var(--brand)]">Ricevute</h2>
-        <p className="mt-1 text-sm text-neutral-600">
-          Matrice sezionale S/n/anno. Le sostituite restano in elenco e non
-          entrano nel totale.
-        </p>
-      </div>
+      <p className="text-sm text-neutral-600">
+        Le sostituite restano in elenco e non entrano nel totale.
+      </p>
 
       {error ? (
         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

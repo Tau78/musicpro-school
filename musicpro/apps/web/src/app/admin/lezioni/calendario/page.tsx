@@ -1,4 +1,3 @@
-import { Suspense } from "react";
 import { redirect } from "next/navigation";
 
 import {
@@ -14,7 +13,6 @@ import { MemberRole } from "@musicpro/shared";
 
 import { mergeCalendarEvents } from "@/components/lezioni/calendar-bookings";
 import { LessonsCalendarPage } from "@/components/lezioni/lessons-calendar-page";
-import { UnplacedLessonsBlock } from "@/components/lezioni/unplaced-lessons-block";
 import { getAdminMember } from "@/lib/admin/current-member";
 import { canManageMembers } from "@/lib/admin/roles";
 import {
@@ -103,19 +101,7 @@ export default async function AdminLezioniCalendarioPage({
   ]);
 
   return (
-    <div className="space-y-3">
-      <Suspense fallback={null}>
-        <UnplacedLessonsBlock
-          actor={{
-            memberId: member.id,
-            isStaff: true,
-            canReschedule: true,
-          }}
-          rooms={roomOptions}
-          courseDetailBaseHref="/admin/lezioni/corsi"
-        />
-      </Suspense>
-
+    <div>
       <LessonsCalendarPage
         initialLessons={mergeCalendarEvents(lessons, bookings, externals)}
         settings={{

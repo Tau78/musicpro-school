@@ -57,8 +57,10 @@ export default async function LezioniLayout({
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
-        <LezioniSubNav />
-        {children}
+        <div className="flex flex-col gap-4 md:flex-row md:items-start">
+          <LezioniSubNav />
+          <div className="min-w-0 flex-1">{children}</div>
+        </div>
       </main>
     </div>
   );

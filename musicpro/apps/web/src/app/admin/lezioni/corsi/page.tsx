@@ -26,13 +26,7 @@ export default async function AdminLezioniCorsiPage() {
 
   return (
     <div>
-      <div className="mb-6 flex flex-wrap justify-end gap-2">
-        <Link
-          href="/admin/lezioni/coda"
-          className="inline-flex items-center justify-center rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
-        >
-          Coda
-        </Link>
+      <div className="mb-4 flex flex-wrap justify-end gap-2">
         <Link
           href="/admin/lezioni/corsi/nuova-prova"
           className="inline-flex items-center justify-center rounded-lg border border-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand)] hover:bg-[var(--brand)]/5"

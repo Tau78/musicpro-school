@@ -26,6 +26,8 @@ const LESSON_COLUMNS =
 
 export type ListLessonsCalendarOptions = {
   titularMemberId?: string;
+  /** Titolare o riga attiva in `course_teachers` (coordinatore). */
+  teacherMemberId?: string;
   roomId?: string;
   includePendingHold?: boolean;
 };
@@ -334,6 +336,22 @@ export async function listLessonsInRange(
     query = query.eq("room_id", input.roomId);
   }
 
+  const teacherCourseIds = input.teacherMemberId
+    ? await resolveTeacherCourseIds(client, input.teacherMemberId)
+    : undefined;
+  if (teacherCourseIds) {
+    if (teacherCourseIds.length === 0) {
+      if (!input.includePendingHold) return [];
+      return listHoldCardsInRange(client, {
+        from,
+        to,
+        teacherCourseIds,
+        roomId: input.roomId,
+      });
+    }
+    query = query.in("course_id", teacherCourseIds);
+  }
+
   const { data: lessonRows, error: lessonError } = await query;
   if (lessonError) {
     throw new Error(`Impossibile caricare le lezioni: ${lessonError.message}`);
@@ -344,6 +362,8 @@ export async function listLessonsInRange(
       from,
       to,
       titularMemberId: input.titularMemberId,
+      teacherCourseIds,
+      teacherMemberId: input.teacherMemberId,
       roomId: input.roomId,
     });
   }
@@ -357,7 +377,7 @@ export async function listLessonsInRange(
     .in("id", courseIds)
     .in("status", allowedStatuses);
 
-  if (input.titularMemberId) {
+  if (!teacherCourseIds && input.titularMemberId) {
     coursesQuery = coursesQuery.eq("titular_member_id", input.titularMemberId);
   }
 
@@ -503,11 +523,39 @@ export async function listLessonsInRange(
     from,
     to,
     titularMemberId: input.titularMemberId,
+    teacherCourseIds,
+    teacherMemberId: input.teacherMemberId,
     roomId: input.roomId,
   });
   return [...mapped, ...holds].sort((a, b) =>
     (a.startsAt ?? "").localeCompare(b.startsAt ?? ""),
   );
+}
+
+async function resolveTeacherCourseIds(
+  client: CalendarClient,
+  teacherMemberId: string,
+): Promise<string[]> {
+  const [titularRes, assignedRes] = await Promise.all([
+    client.from("courses").select("id").eq("titular_member_id", teacherMemberId),
+    client
+      .from("course_teachers")
+      .select("course_id")
+      .eq("member_id", teacherMemberId)
+      .is("ends_on", null),
+  ]);
+  if (titularRes.error) {
+    throw new Error(`Impossibile caricare i corsi: ${titularRes.error.message}`);
+  }
+  if (assignedRes.error) {
+    throw new Error(
+      `Impossibile caricare i corsi coordinati: ${assignedRes.error.message}`,
+    );
+  }
+  const ids = new Set<string>();
+  for (const row of titularRes.data ?? []) ids.add(row.id);
+  for (const row of assignedRes.data ?? []) ids.add(row.course_id);
+  return [...ids];
 }
 
 async function listHoldCardsInRange(
@@ -516,6 +564,8 @@ async function listHoldCardsInRange(
     from: string;
     to: string;
     titularMemberId?: string;
+    teacherMemberId?: string;
+    teacherCourseIds?: string[];
     roomId?: string;
   },
 ): Promise<CalendarLesson[]> {
@@ -527,7 +577,15 @@ async function listHoldCardsInRange(
     .eq("status", "in_attesa")
     .not("hold_booking_id", "is", null);
 
-  if (opts.titularMemberId) {
+  const teacherCourseIds =
+    opts.teacherCourseIds ??
+    (opts.teacherMemberId
+      ? await resolveTeacherCourseIds(client, opts.teacherMemberId)
+      : undefined);
+  if (teacherCourseIds) {
+    if (teacherCourseIds.length === 0) return [];
+    query = query.in("id", teacherCourseIds);
+  } else if (opts.titularMemberId) {
     query = query.eq("titular_member_id", opts.titularMemberId);
   }
 

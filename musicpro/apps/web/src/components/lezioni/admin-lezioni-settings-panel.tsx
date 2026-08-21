@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import { formatDateItalian, type LessonSchoolSettings } from "@musicpro/database";
 
-import { SettingsTabs } from "@/components/admin/settings-chrome";
+import { SettingsSideNav } from "@/components/admin/settings-chrome";
 import { CourseTermForm, type CourseTermSummary } from "@/components/lezioni/course-term-form";
 import { LessonSchoolSettingsForm } from "@/components/lezioni/lesson-school-settings-form";
 import {
@@ -25,7 +25,7 @@ type AdminLezioniSettingsTab =
   | "materie";
 
 const TABS: { id: AdminLezioniSettingsTab; label: string }[] = [
-  { id: "scuola", label: "Scuola" },
+  { id: "scuola", label: "Regole" },
   { id: "anno", label: "Anno" },
   { id: "prezzi", label: "Prezzi" },
   { id: "chiusure", label: "Chiusure" },
@@ -52,9 +52,14 @@ export function AdminLezioniSettingsPanel({
   const [tab, setTab] = useState<AdminLezioniSettingsTab>("scuola");
 
   return (
-    <div className="space-y-6">
-      <SettingsTabs tabs={TABS} value={tab} onChange={setTab} />
-
+    <div className="flex flex-col gap-4 md:flex-row md:items-start">
+      <SettingsSideNav
+        tabs={TABS}
+        value={tab}
+        onChange={setTab}
+        label="Scuola"
+      />
+      <div className="min-w-0 flex-1 space-y-6">
       {tab === "scuola" ? (
         settings ? (
           <LessonSchoolSettingsForm settings={settings} />
@@ -69,9 +74,6 @@ export function AdminLezioniSettingsPanel({
         <div className="space-y-8">
           <CourseTermForm currentTerm={currentTerm} />
           <section className="space-y-3">
-            <h3 className="text-base font-semibold text-[var(--brand)]">
-              Anni corsi
-            </h3>
             {terms.length === 0 ? (
               <p className="text-sm text-neutral-500">Nessun anno corsi.</p>
             ) : (
@@ -106,6 +108,7 @@ export function AdminLezioniSettingsPanel({
       {tab === "chiusure" ? <SchoolClosuresForm closures={closures} /> : null}
 
       {tab === "materie" ? <LessonSubjectsForm subjects={subjects} /> : null}
+      </div>
     </div>
   );
 }

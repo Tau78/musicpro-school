@@ -267,6 +267,15 @@ async function insertReceiptWithLines(
     .select("id")
     .single();
   if (insertError || !inserted) {
+    if (insertError?.code === "23505" && input.paymentId) {
+      const { data: existing } = await client
+        .from("fiscal_receipts")
+        .select("id")
+        .eq("payment_id", input.paymentId)
+        .eq("status", "emessa")
+        .maybeSingle();
+      if (existing) return { id: existing.id };
+    }
     return {
       error: insertError?.message || "Impossibile salvare la ricevuta.",
     };

@@ -130,11 +130,11 @@ export function LessonsCalendarPage({
           from: bounds.from,
           to: bounds.to,
           includePendingHold: true,
-          titularMemberId: isStaff
-            ? next.mode === "docente" && next.teacherId
+          titularMemberId:
+            isStaff && next.mode === "docente" && next.teacherId
               ? next.teacherId
-              : undefined
-            : memberId,
+              : undefined,
+          teacherMemberId: isStaff ? undefined : memberId,
           roomId: roomFilter,
         });
         const bookings = isStaff

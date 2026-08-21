@@ -112,7 +112,7 @@ export function LessonsOggi({
       {arrearsRows.length > 0 ? (
         <section className="space-y-3">
           <h3 className="text-lg font-semibold text-[var(--brand)]">
-            Arretrati
+            Da segnare
           </h3>
           <LessonOggiList
             rows={arrearsRows}
@@ -203,7 +203,7 @@ function LessonOggiList({
               </span>
             ) : (
               <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
-                Da inserire
+                Presenza
               </span>
             )}
           </>

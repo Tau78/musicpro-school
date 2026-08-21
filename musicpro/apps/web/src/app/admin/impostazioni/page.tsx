@@ -8,7 +8,6 @@ import {
 
 import { BookingSettingsForm } from "@/components/admin/booking-settings-form";
 import { PenaltyRulesPanel } from "@/components/admin/penalty-rules-panel";
-import { PrenotazioniSettingsNav } from "@/components/admin/prenotazioni-settings-nav";
 import { getAdminMember } from "@/lib/admin/current-member";
 import { canManagePenalties, canManageSettings } from "@/lib/admin/roles";
 import { createClient } from "@/lib/supabase/server";
@@ -46,14 +45,6 @@ export default async function ImpostazioniPage({
 
   return (
     <div>
-      <div className="mb-6">
-        <h2 className="text-2xl font-semibold text-[var(--brand)]">
-          Prenotazioni
-        </h2>
-      </div>
-
-      <PrenotazioniSettingsNav section={section} />
-
       {section === "soglie" ? (
         <BookingSettingsForm settings={settings} />
       ) : null}
