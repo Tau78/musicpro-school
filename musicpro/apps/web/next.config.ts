@@ -31,6 +31,9 @@ const nextConfig: NextConfig = {
     ],
   },
   serverExternalPackages: ["stripe"],
+  async rewrites() {
+    return [{ source: "/app", destination: "/musicproschoolapp.html" }];
+  },
 };
 
 export default nextConfig;

@@ -10,6 +10,8 @@ const PUBLIC_PATHS = [
   "/reset-password",
   "/auth/callback",
   "/prenotazioni",
+  "/app",
+  "/musicproschoolapp.html",
 ];
 const AUTH_PATHS = ["/login", "/signup"];
 const PROTECTED_PREFIXES = ["/dashboard", "/admin"];
