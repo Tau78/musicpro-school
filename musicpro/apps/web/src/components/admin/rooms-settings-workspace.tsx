@@ -5,23 +5,13 @@ import { useRouter } from "next/navigation";
 
 import type { Room } from "@musicpro/database";
 
+import { RoomForm } from "@/components/admin/room-form";
 import {
   ROOM_TABS,
-  RoomForm,
   type RoomTab,
-} from "@/components/admin/room-form";
-
-export function parseRoomTab(value: string | undefined): RoomTab {
-  return ROOM_TABS.some((tab) => tab.id === value)
-    ? (value as RoomTab)
-    : "sala";
-}
-
-function roomHref(roomId: string, tab: RoomTab): string {
-  return tab === "sala"
-    ? `/admin/sale/${roomId}`
-    : `/admin/sale/${roomId}?tab=${tab}`;
-}
+  parseRoomTab,
+  roomSettingsHref,
+} from "@/lib/admin/room-tabs";
 
 export function RoomsSettingsWorkspace({
   rooms,
@@ -36,7 +26,7 @@ export function RoomsSettingsWorkspace({
   const tab = parseRoomTab(initialTab);
 
   function setTab(next: RoomTab) {
-    router.replace(roomHref(room.id, next), { scroll: false });
+    router.replace(roomSettingsHref(room.id, next), { scroll: false });
   }
 
   return (
@@ -51,7 +41,7 @@ export function RoomsSettingsWorkspace({
             return (
               <li key={item.id}>
                 <Link
-                  href={roomHref(item.id, tab)}
+                  href={roomSettingsHref(item.id, tab)}
                   className={
                     selected
                       ? "block rounded-lg bg-[var(--brand)] px-3 py-1.5 text-sm font-medium text-white"
