@@ -8,7 +8,6 @@ import {
   type AdminBookingListItem,
   bookingPaymentMethodLabel,
   bookingStatusLabel,
-  countPendingApprovalBookings,
   formatBookingDateTime,
   formatCreditsCount,
   formatEuro,
@@ -20,11 +19,6 @@ import { requestBookingConfirmationEmail } from "@/lib/booking/send-confirmation
 import { requestBookingCalendarSync } from "@/lib/calendar/sync-booking";
 import { createClient } from "@/lib/supabase/client";
 
-const FILTERS: { id: AdminBookingFilter; label: string }[] = [
-  { id: "pending_approval", label: "Da approvare" },
-  { id: "upcoming", label: "Prossime" },
-  { id: "all", label: "Tutte" },
-];
 
 function BookingPaymentDetails({ booking }: { booking: AdminBookingListItem }) {
   const paymentLabel = bookingPaymentMethodLabel(booking.payment_method);
@@ -58,12 +52,15 @@ function BookingPaymentDetails({ booking }: { booking: AdminBookingListItem }) {
   );
 }
 
-export function BookingsAdminPanel() {
+export function BookingsAdminPanel({
+  initialFilter = "pending_approval",
+}: {
+  initialFilter?: AdminBookingFilter;
+}) {
   const supabase = createClient();
 
-  const [filter, setFilter] = useState<AdminBookingFilter>("pending_approval");
+  const filter = initialFilter;
   const [bookings, setBookings] = useState<AdminBookingListItem[]>([]);
-  const [pendingCount, setPendingCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [actingId, setActingId] = useState<string | null>(null);
   const [rejectNotes, setRejectNotes] = useState<Record<string, string>>({});
@@ -75,12 +72,8 @@ export function BookingsAdminPanel() {
     setError(null);
 
     try {
-      const [list, pending] = await Promise.all([
-        listAdminBookings(supabase, filter),
-        countPendingApprovalBookings(supabase),
-      ]);
+      const list = await listAdminBookings(supabase, filter);
       setBookings(list);
-      setPendingCount(pending);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Errore nel caricamento prenotazioni",
@@ -152,32 +145,11 @@ export function BookingsAdminPanel() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap gap-2">
-        {FILTERS.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => setFilter(item.id)}
-            className={`rounded-lg px-4 py-2 text-sm font-medium ${
-              filter === item.id
-                ? "bg-[var(--brand)] text-white"
-                : "bg-neutral-100 text-neutral-700 hover:bg-neutral-200"
-            }`}
-          >
-            {item.label}
-            {item.id === "pending_approval" && pendingCount > 0
-              ? ` (${pendingCount})`
-              : ""}
-          </button>
-        ))}
-      </div>
-
-      {filter === "pending_approval" && (
+      {filter === "pending_approval" ? (
         <p className="text-sm text-neutral-600">
-          Prenotazioni nella fascia 6–12 ore prima dell&apos;inizio. Approva per
-          confermare o rifiuta per annullare.
+          Fascia 6–12 ore prima. Approva per confermare o rifiuta per annullare.
         </p>
-      )}
+      ) : null}
 
       {loading && (
         <p className="text-sm text-neutral-500">Caricamento…</p>

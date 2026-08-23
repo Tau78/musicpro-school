@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
@@ -263,7 +262,7 @@ export function BookingAdminDetail({ booking, rooms }: BookingAdminDetailProps) 
           )}
           {booking.provi_da_solo && (
             <div>
-              <dt className="text-neutral-500">PROVI DA SOLO</dt>
+              <dt className="text-neutral-500">Da solo</dt>
               <dd className="font-medium">Sì</dd>
             </div>
           )}
@@ -413,14 +412,8 @@ export function BookingAdminDetail({ booking, rooms }: BookingAdminDetailProps) 
             disabled={saving}
             className="rounded-lg bg-[var(--brand)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-60"
           >
-            {saving ? "Salvataggio…" : "Salva modifiche"}
+            {saving ? "Salvataggio…" : "Salva"}
           </button>
-          <Link
-            href="/admin/prenotazioni"
-            className="rounded-lg border border-neutral-300 px-5 py-2.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
-          >
-            Torna all&apos;elenco
-          </Link>
         </div>
       </form>
 

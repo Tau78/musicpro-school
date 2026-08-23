@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import {
@@ -33,22 +32,5 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     notFound();
   }
 
-  return (
-    <div>
-      <div className="mb-6">
-        <Link
-          href="/admin/prenotazioni"
-          className="text-sm text-[var(--brand)] hover:underline"
-        >
-          ← Torna alle prenotazioni
-        </Link>
-        <h2 className="mt-2 text-2xl font-semibold text-[var(--brand)]">
-          Dettaglio prenotazione
-        </h2>
-        <p className="mt-1 font-mono text-xs text-neutral-500">{booking.id}</p>
-      </div>
-
-      <BookingAdminDetail booking={booking} rooms={rooms} />
-    </div>
-  );
+  return <BookingAdminDetail booking={booking} rooms={rooms} />;
 }

@@ -54,6 +54,8 @@ export interface LessonsCalendarPageProps {
   today: string;
   highlightDay?: string | null;
   memberId?: string;
+  /** Solo prenotazioni sale (+ calendari esterni), senza lezioni didattiche. */
+  bookingsOnly?: boolean;
 }
 
 type RequestForm = {
@@ -80,6 +82,7 @@ export function LessonsCalendarPage({
   today,
   highlightDay = null,
   memberId,
+  bookingsOnly = false,
 }: LessonsCalendarPageProps) {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
@@ -91,7 +94,9 @@ export function LessonsCalendarPage({
   );
   const [teacherId, setTeacherId] = useState(initialTeacherId ?? "");
   const [roomId, setRoomId] = useState(initialRoomId ?? "");
-  const [mode, setMode] = useState<CalendarMode>(initialMode);
+  const [mode, setMode] = useState<CalendarMode>(
+    bookingsOnly ? "sala" : initialMode,
+  );
   const [highlight, setHighlight] = useState<string | null>(highlightDay);
   const [lessons, setLessons] = useState(initialLessons);
   const [lessonsBusy, setLessonsBusy] = useState(false);
@@ -123,20 +128,22 @@ export function LessonsCalendarPage({
           : weekBounds(next.date, sundayVisible);
       try {
         const roomFilter =
-          isStaff && next.mode === "sala" && next.roomId
+          isStaff && (bookingsOnly || next.mode === "sala") && next.roomId
             ? next.roomId
             : undefined;
-        const rows = await listLessonsInRange(supabase, {
-          from: bounds.from,
-          to: bounds.to,
-          includePendingHold: true,
-          titularMemberId:
-            isStaff && next.mode === "docente" && next.teacherId
-              ? next.teacherId
-              : undefined,
-          teacherMemberId: isStaff ? undefined : memberId,
-          roomId: roomFilter,
-        });
+        const rows = bookingsOnly
+          ? []
+          : await listLessonsInRange(supabase, {
+              from: bounds.from,
+              to: bounds.to,
+              includePendingHold: true,
+              titularMemberId:
+                isStaff && next.mode === "docente" && next.teacherId
+                  ? next.teacherId
+                  : undefined,
+              teacherMemberId: isStaff ? undefined : memberId,
+              roomId: roomFilter,
+            });
         const bookings = isStaff
           ? await listBookingsInRange(supabase, {
               from: bounds.from,
@@ -159,7 +166,7 @@ export function LessonsCalendarPage({
         if (gen === fetchGen.current) setLessonsBusy(false);
       }
     },
-    [isStaff, memberId, supabase, sundayVisible],
+    [bookingsOnly, isStaff, memberId, supabase, sundayVisible],
   );
 
   function reloadLessons() {
@@ -184,7 +191,7 @@ export function LessonsCalendarPage({
     const nextView = next.view ?? view;
     const nextDate = next.date ?? anchorDate;
     const nextHl = next.hl === undefined ? highlight : next.hl;
-    const nextMode = next.modo ?? mode;
+    const nextMode = bookingsOnly ? "sala" : (next.modo ?? mode);
     const nextTeacher =
       next.docente === undefined ? teacherId : (next.docente ?? "");
     const nextRoom = next.sala === undefined ? roomId : (next.sala ?? "");
@@ -201,11 +208,13 @@ export function LessonsCalendarPage({
     params.set("date", nextDate);
     if (nextHl) params.set("hl", nextHl);
     if (isStaff) {
-      params.set("modo", nextMode);
-      if (nextMode === "docente" && nextTeacher) {
+      if (!bookingsOnly) {
+        params.set("modo", nextMode);
+      }
+      if (!bookingsOnly && nextMode === "docente" && nextTeacher) {
         params.set("docente", nextTeacher);
       }
-      if (nextMode === "sala" && nextRoom) {
+      if ((bookingsOnly || nextMode === "sala") && nextRoom) {
         params.set("sala", nextRoom);
       }
     }
@@ -356,42 +365,28 @@ export function LessonsCalendarPage({
     <div className="space-y-2">
       {isStaff ? (
         <div className="flex flex-wrap items-center gap-2">
-          <div
-            className="inline-flex rounded-md bg-neutral-100 p-0.5"
-            role="group"
-            aria-label="Filtro calendario"
-          >
-            <ModePill
-              active={mode === "docente"}
-              onClick={() => pushQuery({ modo: "docente" })}
+          {!bookingsOnly ? (
+            <div
+              className="inline-flex rounded-md bg-neutral-100 p-0.5"
+              role="group"
+              aria-label="Filtro calendario"
             >
-              Docente
-            </ModePill>
-            <ModePill
-              active={mode === "sala"}
-              onClick={() => pushQuery({ modo: "sala" })}
-            >
-              Sala
-            </ModePill>
-          </div>
+              <ModePill
+                active={mode === "docente"}
+                onClick={() => pushQuery({ modo: "docente" })}
+              >
+                Docente
+              </ModePill>
+              <ModePill
+                active={mode === "sala"}
+                onClick={() => pushQuery({ modo: "sala" })}
+              >
+                Sala
+              </ModePill>
+            </div>
+          ) : null}
 
-          {mode === "docente" ? (
-            <select
-              aria-label="Docente"
-              value={teacherId}
-              onChange={(event) =>
-                pushQuery({ docente: event.target.value || null })
-              }
-              className="h-7 min-w-[10rem] rounded-md border border-neutral-300 bg-white px-2 text-xs focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)]"
-            >
-              <option value="">Tutti i docenti</option>
-              {teachers.map((teacher) => (
-                <option key={teacher.id} value={teacher.id}>
-                  {teacher.label}
-                </option>
-              ))}
-            </select>
-          ) : (
+          {bookingsOnly || mode === "sala" ? (
             <select
               aria-label="Sala"
               value={roomId}
@@ -407,17 +402,48 @@ export function LessonsCalendarPage({
                 </option>
               ))}
             </select>
+          ) : (
+            <select
+              aria-label="Docente"
+              value={teacherId}
+              onChange={(event) =>
+                pushQuery({ docente: event.target.value || null })
+              }
+              className="h-7 min-w-[10rem] rounded-md border border-neutral-300 bg-white px-2 text-xs focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)]"
+            >
+              <option value="">Tutti i docenti</option>
+              {teachers.map((teacher) => (
+                <option key={teacher.id} value={teacher.id}>
+                  {teacher.label}
+                </option>
+              ))}
+            </select>
           )}
 
           <span className="ml-1 inline-flex items-center gap-3 text-[11px] text-neutral-500">
-            <span className="inline-flex items-center gap-1">
-              <span className="h-2 w-2 rounded-sm bg-amber-300" />
-              Lezioni
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="h-2 w-2 rounded-sm bg-emerald-400" />
-              Sale
-            </span>
+            {bookingsOnly ? (
+              <>
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-sm bg-emerald-400" />
+                  Prenotazioni
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-sm bg-neutral-300" />
+                  Calendario esterno
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-sm bg-amber-300" />
+                  Lezioni
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-sm bg-emerald-400" />
+                  Sale
+                </span>
+              </>
+            )}
           </span>
         </div>
       ) : null}
