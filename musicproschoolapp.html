@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>MusicPro School — sala, lezioni e presenze dal telefono</title>
+  <meta name="description" content="L’app MusicPro School. Associato, musicista, docente o tutore: iscrizione, quote, sale, shop, lezioni e pagamenti. Per iPhone e Android.">
+  <meta name="theme-color" content="#0D0D0F">
+  <link rel="icon" href="https://www.musicproeventi.it/wp-content/uploads/2020/05/Social-1024-trasp.png" type="image/png">
+  <link rel="apple-touch-icon" href="https://www.musicproeventi.it/wp-content/uploads/2020/05/Social-1024-trasp.png">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="MusicPro School — sala, lezioni e presenze dal telefono">
+  <meta property="og:description" content="Associato, musicista, docente o tutore. Iscrizione, quote, sale, lezioni e pagamenti. Per iPhone e Android.">
+  <meta property="og:image" content="https://www.musicproeventi.it/wp-content/uploads/2020/05/Social-1024-trasp.png">
+  <meta property="og:locale" content="it_IT">
+  <meta property="og:url" content="https://eventi.musicproeventi.it/musicproschoolapp.html">
+  <meta name="twitter:card" content="summary">
+  <style>
+    :root {
+      --bg: #0D0D0F;
+      --surface: #1A1A1E;
+      --raised: #252529;
+      --text: #F5F5F7;
+      --muted: #8E8E93;
+      --accent: #c9a227;
+      --navy: #1e3a5f;
+      --wave: #c9a227;
+      --border: #2C2C31;
+      --max: 72rem;
+      --app-bg: #fafafa;
+      --app-ink: #1e3a5f;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; overflow-x: hidden; }
+    body {
+      margin: 0;
+      overflow-x: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    img { max-width: 100%; height: auto; display: block; }
+
+    .skip {
+      position: absolute;
+      left: -999px;
+      top: 0;
+    }
+    .skip:focus {
+      left: 1rem;
+      top: 1rem;
+      z-index: 20;
+      background: var(--accent);
+      color: #111;
+      padding: 0.5rem 0.8rem;
+      border-radius: 0.5rem;
+    }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: rgba(13, 13, 15, 0.92);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+    }
+    .top {
+      max-width: var(--max);
+      margin: 0 auto;
+      padding: 0.75rem 1.15rem;
+      padding-left: max(1.15rem, env(safe-area-inset-left));
+      padding-right: max(1.15rem, env(safe-area-inset-right));
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      min-width: 0;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      min-width: 0;
+      color: var(--text);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      text-decoration: none;
+    }
+    .brand:hover { text-decoration: none; }
+    .mark { width: 28px; height: 28px; flex: 0 0 28px; }
+    nav {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 0.85rem;
+      flex: 0 0 auto;
+      min-width: 0;
+    }
+    nav a { color: var(--muted); font-size: 0.95rem; white-space: nowrap; }
+    nav a:hover { color: var(--text); }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--accent);
+      color: #111;
+      font-weight: 700;
+      border-radius: 999px;
+      padding: 0.85rem 1.35rem;
+      text-decoration: none;
+      border: 0;
+    }
+    .btn-sm {
+      padding: 0.45rem 0.85rem;
+      font-size: 0.88rem;
+    }
+    .btn:hover { text-decoration: none; filter: brightness(1.08); }
+    .btn-ghost {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .soon { opacity: 0.92; cursor: default; }
+    .soon:hover { filter: none; }
+
+    main { overflow: hidden; }
+
+    .hero {
+      max-width: var(--max);
+      margin: 0 auto;
+      padding: 3.2rem 1.25rem 1rem;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3rem;
+      align-items: center;
+    }
+    .kicker {
+      color: var(--accent);
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    h1 {
+      margin: 0.55rem 0 0;
+      font-size: clamp(2.1rem, 5vw, 3.4rem);
+      line-height: 1.08;
+      letter-spacing: -0.045em;
+    }
+    .lede {
+      margin: 1rem 0 0;
+      color: var(--muted);
+      font-size: 1.15rem;
+      max-width: 34rem;
+    }
+    .actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1.6rem; }
+    .meta {
+      margin-top: 1.1rem;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .phones {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.9rem;
+      transform: rotate(-2deg);
+    }
+    .device {
+      background: #000;
+      border: 1px solid var(--border);
+      border-radius: 1.35rem;
+      padding: 0.45rem;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+    }
+    .device.shift { margin-top: 2.4rem; }
+    .screen {
+      background: var(--app-bg);
+      border-radius: 1rem;
+      overflow: hidden;
+      min-height: 28rem;
+      color: #222;
+      font-size: 0.72rem;
+      display: flex;
+      flex-direction: column;
+    }
+    .status {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.45rem 0.7rem 0.2rem;
+      font-size: 0.62rem;
+      font-weight: 600;
+      color: #111;
+    }
+    .appbar {
+      background: var(--navy);
+      color: #fff;
+      text-align: center;
+      font-weight: 600;
+      font-size: 0.78rem;
+      padding: 0.55rem 0.6rem 0.65rem;
+    }
+    .body {
+      padding: 0.85rem 0.8rem 0.7rem;
+      flex: 1;
+    }
+    .body h4 {
+      margin: 0;
+      color: var(--app-ink);
+      font-size: 0.95rem;
+      letter-spacing: -0.02em;
+    }
+    .hint {
+      margin: 0.3rem 0 0;
+      color: #666;
+      font-size: 0.68rem;
+      line-height: 1.35;
+    }
+    .chips { display: flex; gap: 0.3rem; margin-top: 0.7rem; flex-wrap: wrap; }
+    .chip {
+      border: 1px solid #d4d4d4;
+      background: #fff;
+      border-radius: 999px;
+      padding: 0.22rem 0.5rem;
+      color: #444;
+      font-size: 0.62rem;
+    }
+    .chip.on {
+      background: var(--navy);
+      border-color: var(--navy);
+      color: #fff;
+      font-weight: 600;
+    }
+    .slot {
+      margin-top: 0.4rem;
+      background: #fff;
+      border: 1px solid #e5e5e5;
+      border-radius: 0.55rem;
+      padding: 0.5rem 0.6rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .slot strong { display: block; color: var(--app-ink); font-size: 0.72rem; }
+    .slot span { color: #888; font-size: 0.6rem; }
+    .slot.off { background: #f5f5f5; border-color: #eee; }
+    .slot.off strong { color: #999; }
+    .ok { color: #166534; font-weight: 600; font-size: 0.6rem; }
+    .todo { color: #92400e; font-weight: 600; font-size: 0.6rem; }
+    .lesson {
+      margin-top: 0.45rem;
+      border-radius: 0.6rem;
+      border: 1px solid #fcd34d;
+      background: #fef3c7;
+      padding: 0.5rem 0.55rem;
+    }
+    .lesson.group {
+      background: #e0f2fe;
+      border-color: #7dd3fc;
+    }
+    .lesson .when { font-weight: 700; color: var(--app-ink); font-size: 0.62rem; }
+    .lesson .who { margin-top: 0.12rem; font-weight: 500; }
+    .lesson .meta { margin: 0.15rem 0 0; color: #666; font-size: 0.6rem; }
+    .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .badge {
+      border-radius: 999px;
+      padding: 0.12rem 0.4rem;
+      font-size: 0.55rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .badge.ok { background: #dcfce7; color: #166534; }
+    .badge.wait { background: #fef3c7; color: #92400e; }
+    .tabbar {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      border-top: 1px solid #e5e5e5;
+      background: #fff;
+      padding: 0.45rem 0.3rem 0.55rem;
+      text-align: center;
+      color: #999;
+      font-size: 0.55rem;
+    }
+    .tabbar b { color: var(--navy); }
+    .login-card {
+      margin-top: 1.4rem;
+      background: #fff;
+      border: 1px solid #e5e5e5;
+      border-radius: 0.75rem;
+      padding: 0.85rem 0.75rem 0.95rem;
+    }
+    .gold {
+      color: #c9a227;
+      font-size: 0.55rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .field {
+      margin-top: 0.55rem;
+      border: 1px solid #d4d4d4;
+      border-radius: 0.4rem;
+      padding: 0.4rem 0.5rem;
+      color: #888;
+      background: #fff;
+    }
+    .navy-btn {
+      margin-top: 0.7rem;
+      background: var(--navy);
+      color: #fff;
+      text-align: center;
+      border-radius: 0.4rem;
+      padding: 0.45rem;
+      font-weight: 600;
+    }
+    .profile {
+      margin-top: 0.7rem;
+      background: #fff;
+      border: 1px solid #e5e5e5;
+      border-radius: 0.65rem;
+      padding: 0.65rem;
+    }
+    .profile p { margin: 0.15rem 0 0; color: #666; }
+    .cal-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 0.18rem;
+      margin-top: 0.55rem;
+    }
+    .cal-grid i {
+      font-style: normal;
+      text-align: center;
+      font-size: 0.55rem;
+      padding: 0.28rem 0;
+      border-radius: 0.3rem;
+      color: #444;
+    }
+    .cal-grid .on {
+      background: var(--navy);
+      color: #fff;
+      font-weight: 700;
+    }
+    .cal-grid .dot { background: #fef3c7; }
+
+    .wave-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 5px;
+      height: 42px;
+      margin-bottom: 1.1rem;
+    }
+    .tick {
+      width: 7px;
+      border-radius: 99px;
+      background: var(--navy);
+      position: relative;
+      flex: 0 0 7px;
+    }
+    .tick.gold { background: var(--accent); }
+    .tick.dot::after {
+      content: "";
+      position: absolute;
+      top: -10px;
+      right: -3px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+    .b1 { height: 14px; } .b2 { height: 22px; } .b3 { height: 30px; }
+    .b4 { height: 42px; } .b5 { height: 28px; } .b6 { height: 20px; } .b7 { height: 12px; }
+
+    section { padding: 4.2rem 1.25rem; }
+    .wrap { max-width: var(--max); margin: 0 auto; }
+    h2 {
+      margin: 0;
+      font-size: clamp(1.6rem, 3vw, 2.2rem);
+      letter-spacing: -0.035em;
+    }
+    .sub {
+      color: var(--muted);
+      margin: 0.6rem 0 0;
+      max-width: 36rem;
+    }
+
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 1.15rem;
+      padding: 1.35rem 1.3rem 1.45rem;
+    }
+    .num {
+      color: var(--accent);
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      font-size: 0.92rem;
+    }
+    .card h3 {
+      margin: 0.45rem 0 0;
+      font-size: 1.15rem;
+      letter-spacing: -0.02em;
+    }
+    .card p {
+      margin: 0.45rem 0 0;
+      color: var(--muted);
+    }
+
+    .who { background: #111114; }
+    .pills {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .pill h3 { margin: 0; font-size: 1.1rem; }
+    .pill p { margin: 0.4rem 0 0; color: var(--muted); }
+
+    .extras {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+
+    .shots {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.1rem;
+      margin-top: 2rem;
+    }
+    figure { margin: 0; }
+    figcaption {
+      margin-top: 0.7rem;
+      color: var(--muted);
+      font-size: 0.92rem;
+      text-align: center;
+    }
+    .frame {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 1.25rem;
+      padding: 0.55rem;
+    }
+    .frame .screen { min-height: 24rem; }
+
+    .facts {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 1.2rem;
+      margin-top: 2rem;
+    }
+    .fact-list { margin: 0; padding: 0; list-style: none; }
+    .fact-list li {
+      padding: 0.85rem 0;
+      border-bottom: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .fact-list strong { color: var(--text); display: block; margin-bottom: 0.15rem; }
+    .stamp {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 1.2rem;
+      padding: 1.6rem 1.4rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .time {
+      font-size: clamp(1.6rem, 4vw, 2.3rem);
+      font-weight: 700;
+      letter-spacing: -0.04em;
+      font-variant-numeric: tabular-nums;
+    }
+    .time span { color: var(--accent); }
+    .stamp p { margin: 0.6rem 0 0; color: var(--muted); }
+
+    .cta {
+      text-align: center;
+      padding-bottom: 5rem;
+    }
+    .cta h2 { max-width: 24rem; margin-left: auto; margin-right: auto; }
+    .cta .actions { justify-content: center; }
+    .cta .sub { margin-left: auto; margin-right: auto; }
+
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 1.4rem 1.25rem 2.2rem;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    .foot {
+      max-width: var(--max);
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .foot a { color: var(--muted); }
+    .foot a:hover { color: var(--text); }
+
+    @media (max-width: 1100px) {
+      .extras { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 860px) {
+      .hero, .steps, .pills, .extras, .shots, .facts { grid-template-columns: 1fr; }
+      .hero { padding-top: 1.8rem; gap: 2rem; }
+      .phones { max-width: 26rem; margin: 0 auto; transform: none; }
+      .device.shift { margin-top: 0; }
+      nav .hide { display: none; }
+      .actions { flex-direction: column; }
+      .actions .btn { width: 100%; }
+      section { padding: 3.2rem 1.15rem; }
+      .top { padding-top: 0.7rem; padding-bottom: 0.7rem; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#contenuto">Vai al contenuto</a>
+  <header>
+    <div class="top">
+      <a class="brand" href="#inizio" aria-label="MusicPro School, inizio pagina">
+        <svg class="mark" viewBox="0 0 48 48" aria-hidden="true">
+          <rect width="48" height="48" rx="12" fill="#1e3a5f"/>
+          <path d="M14 32V16l8 9.5L30 16v16" stroke="#c9a227" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="36" cy="14" r="3" fill="#c9a227"/>
+        </svg>
+        MusicPro School
+      </a>
+      <nav>
+        <a class="hide" href="#come">Come si usa</a>
+        <a class="hide" href="#ora">Ora in app</a>
+        <a href="https://www.musicproeventi.it/privacy-policy/">Privacy</a>
+        <a class="btn btn-sm" href="#scarica">Scarica</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="contenuto">
+    <section class="hero" id="inizio">
+      <div>
+        <div class="wave-row" aria-hidden="true">
+          <span class="tick b1"></span>
+          <span class="tick b2 gold"></span>
+          <span class="tick b3"></span>
+          <span class="tick b4 gold"></span>
+          <span class="tick b5"></span>
+          <span class="tick b6 gold dot"></span>
+          <span class="tick b7"></span>
+        </div>
+        <p class="kicker">Per iPhone e Android</p>
+        <h1>I tuoi dati. La sala. La lezione. Dal telefono.</h1>
+        <p class="lede">Entri con l’email. Associato, musicista, docente o tutore: vedi solo quello che ti serve. Iscrizione, quote, prenotazioni, lezioni e pagamenti.</p>
+        <div class="actions">
+          <a class="btn soon" href="#scarica">Presto sull’App Store</a>
+          <a class="btn btn-ghost" href="#per-chi">Per chi è</a>
+        </div>
+        <p class="meta">Già sul web: <a href="https://school.musicproeventi.it">school.musicproeventi.it</a>. Face ID dopo il primo accesso.</p>
+      </div>
+      <div class="phones" aria-hidden="true">
+        <div class="device">
+          <div class="screen">
+            <div class="status"><span>9:41</span><span>●●●</span></div>
+            <div class="appbar">MusicPro School</div>
+            <div class="body">
+              <h4>Prenota una sala</h4>
+              <p class="hint">Slot aggiornati in tempo reale per oggi.</p>
+              <div class="chips">
+                <span class="chip on">Verde</span>
+                <span class="chip">Rossa</span>
+                <span class="chip">Arancio</span>
+              </div>
+              <p class="hint" style="margin-top:0.45rem">2 ore — 16 €</p>
+              <div class="slot"><div><strong>16:00 – 18:00</strong><span>Disponibile</span></div></div>
+              <div class="slot"><div><strong>18:00 – 20:00</strong><span>Disponibile</span></div></div>
+              <div class="slot off"><div><strong>20:00 – 22:00</strong><span>Occupato</span></div></div>
+            </div>
+            <div class="tabbar"><span>Area personale</span><b>Prenotazioni</b><span>Lezioni</span></div>
+          </div>
+        </div>
+        <div class="device shift">
+          <div class="screen">
+            <div class="status"><span>9:41</span><span>●●●</span></div>
+            <div class="appbar">MusicPro School</div>
+            <div class="body">
+              <div class="row">
+                <h4>Oggi</h4>
+                <span class="chip">Calendario</span>
+              </div>
+              <p class="hint">Sabato 22 agosto</p>
+              <article class="lesson">
+                <div class="row">
+                  <div>
+                    <div class="when">16:00–17:00</div>
+                    <div class="who">#12 Chitarra</div>
+                    <p class="meta">Marco · Verde</p>
+                  </div>
+                  <span class="badge wait">Da inserire</span>
+                </div>
+              </article>
+              <article class="lesson group">
+                <div class="row">
+                  <div>
+                    <div class="when">17:30–18:30</div>
+                    <div class="who">#8 Ensemble</div>
+                    <p class="meta">Sara, Luca · Rossa</p>
+                  </div>
+                  <span class="badge ok">OK</span>
+                </div>
+              </article>
+            </div>
+            <div class="tabbar"><span>Area personale</span><span>Prenotazioni</span><b>Lezioni</b></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="come">
+      <div class="wrap">
+        <h2>Tre gesti. Poi è fatta.</h2>
+        <p class="sub">Non è un social. È l’area riservata: i tuoi dati, le tue sale, le tue lezioni.</p>
+        <div class="steps">
+          <article class="card">
+            <span class="num">01</span>
+            <h3>Accedi</h3>
+            <p>Email e password. Dal secondo ingresso, Face ID o impronta.</p>
+          </article>
+          <article class="card">
+            <span class="num">02</span>
+            <h3>Apri il tuo spazio</h3>
+            <p>Associato, musicista, docente o tutore. Cambia solo quello che vedi.</p>
+          </article>
+          <article class="card">
+            <span class="num">03</span>
+            <h3>Fai quello che serve</h3>
+            <p>Iscrizione e quota. Sala e band. Lezioni e calendario. Pagamenti del corso.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="who" id="per-chi">
+      <div class="wrap">
+        <h2>Quattro ruoli. Stessa app.</h2>
+        <p class="sub">Entri una volta. Vedi solo il tuo pezzo.</p>
+        <div class="pills">
+          <article class="card pill">
+            <h3>Associato</h3>
+            <p>Ti iscrivi. Aggiorni i tuoi dati. Gestisci la quota associativa.</p>
+          </article>
+          <article class="card pill">
+            <h3>Musicista</h3>
+            <p>Prenoti le sale prova, sposti o annulli. Paghi le quote, apri lo shop per i pacchetti scontati, configuri la band.</p>
+          </article>
+          <article class="card pill">
+            <h3>Docente</h3>
+            <p>Gestisci le lezioni e il calendario. Oggi, presenze, spostamenti.</p>
+          </article>
+          <article class="card pill">
+            <h3>Allievo / Tutore</h3>
+            <p>Vedi le lezioni. Gestisci i pagamenti del corso.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="ora">
+      <div class="wrap">
+        <h2>Ora in app.</h2>
+        <p class="sub">Ogni ruolo ha il suo elenco. Niente di più.</p>
+        <div class="extras">
+          <article class="card">
+            <h3>Iscrizione e dati</h3>
+            <p>L’associato si iscrive, corregge i propri dati e tiene in regola la quota.</p>
+          </article>
+          <article class="card">
+            <h3>Sale, shop, band</h3>
+            <p>Il musicista prenota, gestisce le prenotazioni, paga, compra i pacchetti scontati e configura la band.</p>
+          </article>
+          <article class="card">
+            <h3>Lezioni e calendario</h3>
+            <p>Il docente apre Oggi, segna le presenze, guarda la settimana o il mese, sposta quando serve.</p>
+          </article>
+          <article class="card">
+            <h3>Lezioni e pagamenti</h3>
+            <p>Allievo o tutore: vedi le lezioni del corso e gestisci i pagamenti.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="schermate">
+      <div class="wrap">
+        <h2>Accedi. Poi il tuo ruolo.</h2>
+        <p class="sub">Stessa app. Quattro spazi diversi.</p>
+        <div class="shots">
+          <figure>
+            <div class="frame">
+              <div class="screen">
+                <div class="status"><span>9:41</span><span>●●●</span></div>
+                <div class="body">
+                  <div class="login-card">
+                    <p class="gold">MusicPro School</p>
+                    <h4 style="margin-top:0.35rem">Accedi</h4>
+                    <p class="hint">Area riservata associati — email e password.</p>
+                    <div class="field">nome@esempio.it</div>
+                    <div class="field">••••••••</div>
+                    <div class="navy-btn">Accedi</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <figcaption>Entra. Dal secondo ingresso, Face ID.</figcaption>
+          </figure>
+          <figure>
+            <div class="frame">
+              <div class="screen">
+                <div class="status"><span>9:41</span><span>●●●</span></div>
+                <div class="appbar">MusicPro School</div>
+                <div class="body">
+                  <h4>Ciao, Marta!</h4>
+                  <p class="hint">Benvenuto nell’area personale di MusicPro School.</p>
+                  <div class="profile">
+                    <strong>Profilo</strong>
+                    <p>Marta Rossi</p>
+                    <p>marta@esempio.it</p>
+                    <p>N. associato: 184</p>
+                  </div>
+                  <div class="profile">
+                    <strong>Quota</strong>
+                    <p>In regola · 2026</p>
+                  </div>
+                </div>
+                <div class="tabbar"><b>Area personale</b><span>Quote</span><span>Dati</span></div>
+              </div>
+            </div>
+            <figcaption>Associato: dati e quota.</figcaption>
+          </figure>
+          <figure>
+            <div class="frame">
+              <div class="screen">
+                <div class="status"><span>9:41</span><span>●●●</span></div>
+                <div class="appbar">MusicPro School</div>
+                <div class="body">
+                  <h4>Prenota una sala</h4>
+                  <p class="hint">Slot aggiornati in tempo reale.</p>
+                  <div class="chips">
+                    <span class="chip on">Verde</span>
+                    <span class="chip">Rossa</span>
+                  </div>
+                  <div class="slot"><div><strong>18:00 – 20:00</strong><span>Disponibile</span></div></div>
+                  <div class="chips" style="margin-top:0.55rem">
+                    <span class="chip">Shop −10%</span>
+                    <span class="chip">La mia band</span>
+                  </div>
+                </div>
+                <div class="tabbar"><span>Sale</span><b>Prenotazioni</b><span>Shop</span></div>
+              </div>
+            </div>
+            <figcaption>Musicista: sale, prenotazioni, shop, band.</figcaption>
+          </figure>
+          <figure>
+            <div class="frame">
+              <div class="screen">
+                <div class="status"><span>9:41</span><span>●●●</span></div>
+                <div class="appbar">MusicPro School</div>
+                <div class="body">
+                  <h4>Oggi</h4>
+                  <article class="lesson">
+                    <div class="row">
+                      <div>
+                        <div class="when">16:00–17:00</div>
+                        <div class="who">#12 Chitarra</div>
+                      </div>
+                      <span class="badge wait">Da inserire</span>
+                    </div>
+                  </article>
+                  <p class="hint" style="margin-top:0.8rem;font-weight:600;color:#1e3a5f">Arretrati</p>
+                  <article class="lesson group">
+                    <div class="row">
+                      <div>
+                        <div class="when">Ven 17:30</div>
+                        <div class="who">#8 Ensemble</div>
+                      </div>
+                      <span class="badge wait">Da inserire</span>
+                    </div>
+                  </article>
+                </div>
+                <div class="tabbar"><span>Area personale</span><span>Prenotazioni</span><b>Lezioni</b></div>
+              </div>
+            </div>
+            <figcaption>Docente: lezioni di oggi e presenze.</figcaption>
+          </figure>
+          <figure>
+            <div class="frame">
+              <div class="screen">
+                <div class="status"><span>9:41</span><span>●●●</span></div>
+                <div class="appbar">MusicPro School</div>
+                <div class="body">
+                  <h4>Le mie lezioni</h4>
+                  <p class="hint">Allievo · Chitarra</p>
+                  <article class="lesson">
+                    <div class="when">Sab 16:00–17:00</div>
+                    <div class="who">Chitarra · Verde</div>
+                    <p class="meta">Prossima lezione</p>
+                  </article>
+                  <div class="profile">
+                    <strong>Pagamenti</strong>
+                    <p>Quota corso · in regola</p>
+                  </div>
+                </div>
+                <div class="tabbar"><span>Area personale</span><b>Lezioni</b><span>Pagamenti</span></div>
+              </div>
+            </div>
+            <figcaption>Allievo o tutore: lezioni e pagamenti.</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <h2>Cosa fa, in chiaro.</h2>
+        <div class="facts">
+          <ul class="fact-list">
+            <li>
+              <strong>Associato</strong>
+              Iscrizione, anagrafica, quota associativa. I tuoi dati, da te.
+            </li>
+            <li>
+              <strong>Musicista</strong>
+              Sale prova, prenotazioni, quote, shop con pacchetti scontati, configurazione della band.
+            </li>
+            <li>
+              <strong>Docente</strong>
+              Lezioni e calendario. Presenze, spostamenti, vista settimana o mese.
+            </li>
+            <li>
+              <strong>Allievo / Tutore</strong>
+              Le lezioni del corso e i pagamenti, in un posto solo.
+            </li>
+          </ul>
+          <aside class="stamp">
+            <p class="kicker">Esempio</p>
+            <p class="time">Sala Verde<br><span>18:00 – 20:00</span></p>
+            <p>Tocchi lo slot. Prenotazione confermata. La sala sparisce dagli orari liberi.</p>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <section class="cta" id="scarica">
+      <div class="wrap">
+        <p class="kicker">iPhone e Android</p>
+        <h2>Presto sull’App Store e su Google Play.</h2>
+        <p class="sub">Nel frattempo la stessa area riservata è già aperta sul web.</p>
+        <div class="actions">
+          <span class="btn soon">In arrivo per iPhone e Android</span>
+          <a class="btn btn-ghost" href="https://school.musicproeventi.it">Apri school.musicproeventi.it</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="foot">
+      <span>© 2026 Associazione Culturale MusicPro</span>
+      <span>
+        <a href="https://www.musicproeventi.it/privacy-policy/">Informativa sulla privacy</a>
+        ·
+        <a href="mailto:info@musicproeventi.it">Assistenza</a>
+        ·
+        <a href="https://school.musicproeventi.it">Area riservata</a>
+      </span>
+    </div>
+  </footer>
+</body>
+</html>
