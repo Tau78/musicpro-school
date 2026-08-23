@@ -4,20 +4,36 @@
     "slug": "musicpro-school",
     "version": "1.0.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "scheme": "musicpro",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "it.musicproeventi.school"
+      "bundleIdentifier": "it.musicproeventi.school",
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSFaceIDUsageDescription": "Per sbloccare l'app con Face ID."
+      }
     },
     "android": {
       "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#1e3a5f"
       },
       "package": "it.musicproeventi.school"
     },
-    "plugins": ["expo-router"],
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Per sbloccare l'app con Face ID."
+        }
+      ]
+    ],
     "experiments": {
       "typedRoutes": true
     }

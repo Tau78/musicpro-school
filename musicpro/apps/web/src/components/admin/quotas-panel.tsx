@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   type AnnualQuotaSetting,
@@ -17,10 +17,21 @@ import {
   upsertMemberAnnualQuotas,
 } from "@musicpro/database";
 
-import { FieldLabel, settingsInputClass } from "@/components/admin/settings-chrome";
+import { FieldLabel, SettingsTabs, settingsInputClass } from "@/components/admin/settings-chrome";
 import { createClient } from "@/lib/supabase/client";
 
 type QuotaTab = "impostazioni" | "registrazione";
+
+const QUOTA_TABS: { id: QuotaTab; label: string }[] = [
+  { id: "impostazioni", label: "Importi" },
+  { id: "registrazione", label: "Pagamenti" },
+];
+
+function quotaTabHref(tab: QuotaTab): string {
+  return tab === "registrazione"
+    ? "/admin/quote?sezione=pagamenti"
+    : "/admin/quote";
+}
 
 interface QuotasPanelProps {
   settings: AnnualQuotaSetting[];
@@ -91,7 +102,17 @@ export function QuotasPanel({
     return map;
   }, [existingQuotas]);
 
-  const tab = initialTab;
+  const [tab, setTab] = useState<QuotaTab>(initialTab);
+
+  useEffect(() => {
+    setTab(initialTab);
+  }, [initialTab]);
+
+  function selectTab(next: QuotaTab) {
+    setTab(next);
+    window.history.replaceState(null, "", quotaTabHref(next));
+  }
+
   const [editingId, setEditingId] = useState<string | null>(null);
   const [settingForm, setSettingForm] = useState<AnnualQuotaSettingInput>(
     emptySettingInput(defaultYear),
@@ -300,6 +321,8 @@ export function QuotasPanel({
 
   return (
     <div className="space-y-6">
+      <SettingsTabs tabs={QUOTA_TABS} value={tab} onChange={selectTab} />
+
       {error ? (
         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
