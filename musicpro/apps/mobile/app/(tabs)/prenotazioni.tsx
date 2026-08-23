@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -14,16 +15,19 @@ import {
   type TimeSlot,
   calculateBookingPrice,
   createBooking,
+  durationOptionsForRoom,
   fetchRoomAvailability,
   formatDateItalian,
   formatDurationLabel,
   formatEuro,
   getCurrentMember,
   listRooms,
+  requestRoomBookingPaymentUrl,
   subscribeToBookings,
   todayInRome,
 } from "@musicpro/database";
 
+import { addRomeDays } from "@/lib/lezioni-dates";
 import { createClient } from "../../lib/supabase";
 
 export default function PrenotazioniScreen() {
@@ -32,13 +36,38 @@ export default function PrenotazioniScreen() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [selectedRoomId, setSelectedRoomId] = useState<string>("");
   const [durationMinutes, setDurationMinutes] = useState(120);
-  const [selectedDate] = useState(todayInRome());
+  const [selectedDate, setSelectedDate] = useState(todayInRome());
   const [slots, setSlots] = useState<TimeSlot[]>([]);
+  const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   const [memberId, setMemberId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [bookingSlot, setBookingSlot] = useState<string | null>(null);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const selectedRoom = useMemo(
+    () => rooms.find((r) => r.id === selectedRoomId) ?? null,
+    [rooms, selectedRoomId],
+  );
+
+  const durationOptions = useMemo(
+    () => (selectedRoom ? durationOptionsForRoom(selectedRoom) : []),
+    [selectedRoom],
+  );
+
+  const bookableSlots = useMemo(
+    () => slots.filter((slot) => slot.available),
+    [slots],
+  );
+
+  const previewPrice = useMemo(() => {
+    if (!selectedRoom) return null;
+    return (
+      selectedSlot?.priceEur ??
+      calculateBookingPrice(selectedRoom, durationMinutes)
+    );
+  }, [durationMinutes, selectedRoom, selectedSlot]);
 
   const loadAvailability = useCallback(async () => {
     if (!selectedRoomId) return;
@@ -48,6 +77,8 @@ export default function PrenotazioniScreen() {
       setError("EXPO_PUBLIC_WEB_URL non configurato per la disponibilità sale.");
       return;
     }
+
+    setLoadingSlots(true);
 
     try {
       const {
@@ -68,6 +99,8 @@ export default function PrenotazioniScreen() {
       setError(
         err instanceof Error ? err.message : "Errore nel caricamento degli slot",
       );
+    } finally {
+      setLoadingSlots(false);
     }
   }, [durationMinutes, selectedDate, selectedRoomId, supabase]);
 
@@ -113,6 +146,7 @@ export default function PrenotazioniScreen() {
   }, [supabase]);
 
   useEffect(() => {
+    setSelectedSlot(null);
     void loadAvailability();
   }, [loadAvailability]);
 
@@ -126,29 +160,74 @@ export default function PrenotazioniScreen() {
     return unsubscribe;
   }, [loadAvailability, selectedRoomId, supabase]);
 
-  async function handleBook(slot: TimeSlot) {
-    if (!memberId) {
-      setError("Accedi per prenotare una sala.");
+  function shiftDate(days: number) {
+    const next = addRomeDays(selectedDate, days);
+    const min = todayInRome();
+    if (next < min) return;
+    setSelectedDate(next);
+    setSelectedSlot(null);
+  }
+
+  async function handleConfirm() {
+    if (!memberId || !selectedSlot) {
+      setError("Seleziona uno slot disponibile.");
       return;
     }
 
-    setBookingSlot(slot.startAt);
+    setSubmitting(true);
     setMessage(null);
     setError(null);
 
     const result: CreateBookingResult = await createBooking(supabase, {
       roomId: selectedRoomId,
       memberId,
-      startAt: slot.startAt,
-      endAt: slot.endAt,
+      startAt: selectedSlot.startAt,
+      endAt: selectedSlot.endAt,
     });
 
-    setBookingSlot(null);
-
     if (!result.success) {
+      setSubmitting(false);
       setError(result.errorMessage ?? "Prenotazione non riuscita.");
       return;
     }
+
+    if (
+      result.status === "pending" &&
+      result.requiresPayment &&
+      result.bookingId
+    ) {
+      const apiBaseUrl = process.env.EXPO_PUBLIC_WEB_URL?.trim();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const payment = await requestRoomBookingPaymentUrl(result.bookingId, {
+        apiBaseUrl,
+        accessToken: session?.access_token,
+      });
+
+      setSubmitting(false);
+
+      if (payment.success && payment.url) {
+        await Linking.openURL(payment.url);
+        setMessage(
+          "Prenotazione registrata. Completa il pagamento nel browser.",
+        );
+        setSelectedSlot(null);
+        await loadAvailability();
+        return;
+      }
+
+      setError(
+        payment.message ??
+          "Prenotazione registrata ma il pagamento non è partito. Puoi pagare da «Le mie prenotazioni».",
+      );
+      setSelectedSlot(null);
+      await loadAvailability();
+      return;
+    }
+
+    setSubmitting(false);
 
     setMessage(
       result.status === "pending_approval"
@@ -157,16 +236,15 @@ export default function PrenotazioniScreen() {
           ? "Prenotazione registrata (pagamento in arrivo)."
           : "Prenotazione confermata!",
     );
+    setSelectedSlot(null);
     await loadAvailability();
   }
-
-  const selectedRoom = rooms.find((r) => r.id === selectedRoomId);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Prenota una sala</Text>
       <Text style={styles.description}>
-        Slot aggiornati in tempo reale per {formatDateItalian(selectedDate)}.
+        Scegli sala, durata e data, poi seleziona uno slot.
       </Text>
 
       {loading && <ActivityIndicator style={styles.loader} color="#1e3a5f" />}
@@ -195,7 +273,7 @@ export default function PrenotazioniScreen() {
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            style={styles.roomPicker}
+            style={styles.chipPicker}
           >
             {rooms.map((room) => {
               const active = room.id === selectedRoomId;
@@ -205,14 +283,12 @@ export default function PrenotazioniScreen() {
                   onPress={() => {
                     setSelectedRoomId(room.id);
                     setDurationMinutes(room.default_duration_minutes);
+                    setSelectedSlot(null);
                   }}
-                  style={[styles.roomChip, active && styles.roomChipActive]}
+                  style={[styles.chip, active && styles.chipActive]}
                 >
                   <Text
-                    style={[
-                      styles.roomChipText,
-                      active && styles.roomChipTextActive,
-                    ]}
+                    style={[styles.chipText, active && styles.chipTextActive]}
                   >
                     {room.name}
                   </Text>
@@ -222,50 +298,143 @@ export default function PrenotazioniScreen() {
           </ScrollView>
 
           {selectedRoom?.description && (
-            <Text style={styles.roomDescription}>{selectedRoom.description}</Text>
+            <Text style={styles.hint}>{selectedRoom.description}</Text>
           )}
 
-          {selectedRoom && (
-            <Text style={styles.roomDescription}>
-              {formatDurationLabel(durationMinutes)} —{" "}
-              {formatEuro(calculateBookingPrice(selectedRoom, durationMinutes))}
-            </Text>
-          )}
-
-          <Text style={styles.sectionLabel}>Slot disponibili</Text>
-          {slots.map((slot) => {
-            const isBooking = bookingSlot === slot.startAt;
-            return (
-              <Pressable
-                key={slot.startAt}
-                disabled={!slot.available || isBooking}
-                onPress={() => void handleBook(slot)}
-                style={[
-                  styles.slotRow,
-                  !slot.available && styles.slotRowDisabled,
-                ]}
-              >
-                <View>
+          <Text style={styles.sectionLabel}>Durata</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.chipPicker}
+          >
+            {durationOptions.map((minutes) => {
+              const active = minutes === durationMinutes;
+              return (
+                <Pressable
+                  key={minutes}
+                  onPress={() => {
+                    setDurationMinutes(minutes);
+                    setSelectedSlot(null);
+                  }}
+                  style={[styles.chip, active && styles.chipActive]}
+                >
                   <Text
-                    style={[
-                      styles.slotLabel,
-                      !slot.available && styles.slotLabelDisabled,
-                    ]}
+                    style={[styles.chipText, active && styles.chipTextActive]}
                   >
-                    {slot.label}
+                    {formatDurationLabel(minutes)}
+                    {selectedRoom
+                      ? ` · ${formatEuro(calculateBookingPrice(selectedRoom, minutes))}`
+                      : ""}
                   </Text>
-                  <Text style={styles.slotStatus}>
-                    {slot.available
-                      ? "Disponibile"
-                      : slot.status === "pending"
-                        ? "In attesa"
-                        : "Occupato"}
-                  </Text>
-                </View>
-                {isBooking && <ActivityIndicator color="#1e3a5f" />}
-              </Pressable>
-            );
-          })}
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+
+          <Text style={styles.sectionLabel}>Data</Text>
+          <View style={styles.dateRow}>
+            <Pressable
+              onPress={() => shiftDate(-1)}
+              disabled={selectedDate <= todayInRome()}
+              style={[
+                styles.dateNavButton,
+                selectedDate <= todayInRome() && styles.dateNavButtonDisabled,
+              ]}
+            >
+              <Text style={styles.dateNavButtonText}>‹</Text>
+            </Pressable>
+            <View style={styles.dateCenter}>
+              <Text style={styles.dateLabel}>{formatDateItalian(selectedDate)}</Text>
+            </View>
+            <Pressable onPress={() => shiftDate(1)} style={styles.dateNavButton}>
+              <Text style={styles.dateNavButtonText}>›</Text>
+            </Pressable>
+          </View>
+
+          {selectedSlot ? (
+            <View style={styles.confirmCard}>
+              <Text style={styles.confirmTitle}>Conferma prenotazione</Text>
+              <View style={styles.confirmRow}>
+                <Text style={styles.confirmKey}>Sala</Text>
+                <Text style={styles.confirmValue}>{selectedRoom?.name}</Text>
+              </View>
+              <View style={styles.confirmRow}>
+                <Text style={styles.confirmKey}>Quando</Text>
+                <Text style={styles.confirmValue}>{selectedSlot.label}</Text>
+              </View>
+              <View style={styles.confirmRow}>
+                <Text style={styles.confirmKey}>Durata</Text>
+                <Text style={styles.confirmValue}>
+                  {formatDurationLabel(durationMinutes)}
+                </Text>
+              </View>
+              <View style={[styles.confirmRow, styles.confirmTotalRow]}>
+                <Text style={styles.confirmKey}>Totale</Text>
+                <Text style={styles.confirmTotal}>
+                  {previewPrice != null ? formatEuro(previewPrice) : "—"}
+                </Text>
+              </View>
+              {selectedSlot.leadTimeCategory === "approval" && (
+                <Text style={styles.approvalHint}>
+                  Questa fascia richiede approvazione admin.
+                </Text>
+              )}
+              <View style={styles.confirmActions}>
+                <Pressable
+                  disabled={submitting}
+                  onPress={() => void handleConfirm()}
+                  style={[styles.primaryButton, submitting && styles.buttonDisabled]}
+                >
+                  {submitting ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.primaryButtonText}>Conferma prenotazione</Text>
+                  )}
+                </Pressable>
+                <Pressable
+                  disabled={submitting}
+                  onPress={() => setSelectedSlot(null)}
+                  style={styles.secondaryButton}
+                >
+                  <Text style={styles.secondaryButtonText}>Indietro</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : (
+            <>
+              <Text style={styles.sectionLabel}>
+                Slot disponibili ({formatDurationLabel(durationMinutes)})
+              </Text>
+              {loadingSlots && (
+                <ActivityIndicator style={styles.loader} color="#1e3a5f" />
+              )}
+              {!loadingSlots && bookableSlots.length === 0 && (
+                <Text style={styles.emptyHint}>
+                  Nessuno slot prenotabile per questa data e durata.
+                </Text>
+              )}
+              {!loadingSlots &&
+                bookableSlots.map((slot) => (
+                  <Pressable
+                    key={slot.startAt}
+                    onPress={() => setSelectedSlot(slot)}
+                    style={styles.slotRow}
+                  >
+                    <View>
+                      <Text style={styles.slotLabel}>{slot.label}</Text>
+                      <Text style={styles.slotStatus}>
+                        {slot.leadTimeCategory === "approval"
+                          ? "Richiede approvazione"
+                          : slot.priceEur != null
+                            ? formatEuro(slot.priceEur)
+                            : "Disponibile"}
+                      </Text>
+                    </View>
+                    <Text style={styles.slotChevron}>›</Text>
+                  </Pressable>
+                ))}
+            </>
+          )}
         </>
       )}
     </ScrollView>
@@ -302,10 +471,10 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#1e3a5f",
   },
-  roomPicker: {
+  chipPicker: {
     flexGrow: 0,
   },
-  roomChip: {
+  chip: {
     marginRight: 8,
     paddingHorizontal: 14,
     paddingVertical: 8,
@@ -314,22 +483,61 @@ const styles = StyleSheet.create({
     borderColor: "#d4d4d4",
     backgroundColor: "#fff",
   },
-  roomChipActive: {
+  chipActive: {
     borderColor: "#1e3a5f",
     backgroundColor: "#1e3a5f",
   },
-  roomChipText: {
+  chipText: {
     fontSize: 14,
     color: "#444",
   },
-  roomChipTextActive: {
+  chipTextActive: {
     color: "#fff",
     fontWeight: "600",
   },
-  roomDescription: {
+  hint: {
     marginTop: 8,
     fontSize: 13,
     color: "#666",
+  },
+  dateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  dateNavButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#e5e5e5",
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dateNavButtonDisabled: {
+    opacity: 0.4,
+  },
+  dateNavButtonText: {
+    fontSize: 24,
+    lineHeight: 28,
+    color: "#1e3a5f",
+  },
+  dateCenter: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#e5e5e5",
+    backgroundColor: "#fff",
+  },
+  dateLabel: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#1e3a5f",
+    textAlign: "center",
+    textTransform: "capitalize",
   },
   slotRow: {
     flexDirection: "row",
@@ -342,22 +550,94 @@ const styles = StyleSheet.create({
     borderColor: "#e5e5e5",
     backgroundColor: "#fff",
   },
-  slotRowDisabled: {
-    backgroundColor: "#f5f5f5",
-    borderColor: "#eee",
-  },
   slotLabel: {
     fontSize: 15,
     fontWeight: "500",
     color: "#1e3a5f",
   },
-  slotLabelDisabled: {
-    color: "#999",
-  },
   slotStatus: {
     marginTop: 2,
     fontSize: 12,
     color: "#888",
+  },
+  slotChevron: {
+    fontSize: 22,
+    color: "#999",
+  },
+  confirmCard: {
+    marginTop: 24,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e5e5e5",
+    backgroundColor: "#fff",
+  },
+  confirmTitle: {
+    fontSize: 17,
+    fontWeight: "600",
+    color: "#1e3a5f",
+  },
+  confirmRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 12,
+    marginTop: 12,
+  },
+  confirmKey: {
+    fontSize: 14,
+    color: "#666",
+  },
+  confirmValue: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#1e3a5f",
+    textAlign: "right",
+  },
+  confirmTotalRow: {
+    marginTop: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#eee",
+  },
+  confirmTotal: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#1e3a5f",
+  },
+  approvalHint: {
+    marginTop: 12,
+    fontSize: 13,
+    color: "#92400e",
+  },
+  confirmActions: {
+    marginTop: 20,
+    gap: 10,
+  },
+  primaryButton: {
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 48,
+    borderRadius: 10,
+    backgroundColor: "#1e3a5f",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  primaryButtonText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#fff",
+  },
+  secondaryButton: {
+    alignItems: "center",
+    paddingVertical: 12,
+  },
+  secondaryButtonText: {
+    fontSize: 14,
+    color: "#666",
+  },
+  buttonDisabled: {
+    opacity: 0.7,
   },
   alertError: {
     marginTop: 16,
@@ -384,7 +664,7 @@ const styles = StyleSheet.create({
     color: "#166534",
   },
   emptyHint: {
-    marginTop: 24,
+    marginTop: 16,
     fontSize: 14,
     color: "#888",
     textAlign: "center",

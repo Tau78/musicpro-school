@@ -1,4 +1,5 @@
-import { Tabs } from "expo-router";
+import { Link, Tabs } from "expo-router";
+import { Pressable, Text } from "react-native";
 
 import { APP_NAME, MemberRole } from "@musicpro/shared";
 
@@ -29,6 +30,15 @@ export default function TabsLayout() {
         options={{
           title: "Prenotazioni",
           headerTitle: APP_NAME,
+          headerRight: () => (
+            <Link href="/mie-prenotazioni" asChild>
+              <Pressable style={{ marginRight: 16 }}>
+                <Text style={{ color: "#fff", fontSize: 14, fontWeight: "500" }}>
+                  Le mie
+                </Text>
+              </Pressable>
+            </Link>
+          ),
         }}
       />
       <Tabs.Screen

@@ -12,6 +12,10 @@ export default function RootLayout() {
         <Stack.Screen name="login" options={{ title: "Accedi" }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="calendario-lezioni" options={{ title: "Calendario" }} />
+        <Stack.Screen
+          name="mie-prenotazioni"
+          options={{ title: "Le mie prenotazioni" }}
+        />
       </Stack>
     </AuthProvider>
   );

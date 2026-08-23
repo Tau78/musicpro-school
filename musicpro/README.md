@@ -39,6 +39,7 @@ npm install
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | web | Chiave anonima Supabase |
 | `EXPO_PUBLIC_SUPABASE_URL` | mobile | URL progetto Supabase |
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | mobile | Chiave anonima Supabase |
+| `EXPO_PUBLIC_WEB_URL` | mobile | Base URL dell'app web Next.js per API prenotazioni sale (`/api/prenotazioni/availability`, `/api/prenotazioni/{id}/payment`). In dev usare l'IP LAN del Mac (es. `http://192.168.x.x:3000`) se testi su dispositivo fisico |
 | `SUPABASE_SERVICE_ROLE_KEY` | server/script | Chiave service role (solo backend) |
 | `STRIPE_*` | futuro | Placeholder per pagamenti |
 
