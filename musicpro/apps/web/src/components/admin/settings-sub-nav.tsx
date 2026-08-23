@@ -1,13 +1,13 @@
 "use client";
 
+import { listAllRooms } from "@musicpro/database";
 import { usePathname, useSearchParams } from "next/navigation";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
-import {
-  AdminSideNav,
-  type AdminSideNavGroup,
-} from "@/components/admin/admin-side-nav";
+import { AdminFlatNav } from "@/components/admin/admin-side-nav";
+import { parseRoomTab, roomSettingsHref } from "@/lib/admin/room-tabs";
 import { isSettingsPath } from "@/lib/admin/settings-nav";
+import { createClient } from "@/lib/supabase/client";
 
 interface SettingsSubNavProps {
   showQuote: boolean;
@@ -17,6 +17,12 @@ interface SettingsSubNavProps {
   showDocumenti: boolean;
   children: ReactNode;
 }
+
+type RoomNavItem = {
+  id: string;
+  name: string;
+  is_active: boolean;
+};
 
 export function SettingsSubNav({
   showQuote,
@@ -28,129 +34,111 @@ export function SettingsSubNav({
 }: SettingsSubNavProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [rooms, setRooms] = useState<RoomNavItem[]>([]);
+
+  const onSale = pathname.startsWith("/admin/sale");
+  const activeRoomId = onSale
+    ? (pathname.match(/^\/admin\/sale\/([^/?]+)/)?.[1] ?? null)
+    : null;
+  const activeTab = parseRoomTab(searchParams.get("tab") ?? undefined);
+
+  useEffect(() => {
+    if (!showSale || !isSettingsPath(pathname)) {
+      setRooms([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    void (async () => {
+      const supabase = createClient();
+      const data = await listAllRooms(supabase);
+      if (cancelled) return;
+
+      setRooms(
+        data.map((room) => ({
+          id: room.id,
+          name: room.name,
+          is_active: room.is_active,
+        })),
+      );
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [showSale, pathname]);
 
   if (!isSettingsPath(pathname)) {
     return children;
   }
 
-  const sezione = searchParams.get("sezione");
   const onQuote = pathname.startsWith("/admin/quote");
-  const onImpostazioniRoot = pathname === "/admin/impostazioni";
+  const onImpostazioniRoot =
+    pathname === "/admin/impostazioni" || pathname.startsWith("/admin/penali");
 
-  const groups: AdminSideNavGroup[] = [
+  const items: {
+    href: string;
+    label: string;
+    active: boolean;
+    visible: boolean;
+  }[] = [
     {
+      href: "/admin/quote",
       label: "Quote",
-      items: [
-        {
-          href: "/admin/quote",
-          label: "Importi",
-          active: onQuote && sezione !== "pagamenti",
-          visible: showQuote,
-        },
-        {
-          href: "/admin/quote?sezione=pagamenti",
-          label: "Pagamenti",
-          active: onQuote && sezione === "pagamenti",
-          visible: showQuote,
-        },
-      ].filter((item) => item.visible),
+      active: onQuote,
+      visible: showQuote,
     },
+    ...rooms.map((room) => ({
+      href: roomSettingsHref(room.id, activeTab),
+      label: room.is_active ? room.name : `${room.name} · chiusa`,
+      active: room.id === activeRoomId,
+      visible: showSale,
+    })),
     {
-      label: "Sale",
-      items: [
-        {
-          href: "/admin/sale",
-          label: "Sale",
-          active: pathname.startsWith("/admin/sale"),
-          visible: showSale,
-        },
-      ].filter((item) => item.visible),
-    },
-    {
+      href: "/admin/shop",
       label: "Shop",
-      items: [
-        {
-          href: "/admin/shop",
-          label: "Shop",
-          active: pathname.startsWith("/admin/shop"),
-          visible: showShop,
-        },
-      ].filter((item) => item.visible),
+      active: pathname.startsWith("/admin/shop"),
+      visible: showShop,
     },
     {
+      href: "/admin/impostazioni",
       label: "Prenotazioni",
-      items: [
-        {
-          href: "/admin/impostazioni",
-          label: "Soglie",
-          active:
-            onImpostazioniRoot &&
-            sezione !== "penali" &&
-            sezione !== "crediti" &&
-            sezione !== "rimborsi",
-          visible: showPrenotazioniSettings,
-        },
-        {
-          href: "/admin/impostazioni?sezione=penali",
-          label: "Penali",
-          active:
-            pathname.startsWith("/admin/penali") ||
-            (onImpostazioniRoot && sezione === "penali"),
-          visible: showPrenotazioniSettings,
-        },
-        {
-          href: "/admin/impostazioni?sezione=crediti",
-          label: "Crediti",
-          active:
-            onImpostazioniRoot &&
-            (sezione === "crediti" || sezione === "rimborsi"),
-          visible: showPrenotazioniSettings,
-        },
-      ].filter((item) => item.visible),
+      active: onImpostazioniRoot,
+      visible: showPrenotazioniSettings,
     },
     {
+      href: "/admin/impostazioni/documenti",
       label: "Documenti",
-      items: [
-        {
-          href: "/admin/impostazioni/documenti",
-          label: "Documenti",
-          active: pathname === "/admin/impostazioni/documenti",
-          visible: showDocumenti,
-        },
-        {
-          href: "/admin/impostazioni/documenti/drive",
-          label: "Cartelle",
-          active: pathname.startsWith("/admin/impostazioni/documenti/drive"),
-          visible: showDocumenti,
-        },
-        {
-          href: "/admin/impostazioni/documenti/template",
-          label: "Modelli",
-          active:
-            pathname.startsWith("/admin/impostazioni/documenti/template") ||
-            pathname.startsWith("/admin/template"),
-          visible: showDocumenti,
-        },
-      ].filter((item) => item.visible),
+      active: pathname === "/admin/impostazioni/documenti",
+      visible: showDocumenti,
     },
-  ]
-    .map((group) => ({
-      label: group.label,
-      items: group.items.map(({ href, label, active }) => ({
-        href,
-        label,
-        active,
-      })),
-    }))
-    .filter((group) => group.items.length > 0);
+    {
+      href: "/admin/impostazioni/documenti/drive",
+      label: "Cartelle",
+      active: pathname.startsWith("/admin/impostazioni/documenti/drive"),
+      visible: showDocumenti,
+    },
+    {
+      href: "/admin/impostazioni/documenti/template",
+      label: "Modelli",
+      active:
+        pathname.startsWith("/admin/impostazioni/documenti/template") ||
+        pathname.startsWith("/admin/template"),
+      visible: showDocumenti,
+    },
+  ].filter((item) => item.visible);
 
-  if (groups.length === 0) {
+  if (items.length === 0) {
     return children;
   }
 
   return (
     <div className="flex flex-col gap-4 md:flex-row md:items-start">
-      <AdminSideNav groups={groups} label="Impostazioni" />
+      <AdminFlatNav
+        items={items.map(({ href, label, active }) => ({ href, label, active }))}
+        label="Impostazioni"
+      />
       <div className="min-w-0 flex-1">{children}</div>
     </div>
   );

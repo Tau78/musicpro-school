@@ -25,6 +25,9 @@ out/
 dist/
 .expo/
 web-build/
+musicpro/apps/mobile/ios/
+musicpro/apps/mobile/android/
+musicpro/apps/mobile/dist-ios/
 
 # OS / editor
 .DS_Store
