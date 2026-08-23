@@ -378,9 +378,13 @@ export default function PrenotazioniPage() {
     goToStepIndex(0);
     await loadAvailability();
 
-    if (result.status === "confirmed" && result.bookingId) {
-      void requestBookingCalendarSync(result.bookingId);
-      void requestBookingConfirmationEmail(result.bookingId, { template: "confirm" });
+    if (result.bookingId) {
+      if (result.status === "confirmed") {
+        void requestBookingCalendarSync(result.bookingId);
+        void requestBookingConfirmationEmail(result.bookingId, { template: "confirm" });
+      } else if (result.status === "pending_approval") {
+        void requestBookingConfirmationEmail(result.bookingId, { template: "confirm" });
+      }
     }
   }
 

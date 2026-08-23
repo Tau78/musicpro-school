@@ -355,6 +355,23 @@ else
     FAIL_SMOKE=1
   fi
 
+  edge_smoke_post() {
+    local fn="$1"
+    local code
+    code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 \
+      -X POST "https://${PROJECT_REF}.supabase.co/functions/v1/${fn}" \
+      -H 'Content-Type: application/json' \
+      -d '{}' || echo 000)"
+    if [[ "$code" == "400" ]]; then
+      ok "edge ${fn} HTTP $code (viva)"
+    else
+      warn "edge ${fn} HTTP $code (atteso 400)"
+      FAIL_SMOKE=1
+    fi
+  }
+  edge_smoke_post stripe-credit-shop-webhook
+  edge_smoke_post stripe-quota-webhook
+
   [[ "$FAIL_SMOKE" -eq 0 ]] || die "Smoke HTTP fallito: produzione non allineata"
 fi
 

@@ -318,12 +318,32 @@ export async function requestBookingCreditsPayment(
   return { success: true, action: data.action, status: data.status };
 }
 
-/** Richiede POST /api/prenotazioni/{id}/payment (solo web). */
+export type RequestRoomBookingPaymentUrlOptions = {
+  /** Base URL web app (es. EXPO_PUBLIC_WEB_URL) — richiesto fuori dal browser. */
+  apiBaseUrl?: string;
+  /** Token Supabase per Authorization Bearer (mobile). */
+  accessToken?: string;
+};
+
+/** Richiede POST /api/prenotazioni/{id}/payment (web o mobile via apiBaseUrl). */
 export async function requestRoomBookingPaymentUrl(
   bookingId: string,
+  options?: RequestRoomBookingPaymentUrlOptions,
 ): Promise<{ success: boolean; url?: string; message?: string }> {
-  const resp = await fetch(`/api/prenotazioni/${encodeURIComponent(bookingId)}/payment`, {
+  const apiBase = options?.apiBaseUrl?.replace(/\/$/, "") ?? "";
+  const url = apiBase
+    ? `${apiBase}/api/prenotazioni/${encodeURIComponent(bookingId)}/payment`
+    : `/api/prenotazioni/${encodeURIComponent(bookingId)}/payment`;
+
+  const headers: Record<string, string> = {};
+  if (options?.accessToken) {
+    headers.Authorization = `Bearer ${options.accessToken}`;
+  }
+
+  const resp = await fetch(url, {
     method: "POST",
+    credentials: apiBase ? "omit" : "same-origin",
+    headers,
   });
 
   const data = (await resp.json()) as {

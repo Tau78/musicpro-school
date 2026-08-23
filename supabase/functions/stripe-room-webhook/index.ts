@@ -8,6 +8,7 @@ import {
   verifyStripeEvent,
 } from '../_shared/stripe-webhook.ts';
 import { syncBookingToGoogleCalendar } from '../_shared/booking-calendar-sync.ts';
+import { processBookingEmail } from '../_shared/booking-email.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -122,6 +123,16 @@ Deno.serve(async (req) => {
         p_google_event_id: null,
         p_error: msg,
       });
+    }
+
+    try {
+      const emailResult = await processBookingEmail(service, bookingId, 'confirm');
+      if (emailResult.success !== true) {
+        console.error('[stripe-room-webhook] email', emailResult.message);
+      }
+    } catch (emailErr) {
+      const msg = emailErr instanceof Error ? emailErr.message : String(emailErr);
+      console.error('[stripe-room-webhook] email', msg);
     }
   }
 
