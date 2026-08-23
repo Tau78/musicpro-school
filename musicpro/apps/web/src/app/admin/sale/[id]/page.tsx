@@ -4,8 +4,8 @@ import { getAdminRoomById, listAllRooms } from "@musicpro/database";
 
 import {
   RoomsSettingsWorkspace,
-  parseRoomTab,
 } from "@/components/admin/rooms-settings-workspace";
+import { parseRoomTab } from "@/lib/admin/room-tabs";
 import { getAdminMember } from "@/lib/admin/current-member";
 import { canManageRooms } from "@/lib/admin/roles";
 import { createClient } from "@/lib/supabase/server";

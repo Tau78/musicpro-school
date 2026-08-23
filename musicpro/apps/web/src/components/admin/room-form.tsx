@@ -26,9 +26,8 @@ import {
   ToggleRow,
   settingsInputClass,
 } from "@/components/admin/settings-chrome";
+import { type RoomTab } from "@/lib/admin/room-tabs";
 import { createClient } from "@/lib/supabase/client";
-
-export type RoomTab = "sala" | "orari" | "dasolo" | "calendari";
 
 interface DayScheduleRow {
   dayOfWeek: number;
@@ -41,13 +40,6 @@ interface RoomFormProps {
   room: Room;
   tab: RoomTab;
 }
-
-export const ROOM_TABS: { id: RoomTab; label: string }[] = [
-  { id: "sala", label: "Sala" },
-  { id: "orari", label: "Orari" },
-  { id: "dasolo", label: "Da solo" },
-  { id: "calendari", label: "Calendari" },
-];
 
 const SLOT_OPTIONS = [
   { value: "15", label: "15 min" },
