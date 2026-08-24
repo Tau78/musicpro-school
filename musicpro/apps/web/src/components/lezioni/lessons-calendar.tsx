@@ -64,6 +64,10 @@ export interface LessonsCalendarProps {
   gridCloseMinute: number;
   slotGranularityMinutes?: number;
   canDrag: boolean;
+  /** Consente trascinamento eventi prenotazione (calendario sale admin). */
+  canDragBookings?: boolean;
+  /** Nasconde «questa e le future» nel modal spostamento. */
+  moveSingleScope?: boolean;
   showTeacherName: boolean;
   rooms: { id: string; name: string }[];
   onMove: (
@@ -73,6 +77,8 @@ export interface LessonsCalendarProps {
     scope: MoveScope,
   ) => Promise<void>;
   onOpenLesson?: (lessonId: string) => void;
+  /** Doppio click su slot vuoto (solo vista settimana). */
+  onSlotDoubleClick?: (date: string, startMinute: number) => void;
   onSelectDay?: (date: string) => void;
   onViewChange?: (view: CalendarView) => void;
   onAnchorDateChange?: (date: string) => void;
@@ -148,10 +154,13 @@ export function LessonsCalendar({
   gridCloseMinute,
   slotGranularityMinutes = DEFAULT_SLOT_MINUTES,
   canDrag,
+  canDragBookings = false,
+  moveSingleScope = false,
   showTeacherName,
   rooms,
   onMove,
   onOpenLesson,
+  onSlotDoubleClick,
   onSelectDay,
   onViewChange,
   onAnchorDateChange,
@@ -310,6 +319,7 @@ export function LessonsCalendar({
             closeMinute={closeMinute}
             slotMinutes={slotMinutes}
             canDrag={canDrag}
+            canDragBookings={canDragBookings}
             showTeacherName={showTeacherName}
             highlightDay={highlightDay}
             hover={hover}
@@ -319,6 +329,7 @@ export function LessonsCalendar({
             onEndDrag={endDrag}
             onProposeMove={proposeMove}
             onOpenLesson={onOpenLesson}
+            onSlotDoubleClick={onSlotDoubleClick}
           />
         ) : (
           <MonthGrid
@@ -338,6 +349,7 @@ export function LessonsCalendar({
           rooms={rooms}
           moving={moving}
           error={moveError}
+          singleScope={moveSingleScope}
           onRoomChange={(roomId) =>
             setPending((current) => (current ? { ...current, roomId } : current))
           }
@@ -361,6 +373,7 @@ function WeekGrid({
   closeMinute,
   slotMinutes,
   canDrag,
+  canDragBookings = false,
   showTeacherName,
   highlightDay,
   hover,
@@ -370,6 +383,7 @@ function WeekGrid({
   onEndDrag,
   onProposeMove,
   onOpenLesson,
+  onSlotDoubleClick,
 }: {
   dates: string[];
   lessons: PlacedLesson[];
@@ -377,6 +391,7 @@ function WeekGrid({
   closeMinute: number;
   slotMinutes: number;
   canDrag: boolean;
+  canDragBookings?: boolean;
   showTeacherName: boolean;
   highlightDay?: string | null;
   hover: HoverSlot | null;
@@ -386,6 +401,7 @@ function WeekGrid({
   onEndDrag: () => void;
   onProposeMove: (date: string, startMinute: number, lessonId?: string) => void;
   onOpenLesson?: (lessonId: string) => void;
+  onSlotDoubleClick?: (date: string, startMinute: number) => void;
 }) {
   const today = useTodayRome();
   const nowMinute = useNowMinute();
@@ -471,6 +487,7 @@ function WeekGrid({
             showNow={showNow && date === today}
             nowMinute={nowMinute}
             canDrag={canDrag}
+            canDragBookings={canDragBookings}
             showTeacherName={showTeacherName}
             hover={hover?.date === date ? hover : null}
             dragDuration={dragDuration}
@@ -479,6 +496,7 @@ function WeekGrid({
             onEndDrag={onEndDrag}
             onProposeMove={onProposeMove}
             onOpenLesson={onOpenLesson}
+            onSlotDoubleClick={onSlotDoubleClick}
           />
         ))}
       </div>
@@ -500,6 +518,7 @@ function DayColumn({
   showNow,
   nowMinute,
   canDrag,
+  canDragBookings = false,
   showTeacherName,
   hover,
   dragDuration,
@@ -508,6 +527,7 @@ function DayColumn({
   onEndDrag,
   onProposeMove,
   onOpenLesson,
+  onSlotDoubleClick,
 }: {
   date: string;
   lessons: PlacedLesson[];
@@ -522,6 +542,7 @@ function DayColumn({
   showNow: boolean;
   nowMinute: number;
   canDrag: boolean;
+  canDragBookings?: boolean;
   showTeacherName: boolean;
   hover: HoverSlot | null;
   dragDuration: number | null;
@@ -530,13 +551,18 @@ function DayColumn({
   onEndDrag: () => void;
   onProposeMove: (date: string, startMinute: number, lessonId?: string) => void;
   onOpenLesson?: (lessonId: string) => void;
+  onSlotDoubleClick?: (date: string, startMinute: number) => void;
 }) {
   const layouts = useMemo(() => layoutOverlaps(lessons), [lessons]);
 
-  function minuteFromEvent(event: React.DragEvent<HTMLDivElement>): number {
-    const rect = event.currentTarget.getBoundingClientRect();
-    const y = event.clientY - rect.top;
+  function minuteFromPointer(clientY: number, currentTarget: HTMLDivElement): number {
+    const rect = currentTarget.getBoundingClientRect();
+    const y = clientY - rect.top;
     return openMinute + (y / pxPerHour) * 60;
+  }
+
+  function minuteFromEvent(event: React.DragEvent<HTMLDivElement>): number {
+    return minuteFromPointer(event.clientY, event.currentTarget);
   }
 
   return (
@@ -576,6 +602,17 @@ function DayColumn({
           event.dataTransfer.getData("text/plain");
         onProposeMove(date, minuteFromEvent(event), lessonId || undefined);
       }}
+      onDoubleClick={(event) => {
+        if (!onSlotDoubleClick) return;
+        const startMinute = snapMinute(
+          minuteFromPointer(event.clientY, event.currentTarget),
+          openMinute,
+          closeMinute,
+          slotMinutes,
+          slotMinutes,
+        );
+        onSlotDoubleClick(date, startMinute);
+      }}
     >
       {hourMarks.map((minute) => (
         <div
@@ -609,6 +646,7 @@ function DayColumn({
             key={lesson.id}
             lesson={lesson}
             canDrag={canDrag}
+            canDragBookings={canDragBookings}
             showTeacherName={showTeacherName}
             style={{
               top,
@@ -639,6 +677,7 @@ function DayColumn({
 function LessonCard({
   lesson,
   canDrag,
+  canDragBookings,
   showTeacherName,
   style,
   onBeginDrag,
@@ -647,6 +686,7 @@ function LessonCard({
 }: {
   lesson: PlacedLesson;
   canDrag: boolean;
+  canDragBookings: boolean;
   showTeacherName: boolean;
   style: React.CSSProperties;
   onBeginDrag: (lesson: PlacedLesson) => void;
@@ -663,10 +703,10 @@ function LessonCard({
   const draggable =
     canDrag &&
     !isHold &&
-    !isBooking &&
     !isExternal &&
-    !lesson.hasAttendance &&
-    lesson.courseStatus === "attivo";
+    (isBooking
+      ? canDragBookings
+      : !lesson.hasAttendance && lesson.courseStatus === "attivo");
 
   function open() {
     if (dragged.current) return;
@@ -697,6 +737,10 @@ function LessonCard({
         }, 0);
       }}
       onClick={open}
+      onDoubleClick={(event) => {
+        event.stopPropagation();
+        open();
+      }}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
@@ -852,6 +896,7 @@ function MoveLessonModal({
   rooms,
   moving,
   error,
+  singleScope,
   onRoomChange,
   onConfirm,
   onClose,
@@ -860,11 +905,13 @@ function MoveLessonModal({
   rooms: { id: string; name: string }[];
   moving: boolean;
   error: string | null;
+  singleScope?: boolean;
   onRoomChange: (roomId: string | null) => void;
   onConfirm: (scope: MoveScope) => void;
   onClose: () => void;
 }) {
   const online = pending.lesson.courseKind === "online";
+  const isBooking = isCalendarBooking(pending.lesson);
   const timeLabel = minutesToTimeLabel(pending.startMinute);
   const dateLabel = formatDayLong(pending.date);
 
@@ -888,7 +935,7 @@ function MoveLessonModal({
           id="move-lesson-title"
           className="text-lg font-semibold text-[var(--brand)]"
         >
-          Sposta lezione
+          {isBooking ? "Sposta prenotazione" : "Sposta lezione"}
         </h3>
         <p className="mt-2 text-sm text-neutral-600">
           {lessonTitle(pending.lesson)} · {dateLabel} alle {timeLabel}
@@ -934,18 +981,28 @@ function MoveLessonModal({
             type="button"
             disabled={moving}
             onClick={() => onConfirm("this")}
-            className="rounded-lg border border-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand)] hover:bg-[var(--brand)]/5 disabled:opacity-50"
+            className={
+              singleScope
+                ? "rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
+                : "rounded-lg border border-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand)] hover:bg-[var(--brand)]/5 disabled:opacity-50"
+            }
           >
-            Solo questa lezione
+            {moving
+              ? "Spostamento…"
+              : singleScope
+                ? "Conferma spostamento"
+                : "Solo questa lezione"}
           </button>
-          <button
-            type="button"
-            disabled={moving}
-            onClick={() => onConfirm("future")}
-            className="rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
-          >
-            {moving ? "Spostamento…" : "Questa e le future"}
-          </button>
+          {!singleScope ? (
+            <button
+              type="button"
+              disabled={moving}
+              onClick={() => onConfirm("future")}
+              className="rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
+            >
+              {moving ? "Spostamento…" : "Questa e le future"}
+            </button>
+          ) : null}
         </div>
       </div>
     </div>

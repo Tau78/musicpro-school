@@ -1495,6 +1495,103 @@ export interface Database {
         >;
         Relationships: [];
       };
+      fixed_asset_events: {
+        Row: {
+          id: string;
+          asset_id: string;
+          event_type:
+            | "acquisto"
+            | "donazione"
+            | "perdita"
+            | "smarrimento"
+            | "rottura"
+            | "trasferimento";
+          event_date: string | null;
+          notes: string | null;
+          verbale_ref: string | null;
+          created_at: string;
+          created_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          asset_id: string;
+          event_type:
+            | "acquisto"
+            | "donazione"
+            | "perdita"
+            | "smarrimento"
+            | "rottura"
+            | "trasferimento";
+          event_date?: string | null;
+          notes?: string | null;
+          verbale_ref?: string | null;
+          created_by?: string | null;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["fixed_asset_events"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      fixed_assets: {
+        Row: {
+          id: string;
+          quantity: number;
+          name: string;
+          brand: string | null;
+          model: string | null;
+          serial: string | null;
+          accessories: string[];
+          purchased_at: string | null;
+          location_preset:
+            | "sala_arancio"
+            | "sala_blu"
+            | "sala_verde"
+            | "sala_rossa"
+            | "ingresso"
+            | "magazzino"
+            | "box"
+            | "altro"
+            | null;
+          location_custom: string | null;
+          notes: string | null;
+          disposed_at: string | null;
+          deleted_at: string | null;
+          photo_storage_path: string | null;
+          created_at: string;
+          updated_at: string;
+          created_by: string | null;
+          updated_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          quantity?: number;
+          name: string;
+          brand?: string | null;
+          model?: string | null;
+          serial?: string | null;
+          accessories?: string[];
+          purchased_at?: string | null;
+          location_preset?:
+            | "sala_arancio"
+            | "sala_blu"
+            | "sala_verde"
+            | "sala_rossa"
+            | "ingresso"
+            | "magazzino"
+            | "box"
+            | "altro"
+            | null;
+          location_custom?: string | null;
+          notes?: string | null;
+          disposed_at?: string | null;
+          deleted_at?: string | null;
+          photo_storage_path?: string | null;
+          created_by?: string | null;
+          updated_by?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["fixed_assets"]["Insert"]>;
+        Relationships: [];
+      };
       teacher_cash_advances: {
         Row: {
           id: string;

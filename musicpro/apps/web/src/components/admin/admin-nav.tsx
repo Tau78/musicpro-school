@@ -10,8 +10,10 @@ interface AdminNavProps {
   showRubrica: boolean;
   showLezioni: boolean;
   showPrenotazioni: boolean;
+  showDocumenti: boolean;
   showRimborsi: boolean;
   showImpostazioni: boolean;
+  documentiHref: string;
   settingsHref: string;
 }
 
@@ -22,6 +24,11 @@ const navItems = [
     href: "/admin/prenotazioni",
     label: "Prenotazioni",
     key: "prenotazioni" as const,
+  },
+  {
+    href: "/admin/documenti",
+    label: "Documenti",
+    key: "documenti" as const,
   },
   { href: "/admin/rimborsi", label: "Rimborsi", key: "rimborsi" as const },
   {
@@ -35,8 +42,10 @@ export function AdminNav({
   showRubrica,
   showLezioni,
   showPrenotazioni,
+  showDocumenti,
   showRimborsi,
   showImpostazioni,
+  documentiHref,
   settingsHref,
 }: AdminNavProps) {
   const pathname = usePathname();
@@ -48,13 +57,16 @@ export function AdminNav({
       if (item.key === "rubrica") return showRubrica;
       if (item.key === "lezioni") return showLezioni;
       if (item.key === "prenotazioni") return showPrenotazioni;
+      if (item.key === "documenti") return showDocumenti;
       if (item.key === "rimborsi") return showRimborsi;
       if (item.key === "impostazioni") return showImpostazioni;
       return false;
     })
-    .map((item) =>
-      item.key === "impostazioni" ? { ...item, href: settingsHref } : item,
-    );
+    .map((item) => {
+      if (item.key === "impostazioni") return { ...item, href: settingsHref };
+      if (item.key === "documenti") return { ...item, href: documentiHref };
+      return item;
+    });
 
   return (
     <>
@@ -121,6 +133,7 @@ function isNavItemActive(
   pathname: string,
 ): boolean {
   if (key === "impostazioni") return isSettingsPath(pathname);
+  if (key === "documenti") return pathname.startsWith("/admin/documenti");
   if (key === "lezioni") return pathname.startsWith("/admin/lezioni");
   return pathname.startsWith(href);
 }

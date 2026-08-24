@@ -84,7 +84,7 @@ export default async function AdminPrenotazioniCalendarioPage({
         </h2>
         <p className="mt-1 text-sm text-neutral-600">
           Calendario prenotazioni e occupazioni esterne. Clicca un evento per
-          aprire il dettaglio.
+          modificarlo; doppio click su uno slot vuoto per crearne uno nuovo.
         </p>
       </div>
 
@@ -97,6 +97,7 @@ export default async function AdminPrenotazioniCalendarioPage({
           slotGranularityMinutes: settings?.slotGranularityMinutes ?? 15,
         }}
         rooms={roomOptions}
+        bookingRooms={rooms}
         initialRoomId={roomId}
         initialView={view}
         initialDate={anchorDate}

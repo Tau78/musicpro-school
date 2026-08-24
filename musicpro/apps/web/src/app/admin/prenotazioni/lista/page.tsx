@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { BookingsAdminPanel } from "@/components/admin/bookings-admin-panel";
-import { parsePrenotazioniLista } from "@/components/admin/prenotazioni-side-nav";
+import { parsePrenotazioniLista } from "@/lib/admin/prenotazioni-nav";
 import { getAdminMember } from "@/lib/admin/current-member";
 import { canManageBookings } from "@/lib/admin/roles";
 

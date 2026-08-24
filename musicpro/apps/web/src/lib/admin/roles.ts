@@ -84,3 +84,11 @@ export function canManageTemplates(roles: MemberRoleValue[]): boolean {
     roles.includes(MemberRole.Segreteria)
   );
 }
+
+/** Sezione Documenti in nav: admin sempre; segreteria con base impostazioni. */
+export function canAccessDocumenti(roles: MemberRoleValue[]): boolean {
+  return (
+    roles.includes(MemberRole.Admin) ||
+    (roles.includes(MemberRole.Segreteria) && canManageSettings(roles))
+  );
+}
