@@ -79,6 +79,12 @@ export interface LessonsCalendarProps {
   onOpenLesson?: (lessonId: string) => void;
   /** Doppio click su slot vuoto (solo vista settimana). */
   onSlotDoubleClick?: (date: string, startMinute: number) => void;
+  /** Trascina su slot vuoto per selezionare intervallo (inizio + durata). */
+  onSlotRangeSelect?: (
+    date: string,
+    startMinute: number,
+    durationMinutes: number,
+  ) => void;
   onSelectDay?: (date: string) => void;
   onViewChange?: (view: CalendarView) => void;
   onAnchorDateChange?: (date: string) => void;
@@ -161,6 +167,7 @@ export function LessonsCalendar({
   onMove,
   onOpenLesson,
   onSlotDoubleClick,
+  onSlotRangeSelect,
   onSelectDay,
   onViewChange,
   onAnchorDateChange,
@@ -330,6 +337,7 @@ export function LessonsCalendar({
             onProposeMove={proposeMove}
             onOpenLesson={onOpenLesson}
             onSlotDoubleClick={onSlotDoubleClick}
+            onSlotRangeSelect={onSlotRangeSelect}
           />
         ) : (
           <MonthGrid
@@ -384,6 +392,7 @@ function WeekGrid({
   onProposeMove,
   onOpenLesson,
   onSlotDoubleClick,
+  onSlotRangeSelect,
 }: {
   dates: string[];
   lessons: PlacedLesson[];
@@ -402,6 +411,11 @@ function WeekGrid({
   onProposeMove: (date: string, startMinute: number, lessonId?: string) => void;
   onOpenLesson?: (lessonId: string) => void;
   onSlotDoubleClick?: (date: string, startMinute: number) => void;
+  onSlotRangeSelect?: (
+    date: string,
+    startMinute: number,
+    durationMinutes: number,
+  ) => void;
 }) {
   const today = useTodayRome();
   const nowMinute = useNowMinute();
@@ -497,6 +511,7 @@ function WeekGrid({
             onProposeMove={onProposeMove}
             onOpenLesson={onOpenLesson}
             onSlotDoubleClick={onSlotDoubleClick}
+            onSlotRangeSelect={onSlotRangeSelect}
           />
         ))}
       </div>
@@ -528,6 +543,7 @@ function DayColumn({
   onProposeMove,
   onOpenLesson,
   onSlotDoubleClick,
+  onSlotRangeSelect,
 }: {
   date: string;
   lessons: PlacedLesson[];
@@ -552,31 +568,111 @@ function DayColumn({
   onProposeMove: (date: string, startMinute: number, lessonId?: string) => void;
   onOpenLesson?: (lessonId: string) => void;
   onSlotDoubleClick?: (date: string, startMinute: number) => void;
+  onSlotRangeSelect?: (
+    date: string,
+    startMinute: number,
+    durationMinutes: number,
+  ) => void;
 }) {
   const layouts = useMemo(() => layoutOverlaps(lessons), [lessons]);
+  const columnRef = useRef<HTMLDivElement>(null);
+  const [rangeSelect, setRangeSelect] = useState<{
+    anchorMinute: number;
+    currentMinute: number;
+  } | null>(null);
 
-  function minuteFromPointer(clientY: number, currentTarget: HTMLDivElement): number {
-    const rect = currentTarget.getBoundingClientRect();
+  function minuteFromPointer(clientY: number): number {
+    const el = columnRef.current;
+    if (!el) return openMinute;
+    const rect = el.getBoundingClientRect();
     const y = clientY - rect.top;
     return openMinute + (y / pxPerHour) * 60;
   }
 
   function minuteFromEvent(event: React.DragEvent<HTMLDivElement>): number {
-    return minuteFromPointer(event.clientY, event.currentTarget);
+    return minuteFromPointer(event.clientY);
   }
+
+  function rangeFromSelection(
+    anchorMinute: number,
+    currentMinute: number,
+  ): { startMinute: number; durationMinutes: number } {
+    const rawStart = Math.min(anchorMinute, currentMinute);
+    const rawEnd = Math.max(anchorMinute, currentMinute);
+    const startMinute = snapMinute(
+      rawStart,
+      openMinute,
+      closeMinute,
+      slotMinutes,
+      slotMinutes,
+    );
+    let endMinute = snapMinute(
+      rawEnd,
+      openMinute,
+      closeMinute,
+      slotMinutes,
+      slotMinutes,
+    );
+    if (endMinute <= startMinute) {
+      endMinute = startMinute + slotMinutes;
+    }
+    endMinute = Math.min(endMinute, closeMinute);
+    return {
+      startMinute,
+      durationMinutes: Math.max(slotMinutes, endMinute - startMinute),
+    };
+  }
+
+  const rangePreview = rangeSelect
+    ? rangeFromSelection(rangeSelect.anchorMinute, rangeSelect.currentMinute)
+    : null;
 
   return (
     <div
+      ref={columnRef}
       className={`relative border-l border-neutral-200 ${
         isToday
           ? "bg-[var(--brand)]/[0.03]"
           : isHighlight
             ? "bg-[var(--brand-accent)]/[0.08]"
             : ""
-      }`}
+      } ${rangeSelect ? "select-none touch-none" : ""}`}
       style={{ height }}
+      onPointerDown={(event) => {
+        if (!onSlotRangeSelect || event.button !== 0) return;
+        const target = event.target as HTMLElement;
+        if (target.closest("[data-lesson-card]")) return;
+        const anchorMinute = minuteFromPointer(event.clientY);
+        setRangeSelect({ anchorMinute, currentMinute: anchorMinute });
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }}
+      onPointerMove={(event) => {
+        if (!rangeSelect) return;
+        setRangeSelect((current) =>
+          current
+            ? { ...current, currentMinute: minuteFromPointer(event.clientY) }
+            : current,
+        );
+      }}
+      onPointerUp={(event) => {
+        if (!rangeSelect || !onSlotRangeSelect) return;
+        const currentMinute = minuteFromPointer(event.clientY);
+        const moved =
+          Math.abs(currentMinute - rangeSelect.anchorMinute) >= slotMinutes / 2;
+        const { startMinute, durationMinutes } = rangeFromSelection(
+          rangeSelect.anchorMinute,
+          currentMinute,
+        );
+        setRangeSelect(null);
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        }
+        if (!moved) return;
+        onSlotRangeSelect(date, startMinute, durationMinutes);
+      }}
+      onPointerCancel={() => setRangeSelect(null)}
       onDragOver={(event) => {
-        if (!canDrag) return;
+        if (!canDrag || rangeSelect) return;
         event.preventDefault();
         event.dataTransfer.dropEffect = "move";
         const duration = dragDuration ?? 60;
@@ -603,9 +699,10 @@ function DayColumn({
         onProposeMove(date, minuteFromEvent(event), lessonId || undefined);
       }}
       onDoubleClick={(event) => {
-        if (!onSlotDoubleClick) return;
+        if (!onSlotDoubleClick || rangeSelect) return;
+        if ((event.target as HTMLElement).closest("[data-lesson-card]")) return;
         const startMinute = snapMinute(
-          minuteFromPointer(event.clientY, event.currentTarget),
+          minuteFromPointer(event.clientY),
           openMinute,
           closeMinute,
           slotMinutes,
@@ -622,7 +719,20 @@ function DayColumn({
         />
       ))}
 
-      {hover ? (
+      {rangePreview ? (
+        <div
+          className="pointer-events-none absolute inset-x-0.5 z-[5] rounded-sm border border-[var(--brand)] bg-[var(--brand)]/15"
+          style={{
+            top: minuteToPx(rangePreview.startMinute, openMinute, pxPerHour),
+            height: Math.max(
+              10,
+              (rangePreview.durationMinutes / 60) * pxPerHour,
+            ),
+          }}
+        />
+      ) : null}
+
+      {hover && !rangePreview ? (
         <div
           className="pointer-events-none absolute inset-x-0.5 rounded-sm border border-dashed border-[var(--brand)] bg-[var(--brand)]/10"
           style={{
@@ -717,6 +827,7 @@ function LessonCard({
     <div
       role="button"
       tabIndex={0}
+      data-lesson-card
       draggable={draggable}
       title={`${title} · ${time}${lesson.roomName ? ` · ${lesson.roomName}` : ""}`}
       onDragStart={(event) => {

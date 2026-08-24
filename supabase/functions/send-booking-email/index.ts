@@ -43,6 +43,7 @@ Deno.serve(async (req) => {
     booking_id?: string;
     template?: string;
     force?: boolean;
+    payment_url?: string;
   };
 
   try {
@@ -60,6 +61,7 @@ Deno.serve(async (req) => {
   const template: BookingEmailTemplate =
     templateRaw === 'modified' ? 'modified' : 'confirm';
   const force = body.force === true;
+  const paymentUrl = body.payment_url?.trim() || null;
 
   try {
     const result = await processBookingEmail(
@@ -67,6 +69,7 @@ Deno.serve(async (req) => {
       bookingId,
       template,
       force,
+      paymentUrl,
     );
     const status = result.success === false ? 500 : 200;
     return json(result, status);

@@ -3,6 +3,7 @@ export type BookingEmailTemplate = "confirm" | "modified";
 export interface RequestBookingEmailOptions {
   template?: BookingEmailTemplate;
   force?: boolean;
+  paymentUrl?: string;
 }
 
 export interface RequestBookingEmailResult {
@@ -29,6 +30,7 @@ export async function requestBookingConfirmationEmail(
         body: JSON.stringify({
           template: options.template ?? "confirm",
           force: options.force ?? false,
+          payment_url: options.paymentUrl?.trim() || undefined,
         }),
         credentials: "same-origin",
       },

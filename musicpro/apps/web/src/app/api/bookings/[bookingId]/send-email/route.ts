@@ -17,14 +17,17 @@ export async function POST(request: Request, context: RouteContext) {
 
   let template: "confirm" | "modified" = "confirm";
   let force = false;
+  let paymentUrl: string | undefined;
 
   try {
     const body = (await request.json()) as {
       template?: string;
       force?: boolean;
+      payment_url?: string;
     };
     if (body.template === "modified") template = "modified";
     if (body.force === true) force = true;
+    if (body.payment_url?.trim()) paymentUrl = body.payment_url.trim();
   } catch {
     // defaults
   }
@@ -84,6 +87,7 @@ export async function POST(request: Request, context: RouteContext) {
         booking_id: bookingId,
         template,
         force,
+        payment_url: paymentUrl,
       }),
     },
   );

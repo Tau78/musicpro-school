@@ -99,6 +99,8 @@ export function BookingCalendarDialog({
   const [settlementMethod, setSettlementMethod] =
     useState<SettlementMethod | null>(null);
   const [sendEmail, setSendEmail] = useState(true);
+  const [sendConfirmEmail, setSendConfirmEmail] = useState(false);
+  const [includePayment, setIncludePayment] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -205,15 +207,37 @@ export function BookingCalendarDialog({
           setError(result.errorMessage ?? "Creazione non riuscita.");
           return;
         }
-        if (result.status === "confirmed" && result.bookingId) {
-          void requestBookingCalendarSync(result.bookingId);
-          void requestBookingConfirmationEmail(result.bookingId, {
-            template: "confirm",
-          });
-        } else if (
-          result.status === "pending_approval" &&
-          result.bookingId
-        ) {
+        if (!result.bookingId) {
+          setError("Prenotazione creata ma ID non disponibile.");
+          return;
+        }
+
+        if (includePayment) {
+          const paymentResp = await fetch(
+            `/api/admin/bookings/${encodeURIComponent(result.bookingId)}/init-payment`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ sendEmail: true }),
+              credentials: "same-origin",
+            },
+          );
+          const paymentData = (await paymentResp.json()) as {
+            success?: boolean;
+            message?: string;
+            emailSent?: boolean;
+          };
+          if (!paymentResp.ok || paymentData.success === false) {
+            setError(
+              paymentData.message ??
+                "Prenotazione creata ma preparazione pagamento non riuscita.",
+            );
+            return;
+          }
+        } else if (sendConfirmEmail) {
+          if (result.status === "confirmed") {
+            void requestBookingCalendarSync(result.bookingId);
+          }
           void requestBookingConfirmationEmail(result.bookingId, {
             template: "confirm",
           });
@@ -437,6 +461,46 @@ export function BookingCalendarDialog({
                 onChange={setSettlementMethod}
                 originalPaymentMethod={booking?.payment_method ?? null}
               />
+            ) : null}
+
+            {mode === "create" ? (
+              <div className="space-y-2 rounded-lg border border-neutral-100 bg-neutral-50 px-3 py-3">
+                <label className="flex items-start gap-2 text-sm text-neutral-700">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={sendConfirmEmail}
+                    disabled={includePayment}
+                    onChange={(e) => setSendConfirmEmail(e.target.checked)}
+                  />
+                  <span>
+                    Invia email di conferma
+                    <span className="mt-0.5 block text-xs text-neutral-500">
+                      Email con dettagli prenotazione, come se fosse già pagata e
+                      confermata.
+                    </span>
+                  </span>
+                </label>
+                <label className="flex items-start gap-2 text-sm text-neutral-700">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={includePayment}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setIncludePayment(checked);
+                      if (checked) setSendConfirmEmail(false);
+                    }}
+                  />
+                  <span>
+                    Aggiungi estremi per pagamento
+                    <span className="mt-0.5 block text-xs text-neutral-500">
+                      La prenotazione resta non pagata; l&apos;email include un
+                      link per pagare online.
+                    </span>
+                  </span>
+                </label>
+              </div>
             ) : null}
 
             {mode === "edit" ? (
