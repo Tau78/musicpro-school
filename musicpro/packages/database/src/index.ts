@@ -13,6 +13,8 @@ export {
   setMemberHasRole,
 } from "./member-roles";
 export type { RoleMutationResult } from "./member-roles";
+export { listStaffAddCandidates, listStaffUsers } from "./staff-users";
+export type { StaffAddCandidate, StaffUserRow } from "./staff-users";
 export { createBrowserClient } from "./browser";
 export { createServerClient } from "./server";
 export { createMobileClient } from "./mobile";

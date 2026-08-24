@@ -179,6 +179,7 @@ export function buildBookingEmailContent(
   options: {
     cancelPolicyHours: number;
     creditBalance: number | null;
+    paymentUrl?: string | null;
   },
 ): BookingEmailContent {
   const recipientEmail = booking.members?.email?.trim();
@@ -194,20 +195,25 @@ export function buildBookingEmailContent(
   const duration = formatDuration(booking.duration_minutes);
   const proviLabel = booking.provi_da_solo ? 'Sì' : 'No';
   const price = formatEuro(booking.total_price_eur);
-  const status = statusLabel(booking.status, booking.payment_status);
+  const paymentUrl = options.paymentUrl?.trim() || null;
+  const status = paymentUrl
+    ? 'In attesa pagamento'
+    : statusLabel(booking.status, booking.payment_status);
   const bookingRef = shortBookingId(booking.id);
   const base = appUrl();
   const myBookingsUrl = `${base}/prenotazioni/mie`;
   const shopUrl = `${base}/dashboard/shop`;
   const cancelPolicy = `Puoi annullare gratuitamente fino a ${options.cancelPolicyHours} ore prima dell'inizio della prenotazione.`;
 
-  const subject =
-    template === 'modified'
+  const subject = paymentUrl
+    ? 'Completa il pagamento — prenotazione MusicPro'
+    : template === 'modified'
       ? 'La tua prenotazione MusicPro è stata modificata'
       : 'La tua prenotazione MusicPro è stata creata';
 
-  const intro =
-    template === 'modified'
+  const intro = paymentUrl
+    ? 'La prenotazione è stata registrata. Per confermarla, completa il pagamento online:'
+    : template === 'modified'
       ? 'La prenotazione è stata aggiornata. Ecco i dettagli:'
       : 'La prenotazione è stata creata. Ecco i dettagli:';
 
@@ -244,6 +250,7 @@ export function buildBookingEmailContent(
     '',
     textRows,
     '',
+    ...(paymentUrl ? [`Paga online: ${paymentUrl}`, ''] : []),
     cancelPolicy,
     '',
     `Le tue prenotazioni: ${myBookingsUrl}`,
@@ -268,6 +275,13 @@ export function buildBookingEmailContent(
     ${htmlRows}
   </table>
   <p style="font-size:14px;color:#444;">${escapeHtml(cancelPolicy)}</p>
+  ${
+    paymentUrl
+      ? `<p style="margin-top:24px;">
+    <a href="${escapeHtml(paymentUrl)}" style="display:inline-block;background:#c41e3a;color:#fff;text-decoration:none;padding:12px 22px;border-radius:6px;font-weight:600;">Paga ora</a>
+  </p>`
+      : ''
+  }
   <p style="margin-top:24px;">
     <a href="${myBookingsUrl}" style="display:inline-block;background:#c41e3a;color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;font-weight:600;">Le mie prenotazioni</a>
     &nbsp;
@@ -375,6 +389,7 @@ export async function processBookingEmail(
   bookingId: string,
   template: BookingEmailTemplate,
   force = false,
+  paymentUrl?: string | null,
 ): Promise<Record<string, unknown>> {
   const booking = await loadBookingForEmail(client, bookingId);
   if (!booking) {
@@ -397,6 +412,7 @@ export async function processBookingEmail(
     content = buildBookingEmailContent(booking, template, {
       cancelPolicyHours,
       creditBalance,
+      paymentUrl,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

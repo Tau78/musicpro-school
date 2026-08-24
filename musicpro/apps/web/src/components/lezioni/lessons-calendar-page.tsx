@@ -323,12 +323,17 @@ export function LessonsCalendarPage({
     });
   }
 
-  function openCreateBooking(date: string, startMinute: number) {
+  function openCreateBooking(
+    date: string,
+    startMinute: number,
+    durationMinutes?: number,
+  ) {
     const catalog = bookingRooms.length > 0 ? bookingRooms : [];
     const defaultRoom = roomId || catalog[0]?.id || rooms[0]?.id || "";
     const selected =
       catalog.find((room) => room.id === defaultRoom) ?? catalog[0];
     const duration =
+      durationMinutes ??
       selected?.default_duration_minutes ??
       settings.slotGranularityMinutes ??
       120;
@@ -571,7 +576,15 @@ export function LessonsCalendarPage({
           onMove={handleMove}
           onOpenLesson={handleOpenLesson}
           onSlotDoubleClick={
-            bookingsOnly ? openCreateBooking : undefined
+            bookingsOnly
+              ? (date, startMinute) => openCreateBooking(date, startMinute)
+              : undefined
+          }
+          onSlotRangeSelect={
+            bookingsOnly
+              ? (date, startMinute, durationMinutes) =>
+                  openCreateBooking(date, startMinute, durationMinutes)
+              : undefined
           }
           onSelectDay={(date) =>
             pushQuery({ view: "week", date, hl: date })

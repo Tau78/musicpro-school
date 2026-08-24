@@ -19,6 +19,7 @@ import {
   canManageRooms,
   canManageSettings,
   canManageShop,
+  canManageStaffUsers,
   canManageTemplates,
 } from "@/lib/admin/roles";
 import { firstDocumentiHref } from "@/lib/admin/documenti-nav";
@@ -59,18 +60,21 @@ export default async function AdminLayout({
     canManageSettings(member.roles) || canManagePenalties(member.roles);
   const showDocumentiSettings =
     canManageSettings(member.roles) || canManageTemplates(member.roles);
+  const showUtenti = canManageStaffUsers(member.roles);
   const showImpostazioni =
     showQuote ||
     showSale ||
     showShop ||
     showPrenotazioniSettings ||
-    showDocumentiSettings;
+    showDocumentiSettings ||
+    showUtenti;
   const settingsHref = firstSettingsHref({
     showQuote,
     showSale,
     showShop,
     showPrenotazioniSettings,
     showDocumenti: showDocumentiSettings,
+    showUtenti,
   });
 
   const supabase = await createClient();
@@ -143,6 +147,7 @@ export default async function AdminLayout({
             showShop={showShop}
             showPrenotazioniSettings={showPrenotazioniSettings}
             showDocumenti={showDocumentiSettings}
+            showUtenti={showUtenti}
           >
             <DocumentiSubNav>{children}</DocumentiSubNav>
           </SettingsSubNav>

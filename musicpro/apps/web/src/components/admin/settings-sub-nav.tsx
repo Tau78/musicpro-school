@@ -15,6 +15,7 @@ interface SettingsSubNavProps {
   showShop: boolean;
   showPrenotazioniSettings: boolean;
   showDocumenti: boolean;
+  showUtenti: boolean;
   children: ReactNode;
 }
 
@@ -30,6 +31,7 @@ export function SettingsSubNav({
   showShop,
   showPrenotazioniSettings,
   showDocumenti,
+  showUtenti,
   children,
 }: SettingsSubNavProps) {
   const pathname = usePathname();
@@ -83,6 +85,12 @@ export function SettingsSubNav({
     active: boolean;
     visible: boolean;
   }[] = [
+    {
+      href: "/admin/impostazioni/utenti",
+      label: "Utenti",
+      active: pathname.startsWith("/admin/impostazioni/utenti"),
+      visible: showUtenti,
+    },
     {
       href: "/admin/quote",
       label: "Quote",

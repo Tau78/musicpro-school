@@ -2,12 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import {
-  LOCATION_PRESETS,
-  LOCATION_PRESET_LABELS,
-  type FixedAsset,
-  type LocationPreset,
-} from "@musicpro/database";
+import type { FixedAsset } from "@musicpro/database";
 
 import {
   CespitiDetailPanel,
@@ -20,7 +15,10 @@ import {
   emptyCespitiFilters,
   type CespitiFilters,
 } from "./cespiti-filters-drawer";
-import { locationShortLabel } from "./cespiti-location-picker";
+import {
+  CespitiTable,
+  type CespitiColumnSort,
+} from "./cespiti-table";
 
 export type CespitiSortMode = "sala" | "name" | "date";
 
@@ -28,34 +26,6 @@ interface CespitiPanelProps {
   initialAssets: CespitiAssetWithPhoto[];
   isAdmin: boolean;
   memberId: string;
-}
-
-function assetStatus(asset: FixedAsset): {
-  label: string;
-  className: string;
-} {
-  if (asset.deletedAt) {
-    return {
-      label: "Eliminato",
-      className: "bg-neutral-200 text-neutral-700",
-    };
-  }
-  if (asset.disposedAt) {
-    return {
-      label: "Dismesso",
-      className: "bg-amber-100 text-amber-900",
-    };
-  }
-  return {
-    label: "Attivo",
-    className: "bg-emerald-100 text-emerald-900",
-  };
-}
-
-function truncateSerial(serial: string | null, max = 14): string {
-  if (!serial) return "—";
-  if (serial.length <= max) return serial;
-  return `${serial.slice(0, max)}…`;
 }
 
 function buildListQuery(
@@ -74,7 +44,7 @@ function buildListQuery(
   return params.toString();
 }
 
-function sortAssets(
+function sortAssetsByMode(
   assets: CespitiAssetWithPhoto[],
   mode: CespitiSortMode,
 ): CespitiAssetWithPhoto[] {
@@ -93,45 +63,7 @@ function sortAssets(
     );
   }
 
-  return copy.sort((a, b) => {
-    const rank = (preset: LocationPreset | null) => {
-      if (preset == null) return LOCATION_PRESETS.length;
-      const index = LOCATION_PRESETS.indexOf(preset);
-      return index >= 0 ? index : LOCATION_PRESETS.length;
-    };
-    const diff = rank(a.locationPreset) - rank(b.locationPreset);
-    if (diff !== 0) return diff;
-    return a.name.localeCompare(b.name, "it", { sensitivity: "base" });
-  });
-}
-
-function groupByLocation(
-  assets: CespitiAssetWithPhoto[],
-): { key: string; label: string; items: CespitiAssetWithPhoto[] }[] {
-  const groups = new Map<string, CespitiAssetWithPhoto[]>();
-
-  for (const asset of assets) {
-    const key = asset.locationPreset ?? "__none__";
-    const current = groups.get(key) ?? [];
-    current.push(asset);
-    groups.set(key, current);
-  }
-
-  const orderedKeys = [
-    ...LOCATION_PRESETS,
-    "__none__",
-  ].filter((key) => groups.has(key));
-
-  return orderedKeys.map((key) => ({
-    key,
-    label:
-      key === "__none__"
-        ? "Senza sala"
-        : LOCATION_PRESET_LABELS[key as LocationPreset],
-    items: [...(groups.get(key) ?? [])].sort((a, b) =>
-      a.name.localeCompare(b.name, "it", { sensitivity: "base" }),
-    ),
-  }));
+  return copy;
 }
 
 export function CespitiPanel({
@@ -143,6 +75,7 @@ export function CespitiPanel({
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState<CespitiFilters>(emptyCespitiFilters());
   const [sortMode, setSortMode] = useState<CespitiSortMode>("sala");
+  const [columnSort, setColumnSort] = useState<CespitiColumnSort | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -189,17 +122,13 @@ export function CespitiPanel({
     return () => window.clearTimeout(timer);
   }, [loadAssets]);
 
-  const sortedAssets = useMemo(
-    () => sortAssets(assets, sortMode),
-    [assets, sortMode],
-  );
+  const tableAssets = useMemo(() => {
+    if (columnSort) return assets;
+    if (sortMode === "sala") return assets;
+    return sortAssetsByMode(assets, sortMode);
+  }, [assets, sortMode, columnSort]);
 
-  const groupedAssets = useMemo(() => {
-    if (sortMode !== "sala") {
-      return [{ key: "all", label: "", items: sortedAssets }];
-    }
-    return groupByLocation(sortedAssets);
-  }, [sortedAssets, sortMode]);
+  const groupBySala = sortMode === "sala" && columnSort?.key !== "location";
 
   function openAddPanel() {
     setPanelMode("add");
@@ -260,17 +189,18 @@ export function CespitiPanel({
 
         <div className="flex items-center gap-2">
           <label className="flex items-center gap-2 text-sm text-neutral-600">
-            <span className="sr-only">Ordina per</span>
+            <span className="sr-only">Vista</span>
             <select
               value={sortMode}
-              onChange={(event) =>
-                setSortMode(event.target.value as CespitiSortMode)
-              }
+              onChange={(event) => {
+                setSortMode(event.target.value as CespitiSortMode);
+                setColumnSort(null);
+              }}
               className="min-h-[44px] rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)]"
             >
-              <option value="sala">Ordina: sala</option>
-              <option value="name">Ordina: nome</option>
-              <option value="date">Ordina: data</option>
+              <option value="sala">Raggruppa per sala</option>
+              <option value="name">Lista per nome</option>
+              <option value="date">Lista per data</option>
             </select>
           </label>
           <a
@@ -296,7 +226,7 @@ export function CespitiPanel({
         }`}
       >
         <div
-          className={`min-w-0 overflow-y-auto ${
+          className={`min-w-0 overflow-x-auto overflow-y-auto ${
             panelOpen
               ? "hidden md:block md:w-[55%] md:border-r md:border-neutral-100"
               : "w-full"
@@ -304,104 +234,20 @@ export function CespitiPanel({
         >
           {loading ? (
             <p className="px-4 py-6 text-sm text-neutral-500">Caricamento…</p>
-          ) : sortedAssets.length === 0 ? (
+          ) : tableAssets.length === 0 ? (
             <p className="px-4 py-10 text-center text-sm text-neutral-500">
               Nessun cespite trovato.
             </p>
           ) : (
-            groupedAssets.map((group) => (
-              <section key={group.key}>
-                {group.label ? (
-                  <div className="sticky top-0 z-10 border-b border-neutral-100 bg-neutral-50 px-3 py-2">
-                    <h4 className="text-xs font-semibold uppercase tracking-wide text-[var(--brand)]">
-                      {group.label}
-                    </h4>
-                  </div>
-                ) : null}
-
-                <table className="w-full table-fixed text-sm">
-                  <thead className="sr-only">
-                    <tr>
-                      <th>Foto</th>
-                      <th>Nome</th>
-                      <th>Marca/Modello</th>
-                      <th>Qty</th>
-                      <th>Seriale</th>
-                      <th>Sala</th>
-                      <th>Stato</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {group.items.map((asset) => {
-                      const status = assetStatus(asset);
-                      const selected = selectedId === asset.id && panelOpen;
-
-                      return (
-                        <tr
-                          key={asset.id}
-                          onClick={() => openEditPanel(asset.id)}
-                          className={`cursor-pointer border-b border-neutral-100 touch-manipulation hover:bg-neutral-50 ${
-                            selected ? "bg-[var(--brand)]/5" : ""
-                          }`}
-                        >
-                          <td className="w-12 px-2 py-2 align-middle">
-                            <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-md border border-neutral-200 bg-neutral-50">
-                              {asset.photoUrl ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                  src={asset.photoUrl}
-                                  alt=""
-                                  className="h-full w-full object-cover"
-                                />
-                              ) : (
-                                <span className="text-[10px] text-neutral-400">
-                                  —
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="min-w-0 px-2 py-2 align-middle">
-                            <span className="block truncate font-medium text-neutral-900">
-                              {asset.name}
-                            </span>
-                          </td>
-                          <td className="hidden min-w-0 px-2 py-2 align-middle sm:table-cell">
-                            <span className="block truncate text-neutral-600">
-                              {[asset.brand, asset.model]
-                                .filter(Boolean)
-                                .join(" ") || "—"}
-                            </span>
-                          </td>
-                          <td className="w-10 px-2 py-2 text-center align-middle text-neutral-700">
-                            {asset.quantity}
-                          </td>
-                          <td className="hidden min-w-0 px-2 py-2 align-middle md:table-cell">
-                            <span className="block truncate font-mono text-xs text-neutral-600">
-                              {truncateSerial(asset.serial)}
-                            </span>
-                          </td>
-                          <td className="hidden min-w-0 px-2 py-2 align-middle lg:table-cell">
-                            <span className="block truncate text-neutral-600">
-                              {locationShortLabel(
-                                asset.locationPreset,
-                                asset.locationCustom,
-                              )}
-                            </span>
-                          </td>
-                          <td className="w-24 px-2 py-2 align-middle">
-                            <span
-                              className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${status.className}`}
-                            >
-                              {status.label}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </section>
-            ))
+            <CespitiTable
+              assets={tableAssets}
+              groupBySala={groupBySala}
+              selectedId={selectedId}
+              panelOpen={panelOpen}
+              onSelect={openEditPanel}
+              columnSort={columnSort}
+              onColumnSortChange={setColumnSort}
+            />
           )}
         </div>
 

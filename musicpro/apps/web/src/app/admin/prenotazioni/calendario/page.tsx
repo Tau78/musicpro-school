@@ -83,8 +83,8 @@ export default async function AdminPrenotazioniCalendarioPage({
           Prenotazioni sale
         </h2>
         <p className="mt-1 text-sm text-neutral-600">
-          Calendario prenotazioni e occupazioni esterne. Clicca un evento per
-          modificarlo; doppio click su uno slot vuoto per crearne uno nuovo.
+          Calendario prenotazioni e occupazioni esterne. Trascina su uno slot
+          vuoto per creare, clicca un evento per modificarlo.
         </p>
       </div>
 

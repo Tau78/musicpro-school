@@ -41,6 +41,11 @@ export function canDeleteMembers(roles: MemberRoleValue[]): boolean {
   return roles.includes(MemberRole.Admin);
 }
 
+/** Privilegi staff e password degli altri account — solo admin. */
+export function canManageStaffUsers(roles: MemberRoleValue[]): boolean {
+  return roles.includes(MemberRole.Admin);
+}
+
 /** Compatta duplicati associati — solo admin. */
 export function canMergeDuplicates(roles: MemberRoleValue[]): boolean {
   return roles.includes(MemberRole.Admin);

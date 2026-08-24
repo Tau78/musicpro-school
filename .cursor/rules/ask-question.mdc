@@ -5,18 +5,17 @@ alwaysApply: true
 
 # AskQuestion — sempre form tappable
 
-Quando serve una decisione dell’utente (prodotto, UX, scope, default, fork):
+Quando serve una decisione dell'utente (prodotto, scope, default, A/B): usa lo strumento **AskQuestion** (form tappable / multitap). Mai elenco 1/2/3 solo in chat.
 
-1. Usa lo strumento **AskQuestion**. Mai elenco 1/2/3 solo in chat, mai “dimmi tu”.
-2. Ogni domanda: italiano + **2–4 opzioni**.
-3. Default per primo, con `(consigliato)` nella label se c’è una proposta.
-4. Ultima opzione se il caso non è chiuso: `Altro (lo scrivo in chat)`.
-5. Una domanda = una decisione. Un solo form per turno; se sono tante, tutte insieme.
-6. Testo libero su una voce = risposta valida; tap solo sul resto.
+- Opzioni in italiano, **2–4**.
+- Una consigliata se c'è: prima, con `(consigliato)` nella label.
+- Ultima: `Altro (lo scrivo in chat)`.
+- Un form per tornata. Se le domande sono tante, tutte nello stesso form.
+- Testo libero su una voce = risposta valida; tap solo sul resto.
 
 ```
 ❌ “Preferisci A o B? Dimmi tu.”
 ✅ AskQuestion: A / B / C altro
 ```
 
-Eccezione: una sola conferma sì/no operativa (es. “eseguo VAI?”) può restare in chat.
+Conferma sì/no operativa (es. eseguo VAI?) può restare in chat.
