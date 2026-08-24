@@ -1,34 +1,21 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import type { ReactNode } from "react";
 
-import { AdminPillNav } from "./admin-pill-nav";
+import { isDocumentiPath } from "@/lib/admin/documenti-nav";
 
-export function DocumentiSubNav() {
+interface DocumentiSubNavProps {
+  children: ReactNode;
+}
+
+/** Path gate for /admin/documenti; side nav lives in documenti/layout. */
+export function DocumentiSubNav({ children }: DocumentiSubNavProps) {
   const pathname = usePathname();
 
-  return (
-    <AdminPillNav
-      nested
-      items={[
-        {
-          href: "/admin/impostazioni/documenti",
-          label: "Documenti",
-          active: pathname === "/admin/impostazioni/documenti",
-        },
-        {
-          href: "/admin/impostazioni/documenti/drive",
-          label: "Cartelle",
-          active: pathname.startsWith("/admin/impostazioni/documenti/drive"),
-        },
-        {
-          href: "/admin/impostazioni/documenti/template",
-          label: "Modelli",
-          active:
-            pathname.startsWith("/admin/impostazioni/documenti/template") ||
-            pathname.startsWith("/admin/template"),
-        },
-      ]}
-    />
-  );
+  if (!isDocumentiPath(pathname)) {
+    return children;
+  }
+
+  return children;
 }

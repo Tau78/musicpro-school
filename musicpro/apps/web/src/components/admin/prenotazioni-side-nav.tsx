@@ -3,15 +3,13 @@
 import { usePathname, useSearchParams } from "next/navigation";
 
 import { AdminSideNav } from "@/components/admin/admin-side-nav";
+import {
+  parsePrenotazioniLista,
+  type PrenotazioniLista,
+} from "@/lib/admin/prenotazioni-nav";
 
-export type PrenotazioniLista = "da-approvare" | "prossime" | "tutte";
-
-export function parsePrenotazioniLista(
-  value: string | undefined | null,
-): PrenotazioniLista {
-  if (value === "prossime" || value === "tutte") return value;
-  return "da-approvare";
-}
+export type { PrenotazioniLista };
+export { parsePrenotazioniLista };
 
 export function PrenotazioniSideNav() {
   const pathname = usePathname();

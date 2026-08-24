@@ -1,0 +1,17 @@
+---
+description: La parola VAI lancia lo script di rilascio (commit, merge PR, push; deploy/FTP/build solo se toccati)
+alwaysApply: true
+---
+
+# VAI
+
+Se il messaggio dell’utente è **VAI** (anche `vai`, o inizia con VAI), è un ordine di rilascio. Non chiedere conferma.
+
+1. Se VAI arriva con altro lavoro, **fai prima quello**, poi rilascia.
+2. Esegui `bash scripts/vai.sh` dalla root (con rete).
+3. Prima dello script, `VAI_MESSAGE` = 1–2 frasi sul *perché* (dal `git diff`).
+4. Se una build è già in corso, `--skip-build`.
+
+VAI = commit, push, merge della PR, e poi solo i passi il cui stack c’è **ora** e i cui file sono **toccati**. Il push su git si fa comunque. Non è `--force`. Non committare `.env`, `.env.ftp`, password.
+
+Vietato: rifare i passi a mano se lo script esiste; chiedere «vuoi che committi?»; `--force`, `--no-verify`, amend.

@@ -1,0 +1,5 @@
+{
+  "name": "MusicPro School",
+  "install": "npm ci",
+  "agentCanUpdateSnapshot": true
+}

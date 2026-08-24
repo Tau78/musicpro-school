@@ -10,9 +10,19 @@ import {
   listLessonsInRange,
   moveLesson,
   requestLessonMove,
+  adminUpdateBooking,
+  minutesToTimeLabel,
   romeLocalInputToUtcIso,
   utcIsoToRomeLocalInput,
+  type Room,
 } from "@musicpro/database";
+
+import {
+  BookingCalendarDialog,
+  type BookingCalendarDraft,
+} from "@/components/admin/booking-calendar-dialog";
+import { requestBookingCalendarSync } from "@/lib/calendar/sync-booking";
+import { requestBookingConfirmationEmail } from "@/lib/booking/send-confirmation-email";
 
 import {
   mergeCalendarEvents,
@@ -42,6 +52,8 @@ export interface LessonsCalendarPageProps {
     slotGranularityMinutes?: number;
   };
   rooms: { id: string; name: string }[];
+  /** Sale complete per modifica/creazione prenotazioni (solo bookingsOnly). */
+  bookingRooms?: Room[];
   teachers?: { id: string; label: string }[];
   initialTeacherId?: string | null;
   initialRoomId?: string | null;
@@ -83,6 +95,7 @@ export function LessonsCalendarPage({
   highlightDay = null,
   memberId,
   bookingsOnly = false,
+  bookingRooms = [],
 }: LessonsCalendarPageProps) {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
@@ -107,6 +120,20 @@ export function LessonsCalendarPage({
   const [actionLesson, setActionLesson] = useState<CalendarLesson | null>(null);
   const [attendanceLesson, setAttendanceLesson] =
     useState<CalendarLesson | null>(null);
+  const [bookingDialog, setBookingDialog] = useState<
+    | { mode: "create"; draft: BookingCalendarDraft }
+    | { mode: "edit"; bookingId: string }
+    | {
+        mode: "external";
+        external: {
+          title: string;
+          roomName: string | null;
+          startsAt: string;
+          endsAt: string;
+        };
+      }
+    | null
+  >(null);
 
   const sundayVisible = settings.sundayVisible;
   const filtersRef = useRef({ view, anchorDate, mode, teacherId, roomId });
@@ -240,10 +267,31 @@ export function LessonsCalendarPage({
   function handleOpenLesson(lessonId: string) {
     const bookingId = parseBookingId(lessonId);
     if (bookingId) {
-      router.push(`/admin/prenotazioni/${bookingId}`);
+      if (bookingsOnly) {
+        setBookingDialog({ mode: "edit", bookingId });
+      } else {
+        router.push(`/admin/prenotazioni/${bookingId}`);
+      }
       return;
     }
-    if (parseExternalEventId(lessonId)) return;
+    const externalId = parseExternalEventId(lessonId);
+    if (externalId) {
+      if (bookingsOnly) {
+        const lesson = lessons.find((row) => row.id === lessonId);
+        if (lesson?.startsAt && lesson.endsAt) {
+          setBookingDialog({
+            mode: "external",
+            external: {
+              title: lesson.courseName,
+              roomName: lesson.roomName,
+              startsAt: lesson.startsAt,
+              endsAt: lesson.endsAt,
+            },
+          });
+        }
+      }
+      return;
+    }
     const lesson = lessons.find((row) => row.id === lessonId);
     if (!lesson) return;
     const hold = lessonId.startsWith("hold:");
@@ -275,13 +323,63 @@ export function LessonsCalendarPage({
     });
   }
 
+  function openCreateBooking(date: string, startMinute: number) {
+    const catalog = bookingRooms.length > 0 ? bookingRooms : [];
+    const defaultRoom = roomId || catalog[0]?.id || rooms[0]?.id || "";
+    const selected =
+      catalog.find((room) => room.id === defaultRoom) ?? catalog[0];
+    const duration =
+      selected?.default_duration_minutes ??
+      settings.slotGranularityMinutes ??
+      120;
+    setBookingDialog({
+      mode: "create",
+      draft: {
+        roomId: defaultRoom,
+        startLocal: `${date}T${minutesToTimeLabel(startMinute)}`,
+        durationMinutes: duration,
+      },
+    });
+  }
+
   async function handleMove(
     lessonId: string,
     startsAtIso: string,
     nextRoomId: string | null,
     scope: MoveScope,
   ) {
-    if (parseBookingId(lessonId) || parseExternalEventId(lessonId)) return;
+    const bookingId = parseBookingId(lessonId);
+    if (bookingId && bookingsOnly) {
+      const lesson = lessons.find((row) => row.id === lessonId);
+      if (!lesson?.startsAt || !lesson.endsAt) {
+        throw new Error("Prenotazione non valida.");
+      }
+      const durationMinutes = Math.max(
+        15,
+        Math.round(
+          (new Date(lesson.endsAt).getTime() -
+            new Date(lesson.startsAt).getTime()) /
+            60_000,
+        ),
+      );
+      const endAt = new Date(
+        new Date(startsAtIso).getTime() + durationMinutes * 60_000,
+      ).toISOString();
+      const result = await adminUpdateBooking(supabase, bookingId, {
+        roomId: nextRoomId ?? lesson.roomId ?? rooms[0]?.id ?? "",
+        startAt: startsAtIso,
+        endAt,
+      });
+      if (!result.success) {
+        throw new Error(result.errorMessage || "Impossibile spostare la prenotazione.");
+      }
+      void requestBookingCalendarSync(bookingId);
+      void requestBookingConfirmationEmail(bookingId, { template: "modified" });
+      await reloadLessons();
+      return;
+    }
+
+    if (bookingId || parseExternalEventId(lessonId)) return;
     const lesson = lessons.find((row) => row.id === lessonId);
     if (lesson?.hasAttendance) {
       throw new Error(
@@ -464,12 +562,17 @@ export function LessonsCalendarPage({
           gridOpenMinute={settings.gridOpenMinute}
           gridCloseMinute={settings.gridCloseMinute}
           slotGranularityMinutes={settings.slotGranularityMinutes}
-          canDrag={canDrag}
+          canDrag={bookingsOnly || canDrag}
+          canDragBookings={bookingsOnly}
+          moveSingleScope={bookingsOnly}
           showTeacherName={isStaff}
           rooms={rooms}
           highlightDay={highlight}
           onMove={handleMove}
           onOpenLesson={handleOpenLesson}
+          onSlotDoubleClick={
+            bookingsOnly ? openCreateBooking : undefined
+          }
           onSelectDay={(date) =>
             pushQuery({ view: "week", date, hl: date })
           }
@@ -506,6 +609,26 @@ export function LessonsCalendarPage({
             />
           </div>
         </Dialog>
+      ) : null}
+
+      {bookingDialog && bookingsOnly ? (
+        <BookingCalendarDialog
+          mode={bookingDialog.mode}
+          bookingId={
+            bookingDialog.mode === "edit" ? bookingDialog.bookingId : undefined
+          }
+          draft={
+            bookingDialog.mode === "create" ? bookingDialog.draft : undefined
+          }
+          external={
+            bookingDialog.mode === "external"
+              ? bookingDialog.external
+              : undefined
+          }
+          rooms={bookingRooms}
+          onClose={() => setBookingDialog(null)}
+          onSaved={() => void reloadLessons()}
+        />
       ) : null}
 
       {actionLesson ? (
