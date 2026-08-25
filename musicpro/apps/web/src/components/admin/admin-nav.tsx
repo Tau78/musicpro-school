@@ -13,6 +13,7 @@ interface AdminNavProps {
   showDocumenti: boolean;
   showRimborsi: boolean;
   showImpostazioni: boolean;
+  showWebsite: boolean;
   documentiHref: string;
   settingsHref: string;
 }
@@ -36,6 +37,7 @@ const navItems = [
     label: "Impostazioni",
     key: "impostazioni" as const,
   },
+  { href: "/admin/website", label: "Sito", key: "website" as const },
 ];
 
 export function AdminNav({
@@ -45,6 +47,7 @@ export function AdminNav({
   showDocumenti,
   showRimborsi,
   showImpostazioni,
+  showWebsite,
   documentiHref,
   settingsHref,
 }: AdminNavProps) {
@@ -60,6 +63,7 @@ export function AdminNav({
       if (item.key === "documenti") return showDocumenti;
       if (item.key === "rimborsi") return showRimborsi;
       if (item.key === "impostazioni") return showImpostazioni;
+      if (item.key === "website") return showWebsite;
       return false;
     })
     .map((item) => {
@@ -134,6 +138,7 @@ function isNavItemActive(
 ): boolean {
   if (key === "impostazioni") return isSettingsPath(pathname);
   if (key === "documenti") return pathname.startsWith("/admin/documenti");
+  if (key === "website") return pathname.startsWith("/admin/website");
   if (key === "lezioni") return pathname.startsWith("/admin/lezioni");
   return pathname.startsWith(href);
 }

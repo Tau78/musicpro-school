@@ -7,8 +7,21 @@ import { createClient } from "@/lib/supabase/client";
 const inputClass =
   "mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/20";
 
+function passwordUpdateMessage(message: string): string {
+  const text = message.toLowerCase();
+  if (text.includes("same") || text.includes("should be different")) {
+    return "La nuova password deve essere diversa da quella attuale.";
+  }
+  if (text.includes("leaked") || text.includes("pwned") || text.includes("data breach")) {
+    return "Questa password risulta compromessa. Scegline un’altra.";
+  }
+  if (text.includes("weak") || text.includes("characters")) {
+    return "La password è troppo debole. Usa almeno 8 caratteri.";
+  }
+  return message || "Impossibile aggiornare la password.";
+}
+
 export function ChangePasswordForm() {
-  const [currentPassword, setCurrentPassword] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -28,42 +41,17 @@ export function ChangePasswordForm() {
       setError("Le password non coincidono.");
       return;
     }
-    if (password === currentPassword) {
-      setError("La nuova password deve essere diversa da quella attuale.");
-      return;
-    }
 
     setBusy(true);
     const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    const email = user?.email?.trim();
-    if (!email) {
-      setBusy(false);
-      setError("Account senza email: non è possibile cambiare la password da qui.");
-      return;
-    }
-
-    const { error: verifyError } = await supabase.auth.signInWithPassword({
-      email,
-      password: currentPassword,
-    });
-    if (verifyError) {
-      setBusy(false);
-      setError("Password attuale non corretta.");
-      return;
-    }
-
     const { error: updateError } = await supabase.auth.updateUser({ password });
     setBusy(false);
 
     if (updateError) {
-      setError(updateError.message || "Impossibile aggiornare la password.");
+      setError(passwordUpdateMessage(updateError.message));
       return;
     }
 
-    setCurrentPassword("");
     setPassword("");
     setConfirmPassword("");
     setOk("Password aggiornata.");
@@ -72,26 +60,9 @@ export function ChangePasswordForm() {
   return (
     <form className="space-y-3" onSubmit={(event) => void handleSubmit(event)}>
       <p className="text-sm text-neutral-600">
-        Cambia la password di accesso. Deve avere almeno 8 caratteri.
+        Sei già connesso: scegli la nuova password (almeno 8 caratteri). Non
+        serve quella attuale.
       </p>
-      <div>
-        <label
-          htmlFor="current-password"
-          className="block text-sm font-medium text-neutral-700"
-        >
-          Password attuale
-        </label>
-        <input
-          id="current-password"
-          name="current-password"
-          type="password"
-          autoComplete="current-password"
-          required
-          value={currentPassword}
-          onChange={(event) => setCurrentPassword(event.target.value)}
-          className={inputClass}
-        />
-      </div>
       <div>
         <label
           htmlFor="new-password"
