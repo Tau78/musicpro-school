@@ -134,6 +134,7 @@ export default async function AdminLayout({
           showDocumenti={showDocumentiSection}
           showRimborsi={showRimborsi}
           showImpostazioni={showImpostazioni}
+          showWebsite={canManageSettings(member.roles)}
           documentiHref={documentiHref}
           settingsHref={settingsHref}
         />
