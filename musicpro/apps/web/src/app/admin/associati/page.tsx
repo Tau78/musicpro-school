@@ -13,6 +13,7 @@ import { AssociatesBookButton } from "@/components/admin/associates-book-button"
 import { MemberList } from "@/components/admin/member-list";
 import { getAdminMember } from "@/lib/admin/current-member";
 import {
+  canDeleteMembers,
   canManageMembers,
   canMergeDuplicates,
 } from "@/lib/admin/roles";
@@ -70,6 +71,9 @@ export default async function AssociatiPage() {
         canAdd
         creditBalances={creditBalances}
         docenteIds={docenteIds}
+        canDelete={canDeleteMembers(member.roles)}
+        currentStaffMemberId={member.id}
+        currentStaffRoles={member.roles}
       />
     </div>
   );

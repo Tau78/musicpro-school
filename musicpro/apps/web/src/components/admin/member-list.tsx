@@ -1,17 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import type { MemberSummary } from "@musicpro/database";
+import type { MemberRoleValue } from "@musicpro/shared";
 
 import { BulkMessageModal } from "@/components/admin/bulk-message-modal";
+import { MemberDetailDialog } from "@/components/admin/member-detail-dialog";
 
 interface MemberListProps {
   members: MemberSummary[];
   canAdd: boolean;
   creditBalances?: Record<string, number | null>;
   docenteIds?: string[];
+  canDelete: boolean;
+  currentStaffMemberId: string;
+  currentStaffRoles: MemberRoleValue[];
 }
 
 export function MemberList({
@@ -19,12 +24,16 @@ export function MemberList({
   canAdd,
   creditBalances,
   docenteIds,
+  canDelete,
+  currentStaffMemberId,
+  currentStaffRoles,
 }: MemberListProps) {
   const [search, setSearch] = useState("");
   const [docentiOnly, setDocentiOnly] = useState(false);
   const [bozzeOnly, setBozzeOnly] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [messageOpen, setMessageOpen] = useState(false);
+  const [openMemberId, setOpenMemberId] = useState<string | null>(null);
 
   const docenteIdSet = useMemo(
     () => new Set(docenteIds ?? []),
@@ -56,6 +65,12 @@ export function MemberList({
     () => members.filter((m) => selectedIds.has(m.id)),
     [members, selectedIds],
   );
+
+  const openMember = openMemberId
+    ? members.find((m) => m.id === openMemberId) ?? null
+    : null;
+
+  const closeMember = useCallback(() => setOpenMemberId(null), []);
 
   function toggleOne(id: string) {
     setSelectedIds((prev) => {
@@ -174,6 +189,18 @@ export function MemberList({
               </label>
               <Link
                 href={`/admin/associati/${member.id}`}
+                onClick={(event) => {
+                  if (
+                    event.metaKey ||
+                    event.ctrlKey ||
+                    event.shiftKey ||
+                    event.altKey
+                  ) {
+                    return;
+                  }
+                  event.preventDefault();
+                  setOpenMemberId(member.id);
+                }}
                 className="flex min-w-0 flex-1 items-center gap-4 py-3 pr-4 transition-colors hover:bg-neutral-50"
               >
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--brand)]/10 text-sm font-semibold text-[var(--brand)]">
@@ -223,6 +250,17 @@ export function MemberList({
         onClose={() => setMessageOpen(false)}
         onSent={() => setSelectedIds(new Set())}
       />
+
+      {openMember ? (
+        <MemberDetailDialog
+          memberId={openMember.id}
+          previewName={`${openMember.lastName} ${openMember.firstName}`}
+          canDelete={canDelete}
+          currentStaffMemberId={currentStaffMemberId}
+          currentStaffRoles={currentStaffRoles}
+          onClose={closeMember}
+        />
+      ) : null}
     </div>
   );
 }

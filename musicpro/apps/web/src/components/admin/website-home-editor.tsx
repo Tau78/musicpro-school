@@ -128,11 +128,15 @@ export function WebsiteHomeEditor({
           const active = block.id === selectedId;
           const title = blockTitle(block);
           return (
-            <li key={block.id}>
+            <li
+              key={block.id}
+              id={`cms-block-${block.id}`}
+              className={active ? "bg-[var(--brand)]/8" : "bg-white"}
+            >
               <div
                 className={`flex items-center gap-2 px-2 py-2 ${
-                  active ? "bg-[var(--brand)]/8" : "bg-white"
-                } ${block.hidden ? "opacity-60" : ""}`}
+                  block.hidden ? "opacity-60" : ""
+                }`}
               >
                 <button
                   type="button"
@@ -171,6 +175,14 @@ export function WebsiteHomeEditor({
                   ×
                 </IconButton>
               </div>
+              {active ? (
+                <div className="border-t border-neutral-200 p-4">
+                  <p className="mb-4 text-sm font-medium text-neutral-800">
+                    {WEBSITE_BLOCK_TYPE_LABELS[block.type]}
+                  </p>
+                  <BlockFields block={block} onChange={replace} />
+                </div>
+              ) : null}
             </li>
           );
         })}
@@ -200,18 +212,11 @@ export function WebsiteHomeEditor({
         ) : null}
       </div>
 
-      {selected ? (
-        <div className="rounded-xl border border-neutral-200 p-4">
-          <p className="mb-4 text-sm font-medium text-neutral-800">
-            {WEBSITE_BLOCK_TYPE_LABELS[selected.type]}
-          </p>
-          <BlockFields block={selected} onChange={replace} />
-        </div>
-      ) : (
+      {!selected ? (
         <p className="text-sm text-neutral-600">
           Scegli una sezione per modificarla.
         </p>
-      )}
+      ) : null}
     </div>
   );
 }

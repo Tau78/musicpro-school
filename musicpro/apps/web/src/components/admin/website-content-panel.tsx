@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -46,6 +46,7 @@ export function WebsiteContentPanel({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [iframeOpen, setIframeOpen] = useState(Boolean(initialDraft.previewToken));
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const [lastSaved, setLastSaved] = useState<WebsiteHubDocumentV2>(initialDraft);
   const [dirty, setDirty] = useState(initialDirty);
@@ -73,6 +74,27 @@ export function WebsiteContentPanel({
     window.addEventListener("beforeunload", onLeave);
     return () => window.removeEventListener("beforeunload", onLeave);
   }, [unsaved]);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    document
+      .getElementById(`cms-block-${selectedId}`)
+      ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+
+    const frame = iframeRef.current;
+    if (!frame) return;
+    const message = { type: "musicpro-cms", action: "focus", id: selectedId };
+    const send = () => {
+      try {
+        frame.contentWindow?.postMessage(message, "*");
+      } catch {
+        /* ignore */
+      }
+    };
+    send();
+    const timer = window.setTimeout(send, 500);
+    return () => window.clearTimeout(timer);
+  }, [selectedId, previewNonce, iframeOpen]);
 
   async function requestJson(
     url: string,
@@ -310,9 +332,10 @@ export function WebsiteContentPanel({
           ) : null}
           {iframeOpen && previewHref ? (
             <iframe
+              ref={iframeRef}
               key={`${previewHref}-${previewNonce}`}
               title="Anteprima sito hub"
-              src={previewHref}
+              src={selectedId ? `${previewHref}#${encodeURIComponent(selectedId)}` : previewHref}
               className="h-[70vh] w-full rounded-xl border border-neutral-200 bg-white"
             />
           ) : (

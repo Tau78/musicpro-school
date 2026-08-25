@@ -14,6 +14,7 @@ import {
 } from "@musicpro/database";
 
 import { generateFiscalReceiptPdf } from "@/lib/lezioni/fiscal-receipt-pdf";
+import { SettingsPageHeader } from "@/components/admin/settings-page-chrome";
 import { createClient } from "@/lib/supabase/client";
 
 const inputClass =
@@ -210,10 +211,11 @@ export function ReceiptsPanel({ actorMemberId }: { actorMemberId: string }) {
   }
 
   return (
-    <div className="space-y-8">
-      <p className="text-sm text-neutral-600">
-        Le sostituite restano in elenco e non entrano nel totale.
-      </p>
+    <div className="space-y-6">
+      <SettingsPageHeader
+        title="Ricevute"
+        description="Ricevute fiscali emesse nel periodo selezionato. Le sostituite restano in elenco e non entrano nel totale."
+      />
 
       {error ? (
         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

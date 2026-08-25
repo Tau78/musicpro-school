@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 
-import { getAdminRoomById } from "@musicpro/database";
+import { getAdminRoomById, listAllRooms } from "@musicpro/database";
 
 import {
   RoomsSettingsWorkspace,
@@ -28,7 +28,10 @@ export default async function SalaDetailPage({
     redirect("/admin/rimborsi");
   }
 
-  const room = await getAdminRoomById(supabase, id);
+  const [room, rooms] = await Promise.all([
+    getAdminRoomById(supabase, id),
+    listAllRooms(supabase),
+  ]);
 
   if (!room) {
     notFound();
@@ -36,6 +39,7 @@ export default async function SalaDetailPage({
 
   return (
     <RoomsSettingsWorkspace
+      rooms={rooms}
       room={room}
       initialTab={parseRoomTab(tab)}
     />

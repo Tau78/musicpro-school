@@ -33,6 +33,8 @@ interface MemberFormProps {
   currentStaffMemberId?: string;
   currentStaffRoles?: MemberRoleValue[];
   initialIsDocente?: boolean;
+  onCancel?: () => void;
+  onDeleted?: () => void;
 }
 
 const CREATE_ASSIGNABLE_ROLES: MemberRoleValue[] = [
@@ -113,6 +115,8 @@ export function MemberForm({
   currentStaffMemberId,
   currentStaffRoles = [],
   initialIsDocente = false,
+  onCancel,
+  onDeleted,
 }: MemberFormProps) {
   const router = useRouter();
   const supabase = createClient();
@@ -235,7 +239,11 @@ export function MemberForm({
       return;
     }
 
-    router.push("/admin/associati");
+    if (onDeleted) {
+      onDeleted();
+    } else {
+      router.push("/admin/associati");
+    }
     router.refresh();
   }
 
@@ -636,7 +644,10 @@ export function MemberForm({
           </button>
           <button
             type="button"
-            onClick={() => router.push("/admin/associati")}
+            onClick={() => {
+              if (onCancel) onCancel();
+              else router.push("/admin/associati");
+            }}
             className="rounded-lg border border-neutral-300 px-6 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
           >
             Annulla
@@ -655,7 +666,7 @@ export function MemberForm({
       </div>
 
       {showDeleteConfirm ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-lg">
             <h3 className="text-lg font-semibold text-neutral-900">
               Conferma eliminazione

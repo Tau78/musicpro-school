@@ -2,10 +2,7 @@
 
 import { usePathname } from "next/navigation";
 
-import {
-  AdminSideNav,
-  type AdminSideNavGroup,
-} from "@/components/admin/admin-side-nav";
+import { AdminGroupedNav } from "@/components/admin/admin-grouped-nav";
 
 type NavItem = { href: string; label: string };
 type NavGroup = { label: string; items: readonly NavItem[] };
@@ -76,7 +73,7 @@ export function LezioniSideNav({
       .filter((item) => pathname.startsWith(item.href))
       .sort((a, b) => b.href.length - a.href.length)[0]?.href ?? null;
 
-  const resolved: AdminSideNavGroup[] = groups.map((group) => ({
+  const resolved = groups.map((group) => ({
     label: group.label,
     items: group.items.map((item) => ({
       ...item,
@@ -84,5 +81,5 @@ export function LezioniSideNav({
     })),
   }));
 
-  return <AdminSideNav groups={resolved} label="Lezioni" />;
+  return <AdminGroupedNav groups={resolved} label="Lezioni" title="Lezioni" />;
 }
