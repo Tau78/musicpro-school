@@ -20,8 +20,8 @@ export function firstSettingsHref(flags: {
   showUtenti?: boolean;
 }): string {
   if (flags.showQuote) return "/admin/quote";
-  if (flags.showSale) return "/admin/sale";
   if (flags.showShop) return "/admin/shop";
+  if (flags.showSale) return "/admin/sale";
   if (flags.showPrenotazioniSettings) return "/admin/impostazioni";
   if (flags.showDocumenti) return "/admin/impostazioni/documenti";
   if (flags.showUtenti) return "/admin/impostazioni/utenti";

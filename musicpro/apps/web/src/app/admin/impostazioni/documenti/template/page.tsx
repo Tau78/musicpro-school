@@ -46,7 +46,6 @@ export default async function ImpostazioniTemplatePage() {
           <AppSettingsPanel
             settings={settings}
             keys={TEMPLATE_SETTING_KEYS}
-            title="Modelli documenti"
             submitLabel="Salva"
           />
         ) : undefined

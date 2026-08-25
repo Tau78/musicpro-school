@@ -10,7 +10,10 @@ import {
 
 import { BookingSettingsForm } from "@/components/admin/booking-settings-form";
 import { PenaltyRulesPanel } from "@/components/admin/penalty-rules-panel";
-import { SettingsTabs } from "@/components/admin/settings-chrome";
+import {
+  SettingsPageHeader,
+  SettingsSectionTabs,
+} from "@/components/admin/settings-page-chrome";
 
 export type PrenotazioniSettingsSection = "soglie" | "penali" | "crediti";
 
@@ -18,7 +21,7 @@ const PRENOTAZIONI_TABS: { id: PrenotazioniSettingsSection; label: string }[] =
   [
     { id: "soglie", label: "Soglie" },
     { id: "penali", label: "Penali" },
-    { id: "crediti", label: "Crediti" },
+    { id: "crediti", label: "Crediti (riepilogo)" },
   ];
 
 function sectionHref(section: PrenotazioniSettingsSection): string {
@@ -49,7 +52,11 @@ export function PrenotazioniSettingsWorkspace({
 
   return (
     <div className="space-y-6">
-      <SettingsTabs
+      <SettingsPageHeader
+        title="Regole di prenotazione"
+        description="Quanto prima si può prenotare o disdire, e cosa succede in caso di annullamento."
+      />
+      <SettingsSectionTabs
         tabs={PRENOTAZIONI_TABS}
         value={section}
         onChange={selectSection}

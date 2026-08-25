@@ -85,7 +85,7 @@ export function TemplateSettingsLayout({
 export function AppSettingsPanel({
   settings,
   keys,
-  title = "Documenti",
+  title,
   description,
   submitLabel = "Salva",
   extraTabs,
@@ -107,7 +107,7 @@ export function AppSettingsPanel({
 
   const tabs = extraTabs
     ? [
-        { id: "impostazioni", label: title },
+        { id: "impostazioni", label: title ?? "Impostazioni" },
         ...extraTabs.map((item) => ({ id: item.id, label: item.label })),
       ]
     : null;

@@ -17,7 +17,11 @@ import {
   upsertMemberAnnualQuotas,
 } from "@musicpro/database";
 
-import { FieldLabel, SettingsTabs, settingsInputClass } from "@/components/admin/settings-chrome";
+import { FieldLabel, settingsInputClass } from "@/components/admin/settings-chrome";
+import {
+  SettingsPageHeader,
+  SettingsSectionTabs,
+} from "@/components/admin/settings-page-chrome";
 import { createClient } from "@/lib/supabase/client";
 
 type QuotaTab = "impostazioni" | "registrazione";
@@ -321,7 +325,11 @@ export function QuotasPanel({
 
   return (
     <div className="space-y-6">
-      <SettingsTabs tabs={QUOTA_TABS} value={tab} onChange={selectTab} />
+      <SettingsPageHeader
+        title="Quote associative"
+        description="Importi annuali da riscuotere e registrazione dei pagamenti ricevuti."
+      />
+      <SettingsSectionTabs tabs={QUOTA_TABS} value={tab} onChange={selectTab} />
 
       {error ? (
         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

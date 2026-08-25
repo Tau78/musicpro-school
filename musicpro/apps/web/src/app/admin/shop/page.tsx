@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { listCreditPackages } from "@musicpro/database";
 
 import { CreditPackageList } from "@/components/admin/credit-package-list";
+import { SettingsPageHeader } from "@/components/admin/settings-page-chrome";
 import { getAdminMember } from "@/lib/admin/current-member";
 import { canManageShop } from "@/lib/admin/roles";
 import { createClient } from "@/lib/supabase/server";
@@ -19,15 +20,10 @@ export default async function AdminShopPage() {
 
   return (
     <div>
-      <div className="mb-6">
-        <h2 className="text-2xl font-semibold text-[var(--brand)]">
-          Shop crediti
-        </h2>
-        <p className="mt-1 text-sm text-neutral-600">
-          Gestisci i pacchetti crediti disponibili nello shop associati.
-        </p>
-      </div>
-
+      <SettingsPageHeader
+        title="Shop crediti"
+        description="Pacchetti crediti disponibili per gli associati nello shop online."
+      />
       <CreditPackageList packages={packages} canAdd />
     </div>
   );

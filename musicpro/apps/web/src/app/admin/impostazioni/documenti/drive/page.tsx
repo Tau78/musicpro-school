@@ -24,9 +24,7 @@ export default async function ImpostazioniDrivePage() {
     <AppSettingsPanel
       settings={settings}
       keys={DRIVE_SETTING_KEYS}
-      title="Cartelle Google Drive"
-      description="ID delle cartelle Drive legacy usate come riferimento per PDF storici di notule e iscrizioni."
-      submitLabel="Salva Drive"
+      submitLabel="Salva cartelle"
     />
   );
 }
