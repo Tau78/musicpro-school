@@ -16,6 +16,7 @@ export interface StaffUserRow {
   email: string | null;
   isAdmin: boolean;
   isSegreteria: boolean;
+  isDocente: boolean;
 }
 
 export interface StaffAddCandidate {
@@ -39,6 +40,7 @@ function mapStaffRow(
   row: MemberStaffRow,
   adminIds: Set<string>,
   segreteriaIds: Set<string>,
+  docenteIds: Set<string>,
 ): StaffUserRow {
   return {
     id: row.id,
@@ -49,17 +51,19 @@ function mapStaffRow(
     email: row.email,
     isAdmin: adminIds.has(row.id),
     isSegreteria: segreteriaIds.has(row.id),
+    isDocente: docenteIds.has(row.id),
   };
 }
 
 export async function listStaffUsers(
   client: StaffClient,
 ): Promise<StaffUserRow[]> {
-  const [adminIds, segreteriaIds] = await Promise.all([
+  const [adminIds, segreteriaIds, docenteIds] = await Promise.all([
     listMemberIdsWithRole(client, MemberRole.Admin),
     listMemberIdsWithRole(client, MemberRole.Segreteria),
+    listMemberIdsWithRole(client, MemberRole.Docente),
   ]);
-  const ids = [...new Set([...adminIds, ...segreteriaIds])];
+  const ids = [...new Set([...adminIds, ...segreteriaIds, ...docenteIds])];
   if (ids.length === 0) return [];
 
   const { data, error } = await client
@@ -75,8 +79,9 @@ export async function listStaffUsers(
 
   const adminSet = new Set(adminIds);
   const segreteriaSet = new Set(segreteriaIds);
+  const docenteSet = new Set(docenteIds);
   return ((data ?? []) as MemberStaffRow[]).map((row) =>
-    mapStaffRow(row, adminSet, segreteriaSet),
+    mapStaffRow(row, adminSet, segreteriaSet, docenteSet),
   );
 }
 

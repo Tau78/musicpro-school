@@ -21,7 +21,7 @@ interface BookingSettingsFormProps {
   settings: BookingSettings;
 }
 
-type BookingTab = "soglie" | "band";
+type BookingTab = "soglie" | "band" | "blocco";
 
 function settingsToInput(settings: BookingSettings): BookingSettingsInput {
   return {
@@ -30,6 +30,8 @@ function settingsToInput(settings: BookingSettings): BookingSettingsInput {
     cancelMinHours: settings.cancelMinHours,
     modifyMinHours: settings.modifyMinHours,
     bandRequired: settings.bandRequired,
+    locked: settings.locked,
+    lockedMessage: settings.lockedMessage,
   };
 }
 
@@ -87,6 +89,7 @@ export function BookingSettingsForm({ settings }: BookingSettingsFormProps) {
         tabs={[
           { id: "soglie", label: "Soglie" },
           { id: "band", label: "Band" },
+          { id: "blocco", label: "Blocco" },
         ]}
         value={tab}
         onChange={setTab}
@@ -153,13 +156,39 @@ export function BookingSettingsForm({ settings }: BookingSettingsFormProps) {
             Ore prima dell&apos;inizio.
           </p>
         </div>
-      ) : (
+      ) : null}
+
+      {tab === "band" ? (
         <ToggleRow
           label="Band obbligatoria"
           checked={form.bandRequired}
           onChange={(checked) => updateField("bandRequired", checked)}
         />
-      )}
+      ) : null}
+
+      {tab === "blocco" ? (
+        <div className="space-y-4">
+          <ToggleRow
+            label="Prenotazioni chiuse"
+            checked={form.locked}
+            onChange={(checked) => updateField("locked", checked)}
+          />
+          <p className="text-sm text-neutral-600">
+            Gli associati non possono creare prenotazioni. Admin e segreteria
+            possono ancora prenotare dal calendario. Le sale si possono
+            spegnere una per una con il toggle Aperta.
+          </p>
+          <label className="block">
+            <FieldLabel>Messaggio per gli associati</FieldLabel>
+            <textarea
+              rows={3}
+              value={form.lockedMessage}
+              onChange={(e) => updateField("lockedMessage", e.target.value)}
+              className={settingsInputClass}
+            />
+          </label>
+        </div>
+      ) : null}
 
       <div className="flex gap-3">
         <button

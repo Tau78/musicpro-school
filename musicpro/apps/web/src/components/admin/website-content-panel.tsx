@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import {
   previewUrlForToken,
+  toPublicWebsiteContent,
   websiteDocumentsEqual,
   type WebsiteHubDocumentV2,
 } from "@musicpro/database";
@@ -47,6 +48,10 @@ export function WebsiteContentPanel({
   const [success, setSuccess] = useState<string | null>(null);
   const [iframeOpen, setIframeOpen] = useState(Boolean(initialDraft.previewToken));
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const formRef = useRef(form);
+  const selectedIdRef = useRef(selectedId);
+  formRef.current = form;
+  selectedIdRef.current = selectedId;
 
   const [lastSaved, setLastSaved] = useState<WebsiteHubDocumentV2>(initialDraft);
   const [dirty, setDirty] = useState(initialDirty);
@@ -54,6 +59,24 @@ export function WebsiteContentPanel({
 
   const previewToken = form.previewToken || lastSaved.previewToken;
   const previewHref = previewToken ? previewUrlForToken(previewToken) : "";
+
+  function pushLivePreview() {
+    const frame = iframeRef.current?.contentWindow;
+    if (!frame) return;
+    try {
+      frame.postMessage(
+        {
+          type: "musicpro-cms",
+          action: "preview-content",
+          content: toPublicWebsiteContent(formRef.current, { preview: true }),
+          focusId: selectedIdRef.current,
+        },
+        "*",
+      );
+    } catch {
+      /* ignore */
+    }
+  }
 
   function applyState(state: AdminState) {
     setForm(state.draft);
@@ -80,21 +103,23 @@ export function WebsiteContentPanel({
     document
       .getElementById(`cms-block-${selectedId}`)
       ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [selectedId]);
 
-    const frame = iframeRef.current;
-    if (!frame) return;
-    const message = { type: "musicpro-cms", action: "focus", id: selectedId };
-    const send = () => {
-      try {
-        frame.contentWindow?.postMessage(message, "*");
-      } catch {
-        /* ignore */
-      }
-    };
-    send();
-    const timer = window.setTimeout(send, 500);
+  useEffect(() => {
+    if (!iframeOpen) return;
+    const timer = window.setTimeout(pushLivePreview, 160);
     return () => window.clearTimeout(timer);
-  }, [selectedId, previewNonce, iframeOpen]);
+  }, [form, selectedId, iframeOpen, previewNonce]);
+
+  useEffect(() => {
+    function onMessage(event: MessageEvent) {
+      const data = event.data as { type?: string; action?: string } | null;
+      if (!data || data.type !== "musicpro-cms" || data.action !== "ready") return;
+      pushLivePreview();
+    }
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
 
   async function requestJson(
     url: string,
@@ -325,22 +350,18 @@ export function WebsiteContentPanel({
               </a>
             ) : null}
           </div>
-          {unsaved && iframeOpen ? (
-            <p className="mb-2 text-sm text-amber-800">
-              L’anteprima è la bozza salvata. Salva per vedere queste modifiche.
-            </p>
-          ) : null}
           {iframeOpen && previewHref ? (
             <iframe
               ref={iframeRef}
               key={`${previewHref}-${previewNonce}`}
               title="Anteprima sito hub"
-              src={selectedId ? `${previewHref}#${encodeURIComponent(selectedId)}` : previewHref}
+              src={previewHref}
+              onLoad={pushLivePreview}
               className="h-[70vh] w-full rounded-xl border border-neutral-200 bg-white"
             />
           ) : (
             <div className="flex h-48 items-center justify-center rounded-xl border border-dashed border-neutral-300 text-sm text-neutral-600">
-              Salva la bozza e premi Anteprima.
+              Premi Anteprima per vedere il sito mentre scrivi.
             </div>
           )}
         </div>

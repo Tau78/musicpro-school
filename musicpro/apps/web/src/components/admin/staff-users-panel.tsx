@@ -4,8 +4,10 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import {
+  getTeacherProfile,
   listMemberIdsWithRole,
   setMemberHasRole,
+  upsertTeacherProfile,
   type StaffAddCandidate,
   type StaffUserRow,
 } from "@musicpro/database";
@@ -15,6 +17,11 @@ import { createClient } from "@/lib/supabase/client";
 
 const inputClass =
   "w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/20";
+
+type ManagedRole =
+  | typeof MemberRole.Admin
+  | typeof MemberRole.Segreteria
+  | typeof MemberRole.Docente;
 
 interface StaffUsersPanelProps {
   users: StaffUserRow[];
@@ -32,6 +39,24 @@ function memberLabel(row: { firstName: string; lastName: string }): string {
   return `${row.lastName} ${row.firstName}`.trim();
 }
 
+function hasAnyRole(row: StaffUserRow): boolean {
+  return row.isAdmin || row.isSegreteria || row.isDocente;
+}
+
+function patchRole(
+  row: StaffUserRow,
+  role: ManagedRole,
+  enabled: boolean,
+): StaffUserRow {
+  return {
+    ...row,
+    isAdmin: role === MemberRole.Admin ? enabled : row.isAdmin,
+    isSegreteria:
+      role === MemberRole.Segreteria ? enabled : row.isSegreteria,
+    isDocente: role === MemberRole.Docente ? enabled : row.isDocente,
+  };
+}
+
 export function StaffUsersPanel({
   users,
   candidates,
@@ -45,6 +70,7 @@ export function StaffUsersPanel({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [addAdmin, setAddAdmin] = useState(false);
   const [addSegreteria, setAddSegreteria] = useState(true);
+  const [addDocente, setAddDocente] = useState(false);
   const [busyMemberId, setBusyMemberId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,9 +98,34 @@ export function StaffUsersPanel({
 
   const selected = candidates.find((row) => row.id === selectedId) ?? null;
 
+  async function ensureTeacherProfile(memberId: string): Promise<string | null> {
+    try {
+      const existing = await getTeacherProfile(supabase, memberId);
+      if (existing) return null;
+    } catch {
+      // continue to create
+    }
+
+    const profileResult = await upsertTeacherProfile(supabase, memberId, {
+      canCreateCourses: false,
+      canReschedule: false,
+      canCloseCourses: false,
+      paymentVisibility: "hidden",
+    });
+
+    if (!profileResult.success) {
+      return (
+        profileResult.errorMessage ??
+        "Ruolo assegnato, ma il profilo docente non è stato creato."
+      );
+    }
+
+    return null;
+  }
+
   async function toggleRole(
     memberId: string,
-    role: typeof MemberRole.Admin | typeof MemberRole.Segreteria,
+    role: ManagedRole,
     enabled: boolean,
     current: StaffUserRow,
   ) {
@@ -103,13 +154,10 @@ export function StaffUsersPanel({
       }
     }
 
-    const remainingAdmin =
-      role === MemberRole.Admin ? enabled : current.isAdmin;
-    const remainingSegreteria =
-      role === MemberRole.Segreteria ? enabled : current.isSegreteria;
-    if (!remainingAdmin && !remainingSegreteria) {
+    const next = patchRole(current, role, enabled);
+    if (!hasAnyRole(next)) {
       const confirmed = window.confirm(
-        `Rimuovere ${memberLabel(current)} dagli utenti staff?`,
+        `Rimuovere tutti i ruoli a ${memberLabel(current)}?`,
       );
       if (!confirmed) return;
     }
@@ -117,17 +165,10 @@ export function StaffUsersPanel({
     setBusyMemberId(memberId);
     setRows((prev) =>
       prev
-        .map((row) => {
-          if (row.id !== memberId) return row;
-          return {
-            ...row,
-            isAdmin: role === MemberRole.Admin ? enabled : row.isAdmin,
-            isSegreteria:
-              role === MemberRole.Segreteria ? enabled : row.isSegreteria,
-          };
-        })
-        .filter((row) => row.isAdmin || row.isSegreteria),
+        .map((row) => (row.id !== memberId ? row : next))
+        .filter((row) => hasAnyRole(row)),
     );
+
     const result = await setMemberHasRole(
       supabase,
       memberId,
@@ -135,20 +176,31 @@ export function StaffUsersPanel({
       enabled,
       enabled ? currentStaffMemberId : null,
     );
-    setBusyMemberId(null);
 
     if (!result.success) {
+      setBusyMemberId(null);
       setRows(users);
       setError(result.errorMessage ?? "Impossibile aggiornare il privilegio.");
       return;
     }
 
+    if (enabled && role === MemberRole.Docente) {
+      const profileError = await ensureTeacherProfile(memberId);
+      if (profileError) {
+        setBusyMemberId(null);
+        setError(profileError);
+        router.refresh();
+        return;
+      }
+    }
+
+    setBusyMemberId(null);
     setOk(
       enabled
         ? "Privilegio assegnato."
-        : remainingAdmin || remainingSegreteria
+        : hasAnyRole(next)
           ? "Privilegio rimosso."
-          : "Utente rimosso dallo staff.",
+          : "Utente rimosso dall'elenco.",
     );
     router.refresh();
   }
@@ -162,8 +214,8 @@ export function StaffUsersPanel({
       setError("Scegli un associato già in rubrica.");
       return;
     }
-    if (!addAdmin && !addSegreteria) {
-      setError("Assegna almeno un privilegio: Admin o Segreteria.");
+    if (!addAdmin && !addSegreteria && !addDocente) {
+      setError("Assegna almeno un ruolo: Admin, Segreteria o Docente.");
       return;
     }
 
@@ -171,9 +223,8 @@ export function StaffUsersPanel({
     const roles = [
       addAdmin ? MemberRole.Admin : null,
       addSegreteria ? MemberRole.Segreteria : null,
-    ].filter((role): role is typeof MemberRole.Admin | typeof MemberRole.Segreteria =>
-      role != null,
-    );
+      addDocente ? MemberRole.Docente : null,
+    ].filter((role): role is ManagedRole => role != null);
 
     for (const role of roles) {
       const result = await setMemberHasRole(
@@ -192,11 +243,22 @@ export function StaffUsersPanel({
       }
     }
 
+    if (addDocente) {
+      const profileError = await ensureTeacherProfile(selected.id);
+      if (profileError) {
+        setAdding(false);
+        setError(profileError);
+        router.refresh();
+        return;
+      }
+    }
+
     setAdding(false);
     setSelectedId(null);
     setQuery("");
     setAddAdmin(false);
     setAddSegreteria(true);
+    setAddDocente(false);
     setOk(`${memberLabel(selected)} aggiunto agli utenti.`);
     router.refresh();
   }
@@ -262,8 +324,8 @@ export function StaffUsersPanel({
       <div>
         <h2 className="text-2xl font-semibold text-[var(--brand)]">Utenti</h2>
         <p className="mt-1 text-sm text-neutral-600">
-          Aggiungi associati già in rubrica, assegna i privilegi e gestisci le
-          password di accesso.
+          Aggiungi associati già in rubrica, assegna i ruoli (Admin, Segreteria,
+          Docente) e gestisci le password di accesso.
         </p>
       </div>
 
@@ -348,6 +410,15 @@ export function StaffUsersPanel({
             />
             Segreteria
           </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={addDocente}
+              onChange={(event) => setAddDocente(event.target.checked)}
+              className="rounded border-neutral-300"
+            />
+            Docente
+          </label>
           <button
             type="submit"
             disabled={adding}
@@ -374,6 +445,9 @@ export function StaffUsersPanel({
               <th className="px-3 py-3 text-center font-medium text-neutral-600">
                 Segreteria
               </th>
+              <th className="px-3 py-3 text-center font-medium text-neutral-600">
+                Docente
+              </th>
               <th className="px-3 py-3 text-right font-medium text-neutral-600">
                 Password
               </th>
@@ -383,10 +457,10 @@ export function StaffUsersPanel({
             {rows.length === 0 ? (
               <tr>
                 <td
-                  colSpan={5}
+                  colSpan={6}
                   className="px-3 py-6 text-center text-neutral-500"
                 >
-                  Nessun utente staff. Aggiungine uno dalla rubrica.
+                  Nessun utente. Aggiungine uno dalla rubrica.
                 </td>
               </tr>
             ) : (
@@ -437,6 +511,23 @@ export function StaffUsersPanel({
                           )
                         }
                         aria-label={`Segreteria ${memberLabel(row)}`}
+                        className="rounded border-neutral-300"
+                      />
+                    </td>
+                    <td className="px-3 py-3 text-center">
+                      <input
+                        type="checkbox"
+                        checked={row.isDocente}
+                        disabled={busy}
+                        onChange={(event) =>
+                          void toggleRole(
+                            row.id,
+                            MemberRole.Docente,
+                            event.target.checked,
+                            row,
+                          )
+                        }
+                        aria-label={`Docente ${memberLabel(row)}`}
                         className="rounded border-neutral-300"
                       />
                     </td>

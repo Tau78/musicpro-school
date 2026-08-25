@@ -57,7 +57,7 @@ export function SettingsSubNav({
     {
       href: "/admin/shop",
       label: "Shop crediti",
-      description: "Pacchetti in vendita",
+      description: "Pacchetti e storico acquisti",
       active: onShop,
       visible: showShop,
     },

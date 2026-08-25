@@ -205,6 +205,14 @@ export function BookingsAdminPanel({
                       {booking.member.email}
                     </p>
                   )}
+                  {booking.status === "cancelled" && booking.cancelled_at ? (
+                    <p className="mt-1 text-xs text-neutral-500">
+                      Cancellata il{" "}
+                      {new Date(booking.cancelled_at).toLocaleString("it-IT", {
+                        timeZone: "Europe/Rome",
+                      })}
+                    </p>
+                  ) : null}
                   {booking.total_price_eur != null && (
                     <p className="mt-2 text-sm font-medium">
                       {formatEuro(booking.total_price_eur)}

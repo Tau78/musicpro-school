@@ -570,3 +570,90 @@ export async function listMemberCreditPurchases(
     package: packageById.get(purchase.packageId) ?? null,
   }));
 }
+
+export interface AdminCreditPurchase extends CreditPurchase {
+  member?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string | null;
+  } | null;
+}
+
+export async function listAdminCreditPurchases(
+  client: CreditsClient,
+): Promise<AdminCreditPurchase[]> {
+  const { data, error } = await client
+    .from("credit_purchases")
+    .select(CREDIT_PURCHASE_COLUMNS)
+    .order("created_at", { ascending: false })
+    .limit(300);
+
+  if (error) {
+    throw new Error(
+      `Impossibile caricare lo storico acquisti: ${error.message}`,
+    );
+  }
+
+  const purchases = ((data ?? []) as CreditPurchaseRow[]).map(mapCreditPurchase);
+  if (purchases.length === 0) return [];
+
+  const packageIds = [...new Set(purchases.map((row) => row.packageId))];
+  const memberIds = [...new Set(purchases.map((row) => row.memberId))];
+
+  const [packagesRes, membersRes] = await Promise.all([
+    client
+      .from("credit_packages")
+      .select("id, name, credits, price_eur")
+      .in("id", packageIds),
+    client
+      .from("members")
+      .select("id, first_name, last_name, email")
+      .in("id", memberIds),
+  ]);
+
+  if (packagesRes.error) {
+    throw new Error(
+      `Impossibile caricare i pacchetti crediti: ${packagesRes.error.message}`,
+    );
+  }
+  if (membersRes.error) {
+    throw new Error(
+      `Impossibile caricare gli associati: ${membersRes.error.message}`,
+    );
+  }
+
+  const packageById = new Map(
+    ((packagesRes.data ?? []) as Array<{
+      id: string;
+      name: string;
+      credits: number;
+      price_eur: number;
+    }>).map((pkg) => [
+      pkg.id,
+      {
+        id: pkg.id,
+        name: pkg.name,
+        credits: pkg.credits,
+        priceEur: Number(pkg.price_eur),
+      },
+    ]),
+  );
+  const memberById = new Map(
+    (membersRes.data ?? []).map((row) => [
+      row.id,
+      {
+        id: row.id,
+        firstName: row.first_name,
+        lastName: row.last_name,
+        email: row.email,
+      },
+    ]),
+  );
+
+  return purchases.map((purchase) => ({
+    ...purchase,
+    package: packageById.get(purchase.packageId) ?? null,
+    member: memberById.get(purchase.memberId) ?? null,
+  }));
+}

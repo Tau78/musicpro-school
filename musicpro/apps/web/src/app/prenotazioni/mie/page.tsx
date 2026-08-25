@@ -63,6 +63,8 @@ function MiePrenotazioniContent() {
     approvalMinHours: 6,
     modifyMinHours: 6,
     bandRequired: false,
+    locked: false,
+    lockedMessage: "",
   });
   const [memberId, setMemberId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);

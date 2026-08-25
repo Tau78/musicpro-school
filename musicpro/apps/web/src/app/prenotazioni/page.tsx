@@ -76,6 +76,8 @@ export default function PrenotazioniPage() {
   const [proviSchedule, setProviSchedule] = useState<ProviScheduleEntry[]>([]);
   const [proviDaSolo, setProviDaSolo] = useState(false);
   const [bandRequired, setBandRequired] = useState(false);
+  const [bookingLocked, setBookingLocked] = useState(false);
+  const [bookingLockedMessage, setBookingLockedMessage] = useState("");
 
   const selectedRoom = useMemo(
     () => rooms.find((r) => r.id === selectedRoomId) ?? null,
@@ -191,7 +193,13 @@ export default function PrenotazioniPage() {
           user ? listRooms(supabase) : Promise.resolve([] as Room[]),
           user ? getCurrentMember(supabase) : Promise.resolve(null),
           user ? listMyBands(supabase).catch(() => [] as MyBandSummary[]) : Promise.resolve([] as MyBandSummary[]),
-          user ? getBookingSettings(supabase) : Promise.resolve({ bandRequired: false } as Awaited<ReturnType<typeof getBookingSettings>>),
+          user
+            ? getBookingSettings(supabase)
+            : Promise.resolve({
+                bandRequired: false,
+                locked: false,
+                lockedMessage: "",
+              } as Awaited<ReturnType<typeof getBookingSettings>>),
         ]);
 
         if (cancelled) return;
@@ -200,6 +208,8 @@ export default function PrenotazioniPage() {
         setRooms(roomList);
         setMyBands(bands);
         setBandRequired(bookingSettings.bandRequired);
+        setBookingLocked(bookingSettings.locked);
+        setBookingLockedMessage(bookingSettings.lockedMessage);
         if (roomList.length > 0) {
           setSelectedRoomId(roomList[0].id);
           setDurationMinutes(roomList[0].default_duration_minutes);
@@ -519,7 +529,19 @@ export default function PrenotazioniPage() {
           </div>
         )}
 
-        {hasSession && memberId && (
+        {hasSession && memberId && bookingLocked ? (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
+            <h2 className="text-lg font-semibold text-amber-900">
+              Prenotazioni chiuse
+            </h2>
+            <p className="mt-2 text-sm text-amber-800">
+              {bookingLockedMessage ||
+                "Le prenotazioni sono temporaneamente chiuse."}
+            </p>
+          </div>
+        ) : null}
+
+        {hasSession && memberId && !bookingLocked && (
         <>
         <ol className="flex flex-wrap gap-2 text-sm" aria-label="Passaggi prenotazione">
           {wizardSteps.map(({ key, label }, index) => {

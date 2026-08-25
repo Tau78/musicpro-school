@@ -6,6 +6,11 @@ import {
   getBookingSettings,
   getRomeDayBoundsUtc,
   getRoomById,
+  listRoomOpeningDays,
+  listRoomSpecialDays,
+  resolveOpeningWindows,
+  roomCloseMinute,
+  roomOpenMinute,
   type BusyInterval,
 } from "@musicpro/database";
 
@@ -132,6 +137,20 @@ export async function GET(request: Request) {
     }
   }
 
+  const [weekly, specials] = await Promise.all([
+    listRoomOpeningDays(supabase, roomId).catch(() => []),
+    listRoomSpecialDays(supabase, roomId).catch(() => []),
+  ]);
+  const openingWindows = resolveOpeningWindows(
+    date,
+    {
+      openMinute: roomOpenMinute(room),
+      closeMinute: roomCloseMinute(room),
+    },
+    weekly,
+    specials,
+  );
+
   const availability = buildRoomAvailability(
     room,
     date,
@@ -144,6 +163,7 @@ export async function GET(request: Request) {
     }>,
     settings,
     calendarBusy,
+    openingWindows,
   );
 
   return NextResponse.json(availability);

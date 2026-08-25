@@ -85,7 +85,13 @@ export function RoomsSettingsWorkspace({
       <SettingsSectionTabs tabs={ROOM_TABS} value={tab} onChange={selectTab} />
 
       <div className="mt-2">
-        <RoomForm room={room} tab={tab} />
+        <RoomForm
+          room={room}
+          tab={tab}
+          otherRooms={rooms
+            .filter((item) => item.id !== room.id)
+            .map((item) => ({ id: item.id, name: item.name }))}
+        />
       </div>
     </div>
   );

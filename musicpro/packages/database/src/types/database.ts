@@ -248,6 +248,72 @@ export interface Database {
         >;
         Relationships: [];
       };
+      room_opening_days: {
+        Row: {
+          room_id: string;
+          day_of_week: number;
+          mode: "open" | "split" | "closed";
+          start_minute: number;
+          end_minute: number;
+          morning_start_minute: number;
+          morning_end_minute: number;
+          afternoon_start_minute: number;
+          afternoon_end_minute: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          room_id: string;
+          day_of_week: number;
+          mode: "open" | "split" | "closed";
+          start_minute?: number;
+          end_minute?: number;
+          morning_start_minute?: number;
+          morning_end_minute?: number;
+          afternoon_start_minute?: number;
+          afternoon_end_minute?: number;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["room_opening_days"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      room_special_days: {
+        Row: {
+          id: string;
+          room_id: string;
+          starts_on: string;
+          ends_on: string;
+          mode: "open" | "split" | "closed";
+          title: string;
+          start_minute: number;
+          end_minute: number;
+          morning_start_minute: number;
+          morning_end_minute: number;
+          afternoon_start_minute: number;
+          afternoon_end_minute: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          room_id: string;
+          starts_on: string;
+          ends_on: string;
+          mode: "open" | "split" | "closed";
+          title?: string;
+          start_minute?: number;
+          end_minute?: number;
+          morning_start_minute?: number;
+          morning_end_minute?: number;
+          afternoon_start_minute?: number;
+          afternoon_end_minute?: number;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["room_special_days"]["Insert"]
+        >;
+        Relationships: [];
+      };
       bookings: {
         Row: {
           id: string;

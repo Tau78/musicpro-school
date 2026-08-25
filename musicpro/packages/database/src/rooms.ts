@@ -210,3 +210,309 @@ export async function saveProviSchedule(
     );
   }
 }
+
+export type OpeningMode = "open" | "split" | "closed";
+
+export interface OpeningWindow {
+  startMinute: number;
+  endMinute: number;
+}
+
+export interface RoomOpeningDay {
+  roomId: string;
+  dayOfWeek: number;
+  mode: OpeningMode;
+  startMinute: number;
+  endMinute: number;
+  morningStartMinute: number;
+  morningEndMinute: number;
+  afternoonStartMinute: number;
+  afternoonEndMinute: number;
+}
+
+export interface RoomSpecialDay {
+  id: string;
+  roomId: string;
+  startsOn: string;
+  endsOn: string;
+  mode: OpeningMode;
+  title: string;
+  startMinute: number;
+  endMinute: number;
+  morningStartMinute: number;
+  morningEndMinute: number;
+  afternoonStartMinute: number;
+  afternoonEndMinute: number;
+}
+
+export type RoomOpeningDayInput = Omit<RoomOpeningDay, "roomId">;
+export type RoomSpecialDayInput = Omit<RoomSpecialDay, "id" | "roomId">;
+
+const OPENING_DAY_COLUMNS =
+  "room_id, day_of_week, mode, start_minute, end_minute, morning_start_minute, morning_end_minute, afternoon_start_minute, afternoon_end_minute";
+
+const SPECIAL_DAY_COLUMNS =
+  "id, room_id, starts_on, ends_on, mode, title, start_minute, end_minute, morning_start_minute, morning_end_minute, afternoon_start_minute, afternoon_end_minute";
+
+function mapOpeningDay(row: {
+  room_id: string;
+  day_of_week: number;
+  mode: OpeningMode;
+  start_minute: number;
+  end_minute: number;
+  morning_start_minute: number;
+  morning_end_minute: number;
+  afternoon_start_minute: number;
+  afternoon_end_minute: number;
+}): RoomOpeningDay {
+  return {
+    roomId: row.room_id,
+    dayOfWeek: row.day_of_week,
+    mode: row.mode,
+    startMinute: row.start_minute,
+    endMinute: row.end_minute,
+    morningStartMinute: row.morning_start_minute,
+    morningEndMinute: row.morning_end_minute,
+    afternoonStartMinute: row.afternoon_start_minute,
+    afternoonEndMinute: row.afternoon_end_minute,
+  };
+}
+
+function mapSpecialDay(row: {
+  id: string;
+  room_id: string;
+  starts_on: string;
+  ends_on: string;
+  mode: OpeningMode;
+  title: string;
+  start_minute: number;
+  end_minute: number;
+  morning_start_minute: number;
+  morning_end_minute: number;
+  afternoon_start_minute: number;
+  afternoon_end_minute: number;
+}): RoomSpecialDay {
+  return {
+    id: row.id,
+    roomId: row.room_id,
+    startsOn: row.starts_on,
+    endsOn: row.ends_on,
+    mode: row.mode,
+    title: row.title,
+    startMinute: row.start_minute,
+    endMinute: row.end_minute,
+    morningStartMinute: row.morning_start_minute,
+    morningEndMinute: row.morning_end_minute,
+    afternoonStartMinute: row.afternoon_start_minute,
+    afternoonEndMinute: row.afternoon_end_minute,
+  };
+}
+
+export function defaultOpeningDay(
+  dayOfWeek: number,
+  openMinute: number,
+  closeMinute: number,
+): RoomOpeningDayInput {
+  return {
+    dayOfWeek,
+    mode: "open",
+    startMinute: openMinute,
+    endMinute: closeMinute,
+    morningStartMinute: 660,
+    morningEndMinute: 840,
+    afternoonStartMinute: 960,
+    afternoonEndMinute: 1440,
+  };
+}
+
+export function windowsFromOpening(row: {
+  mode: OpeningMode;
+  startMinute: number;
+  endMinute: number;
+  morningStartMinute: number;
+  morningEndMinute: number;
+  afternoonStartMinute: number;
+  afternoonEndMinute: number;
+}): OpeningWindow[] {
+  if (row.mode === "closed") return [];
+  if (row.mode === "split") {
+    return [
+      { startMinute: row.morningStartMinute, endMinute: row.morningEndMinute },
+      {
+        startMinute: row.afternoonStartMinute,
+        endMinute: row.afternoonEndMinute,
+      },
+    ].filter((window) => window.endMinute > window.startMinute);
+  }
+  if (row.endMinute <= row.startMinute) return [];
+  return [{ startMinute: row.startMinute, endMinute: row.endMinute }];
+}
+
+export function resolveOpeningWindows(
+  date: string,
+  fallback: { openMinute: number; closeMinute: number },
+  weekly: RoomOpeningDay[],
+  specials: RoomSpecialDay[],
+): OpeningWindow[] {
+  const special = specials.find(
+    (row) => row.startsOn <= date && row.endsOn >= date,
+  );
+  if (special) return windowsFromOpening(special);
+
+  const [year, month, day] = date.split("-").map(Number);
+  const utcNoon = new Date(Date.UTC(year, month - 1, day, 12, 0));
+  const dayOfWeek = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Europe/Rome",
+    weekday: "short",
+  }).format(utcNoon);
+  const map: Record<string, number> = {
+    Sun: 0,
+    Mon: 1,
+    Tue: 2,
+    Wed: 3,
+    Thu: 4,
+    Fri: 5,
+    Sat: 6,
+  };
+  const dow = map[dayOfWeek] ?? 0;
+  const weeklyDay = weekly.find((row) => row.dayOfWeek === dow);
+  if (weeklyDay) return windowsFromOpening(weeklyDay);
+  return windowsFromOpening({
+    mode: "open",
+    startMinute: fallback.openMinute,
+    endMinute: fallback.closeMinute,
+    morningStartMinute: 660,
+    morningEndMinute: 840,
+    afternoonStartMinute: 960,
+    afternoonEndMinute: 1440,
+  });
+}
+
+export async function listRoomOpeningDays(
+  client: RoomsClient,
+  roomId: string,
+): Promise<RoomOpeningDay[]> {
+  const { data, error } = await client
+    .from("room_opening_days")
+    .select(OPENING_DAY_COLUMNS)
+    .eq("room_id", roomId)
+    .order("day_of_week", { ascending: true });
+
+  if (error) {
+    throw new Error(`Impossibile caricare gli orari della sala: ${error.message}`);
+  }
+
+  return (data ?? []).map((row) =>
+    mapOpeningDay(row as Parameters<typeof mapOpeningDay>[0]),
+  );
+}
+
+export async function saveRoomOpeningDays(
+  client: RoomsClient,
+  roomId: string,
+  days: RoomOpeningDayInput[],
+): Promise<void> {
+  const { error: deleteError } = await client
+    .from("room_opening_days")
+    .delete()
+    .eq("room_id", roomId);
+
+  if (deleteError) {
+    throw new Error(
+      `Impossibile aggiornare gli orari della sala: ${deleteError.message}`,
+    );
+  }
+
+  if (days.length === 0) return;
+
+  const { error: insertError } = await client.from("room_opening_days").insert(
+    days.map((day) => ({
+      room_id: roomId,
+      day_of_week: day.dayOfWeek,
+      mode: day.mode,
+      start_minute: day.startMinute,
+      end_minute: day.endMinute,
+      morning_start_minute: day.morningStartMinute,
+      morning_end_minute: day.morningEndMinute,
+      afternoon_start_minute: day.afternoonStartMinute,
+      afternoon_end_minute: day.afternoonEndMinute,
+    })),
+  );
+
+  if (insertError) {
+    throw new Error(
+      `Impossibile salvare gli orari della sala: ${insertError.message}`,
+    );
+  }
+}
+
+export async function listRoomSpecialDays(
+  client: RoomsClient,
+  roomId: string,
+): Promise<RoomSpecialDay[]> {
+  const { data, error } = await client
+    .from("room_special_days")
+    .select(SPECIAL_DAY_COLUMNS)
+    .eq("room_id", roomId)
+    .order("starts_on", { ascending: false });
+
+  if (error) {
+    throw new Error(
+      `Impossibile caricare i giorni speciali: ${error.message}`,
+    );
+  }
+
+  return (data ?? []).map((row) =>
+    mapSpecialDay(row as Parameters<typeof mapSpecialDay>[0]),
+  );
+}
+
+export async function createRoomSpecialDay(
+  client: RoomsClient,
+  roomId: string,
+  input: RoomSpecialDayInput,
+): Promise<RoomMutationResult> {
+  if (input.endsOn < input.startsOn) {
+    return {
+      success: false,
+      errorMessage: "La data di fine deve essere successiva all'inizio.",
+    };
+  }
+
+  const { error } = await client.from("room_special_days").insert({
+    room_id: roomId,
+    starts_on: input.startsOn,
+    ends_on: input.endsOn,
+    mode: input.mode,
+    title: input.title.trim(),
+    start_minute: input.startMinute,
+    end_minute: input.endMinute,
+    morning_start_minute: input.morningStartMinute,
+    morning_end_minute: input.morningEndMinute,
+    afternoon_start_minute: input.afternoonStartMinute,
+    afternoon_end_minute: input.afternoonEndMinute,
+  });
+
+  if (error) {
+    return {
+      success: false,
+      errorMessage: error.message || "Impossibile creare il giorno speciale.",
+    };
+  }
+
+  return { success: true };
+}
+
+export async function deleteRoomSpecialDay(
+  client: RoomsClient,
+  id: string,
+): Promise<RoomMutationResult> {
+  const { error } = await client.from("room_special_days").delete().eq("id", id);
+  if (error) {
+    return {
+      success: false,
+      errorMessage: error.message || "Impossibile eliminare il giorno speciale.",
+    };
+  }
+  return { success: true };
+}

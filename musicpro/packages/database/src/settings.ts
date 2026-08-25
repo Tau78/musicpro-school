@@ -13,6 +13,8 @@ export interface BookingSettingsInput {
   cancelMinHours: number;
   modifyMinHours: number;
   bandRequired: boolean;
+  locked: boolean;
+  lockedMessage: string;
 }
 
 export interface SettingsMutationResult {
@@ -62,6 +64,8 @@ const BOOKING_SETTING_KEYS = {
   cancelMinHours: "booking_cancel_min_hours",
   modifyMinHours: "booking_modify_min_hours",
   bandRequired: "booking_band_required",
+  locked: "booking_locked",
+  lockedMessage: "booking_locked_message",
 } as const;
 
 export async function getAppBookingSettings(
@@ -116,6 +120,18 @@ export async function updateBookingSettings(
       value: input.bandRequired ? "true" : "false",
       description:
         "Band obbligatoria per prenotazioni (salvo PROVI DA SOLO). Se disattivato, l'associato in regola con la quota può prenotare da solo.",
+    },
+    {
+      key: BOOKING_SETTING_KEYS.locked,
+      value: input.locked ? "true" : "false",
+      description:
+        "Se true, gli associati non possono creare prenotazioni. Staff (admin/segreteria) può comunque prenotare.",
+    },
+    {
+      key: BOOKING_SETTING_KEYS.lockedMessage,
+      value: input.lockedMessage.trim(),
+      description:
+        "Messaggio mostrato agli associati quando le prenotazioni sono chiuse.",
     },
   ];
 
