@@ -23,6 +23,7 @@ import { ChangeRequestActions } from "@/components/lezioni/change-request-action
 import { CloseRequestActions } from "@/components/lezioni/close-request-actions";
 import { CourseQueueActions } from "@/components/lezioni/course-queue-actions";
 import { PlaceLessonForm } from "@/components/lezioni/place-lesson-form";
+import { SettingsPageHeader } from "@/components/admin/settings-page-chrome";
 import { getAdminMember } from "@/lib/admin/current-member";
 import { canManageMembers } from "@/lib/admin/roles";
 import { createClient } from "@/lib/supabase/server";
@@ -175,6 +176,11 @@ export default async function AdminLezioniCodaPage() {
 
   return (
     <div className="space-y-8">
+      <SettingsPageHeader
+        title="Da fare"
+        description="Corsi da approvare, lezioni da calendarizzare, richieste di spostamento e anticipi in attesa."
+      />
+
       {!expireResult.success ? (
         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {expireResult.errorMessage ??

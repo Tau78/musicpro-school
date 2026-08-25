@@ -21,6 +21,9 @@ import { FieldLabel, settingsInputClass } from "@/components/admin/settings-chro
 import {
   SettingsPageHeader,
   SettingsSectionTabs,
+  SettingsStickySaveBar,
+  settingsPrimaryButtonClass,
+  settingsSecondaryButtonClass,
 } from "@/components/admin/settings-page-chrome";
 import { createClient } from "@/lib/supabase/client";
 
@@ -404,7 +407,7 @@ export function QuotasPanel({
             </table>
           </div>
 
-          <form onSubmit={handleSettingSubmit} className="space-y-4">
+          <form onSubmit={handleSettingSubmit} className="space-y-4 pb-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="block">
                 <FieldLabel>Anno</FieldLabel>
@@ -440,11 +443,20 @@ export function QuotasPanel({
                 />
               </label>
             </div>
-            <div className="flex gap-3">
+            <SettingsStickySaveBar>
+              {editingId ? (
+                <button
+                  type="button"
+                  onClick={cancelEditSetting}
+                  className={settingsSecondaryButtonClass}
+                >
+                  Annulla
+                </button>
+              ) : null}
               <button
                 type="submit"
                 disabled={settingsSaving}
-                className="rounded-lg bg-[var(--brand)] px-6 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
+                className={settingsPrimaryButtonClass}
               >
                 {settingsSaving
                   ? "Salvataggio…"
@@ -452,20 +464,11 @@ export function QuotasPanel({
                     ? "Salva modifiche"
                     : "Aggiungi anno"}
               </button>
-              {editingId ? (
-                <button
-                  type="button"
-                  onClick={cancelEditSetting}
-                  className="rounded-lg border border-neutral-300 px-6 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
-                >
-                  Annulla
-                </button>
-              ) : null}
-            </div>
+            </SettingsStickySaveBar>
           </form>
         </div>
       ) : (
-        <form onSubmit={handleBulkSave} className="space-y-4">
+        <form onSubmit={handleBulkSave} className="space-y-4 pb-4">
           <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white">
             <table className="min-w-full divide-y divide-neutral-200 text-sm">
               <thead className="bg-neutral-50">
@@ -587,22 +590,22 @@ export function QuotasPanel({
             </table>
           </div>
 
-          <div className="flex flex-wrap gap-3">
+          <SettingsStickySaveBar>
             <button
               type="button"
               onClick={addBulkRow}
-              className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+              className={settingsSecondaryButtonClass}
             >
               Aggiungi riga
             </button>
             <button
               type="submit"
               disabled={bulkSaving || settings.length === 0}
-              className="rounded-lg bg-[var(--brand)] px-6 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
+              className={settingsPrimaryButtonClass}
             >
               {bulkSaving ? "Salvataggio…" : "Salva tutto"}
             </button>
-          </div>
+          </SettingsStickySaveBar>
         </form>
       )}
     </div>

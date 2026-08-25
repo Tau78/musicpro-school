@@ -5,6 +5,12 @@ import type {
 } from "@supabase/supabase-js";
 
 import { listMyBands, type MyBandSummary } from "./bands";
+import {
+  listRoomOpeningDays,
+  listRoomSpecialDays,
+  resolveOpeningWindows,
+  type OpeningWindow,
+} from "./rooms";
 import type { Database } from "./types/database";
 
 export const BOOKING_TIMEZONE = "Europe/Rome";
@@ -48,6 +54,8 @@ export type BookingErrorCode =
   | "BAND_REQUIRED"
   | "BAND_QUOTA_INCOMPLETE"
   | "NOT_BAND_MEMBER"
+  | "BOOKING_LOCKED"
+  | "OUTSIDE_HOURS"
   | "UNKNOWN";
 
 export interface BookingMemberSnapshotEntry {
@@ -93,6 +101,8 @@ export interface BookingSettings {
   modifyMinHours: number;
   /** When true, non-PROVI bookings require a band. Default false (transition period). */
   bandRequired: boolean;
+  locked: boolean;
+  lockedMessage: string;
 }
 
 export interface Booking {
@@ -206,7 +216,8 @@ export interface ReviewBookingResult {
 export type AdminBookingFilter =
   | "pending_approval"
   | "upcoming"
-  | "all";
+  | "all"
+  | "cancelled";
 
 type BookingsClient = SupabaseClient<Database>;
 
@@ -263,6 +274,8 @@ const BOOKING_ERROR_MESSAGES_IT: Record<BookingErrorCode, string> = {
   BAND_QUOTA_INCOMPLETE:
     "Non tutti i membri attivi della band hanno la quota in regola.",
   NOT_BAND_MEMBER: "Non sei membro attivo di questa band.",
+  BOOKING_LOCKED: "Le prenotazioni sono temporaneamente chiuse.",
+  OUTSIDE_HOURS: "Orario fuori dall'apertura della sala.",
   UNKNOWN: "Si è verificato un errore durante la prenotazione.",
 };
 
@@ -442,6 +455,8 @@ export async function getBookingSettings(
     "booking_cancel_min_hours",
     "booking_modify_min_hours",
     "booking_band_required",
+    "booking_locked",
+    "booking_locked_message",
   ] as const;
 
   const { data, error } = await client
@@ -456,6 +471,7 @@ export async function getBookingSettings(
   const map = new Map((data ?? []).map((row) => [row.key, row.value]));
 
   const bandRequiredRaw = (map.get("booking_band_required") ?? "false").toLowerCase();
+  const lockedRaw = (map.get("booking_locked") ?? "false").toLowerCase();
 
   return {
     autoConfirmMinHours: parseInt(
@@ -475,6 +491,10 @@ export async function getBookingSettings(
       10,
     ),
     bandRequired: ["true", "1", "yes", "on"].includes(bandRequiredRaw),
+    locked: ["true", "1", "yes", "on"].includes(lockedRaw),
+    lockedMessage:
+      map.get("booking_locked_message")?.trim() ||
+      "Le prenotazioni sono temporaneamente chiuse. Riprova più tardi o contatta la segreteria.",
   };
 }
 
@@ -684,7 +704,28 @@ export async function getRoomAvailability(
     status: BookingStatus;
   }>;
 
-  const slots = buildSlotsForRoom(date, room, duration, activeBookings, settings);
+  const [weekly, specials] = await Promise.all([
+    listRoomOpeningDays(client, roomId).catch(() => []),
+    listRoomSpecialDays(client, roomId).catch(() => []),
+  ]);
+  const windows = resolveOpeningWindows(
+    date,
+    {
+      openMinute: roomOpenMinute(room),
+      closeMinute: roomCloseMinute(room),
+    },
+    weekly,
+    specials,
+  );
+
+  const slots = buildSlotsForRoom(
+    date,
+    room,
+    duration,
+    activeBookings,
+    settings,
+    windows,
+  );
 
   return {
     roomId,
@@ -802,9 +843,17 @@ export function buildRoomAvailability(
   }>,
   settings: BookingSettings,
   calendarBusy: BusyInterval[] = [],
+  openingWindows?: OpeningWindow[],
 ): RoomAvailability {
   const merged = mergeBusyIntervals(bookings, calendarBusy);
-  const slots = buildSlotsForRoom(date, room, durationMinutes, merged, settings);
+  const slots = buildSlotsForRoom(
+    date,
+    room,
+    durationMinutes,
+    merged,
+    settings,
+    openingWindows,
+  );
 
   return {
     roomId: room.id,
@@ -883,6 +932,11 @@ export async function listAdminBookings(
       .gte("start_at", now)
       .neq("status", "cancelled")
       .order("start_at", { ascending: true });
+  } else if (filter === "cancelled") {
+    query = query
+      .eq("status", "cancelled")
+      .order("cancelled_at", { ascending: false })
+      .limit(200);
   } else {
     query = query.order("start_at", { ascending: false }).limit(100);
   }
@@ -1217,40 +1271,49 @@ function buildSlotsForRoom(
     status?: BookingStatus;
   }>,
   settings: BookingSettings,
+  openingWindows?: OpeningWindow[],
 ): TimeSlot[] {
   const slots: TimeSlot[] = [];
-  const openMinute = roomOpenMinute(room);
-  const closeMinute = roomCloseMinute(room);
+  const windows =
+    openingWindows ??
+    [
+      {
+        startMinute: roomOpenMinute(room),
+        endMinute: roomCloseMinute(room),
+      },
+    ];
   const priceEur = calculateBookingPrice(room, durationMinutes);
 
-  for (
-    let startMinutes = openMinute;
-    startMinutes + durationMinutes <= closeMinute;
-    startMinutes += room.slot_granularity_minutes
-  ) {
-    const dayOffset = Math.floor(startMinutes / 1440);
-    const timeOfDay = startMinutes % 1440;
-    const hour = Math.floor(timeOfDay / 60);
-    const minute = timeOfDay % 60;
-    const slotDate = dayOffset === 0 ? date : addDays(date, dayOffset);
-    const startAt = romeLocalToUtcIso(slotDate, hour, minute);
-    const endAt = addMinutesIso(startAt, durationMinutes);
-    const overlapping = bookings.find(
-      (b) => b.start_at < endAt && b.end_at > startAt,
-    );
-    const leadTimeCategory = getLeadTimeCategory(startAt, settings);
-    const available = !overlapping && leadTimeCategory !== "too_late";
+  for (const window of windows) {
+    for (
+      let startMinutes = window.startMinute;
+      startMinutes + durationMinutes <= window.endMinute;
+      startMinutes += room.slot_granularity_minutes
+    ) {
+      const dayOffset = Math.floor(startMinutes / 1440);
+      const timeOfDay = startMinutes % 1440;
+      const hour = Math.floor(timeOfDay / 60);
+      const minute = timeOfDay % 60;
+      const slotDate = dayOffset === 0 ? date : addDays(date, dayOffset);
+      const startAt = romeLocalToUtcIso(slotDate, hour, minute);
+      const endAt = addMinutesIso(startAt, durationMinutes);
+      const overlapping = bookings.find(
+        (b) => b.start_at < endAt && b.end_at > startAt,
+      );
+      const leadTimeCategory = getLeadTimeCategory(startAt, settings);
+      const available = !overlapping && leadTimeCategory !== "too_late";
 
-    slots.push({
-      startAt,
-      endAt,
-      label: formatSlotRangeLabel(startAt, endAt),
-      available,
-      bookingId: overlapping?.id,
-      status: overlapping?.status,
-      priceEur,
-      leadTimeCategory,
-    });
+      slots.push({
+        startAt,
+        endAt,
+        label: formatSlotRangeLabel(startAt, endAt),
+        available,
+        bookingId: overlapping?.id,
+        status: overlapping?.status,
+        priceEur,
+        leadTimeCategory,
+      });
+    }
   }
 
   return slots;
@@ -1318,6 +1381,22 @@ function mapPostgresError(error: { code?: string; message: string }): CreateBook
       success: false,
       errorCode: "SLOT_TAKEN",
       errorMessage: BOOKING_ERROR_MESSAGES_IT.SLOT_TAKEN,
+    };
+  }
+
+  const message = error.message ?? "";
+  if (message.includes("BOOKING_LOCKED")) {
+    return {
+      success: false,
+      errorCode: "BOOKING_LOCKED",
+      errorMessage: BOOKING_ERROR_MESSAGES_IT.BOOKING_LOCKED,
+    };
+  }
+  if (message.includes("OUTSIDE_HOURS")) {
+    return {
+      success: false,
+      errorCode: "OUTSIDE_HOURS",
+      errorMessage: BOOKING_ERROR_MESSAGES_IT.OUTSIDE_HOURS,
     };
   }
 

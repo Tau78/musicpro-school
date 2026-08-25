@@ -188,14 +188,31 @@ export type {
   RoomExternalCalendarInput,
 } from "./external-calendars";
 export {
+  createRoomSpecialDay,
+  defaultOpeningDay,
+  deleteRoomSpecialDay,
   getAdminRoomById,
   listAllRooms,
   listProviSchedule,
+  listRoomOpeningDays,
+  listRoomSpecialDays,
+  resolveOpeningWindows,
   roomToInput,
   saveProviSchedule,
+  saveRoomOpeningDays,
   updateRoom,
+  windowsFromOpening,
 } from "./rooms";
-export type { RoomInput, RoomMutationResult } from "./rooms";
+export type {
+  OpeningMode,
+  OpeningWindow,
+  RoomInput,
+  RoomMutationResult,
+  RoomOpeningDay,
+  RoomOpeningDayInput,
+  RoomSpecialDay,
+  RoomSpecialDayInput,
+} from "./rooms";
 export type {
   AdminBookingDetail,
   AdminBookingFilter,
@@ -255,6 +272,7 @@ export {
   listMemberAvailableCredits,
   listActiveCreditPackages,
   listCreditPackages,
+  listAdminCreditPurchases,
   listMemberCreditPurchases,
   listMemberCreditTransactions,
   updateCreditPackage,
@@ -265,6 +283,7 @@ export type {
   CreditMutationResult,
   CreditPackage,
   CreditPackageInput,
+  AdminCreditPurchase,
   CreditPurchase,
   CreditTransaction,
   CreditTransactionType,

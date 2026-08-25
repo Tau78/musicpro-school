@@ -5,27 +5,37 @@ import { useEffect, useState } from "react";
 
 import {
   closeMinuteToTimeInput,
+  defaultOpeningDay,
   formatDurationLabel,
   formatEuro,
   listProviSchedule,
+  listRoomOpeningDays,
   minutesToTimeLabel,
   proviDayLabel,
   roomToInput,
   saveProviSchedule,
+  saveRoomOpeningDays,
   timeInputToCloseMinute,
   timeLabelToMinutes,
   updateRoom,
+  type OpeningMode,
   type Room,
   type RoomInput,
+  type RoomOpeningDayInput,
 } from "@musicpro/database";
 
 import { RoomExternalCalendarsPanel } from "@/components/admin/room-external-calendars-panel";
+import { RoomSpecialDaysPanel } from "@/components/admin/room-special-days-panel";
 import {
   ChipGroup,
   FieldLabel,
   ToggleRow,
   settingsInputClass,
 } from "@/components/admin/settings-chrome";
+import {
+  SettingsStickySaveBar,
+  settingsPrimaryButtonClass,
+} from "@/components/admin/settings-page-chrome";
 import { type RoomTab } from "@/lib/admin/room-tabs";
 import { createClient } from "@/lib/supabase/client";
 
@@ -39,6 +49,7 @@ interface DayScheduleRow {
 interface RoomFormProps {
   room: Room;
   tab: RoomTab;
+  otherRooms?: Array<{ id: string; name: string }>;
 }
 
 const SLOT_OPTIONS = [
@@ -169,12 +180,18 @@ function formatPlainEuro(amount: number): string {
   });
 }
 
-export function RoomForm({ room, tab }: RoomFormProps) {
+export function RoomForm({ room, tab, otherRooms = [] }: RoomFormProps) {
   const router = useRouter();
   const supabase = createClient();
 
   const [form, setForm] = useState<RoomInput>(() => roomToInput(room));
   const [dayRows, setDayRows] = useState<DayScheduleRow[]>(defaultDayRows());
+  const [openingDays, setOpeningDays] = useState<RoomOpeningDayInput[]>(() =>
+    Array.from({ length: 7 }, (_, dayOfWeek) =>
+      defaultOpeningDay(dayOfWeek, room.open_minute, room.close_minute),
+    ),
+  );
+  const [copyFromId, setCopyFromId] = useState("");
   const [loadingSchedule, setLoadingSchedule] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -183,16 +200,42 @@ export function RoomForm({ room, tab }: RoomFormProps) {
   useEffect(() => {
     let cancelled = false;
 
-    void listProviSchedule(supabase, room.id)
-      .then((entries) => {
-        if (!cancelled) setDayRows(scheduleToDayRows(entries));
+    void Promise.all([
+      listProviSchedule(supabase, room.id),
+      listRoomOpeningDays(supabase, room.id),
+    ])
+      .then(([entries, weekly]) => {
+        if (cancelled) return;
+        setDayRows(scheduleToDayRows(entries));
+        if (weekly.length > 0) {
+          const next = Array.from({ length: 7 }, (_, dayOfWeek) => {
+            const found = weekly.find((row) => row.dayOfWeek === dayOfWeek);
+            return found
+              ? {
+                  dayOfWeek: found.dayOfWeek,
+                  mode: found.mode,
+                  startMinute: found.startMinute,
+                  endMinute: found.endMinute,
+                  morningStartMinute: found.morningStartMinute,
+                  morningEndMinute: found.morningEndMinute,
+                  afternoonStartMinute: found.afternoonStartMinute,
+                  afternoonEndMinute: found.afternoonEndMinute,
+                }
+              : defaultOpeningDay(
+                  dayOfWeek,
+                  room.open_minute,
+                  room.close_minute,
+                );
+          });
+          setOpeningDays(next);
+        }
       })
       .catch((err) => {
         if (!cancelled) {
           setError(
             err instanceof Error
               ? err.message
-              : "Impossibile caricare gli orari da solo.",
+              : "Impossibile caricare gli orari.",
           );
         }
       })
@@ -236,6 +279,7 @@ export function RoomForm({ room, tab }: RoomFormProps) {
 
     try {
       await saveProviSchedule(supabase, room.id, dayRowsToSchedule(dayRows));
+      await saveRoomOpeningDays(supabase, room.id, openingDays);
       setSuccess("Sala salvata.");
       router.refresh();
     } catch (err) {
@@ -263,23 +307,14 @@ export function RoomForm({ room, tab }: RoomFormProps) {
     <div className="max-w-3xl space-y-4">
       <form
         onSubmit={(e) => void handleSubmit(e)}
-        className="space-y-4"
+        className="space-y-4 pb-4"
       >
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="min-w-[8rem]">
-            <ToggleRow
-              label="Aperta"
-              checked={form.isActive}
-              onChange={(checked) => updateField("isActive", checked)}
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={saving || loadingSchedule}
-            className="rounded-lg bg-[var(--brand)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-60"
-          >
-            {saving ? "Salvataggio…" : "Salva"}
-          </button>
+        <div className="min-w-[8rem]">
+          <ToggleRow
+            label="Aperta"
+            checked={form.isActive}
+            onChange={(checked) => updateField("isActive", checked)}
+          />
         </div>
 
         {error && (
@@ -354,6 +389,217 @@ export function RoomForm({ room, tab }: RoomFormProps) {
 
         {tab === "orari" && (
           <div className="space-y-5">
+            {otherRooms.length > 0 ? (
+              <div className="flex flex-wrap items-end gap-2">
+                <label className="min-w-[12rem] flex-1">
+                  <FieldLabel>Copia orari da</FieldLabel>
+                  <select
+                    value={copyFromId}
+                    onChange={(e) => setCopyFromId(e.target.value)}
+                    className={settingsInputClass}
+                  >
+                    <option value="">Scegli una sala…</option>
+                    {otherRooms.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  disabled={!copyFromId}
+                  onClick={() => {
+                    if (!copyFromId) return;
+                    void listRoomOpeningDays(supabase, copyFromId)
+                      .then((weekly) => {
+                        if (weekly.length === 0) {
+                          setError("La sala scelta non ha orari settimanali.");
+                          return;
+                        }
+                        setOpeningDays(
+                          Array.from({ length: 7 }, (_, dayOfWeek) => {
+                            const found = weekly.find(
+                              (row) => row.dayOfWeek === dayOfWeek,
+                            );
+                            return found
+                              ? {
+                                  dayOfWeek: found.dayOfWeek,
+                                  mode: found.mode,
+                                  startMinute: found.startMinute,
+                                  endMinute: found.endMinute,
+                                  morningStartMinute: found.morningStartMinute,
+                                  morningEndMinute: found.morningEndMinute,
+                                  afternoonStartMinute:
+                                    found.afternoonStartMinute,
+                                  afternoonEndMinute: found.afternoonEndMinute,
+                                }
+                              : defaultOpeningDay(
+                                  dayOfWeek,
+                                  form.openMinute,
+                                  form.closeMinute,
+                                );
+                          }),
+                        );
+                        setSuccess("Orari copiati. Premi Salva per confermare.");
+                      })
+                      .catch((err) =>
+                        setError(
+                          err instanceof Error
+                            ? err.message
+                            : "Copia non riuscita.",
+                        ),
+                      );
+                  }}
+                  className="rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+                >
+                  Copia
+                </button>
+              </div>
+            ) : null}
+
+            <div className="space-y-3">
+              <FieldLabel>Orario per giorno</FieldLabel>
+              {DAY_ORDER.map((dayOfWeek) => {
+                const row = openingDays.find((d) => d.dayOfWeek === dayOfWeek);
+                if (!row) return null;
+                return (
+                  <div
+                    key={dayOfWeek}
+                    className="rounded-xl border border-neutral-200 bg-white p-3"
+                  >
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-medium text-neutral-900">
+                        {DAY_SHORT[dayOfWeek]}
+                      </p>
+                      <div className="flex flex-wrap gap-3 text-xs">
+                        {(
+                          [
+                            ["open", "Aperto"],
+                            ["split", "Matt/Pom"],
+                            ["closed", "Chiuso"],
+                          ] as const
+                        ).map(([value, label]) => (
+                          <label
+                            key={value}
+                            className="inline-flex items-center gap-1.5"
+                          >
+                            <input
+                              type="radio"
+                              name={`open-mode-${dayOfWeek}`}
+                              checked={row.mode === value}
+                              onChange={() =>
+                                setOpeningDays((prev) =>
+                                  prev.map((item) =>
+                                    item.dayOfWeek === dayOfWeek
+                                      ? { ...item, mode: value as OpeningMode }
+                                      : item,
+                                  ),
+                                )
+                              }
+                            />
+                            {label}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                    {row.mode === "open" ? (
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <MinuteSelect
+                          label="Dalle"
+                          value={row.startMinute}
+                          onChange={(startMinute) =>
+                            setOpeningDays((prev) =>
+                              prev.map((item) =>
+                                item.dayOfWeek === dayOfWeek
+                                  ? { ...item, startMinute }
+                                  : item,
+                              ),
+                            )
+                          }
+                        />
+                        <MinuteSelect
+                          label="Alle"
+                          value={row.endMinute > 1440 ? 1440 : row.endMinute}
+                          allowMidnight
+                          onChange={(endMinute) =>
+                            setOpeningDays((prev) =>
+                              prev.map((item) =>
+                                item.dayOfWeek === dayOfWeek
+                                  ? { ...item, endMinute }
+                                  : item,
+                              ),
+                            )
+                          }
+                        />
+                      </div>
+                    ) : null}
+                    {row.mode === "split" ? (
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <MinuteSelect
+                          label="Mattina dalle"
+                          value={row.morningStartMinute}
+                          onChange={(morningStartMinute) =>
+                            setOpeningDays((prev) =>
+                              prev.map((item) =>
+                                item.dayOfWeek === dayOfWeek
+                                  ? { ...item, morningStartMinute }
+                                  : item,
+                              ),
+                            )
+                          }
+                        />
+                        <MinuteSelect
+                          label="Mattina alle"
+                          value={row.morningEndMinute}
+                          onChange={(morningEndMinute) =>
+                            setOpeningDays((prev) =>
+                              prev.map((item) =>
+                                item.dayOfWeek === dayOfWeek
+                                  ? { ...item, morningEndMinute }
+                                  : item,
+                              ),
+                            )
+                          }
+                        />
+                        <MinuteSelect
+                          label="Pomeriggio dalle"
+                          value={row.afternoonStartMinute}
+                          onChange={(afternoonStartMinute) =>
+                            setOpeningDays((prev) =>
+                              prev.map((item) =>
+                                item.dayOfWeek === dayOfWeek
+                                  ? { ...item, afternoonStartMinute }
+                                  : item,
+                              ),
+                            )
+                          }
+                        />
+                        <MinuteSelect
+                          label="Pomeriggio alle"
+                          value={
+                            row.afternoonEndMinute > 1440
+                              ? 1440
+                              : row.afternoonEndMinute
+                          }
+                          allowMidnight
+                          onChange={(afternoonEndMinute) =>
+                            setOpeningDays((prev) =>
+                              prev.map((item) =>
+                                item.dayOfWeek === dayOfWeek
+                                  ? { ...item, afternoonEndMinute }
+                                  : item,
+                              ),
+                            )
+                          }
+                        />
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label htmlFor="openMinute">
@@ -490,6 +736,12 @@ export function RoomForm({ room, tab }: RoomFormProps) {
                 }
               />
             </div>
+
+            <RoomSpecialDaysPanel
+              roomId={room.id}
+              defaultOpenMinute={form.openMinute}
+              defaultCloseMinute={form.closeMinute}
+            />
           </div>
         )}
 
@@ -627,11 +879,66 @@ export function RoomForm({ room, tab }: RoomFormProps) {
             )}
           </div>
         )}
+
+        {tab !== "calendari" ? (
+          <SettingsStickySaveBar>
+            <button
+              type="submit"
+              disabled={saving || loadingSchedule}
+              className={settingsPrimaryButtonClass}
+            >
+              {saving ? "Salvataggio…" : "Salva"}
+            </button>
+          </SettingsStickySaveBar>
+        ) : null}
       </form>
 
       <div hidden={tab !== "calendari"}>
         <RoomExternalCalendarsPanel roomId={room.id} />
       </div>
     </div>
+  );
+}
+
+function MinuteSelect({
+  label,
+  value,
+  onChange,
+  allowMidnight = false,
+}: {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+  allowMidnight?: boolean;
+}) {
+  const options: { value: number; label: string }[] = [];
+  for (let minute = 0; minute < 24 * 60; minute += 30) {
+    options.push({ value: minute, label: minutesToTimeLabel(minute) });
+  }
+  if (allowMidnight) {
+    options.push({ value: 1440, label: "24:00" });
+  }
+  if (!options.some((option) => option.value === value)) {
+    options.push({
+      value,
+      label: value === 1440 ? "24:00" : minutesToTimeLabel(value),
+    });
+  }
+
+  return (
+    <label className="block text-sm">
+      <span className="mb-1 block text-neutral-600">{label}</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className={settingsInputClass}
+      >
+        {options.map((option) => (
+          <option key={`${label}-${option.value}`} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }

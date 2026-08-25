@@ -25,21 +25,27 @@ export default async function AdminPrenotazioniListaPage({
       ? "upcoming"
       : parsed === "tutte"
         ? "all"
-        : "pending_approval";
+        : parsed === "cestino"
+          ? "cancelled"
+          : "pending_approval";
 
   const title =
     parsed === "prossime"
       ? "Prossime prenotazioni"
       : parsed === "tutte"
         ? "Tutte le prenotazioni"
-        : "Da approvare";
+        : parsed === "cestino"
+          ? "Cestino"
+          : "Da approvare";
 
   const subtitle =
     parsed === "da-approvare"
       ? "Approva o rifiuta le richieste in fascia 6–12 ore e consulta le prenotazioni future."
       : parsed === "prossime"
         ? "Prenotazioni confermate o in attesa con data futura."
-        : "Elenco completo delle prenotazioni sale.";
+        : parsed === "cestino"
+          ? "Prenotazioni annullate. Restano in elenco, non si cancellano dal database."
+          : "Elenco completo delle prenotazioni sale.";
 
   return (
     <div className="space-y-6">

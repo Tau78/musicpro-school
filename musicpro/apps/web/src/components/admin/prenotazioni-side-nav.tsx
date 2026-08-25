@@ -15,6 +15,7 @@ export function PrenotazioniSideNav() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const onCalendar = pathname === "/admin/prenotazioni/calendario";
+  const onReport = pathname === "/admin/prenotazioni/report";
   const onList = pathname === "/admin/prenotazioni/lista";
   const lista = parsePrenotazioniLista(searchParams.get("lista"));
 
@@ -44,6 +45,16 @@ export function PrenotazioniSideNav() {
               href: "/admin/prenotazioni/lista?lista=tutte",
               label: "Tutte",
               active: onList && lista === "tutte",
+            },
+            {
+              href: "/admin/prenotazioni/lista?lista=cestino",
+              label: "Cestino",
+              active: onList && lista === "cestino",
+            },
+            {
+              href: "/admin/prenotazioni/report",
+              label: "Report",
+              active: onReport,
             },
           ],
         },

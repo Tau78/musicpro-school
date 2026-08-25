@@ -22,6 +22,7 @@ import {
 } from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
 
+import { SettingsPageHeader } from "@/components/admin/settings-page-chrome";
 import {
   downloadLessonPayrollPdf,
   generateLessonPayrollPdf,
@@ -462,10 +463,11 @@ export function PayrollStaffPanel({ actorMemberId }: { actorMemberId: string }) 
   }
 
   return (
-    <div className="space-y-8">
-      <p className="text-sm text-neutral-600">
-        Distinte dalle notule spese in Rimborsi.
-      </p>
+    <div className="space-y-6">
+      <SettingsPageHeader
+        title="Notule"
+        description="Compensi docenti mensili. Distinte dalle notule spese in Rimborsi."
+      />
 
       {error ? (
         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

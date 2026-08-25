@@ -18,6 +18,7 @@ import type { MemberRoleValue } from "@musicpro/shared";
 
 import { MemberCreditsPanel } from "@/components/admin/member-credits-panel";
 import { MemberForm } from "@/components/admin/member-form";
+import { MemberQuickEdit } from "@/components/admin/member-quick-edit";
 import { MemberRolesPanel } from "@/components/admin/member-roles-panel";
 import { createClient } from "@/lib/supabase/client";
 
@@ -49,6 +50,7 @@ export function MemberDetailDialog({
   const [data, setData] = useState<DialogData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<"quick" | "full">("quick");
 
   useEffect(() => {
     const prevOverflow = document.body.style.overflow;
@@ -70,6 +72,7 @@ export function MemberDetailDialog({
     setLoading(true);
     setError(null);
     setData(null);
+    setView("quick");
 
     const supabase = createClient();
 
@@ -136,7 +139,11 @@ export function MemberDetailDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="member-detail-title"
-        className="flex max-h-[100vh] w-full max-w-3xl flex-col overflow-hidden bg-white shadow-xl sm:max-h-[90vh] sm:rounded-xl"
+        className={
+          view === "quick"
+            ? "flex max-h-[100vh] w-full max-w-lg flex-col overflow-hidden bg-white shadow-xl sm:max-h-[90vh] sm:rounded-xl"
+            : "flex max-h-[100vh] w-full max-w-3xl flex-col overflow-hidden bg-white shadow-xl sm:max-h-[90vh] sm:rounded-xl"
+        }
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex shrink-0 items-start justify-between gap-3 border-b border-neutral-200 px-5 py-4">
@@ -145,14 +152,19 @@ export function MemberDetailDialog({
               id="member-detail-title"
               className="truncate text-lg font-semibold text-[var(--brand)]"
             >
-              {title}
+              {view === "quick" ? "Modifica associato" : title}
             </h2>
-            <Link
-              href={`/admin/associati/${memberId}`}
-              className="mt-1 inline-block text-xs font-medium text-neutral-500 hover:text-[var(--brand)] hover:underline"
-            >
-              Apri scheda completa
-            </Link>
+            {view === "full" ? (
+              <button
+                type="button"
+                onClick={() => setView("quick")}
+                className="mt-1 text-xs font-medium text-neutral-500 hover:text-[var(--brand)] hover:underline"
+              >
+                Torna alla modifica rapida
+              </button>
+            ) : (
+              <p className="mt-1 truncate text-sm text-neutral-500">{title}</p>
+            )}
           </div>
           <button
             type="button"
@@ -176,7 +188,30 @@ export function MemberDetailDialog({
             </p>
           ) : null}
 
-          {data ? (
+          {data && view === "quick" ? (
+            <MemberQuickEdit
+              key={`${data.member.id}-quick-${data.member.email}-${data.creditBalance.available}`}
+              member={data.member}
+              creditAvailable={data.creditBalance.available}
+              canDelete={canDelete}
+              onCancel={onClose}
+              onDeleted={onClose}
+              onOpenFull={() => setView("full")}
+              onSaved={(member, creditBalance) =>
+                setData((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        member,
+                        creditBalance: creditBalance ?? prev.creditBalance,
+                      }
+                    : prev,
+                )
+              }
+            />
+          ) : null}
+
+          {data && view === "full" ? (
             <>
               {data.member.isEnrollmentDraft ? (
                 <p className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -209,7 +244,7 @@ export function MemberDetailDialog({
                 member={data.member}
                 canDelete={canDelete}
                 quotas={data.quotas}
-                onCancel={onClose}
+                onCancel={() => setView("quick")}
                 onDeleted={onClose}
               />
 
@@ -219,6 +254,15 @@ export function MemberDetailDialog({
                 initialBalance={data.creditBalance}
                 initialTransactions={data.creditTransactions}
               />
+
+              <p className="mt-8 text-center text-sm">
+                <Link
+                  href={`/admin/associati/${memberId}`}
+                  className="font-medium text-[var(--brand)] hover:underline"
+                >
+                  Apri pagina (didattica e disponibilità)
+                </Link>
+              </p>
             </>
           ) : null}
         </div>

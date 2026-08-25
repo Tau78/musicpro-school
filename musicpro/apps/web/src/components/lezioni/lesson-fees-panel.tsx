@@ -16,6 +16,7 @@ import {
 } from "@musicpro/database";
 
 import { issueAndEmailReceiptCopy } from "@/lib/lezioni/issue-receipt-copy";
+import { SettingsPageHeader } from "@/components/admin/settings-page-chrome";
 import { createClient } from "@/lib/supabase/client";
 
 type StatusFilter = "default" | "open" | "paid" | "all";
@@ -300,7 +301,12 @@ export function LessonFeesPanel({
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
+      <SettingsPageHeader
+        title="Rette"
+        description="Quote lezioni in scadenza, incassi e solleciti agli associati."
+      />
+
       {error ? (
         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
