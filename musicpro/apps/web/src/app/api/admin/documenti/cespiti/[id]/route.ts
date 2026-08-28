@@ -109,11 +109,16 @@ export async function PUT(request: Request, context: RouteContext) {
     );
   }
 
-  const { forceDuplicate, ...input } = body;
+  const { forceDuplicate, photoStoragePath: _ignoredPhoto, ...input } = body;
+  const payload: FixedAssetInput = {
+    ...input,
+    photoStoragePath: existing.photoStoragePath,
+  };
+
   const result = await updateFixedAssetHandlingDuplicates(
-    access.supabase,
+    access.serviceSupabase,
     id,
-    input,
+    payload,
     {
       forceDuplicate: forceDuplicate === true,
       actorMemberId: access.member.id,
