@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
+import { createClient as createServiceClient } from "@supabase/supabase-js";
 
-import { MemberRole, type MemberWithRoles } from "@musicpro/shared";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { MemberRole } from "@musicpro/shared";
+import type { Database } from "@musicpro/database";
 
 import { getAdminMember } from "@/lib/admin/current-member";
 import {
@@ -14,20 +15,30 @@ export const CESPITI_STORAGE_BUCKET = "fixed_assets";
 
 export type CespitiAccess =
   | {
-      supabase: SupabaseClient;
-      member: MemberWithRoles;
+      supabase: Awaited<ReturnType<typeof createClient>>;
+      serviceSupabase: ReturnType<typeof createServiceClient<Database>>;
+      member: NonNullable<Awaited<ReturnType<typeof getAdminMember>>>;
       isAdmin: boolean;
       error: null;
     }
   | {
-      supabase: SupabaseClient;
+      supabase: Awaited<ReturnType<typeof createClient>>;
+      serviceSupabase: null;
       member: null;
       isAdmin: false;
       error: NextResponse;
     };
 
+function createServiceSupabase() {
+  const url = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").trim();
+  const key = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
+  if (!url || !key) return null;
+  return createServiceClient<Database>(url, key);
+}
+
 export async function requireCespitiAccess(): Promise<CespitiAccess> {
   const supabase = await createClient();
+  const serviceSupabase = createServiceSupabase();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -35,6 +46,7 @@ export async function requireCespitiAccess(): Promise<CespitiAccess> {
   if (!user) {
     return {
       supabase,
+      serviceSupabase: null,
       member: null,
       isAdmin: false,
       error: NextResponse.json(
@@ -53,6 +65,7 @@ export async function requireCespitiAccess(): Promise<CespitiAccess> {
   ) {
     return {
       supabase,
+      serviceSupabase: null,
       member: null,
       isAdmin: false,
       error: NextResponse.json(
@@ -62,8 +75,25 @@ export async function requireCespitiAccess(): Promise<CespitiAccess> {
     };
   }
 
+  if (!serviceSupabase) {
+    return {
+      supabase,
+      serviceSupabase: null,
+      member: null,
+      isAdmin: false,
+      error: NextResponse.json(
+        {
+          success: false,
+          message: "Configurazione server incompleta (service role).",
+        },
+        { status: 500 },
+      ),
+    };
+  }
+
   return {
     supabase,
+    serviceSupabase,
     member,
     isAdmin: member.roles.includes(MemberRole.Admin),
     error: null,

@@ -82,7 +82,7 @@ export async function POST(request: Request) {
 
   const { forceDuplicate, ...input } = body;
   const result = await createFixedAssetHandlingDuplicates(
-    access.supabase,
+    access.serviceSupabase,
     input,
     {
       forceDuplicate: forceDuplicate === true,

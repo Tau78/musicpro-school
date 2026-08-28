@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import {
   getFixedAssetById,
-  updateFixedAsset,
+  updateFixedAssetPhotoPath,
 } from "@musicpro/database";
 
 import {
@@ -12,12 +12,16 @@ import {
 } from "@/lib/admin/cespiti-auth";
 
 const STORAGE_BUCKET = CESPITI_STORAGE_BUCKET;
-const MAX_BYTES = 5 * 1024 * 1024;
+const MAX_BYTES = 8 * 1024 * 1024;
+
 const ALLOWED_TYPES = new Set([
   "image/jpeg",
+  "image/jpg",
   "image/png",
   "image/webp",
   "image/gif",
+  "image/heic",
+  "image/heif",
 ]);
 
 type RouteContext = {
@@ -28,6 +32,48 @@ function sanitizeFilename(name: string): string {
   const base = name.split(/[/\\]/).pop() ?? "photo.jpg";
   const cleaned = base.replace(/[^\w.\- ]+/g, "_").trim();
   return cleaned || "photo.jpg";
+}
+
+function inferContentType(filename: string, declaredType: string): string | null {
+  const normalized = declaredType.toLowerCase().split(";")[0]?.trim() ?? "";
+  if (normalized && ALLOWED_TYPES.has(normalized)) return normalized;
+
+  const ext = filename.toLowerCase().split(".").pop() ?? "";
+  switch (ext) {
+    case "jpg":
+    case "jpeg":
+      return "image/jpeg";
+    case "png":
+      return "image/png";
+    case "webp":
+      return "image/webp";
+    case "gif":
+      return "image/gif";
+    case "heic":
+    case "heif":
+      return "image/heic";
+    default:
+      return null;
+  }
+}
+
+function isDeadlockError(message: string): boolean {
+  return message.includes("40P01") || /deadlock/i.test(message);
+}
+
+async function withDeadlockRetry<T>(fn: () => Promise<T>): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      const message = error instanceof Error ? error.message : String(error);
+      if (!isDeadlockError(message) || attempt === 2) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 80 * (attempt + 1)));
+    }
+  }
+  throw lastError;
 }
 
 export async function POST(request: Request, context: RouteContext) {
@@ -42,7 +88,7 @@ export async function POST(request: Request, context: RouteContext) {
   const access = await requireCespitiAccess();
   if (access.error) return access.error;
 
-  const asset = await getFixedAssetById(access.supabase, id);
+  const asset = await getFixedAssetById(access.serviceSupabase, id);
   if (!asset) {
     return NextResponse.json(
       { success: false, message: "Cespite non trovato" },
@@ -70,30 +116,25 @@ export async function POST(request: Request, context: RouteContext) {
 
   if (uploaded.size <= 0 || uploaded.size > MAX_BYTES) {
     return NextResponse.json(
-      { success: false, message: "File troppo grande (max 5 MB)" },
+      { success: false, message: "File troppo grande (max 8 MB)" },
       { status: 400 },
     );
   }
 
-  const contentType = uploaded.type || "application/octet-stream";
-  if (!ALLOWED_TYPES.has(contentType)) {
-    return NextResponse.json(
-      { success: false, message: "Formato immagine non supportato" },
-      { status: 400 },
-    );
-  }
+  const filename = sanitizeFilename(uploaded.name || "photo.jpg");
+  const contentType =
+    inferContentType(filename, uploaded.type || "") ?? "image/jpeg";
 
-  const filename = sanitizeFilename(uploaded.name);
-  const storagePath = `assets/${id}/${filename}`;
+  const storagePath = `assets/${id}/${Date.now()}-${filename}`;
 
-  if (asset.photoStoragePath && asset.photoStoragePath !== storagePath) {
-    await access.supabase.storage
+  if (asset.photoStoragePath) {
+    await access.serviceSupabase.storage
       .from(STORAGE_BUCKET)
       .remove([asset.photoStoragePath]);
   }
 
   const bytes = Buffer.from(await uploaded.arrayBuffer());
-  const { error: uploadError } = await access.supabase.storage
+  const { error: uploadError } = await access.serviceSupabase.storage
     .from(STORAGE_BUCKET)
     .upload(storagePath, bytes, {
       contentType,
@@ -101,31 +142,45 @@ export async function POST(request: Request, context: RouteContext) {
     });
 
   if (uploadError) {
+    const hint = uploadError.message?.includes("Bucket not found")
+      ? " Bucket Storage non configurato."
+      : "";
     return NextResponse.json(
       {
         success: false,
-        message: uploadError.message || "Impossibile caricare la foto.",
+        message: `${uploadError.message || "Impossibile caricare la foto."}${hint}`,
       },
       { status: 400 },
     );
   }
 
-  const updated = await updateFixedAsset(access.supabase, id, {
-    name: asset.name,
-    quantity: asset.quantity,
-    brand: asset.brand,
-    model: asset.model,
-    serial: asset.serial,
-    accessories: asset.accessories,
-    purchasedAt: asset.purchasedAt,
-    locationPreset: asset.locationPreset,
-    locationCustom: asset.locationCustom,
-    notes: asset.notes,
-    photoStoragePath: storagePath,
-    updatedBy: access.member.id,
-  });
+  let updated;
+  try {
+    updated = await withDeadlockRetry(() =>
+      updateFixedAssetPhotoPath(
+        access.serviceSupabase,
+        id,
+        storagePath,
+        access.member.id,
+      ),
+    );
+  } catch (error) {
+    await access.serviceSupabase.storage.from(STORAGE_BUCKET).remove([storagePath]);
+    const message =
+      error instanceof Error ? error.message : "Impossibile aggiornare il cespite.";
+    return NextResponse.json(
+      {
+        success: false,
+        message: isDeadlockError(message)
+          ? "Conflitto temporaneo sul database. Riprova tra un istante."
+          : message,
+      },
+      { status: 500 },
+    );
+  }
 
   if (!updated.success) {
+    await access.serviceSupabase.storage.from(STORAGE_BUCKET).remove([storagePath]);
     return NextResponse.json(
       {
         success: false,
@@ -157,7 +212,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
   const access = await requireCespitiAccess();
   if (access.error) return access.error;
 
-  const asset = await getFixedAssetById(access.supabase, id);
+  const asset = await getFixedAssetById(access.serviceSupabase, id);
   if (!asset) {
     return NextResponse.json(
       { success: false, message: "Cespite non trovato" },
@@ -166,25 +221,17 @@ export async function DELETE(_request: Request, context: RouteContext) {
   }
 
   if (asset.photoStoragePath) {
-    await access.supabase.storage
+    await access.serviceSupabase.storage
       .from(STORAGE_BUCKET)
       .remove([asset.photoStoragePath]);
   }
 
-  const updated = await updateFixedAsset(access.supabase, id, {
-    name: asset.name,
-    quantity: asset.quantity,
-    brand: asset.brand,
-    model: asset.model,
-    serial: asset.serial,
-    accessories: asset.accessories,
-    purchasedAt: asset.purchasedAt,
-    locationPreset: asset.locationPreset,
-    locationCustom: asset.locationCustom,
-    notes: asset.notes,
-    photoStoragePath: null,
-    updatedBy: access.member.id,
-  });
+  const updated = await updateFixedAssetPhotoPath(
+    access.serviceSupabase,
+    id,
+    null,
+    access.member.id,
+  );
 
   if (!updated.success) {
     return NextResponse.json(

@@ -426,6 +426,31 @@ export async function createFixedAsset(
   return { success: true, id: data.id };
 }
 
+export async function updateFixedAssetPhotoPath(
+  client: FixedAssetsClient,
+  id: string,
+  photoStoragePath: string | null,
+  updatedBy?: string | null,
+): Promise<FixedAssetMutationResult> {
+  const { error } = await client
+    .from("fixed_assets")
+    .update({
+      photo_storage_path: normalizeOptionalText(photoStoragePath),
+      updated_by: updatedBy ?? null,
+    })
+    .eq("id", id);
+
+  if (error) {
+    return {
+      success: false,
+      errorMessage:
+        error.message || "Impossibile aggiornare la foto del cespite.",
+    };
+  }
+
+  return { success: true, id };
+}
+
 export async function updateFixedAsset(
   client: FixedAssetsClient,
   id: string,

@@ -672,6 +672,7 @@ export {
   mergeQuantities,
   softDeleteFixedAsset,
   updateFixedAsset,
+  updateFixedAssetPhotoPath,
 } from "./fixed-assets";
 export type {
   AccessoryTagKey,

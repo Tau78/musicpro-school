@@ -88,7 +88,6 @@ function formToInput(form: CespitiFormState): FixedAssetInput {
     locationPreset: form.locationPreset,
     locationCustom: form.locationCustom || null,
     notes: form.notes || null,
-    photoStoragePath: form.photoStoragePath,
   };
 }
 
@@ -187,9 +186,12 @@ export function CespitiDetailPanel({
     }
   }, [mode, assetId, loadDetail, initialForm]);
 
-  async function uploadPendingPhoto(id: string) {
+  async function uploadPendingPhoto(id: string): Promise<{
+    photoStoragePath?: string;
+    photoUrl?: string | null;
+  }> {
     const file = pendingPhotoRef.current;
-    if (!file) return;
+    if (!file) return {};
 
     const body = new FormData();
     body.append("file", file);
@@ -200,6 +202,8 @@ export function CespitiDetailPanel({
     });
     const data = (await response.json()) as {
       success?: boolean;
+      photoStoragePath?: string;
+      photoUrl?: string | null;
       message?: string;
     };
 
@@ -208,6 +212,8 @@ export function CespitiDetailPanel({
     if (!response.ok || !data.success) {
       throw new Error(data.message ?? "Caricamento foto non riuscito.");
     }
+
+    return data;
   }
 
   function updateForm(patch: Partial<CespitiFormState>) {
@@ -312,7 +318,13 @@ export function CespitiDetailPanel({
       const savedId = data.id ?? assetId ?? "";
       if (mode === "add" && savedId) {
         try {
-          await uploadPendingPhoto(savedId);
+          const photoData = await uploadPendingPhoto(savedId);
+          if (photoData.photoUrl) {
+            updateForm({
+              photoStoragePath: photoData.photoStoragePath ?? null,
+              photoUrl: photoData.photoUrl,
+            });
+          }
         } catch (photoError) {
           setError(
             photoError instanceof Error
