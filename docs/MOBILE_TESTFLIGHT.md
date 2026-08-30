@@ -18,6 +18,8 @@
 
 Diagnosi IPA: non mancano altri peer obbligatori di `expo-router` rispetto a `package.json`. Auth/env: `EXPO_PUBLIC_SUPABASE_*` risultano inline nel `main.jsbundle` (URL progetto presente); non è un throw di `createMobileClient` al boot.
 
+**Anti-regressione**: `npm run check:hermes-clone` (e preflight di `scripts/testflight.sh`) fallisce se qualcuno reintroduce `structuredClone(` in `packages/database` fuori da `clone.ts`.
+
 ## Path di produzione
 
 ```bash

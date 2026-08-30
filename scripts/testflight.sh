@@ -110,6 +110,10 @@ need_cmd rsync
 xcodebuild -version
 ok "Xcode + CocoaPods · team $TEAM_ID · bundle $BUNDLE_ID · build $BUILD_NUMBER"
 
+step "Guardrail Hermes structuredClone"
+bash "$REAL_ROOT/scripts/check-hermes-structuredclone.sh"
+ok "nessun structuredClone nudo in @musicpro/database"
+
 step "Copia senza spazi → $BUILD_TREE"
 mkdir -p "$BUILD_TREE"
 rsync -a --delete \
