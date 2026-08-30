@@ -12,20 +12,30 @@ import { useRouter } from "expo-router";
 
 import {
   type BookingWithRoom,
+  type CalendarLesson,
+  adminUpdateBooking,
   bookingStatusLabel,
   cancelBooking,
-  formatBookingDateTime,
+  cancelLessonAsSchool,
+  getRomeMinutesFromMidnight,
+  getTeacherProfile,
   listBookingsInRange,
   listLessonsInRange,
   listMyBookings,
+  minutesToTimeLabel,
+  moveLesson,
+  romeLocalInputToUtcIso,
   todayInRome,
-  type CalendarLesson,
 } from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
 
-import { CalendarWeek } from "@/components/lezioni/calendar-week";
-import { BookingWeek } from "@/components/sala/booking-week";
+import {
+  TimeGridAddBar,
+  TimeGridWeek,
+  type TimeGridEvent,
+} from "@/components/calendar/time-grid-week";
 import { useAuth } from "@/contexts/AuthContext";
+import { lessonColor } from "@/lib/lezioni-colors";
 import {
   addRomeDays,
   formatRomeDay,
@@ -67,6 +77,15 @@ function weekLabel(weekStart: string): string {
   return `${startDay} ${startMonth} – ${endDay} ${endMonth} ${year}`;
 }
 
+function dateInRome(iso: string): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Rome",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(iso));
+}
+
 function WeekNav({
   label,
   onPrev,
@@ -78,19 +97,11 @@ function WeekNav({
 }) {
   return (
     <View style={styles.weekNav}>
-      <Pressable
-        onPress={onPrev}
-        style={styles.weekNavBtn}
-        accessibilityLabel="Settimana precedente"
-      >
+      <Pressable onPress={onPrev} style={styles.weekNavBtn} accessibilityLabel="Precedente">
         <Text style={styles.weekNavBtnText}>‹</Text>
       </Pressable>
       <Text style={styles.weekNavLabel}>{label}</Text>
-      <Pressable
-        onPress={onNext}
-        style={styles.weekNavBtn}
-        accessibilityLabel="Settimana successiva"
-      >
+      <Pressable onPress={onNext} style={styles.weekNavBtn} accessibilityLabel="Successiva">
         <Text style={styles.weekNavBtnText}>›</Text>
       </Pressable>
     </View>
@@ -103,6 +114,8 @@ export default function DashboardScreen() {
   const supabase = useMemo(() => createClient(), []);
   const isDocente = roles.includes(MemberRole.Docente);
   const manageSala = canManageSala(roles);
+  const isStaff =
+    manageSala || roles.includes(MemberRole.Admin);
   const today = todayInRome();
 
   const [salaWeekStart, setSalaWeekStart] = useState(() =>
@@ -114,6 +127,7 @@ export default function DashboardScreen() {
 
   const [bookings, setBookings] = useState<BookingWithRoom[]>([]);
   const [lessons, setLessons] = useState<CalendarLesson[]>([]);
+  const [canReschedule, setCanReschedule] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedBooking, setSelectedBooking] =
@@ -121,7 +135,7 @@ export default function DashboardScreen() {
   const [selectedLesson, setSelectedLesson] = useState<CalendarLesson | null>(
     null,
   );
-  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -142,7 +156,7 @@ export default function DashboardScreen() {
         const salaTo = addRomeDays(salaWeekStart, 7);
         const lezioniTo = addRomeDays(lezioniWeekStart, 7);
 
-        const [bookingRows, lessonRows] = await Promise.all([
+        const [bookingRows, lessonRows, profile] = await Promise.all([
           manageSala
             ? listBookingsInRange(supabase, {
                 from: salaWeekStart,
@@ -150,12 +164,7 @@ export default function DashboardScreen() {
               })
             : listMyBookings(supabase, member.id, "upcoming").then((rows) =>
                 rows.filter((row) => {
-                  const d = new Intl.DateTimeFormat("en-CA", {
-                    timeZone: "Europe/Rome",
-                    year: "numeric",
-                    month: "2-digit",
-                    day: "2-digit",
-                  }).format(new Date(row.start_at));
+                  const d = dateInRome(row.start_at);
                   return d >= salaWeekStart && d < salaTo;
                 }),
               ),
@@ -167,10 +176,14 @@ export default function DashboardScreen() {
                 includePendingHold: true,
               })
             : Promise.resolve([] as CalendarLesson[]),
+          isDocente
+            ? getTeacherProfile(supabase, member.id)
+            : Promise.resolve(null),
         ]);
 
         setBookings(bookingRows);
         setLessons(lessonRows);
+        setCanReschedule(Boolean(profile?.canReschedule) || isStaff);
         setSelectedBooking((current) =>
           current
             ? (bookingRows.find((row) => row.id === current.id) ?? null)
@@ -194,6 +207,7 @@ export default function DashboardScreen() {
     },
     [
       isDocente,
+      isStaff,
       lezioniWeekStart,
       manageSala,
       member?.id,
@@ -207,8 +221,62 @@ export default function DashboardScreen() {
     void load("initial");
   }, [authLoading, load]);
 
-  async function handleCancel(bookingId: string) {
-    setCancellingId(bookingId);
+  const bookingEvents: TimeGridEvent[] = useMemo(
+    () =>
+      bookings.map((booking) => {
+        const startMinute = getRomeMinutesFromMidnight(booking.start_at);
+        const endMinute = getRomeMinutesFromMidnight(booking.end_at);
+        return {
+          id: `booking:${booking.id}`,
+          date: dateInRome(booking.start_at),
+          startMinute,
+          endMinute: endMinute > startMinute ? endMinute : startMinute + 60,
+          title: booking.room?.name ?? "Sala",
+          subtitle: booking.title || bookingStatusLabel(booking.status),
+          color: {
+            bg: "#e8eef6",
+            border: "#9db4d0",
+            text: "#1e3a5f",
+          },
+          canDrag: manageSala,
+        };
+      }),
+    [bookings, manageSala],
+  );
+
+  const lessonEvents: TimeGridEvent[] = useMemo(
+    () =>
+      lessons
+        .filter((lesson) => lesson.startsAt && !lesson.id.startsWith("hold:"))
+        .map((lesson) => {
+          const startMinute = getRomeMinutesFromMidnight(lesson.startsAt!);
+          const endMinute = lesson.endsAt
+            ? getRomeMinutesFromMidnight(lesson.endsAt)
+            : startMinute + 60;
+          const color = lessonColor({
+            courseKind: lesson.courseKind,
+            isTrial: lesson.isTrial,
+          });
+          return {
+            id: `lesson:${lesson.id}`,
+            date: dateInRome(lesson.startsAt!),
+            startMinute,
+            endMinute: endMinute > startMinute ? endMinute : startMinute + 60,
+            title: lesson.courseName || "Lezione",
+            subtitle: lesson.studentNames.join(", ") || lesson.roomName || undefined,
+            color: {
+              bg: color.bg,
+              border: color.border,
+              text: color.text,
+            },
+            canDrag: canReschedule && !lesson.hasAttendance,
+          };
+        }),
+    [canReschedule, lessons],
+  );
+
+  async function handleCancelBooking(bookingId: string) {
+    setBusyId(bookingId);
     setMessage(null);
     setError(null);
     try {
@@ -227,7 +295,117 @@ export default function DashboardScreen() {
           : "Impossibile cancellare la prenotazione.",
       );
     } finally {
-      setCancellingId(null);
+      setBusyId(null);
+    }
+  }
+
+  async function handleMoveBooking(
+    event: TimeGridEvent,
+    next: { date: string; startMinute: number },
+  ) {
+    const bookingId = event.id.replace(/^booking:/, "");
+    const booking = bookings.find((row) => row.id === bookingId);
+    if (!booking || !manageSala) return;
+
+    const duration = Math.max(
+      15,
+      Math.round(
+        (new Date(booking.end_at).getTime() -
+          new Date(booking.start_at).getTime()) /
+          60_000,
+      ),
+    );
+    const startLocal = `${next.date}T${minutesToTimeLabel(next.startMinute)}`;
+    const endLocal = `${next.date}T${minutesToTimeLabel(next.startMinute + duration)}`;
+
+    setBusyId(bookingId);
+    setError(null);
+    setMessage(null);
+    try {
+      const result = await adminUpdateBooking(supabase, bookingId, {
+        roomId: booking.room_id,
+        startAt: romeLocalInputToUtcIso(startLocal),
+        endAt: romeLocalInputToUtcIso(endLocal),
+      });
+      if (!result.success) {
+        setError(result.errorMessage ?? "Spostamento non riuscito.");
+        return;
+      }
+      setMessage("Prenotazione spostata.");
+      await load("refresh");
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Spostamento non riuscito.",
+      );
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleMoveLesson(
+    event: TimeGridEvent,
+    next: { date: string; startMinute: number },
+  ) {
+    if (!member?.id) return;
+    const lessonId = event.id.replace(/^lesson:/, "");
+    const lesson = lessons.find((row) => row.id === lessonId);
+    if (!lesson) return;
+
+    const startLocal = `${next.date}T${minutesToTimeLabel(next.startMinute)}`;
+    setBusyId(lessonId);
+    setError(null);
+    setMessage(null);
+    try {
+      const result = await moveLesson(supabase, lessonId, {
+        startsAt: romeLocalInputToUtcIso(startLocal),
+        roomId: lesson.roomId,
+        scope: "this",
+        actor: {
+          memberId: member.id,
+          isStaff,
+          canReschedule,
+        },
+      });
+      if (!result.success) {
+        setError(result.errorMessage ?? "Spostamento non riuscito.");
+        return;
+      }
+      setMessage("Lezione spostata.");
+      await load("refresh");
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Spostamento non riuscito.",
+      );
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleCancelLesson(lessonId: string) {
+    if (!member?.id) return;
+    setBusyId(lessonId);
+    setError(null);
+    setMessage(null);
+    try {
+      const result = await cancelLessonAsSchool(supabase, lessonId, {
+        memberId: member.id,
+        isStaff,
+      });
+      if (!result.success) {
+        setError(result.errorMessage ?? "Impossibile cancellare la lezione.");
+        return;
+      }
+      setMessage("Lezione cancellata.");
+      setSelectedLesson(null);
+      await load("refresh");
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Impossibile cancellare la lezione.",
+      );
+    } finally {
+      setBusyId(null);
     }
   }
 
@@ -265,16 +443,10 @@ export default function DashboardScreen() {
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Sala prove</Text>
-          <Pressable
-            style={styles.primaryBtn}
-            onPress={() => router.push("/(tabs)/prenotazioni")}
-          >
-            <Text style={styles.primaryBtnText}>+ Aggiungi</Text>
-          </Pressable>
         </View>
         <Text style={styles.sectionHint}>
-          Calendario settimanale: tocca una prenotazione per modificarla o
-          cancellarla.
+          Calendario orario: tocca un evento, tieni premuto e trascina per
+          spostarlo.
         </Text>
         <WeekNav
           label={weekLabel(salaWeekStart)}
@@ -282,41 +454,51 @@ export default function DashboardScreen() {
           onNext={() => setSalaWeekStart((d) => addRomeDays(d, 7))}
         />
         {!loading ? (
-          <BookingWeek
+          <TimeGridWeek
             weekStart={salaWeekStart}
-            bookings={bookings}
             today={today}
-            selectedBookingId={selectedBooking?.id}
-            onSelectBooking={setSelectedBooking}
+            events={bookingEvents}
+            selectedId={
+              selectedBooking ? `booking:${selectedBooking.id}` : null
+            }
+            onSelect={(event) => {
+              const id = event.id.replace(/^booking:/, "");
+              setSelectedBooking(bookings.find((b) => b.id === id) ?? null);
+              setSelectedLesson(null);
+            }}
+            onMove={manageSala ? handleMoveBooking : undefined}
           />
         ) : null}
 
         {selectedBooking ? (
           <View style={styles.detailCard}>
             <Text style={styles.detailTitle}>
-              {selectedBooking.room?.name ?? "Sala"} ·{" "}
-              {formatBookingDateTime(
-                selectedBooking.start_at,
-                selectedBooking.end_at,
-              )}
+              {selectedBooking.room?.name ?? "Sala"}
             </Text>
             <Text style={styles.detailMuted}>
-              {bookingStatusLabel(selectedBooking.status)}
+              {bookingStatusLabel(selectedBooking.status)} ·{" "}
+              {minutesToTimeLabel(
+                getRomeMinutesFromMidnight(selectedBooking.start_at),
+              )}
+              –
+              {minutesToTimeLabel(
+                getRomeMinutesFromMidnight(selectedBooking.end_at),
+              )}
             </Text>
             <View style={styles.cardActions}>
               <Pressable
                 style={styles.secondaryBtn}
                 onPress={() => router.push("/mie-prenotazioni")}
               >
-                <Text style={styles.secondaryBtnText}>Elenco</Text>
+                <Text style={styles.secondaryBtnText}>Dettaglio</Text>
               </Pressable>
               <Pressable
                 style={styles.dangerBtn}
-                disabled={cancellingId === selectedBooking.id}
-                onPress={() => void handleCancel(selectedBooking.id)}
+                disabled={busyId === selectedBooking.id}
+                onPress={() => void handleCancelBooking(selectedBooking.id)}
               >
                 <Text style={styles.dangerBtnText}>
-                  {cancellingId === selectedBooking.id ? "…" : "Cancella"}
+                  {busyId === selectedBooking.id ? "…" : "Elimina"}
                 </Text>
               </Pressable>
               <Pressable
@@ -328,22 +510,21 @@ export default function DashboardScreen() {
             </View>
           </View>
         ) : null}
+
+        <TimeGridAddBar
+          label="+ Aggiungi prenotazione"
+          onPress={() => router.push("/(tabs)/prenotazioni")}
+        />
       </View>
 
       {isDocente ? (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Lezioni</Text>
-            <Pressable
-              style={styles.primaryBtn}
-              onPress={() => router.push("/calendario-lezioni")}
-            >
-              <Text style={styles.primaryBtnText}>Apri completo</Text>
-            </Pressable>
           </View>
           <Text style={styles.sectionHint}>
-            Calendario settimanale: tocca una lezione per aprirla e
-            modificarla.
+            Stesso calendario: trascina per spostare, tocca per modificare o
+            eliminare.
           </Text>
           <WeekNav
             label={weekLabel(lezioniWeekStart)}
@@ -351,23 +532,63 @@ export default function DashboardScreen() {
             onNext={() => setLezioniWeekStart((d) => addRomeDays(d, 7))}
           />
           {!loading ? (
-            <CalendarWeek
+            <TimeGridWeek
               weekStart={lezioniWeekStart}
-              lessons={lessons}
               today={today}
-              selectedLessonId={selectedLesson?.id}
-              onSelectLesson={(lesson) => {
-                setSelectedLesson(lesson);
-                router.push("/calendario-lezioni");
+              events={lessonEvents}
+              selectedId={
+                selectedLesson ? `lesson:${selectedLesson.id}` : null
+              }
+              onSelect={(event) => {
+                const id = event.id.replace(/^lesson:/, "");
+                setSelectedLesson(lessons.find((l) => l.id === id) ?? null);
+                setSelectedBooking(null);
               }}
+              onMove={canReschedule ? handleMoveLesson : undefined}
             />
           ) : null}
-          <Pressable
-            style={styles.addLessonBtn}
+
+          {selectedLesson ? (
+            <View style={styles.detailCard}>
+              <Text style={styles.detailTitle}>
+                {selectedLesson.courseName || "Lezione"}
+              </Text>
+              <Text style={styles.detailMuted}>
+                {selectedLesson.studentNames.join(", ") || "—"}
+                {selectedLesson.roomName
+                  ? ` · ${selectedLesson.roomName}`
+                  : ""}
+              </Text>
+              <View style={styles.cardActions}>
+                <Pressable
+                  style={styles.secondaryBtn}
+                  onPress={() => router.push("/calendario-lezioni")}
+                >
+                  <Text style={styles.secondaryBtnText}>Modifica</Text>
+                </Pressable>
+                <Pressable
+                  style={styles.dangerBtn}
+                  disabled={busyId === selectedLesson.id}
+                  onPress={() => void handleCancelLesson(selectedLesson.id)}
+                >
+                  <Text style={styles.dangerBtnText}>
+                    {busyId === selectedLesson.id ? "…" : "Elimina"}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={styles.ghostBtn}
+                  onPress={() => setSelectedLesson(null)}
+                >
+                  <Text style={styles.ghostBtnText}>Chiudi</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : null}
+
+          <TimeGridAddBar
+            label="+ Aggiungi lezione"
             onPress={() => router.push("/calendario-lezioni")}
-          >
-            <Text style={styles.addLessonBtnText}>+ Aggiungi lezione</Text>
-          </Pressable>
+          />
         </View>
       ) : null}
     </ScrollView>
@@ -376,7 +597,7 @@ export default function DashboardScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fafafa" },
-  content: { padding: 24, paddingBottom: 48 },
+  content: { padding: 20, paddingBottom: 48 },
   greeting: { fontSize: 22, fontWeight: "600", color: "#1e3a5f" },
   subtitle: { marginTop: 4, fontSize: 14, color: "#666" },
   loader: { marginTop: 24 },
@@ -388,7 +609,13 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   sectionTitle: { fontSize: 20, fontWeight: "600", color: "#1e3a5f" },
-  sectionHint: { marginTop: 8, marginBottom: 12, fontSize: 13, color: "#666", lineHeight: 18 },
+  sectionHint: {
+    marginTop: 8,
+    marginBottom: 12,
+    fontSize: 13,
+    color: "#666",
+    lineHeight: 18,
+  },
   weekNav: {
     flexDirection: "row",
     alignItems: "center",
@@ -431,13 +658,6 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 8,
   },
-  primaryBtn: {
-    backgroundColor: "#1e3a5f",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  primaryBtnText: { color: "#fff", fontSize: 13, fontWeight: "600" },
   secondaryBtn: {
     borderRadius: 8,
     borderWidth: 1,
@@ -459,14 +679,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   ghostBtnText: { color: "#666", fontSize: 13, fontWeight: "500" },
-  addLessonBtn: {
-    marginTop: 16,
-    alignItems: "center",
-    backgroundColor: "#1e3a5f",
-    borderRadius: 10,
-    paddingVertical: 14,
-  },
-  addLessonBtnText: { color: "#fff", fontSize: 15, fontWeight: "700" },
   alertError: {
     marginTop: 16,
     padding: 12,
