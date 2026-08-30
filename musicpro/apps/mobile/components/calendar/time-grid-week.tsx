@@ -41,6 +41,8 @@ export type TimeGridWeekProps = {
     event: TimeGridEvent,
     next: { date: string; startMinute: number },
   ) => void;
+  /** Tap su area vuota della colonna giorno → slot (date + minuto). */
+  onEmptyPress?: (slot: { date: string; startMinute: number }) => void;
   openMinute?: number;
   closeMinute?: number;
   dayCount?: number;
@@ -198,6 +200,7 @@ export function TimeGridWeek({
   selectedId,
   onSelect,
   onMove,
+  onEmptyPress,
   openMinute = 8 * 60,
   closeMinute = 22 * 60,
   dayCount = 6,
@@ -296,6 +299,24 @@ export function TimeGridWeek({
                       ]}
                     />
                   ))}
+                  {onEmptyPress ? (
+                    <Pressable
+                      style={StyleSheet.absoluteFill}
+                      accessibilityLabel={`Aggiungi lezione il ${date}`}
+                      onPress={(e) => {
+                        const y = e.nativeEvent.locationY;
+                        const raw =
+                          openMinute + Math.round((y / PX_PER_HOUR) * 60);
+                        const startMinute = snapMinute(
+                          raw,
+                          openMinute,
+                          closeMinute,
+                          SLOT,
+                        );
+                        onEmptyPress({ date, startMinute });
+                      }}
+                    />
+                  ) : null}
                   {(eventsByDay.get(date) ?? []).map((event) => (
                     <EventBlock
                       key={event.id}
