@@ -10,7 +10,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 
 import {
   type CalendarLesson,
@@ -32,6 +32,7 @@ import {
   isHoldLesson,
   lessonDateInRome,
 } from "@/components/lezioni/calendar-week";
+import { CreateLessonSheet } from "@/components/lezioni/create-lesson-sheet";
 import { useAuth } from "@/contexts/AuthContext";
 import { addRomeDays, formatRomeTime, startOfWeekMonday } from "@/lib/lezioni-dates";
 import { createClient } from "@/lib/supabase";
@@ -117,6 +118,7 @@ function kindLabel(lesson: CalendarLesson): string {
 
 export default function LezioniCalendarioScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ date?: string; ora?: string }>();
   const { member, roles, isLoading: authLoading } = useAuth();
   const supabase = useMemo(() => createClient(), []);
   const isDocente = roles.includes(MemberRole.Docente);
@@ -139,10 +141,23 @@ export default function LezioniCalendarioScreen() {
   const [moveRoomId, setMoveRoomId] = useState<string | null>(null);
   const [savingMove, setSavingMove] = useState(false);
   const [moveMessage, setMoveMessage] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createDate, setCreateDate] = useState<string | undefined>();
+  const [createOra, setCreateOra] = useState<string | undefined>();
+  const [createSlotBanner, setCreateSlotBanner] = useState<{
+    date: string;
+    ora?: string;
+  } | null>(null);
 
   const today = todayInRome();
   const weekStart = startOfWeekMonday(anchorDate);
   const monthStart = startOfMonth(anchorDate);
+
+  function openCreateLesson(prefill?: { date?: string; ora?: string }) {
+    setCreateDate(prefill?.date);
+    setCreateOra(prefill?.ora);
+    setCreateOpen(true);
+  }
 
   useEffect(() => {
     if (authLoading) return;
@@ -150,6 +165,19 @@ export default function LezioniCalendarioScreen() {
       router.replace("/(tabs)/dashboard");
     }
   }, [authLoading, isDocente, router]);
+
+  useEffect(() => {
+    const rawDate = typeof params.date === "string" ? params.date : undefined;
+    const rawOra = typeof params.ora === "string" ? params.ora : undefined;
+    if (!rawDate || !isValidDate(rawDate)) return;
+    const ora = rawOra && isValidTime(rawOra) ? rawOra : undefined;
+    setAnchorDate(rawDate);
+    setSelectedDate(rawDate);
+    setCreateSlotBanner({ date: rawDate, ora });
+    setCreateDate(rawDate);
+    setCreateOra(ora);
+    setCreateOpen(true);
+  }, [params.date, params.ora]);
 
   const loadProfileAndRooms = useCallback(async () => {
     if (!member) return;
@@ -384,6 +412,40 @@ export default function LezioniCalendarioScreen() {
           })}
         </View>
 
+        <Pressable
+          style={styles.addLessonBtn}
+          onPress={() =>
+            openCreateLesson(
+              selectedDate
+                ? { date: selectedDate }
+                : undefined,
+            )
+          }
+        >
+          <Text style={styles.addLessonBtnText}>+ Aggiungi lezione</Text>
+        </Pressable>
+
+        {createSlotBanner && !createOpen ? (
+          <View style={styles.createSlotBanner}>
+            <Text style={styles.createSlotBannerText}>
+              Slot{" "}
+              {createSlotBanner.date}
+              {createSlotBanner.ora ? ` · ${createSlotBanner.ora}` : ""}
+            </Text>
+            <Pressable
+              style={styles.createSlotCta}
+              onPress={() =>
+                openCreateLesson({
+                  date: createSlotBanner.date,
+                  ora: createSlotBanner.ora,
+                })
+              }
+            >
+              <Text style={styles.createSlotCtaText}>Crea lezione</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
         <View style={styles.navRow}>
           <Pressable onPress={goPrev} style={styles.navBtn}>
             <Text style={styles.navBtnText}>‹ Prec</Text>
@@ -603,6 +665,23 @@ export default function LezioniCalendarioScreen() {
           </View>
         ) : null}
       </ScrollView>
+
+      <CreateLessonSheet
+        visible={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={async () => {
+          setCreateSlotBanner(null);
+          setMoveMessage("Lezione creata.");
+          await loadRange();
+          if (mode === "mese" && selectedDate) {
+            await loadSelectedDay(selectedDate);
+          }
+        }}
+        actorMemberId={member.id}
+        roles={roles}
+        initialDate={createDate}
+        initialOra={createOra}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -659,6 +738,47 @@ const styles = StyleSheet.create({
   },
   toggleTextActive: {
     color: "#fff",
+  },
+  addLessonBtn: {
+    marginTop: 12,
+    alignItems: "center",
+    backgroundColor: "#1e3a5f",
+    borderRadius: 10,
+    paddingVertical: 12,
+  },
+  addLessonBtnText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  createSlotBanner: {
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: "#e8eef6",
+    borderWidth: 1,
+    borderColor: "#9db4d0",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  createSlotBannerText: {
+    flex: 1,
+    fontSize: 13,
+    color: "#1e3a5f",
+    fontWeight: "500",
+  },
+  createSlotCta: {
+    backgroundColor: "#1e3a5f",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  createSlotCtaText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "600",
   },
   navRow: {
     marginTop: 14,

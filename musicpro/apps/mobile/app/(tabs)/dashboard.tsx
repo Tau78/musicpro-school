@@ -34,6 +34,7 @@ import {
   TimeGridWeek,
   type TimeGridEvent,
 } from "@/components/calendar/time-grid-week";
+import { CreateLessonSheet } from "@/components/lezioni/create-lesson-sheet";
 import { useAuth } from "@/contexts/AuthContext";
 import { lessonColor } from "@/lib/lezioni-colors";
 import {
@@ -138,6 +139,15 @@ export default function DashboardScreen() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createDate, setCreateDate] = useState<string | undefined>();
+  const [createOra, setCreateOra] = useState<string | undefined>();
+
+  function openCreateLesson(prefill?: { date?: string; ora?: string }) {
+    setCreateDate(prefill?.date);
+    setCreateOra(prefill?.ora);
+    setCreateOpen(true);
+  }
 
   const load = useCallback(
     async (mode: "initial" | "refresh" = "initial") => {
@@ -410,6 +420,7 @@ export default function DashboardScreen() {
   }
 
   return (
+    <>
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
@@ -517,14 +528,34 @@ export default function DashboardScreen() {
         />
       </View>
 
+      {isStaff && !isDocente ? (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Lezioni</Text>
+          <Text style={styles.sectionHint}>
+            Crea prova, corso o corso collettivo (stesso flusso della
+            segreteria).
+          </Text>
+          <TimeGridAddBar
+            label="+ Aggiungi lezione"
+            onPress={() => openCreateLesson()}
+          />
+        </View>
+      ) : null}
+
       {isDocente ? (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Lezioni</Text>
+            <Pressable
+              onPress={() => router.push("/calendario-lezioni")}
+              hitSlop={8}
+            >
+              <Text style={styles.secondaryBtnText}>Calendario completo</Text>
+            </Pressable>
           </View>
           <Text style={styles.sectionHint}>
             Stesso calendario: trascina per spostare, tocca per modificare o
-            eliminare.
+            eliminare. Tocca uno slot vuoto per aggiungere.
           </Text>
           <WeekNav
             label={weekLabel(lezioniWeekStart)}
@@ -545,6 +576,12 @@ export default function DashboardScreen() {
                 setSelectedBooking(null);
               }}
               onMove={canReschedule ? handleMoveLesson : undefined}
+              onEmptyPress={({ date, startMinute }) =>
+                openCreateLesson({
+                  date,
+                  ora: minutesToTimeLabel(startMinute),
+                })
+              }
             />
           ) : null}
 
@@ -587,11 +624,26 @@ export default function DashboardScreen() {
 
           <TimeGridAddBar
             label="+ Aggiungi lezione"
-            onPress={() => router.push("/calendario-lezioni")}
+            onPress={() => openCreateLesson()}
           />
         </View>
       ) : null}
     </ScrollView>
+
+    {member?.id ? (
+      <CreateLessonSheet
+        visible={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={() => {
+          void load("refresh");
+        }}
+        actorMemberId={member.id}
+        roles={roles}
+        initialDate={createDate}
+        initialOra={createOra}
+      />
+    ) : null}
+    </>
   );
 }
 
