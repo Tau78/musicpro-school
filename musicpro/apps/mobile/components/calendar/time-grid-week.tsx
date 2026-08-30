@@ -315,7 +315,7 @@ export function TimeGridWeek({
         </View>
       </ScrollView>
       <Text style={styles.hint}>
-        Tieni premuto e trascina per spostare · tocca per modificare o eliminare
+        Tieni premuto e trascina · tocca per modificare o eliminare
       </Text>
     </View>
   );
