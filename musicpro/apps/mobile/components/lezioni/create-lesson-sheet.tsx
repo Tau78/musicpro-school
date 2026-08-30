@@ -410,6 +410,12 @@ export function CreateLessonSheet({
     setWarnings([]);
     setSuccess(null);
 
+    if (!subjectId) {
+      setSaving(false);
+      setError("Seleziona una materia.");
+      return;
+    }
+
     const courseKind =
       lessonType === "collettivo" ? "gruppo" : online ? "online" : "individuale";
 
@@ -417,6 +423,12 @@ export function CreateLessonSheet({
       data.isStaff && data.teachers.length > 0
         ? titularMemberId
         : actorMemberId;
+
+    if (!titular) {
+      setSaving(false);
+      setError("Seleziona il docente titolare.");
+      return;
+    }
 
     const parsedPrice = data.isStaff
       ? priceEur.trim() === ""
@@ -517,6 +529,12 @@ export function CreateLessonSheet({
     setError(null);
     setWarnings([]);
     setSuccess(null);
+
+    if (!subjectId) {
+      setSaving(false);
+      setError("Seleziona una materia.");
+      return;
+    }
 
     if (isMinor) {
       if (

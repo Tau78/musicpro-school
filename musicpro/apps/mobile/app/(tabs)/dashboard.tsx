@@ -528,6 +528,20 @@ export default function DashboardScreen() {
         />
       </View>
 
+      {isStaff && !isDocente ? (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Lezioni</Text>
+          <Text style={styles.sectionHint}>
+            Crea prova, corso o corso collettivo (stesso flusso della
+            segreteria).
+          </Text>
+          <TimeGridAddBar
+            label="+ Aggiungi lezione"
+            onPress={() => openCreateLesson()}
+          />
+        </View>
+      ) : null}
+
       {isDocente ? (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>

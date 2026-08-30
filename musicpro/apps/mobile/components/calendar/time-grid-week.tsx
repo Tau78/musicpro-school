@@ -156,7 +156,7 @@ function EventBlock({
       { translateY: translateY.value },
       { scale: dragging.value ? 1.04 : 1 },
     ],
-    zIndex: dragging.value ? 20 : 1,
+    zIndex: dragging.value ? 20 : 2,
     opacity: dragging.value ? 0.95 : 1,
   }));
 
