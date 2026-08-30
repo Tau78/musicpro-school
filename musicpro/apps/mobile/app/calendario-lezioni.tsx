@@ -10,7 +10,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 
 import {
   type CalendarLesson,
@@ -117,12 +117,23 @@ function kindLabel(lesson: CalendarLesson): string {
 
 export default function LezioniCalendarioScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ date?: string; ora?: string }>();
+  const prefDate =
+    typeof params.date === "string" && DATE_RE.test(params.date)
+      ? params.date
+      : null;
+  const prefOra =
+    typeof params.ora === "string" && TIME_RE.test(params.ora)
+      ? params.ora
+      : null;
   const { member, roles, isLoading: authLoading } = useAuth();
   const supabase = useMemo(() => createClient(), []);
   const isDocente = roles.includes(MemberRole.Docente);
 
   const [mode, setMode] = useState<CalendarMode>("settimana");
-  const [anchorDate, setAnchorDate] = useState(todayInRome);
+  const [anchorDate, setAnchorDate] = useState(
+    () => prefDate ?? todayInRome(),
+  );
   const [lessons, setLessons] = useState<CalendarLesson[]>([]);
   const [dayLessons, setDayLessons] = useState<CalendarLesson[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -132,7 +143,15 @@ export default function LezioniCalendarioScreen() {
   const [selectedLesson, setSelectedLesson] = useState<CalendarLesson | null>(
     null,
   );
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(
+    () => prefDate,
+  );
+  const [createSlot, setCreateSlot] = useState<{
+    date: string;
+    ora: string;
+  } | null>(() =>
+    prefDate && prefOra ? { date: prefDate, ora: prefOra } : null,
+  );
   const [moving, setMoving] = useState(false);
   const [moveDate, setMoveDate] = useState("");
   const [moveTime, setMoveTime] = useState("");
@@ -143,6 +162,13 @@ export default function LezioniCalendarioScreen() {
   const today = todayInRome();
   const weekStart = startOfWeekMonday(anchorDate);
   const monthStart = startOfMonth(anchorDate);
+
+  useEffect(() => {
+    if (!prefDate) return;
+    setAnchorDate(prefDate);
+    setSelectedDate(prefDate);
+    if (prefOra) setCreateSlot({ date: prefDate, ora: prefOra });
+  }, [prefDate, prefOra]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -363,6 +389,31 @@ export default function LezioniCalendarioScreen() {
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
       >
+        {createSlot ? (
+          <View style={styles.createBanner}>
+            <Text style={styles.createBannerTitle}>
+              Nuova lezione · {createSlot.date} alle {createSlot.ora}
+            </Text>
+            <Text style={styles.createBannerText}>
+              Apri un corso e piazza la lezione in questo orario, oppure chiudi
+              per tornare al calendario.
+            </Text>
+            <View style={styles.createBannerActions}>
+              <Pressable
+                style={styles.createBannerPrimary}
+                onPress={() => router.push("/(tabs)/lezioni")}
+              >
+                <Text style={styles.createBannerPrimaryText}>Vai ai corsi</Text>
+              </Pressable>
+              <Pressable
+                style={styles.createBannerGhost}
+                onPress={() => setCreateSlot(null)}
+              >
+                <Text style={styles.createBannerGhostText}>Chiudi</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
         <View style={styles.toggleRow}>
           {(["settimana", "mese"] as const).map((value) => {
             const active = mode === value;
@@ -626,6 +677,51 @@ const styles = StyleSheet.create({
   content: {
     padding: 16,
     paddingBottom: 40,
+  },
+  createBanner: {
+    marginBottom: 12,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#1e3a5f",
+    backgroundColor: "#e8eef6",
+  },
+  createBannerTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#1e3a5f",
+  },
+  createBannerText: {
+    marginTop: 6,
+    fontSize: 13,
+    color: "#4a5f7a",
+    lineHeight: 18,
+  },
+  createBannerActions: {
+    marginTop: 12,
+    flexDirection: "row",
+    gap: 8,
+  },
+  createBannerPrimary: {
+    backgroundColor: "#1e3a5f",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  createBannerPrimaryText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  createBannerGhost: {
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  createBannerGhostText: {
+    color: "#1e3a5f",
+    fontSize: 13,
+    fontWeight: "600",
   },
   centered: {
     flex: 1,

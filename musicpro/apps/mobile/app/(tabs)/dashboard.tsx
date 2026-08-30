@@ -457,6 +457,16 @@ export default function DashboardScreen() {
               setSelectedLesson(null);
             }}
             onMove={manageSala ? handleMoveBooking : undefined}
+            onSlotPress={(date, startMinute) => {
+              setSelectedBooking(null);
+              router.push({
+                pathname: "/(tabs)/prenotazioni",
+                params: {
+                  date,
+                  ora: minutesToTimeLabel(startMinute),
+                },
+              });
+            }}
           />
         ) : null}
 
@@ -531,6 +541,16 @@ export default function DashboardScreen() {
                 setSelectedBooking(null);
               }}
               onMove={canReschedule ? handleMoveLesson : undefined}
+              onSlotPress={(date, startMinute) => {
+                setSelectedLesson(null);
+                router.push({
+                  pathname: "/calendario-lezioni",
+                  params: {
+                    date,
+                    ora: minutesToTimeLabel(startMinute),
+                  },
+                });
+              }}
             />
           ) : null}
 

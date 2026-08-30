@@ -41,6 +41,8 @@ export type TimeGridWeekProps = {
     event: TimeGridEvent,
     next: { date: string; startMinute: number },
   ) => void;
+  /** Tap su slot vuoto (stile Google Calendar). */
+  onSlotPress?: (date: string, startMinute: number) => void;
   openMinute?: number;
   closeMinute?: number;
   dayCount?: number;
@@ -198,6 +200,7 @@ export function TimeGridWeek({
   selectedId,
   onSelect,
   onMove,
+  onSlotPress,
   openMinute = 8 * 60,
   closeMinute = 22 * 60,
   dayCount = 6,
@@ -215,6 +218,10 @@ export function TimeGridWeek({
 
   const gridHeight = ((closeMinute - openMinute) / 60) * PX_PER_HOUR;
   const [headerWidth, setHeaderWidth] = useState(DAY_COL_WIDTH * dayCount);
+  const [ghost, setGhost] = useState<{
+    date: string;
+    startMinute: number;
+  } | null>(null);
 
   const eventsByDay = useMemo(() => {
     const map = new Map<string, TimeGridEvent[]>();
@@ -234,6 +241,14 @@ export function TimeGridWeek({
 
   const onHeaderLayout = (e: LayoutChangeEvent) => {
     setHeaderWidth(e.nativeEvent.layout.width);
+  };
+
+  const handleSlotPress = (date: string, locationY: number) => {
+    if (!onSlotPress) return;
+    const raw = openMinute + (locationY / PX_PER_HOUR) * 60;
+    const startMinute = snapMinute(raw, openMinute, closeMinute, 60);
+    setGhost({ date, startMinute });
+    onSlotPress(date, startMinute);
   };
 
   return (
@@ -286,7 +301,12 @@ export function TimeGridWeek({
               </View>
 
               {days.map((date, dayIndex) => (
-                <View key={date} style={styles.dayCol}>
+                <Pressable
+                  key={date}
+                  style={styles.dayCol}
+                  onPress={(e) => handleSlotPress(date, e.nativeEvent.locationY)}
+                  disabled={!onSlotPress}
+                >
                   {hours.map((m) => (
                     <View
                       key={m}
@@ -296,6 +316,23 @@ export function TimeGridWeek({
                       ]}
                     />
                   ))}
+                  {ghost?.date === date ? (
+                    <View
+                      pointerEvents="none"
+                      style={[
+                        styles.ghost,
+                        {
+                          top:
+                            ((ghost.startMinute - openMinute) / 60) * PX_PER_HOUR,
+                          height: PX_PER_HOUR - 2,
+                        },
+                      ]}
+                    >
+                      <Text style={styles.ghostText}>
+                        {minutesToTimeLabel(ghost.startMinute)} · nuovo
+                      </Text>
+                    </View>
+                  ) : null}
                   {(eventsByDay.get(date) ?? []).map((event) => (
                     <EventBlock
                       key={event.id}
@@ -308,14 +345,14 @@ export function TimeGridWeek({
                       onMove={onMove}
                     />
                   ))}
-                </View>
+                </Pressable>
               ))}
             </View>
           </ScrollView>
         </View>
       </ScrollView>
       <Text style={styles.hint}>
-        Tieni premuto e trascina · tocca per modificare o eliminare
+        Tocca uno slot vuoto per creare · tieni premuto e trascina per spostare
       </Text>
     </View>
   );
@@ -394,6 +431,24 @@ const styles = StyleSheet.create({
   eventTime: { fontSize: 10, fontWeight: "700" },
   eventTitle: { fontSize: 11, fontWeight: "600", marginTop: 1 },
   eventSub: { fontSize: 10, marginTop: 1, opacity: 0.85 },
+  ghost: {
+    position: "absolute",
+    left: 2,
+    right: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: "#1e3a5f",
+    backgroundColor: "rgba(30, 58, 95, 0.12)",
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+    zIndex: 0,
+  },
+  ghostText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#1e3a5f",
+  },
   hint: {
     paddingHorizontal: 10,
     paddingVertical: 8,
