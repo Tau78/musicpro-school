@@ -4,12 +4,14 @@
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
-    "dev": "expo start",
+    "dev": "npm run dev:metro",
+    "dev:metro": "node -e \"console.warn('[MusicPro] Expo Go e EAS Build sono deprecati. Metro locale per debug; produzione = npm run testflight dalla root del repo. Preferisci un build nativo (npm run ios) + Metro; con expo-dev-client: npx expo start --dev-client.');\" && expo start",
     "build": "tsc --noEmit",
     "lint": "tsc --noEmit",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web",
+    "web": "node -e \"console.error('[MusicPro] DEPRECATED: Expo web non è il path di ship. Produzione iOS = npm run testflight (root). Vedi docs/MOBILE_TESTFLIGHT.md'); process.exit(1)\"",
+    "web:expo-legacy": "expo start --web",
     "testflight": "bash ../../../scripts/testflight.sh"
   },
   "dependencies": {
@@ -18,15 +20,18 @@
     "@supabase/supabase-js": "^2.50.2",
     "expo": "~52.0.47",
     "expo-constants": "~17.0.8",
-    "expo-local-authentication": "~15.0.2",
     "expo-linking": "~7.0.5",
-    "expo-secure-store": "~14.0.1",
+    "expo-local-authentication": "~15.0.2",
     "expo-router": "~4.0.21",
+    "expo-secure-store": "~14.0.1",
     "expo-status-bar": "~2.0.1",
     "react": "18.3.1",
     "react-native": "0.76.9",
+    "react-native-gesture-handler": "~2.20.2",
+    "react-native-reanimated": "~3.16.1",
     "react-native-safe-area-context": "4.12.0",
-    "react-native-screens": "~4.4.0"
+    "react-native-screens": "~4.4.0",
+    "react-native-url-polyfill": "^4.0.0"
   },
   "devDependencies": {
     "@babel/core": "^7.27.4",
