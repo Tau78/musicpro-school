@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Linking,
@@ -31,7 +31,10 @@ import { addRomeDays } from "@/lib/lezioni-dates";
 import { createClient } from "../../lib/supabase";
 
 export default function PrenotazioniScreen() {
-  const supabase = createClient();
+  // Stable client: a new client every render recreates loadAvailability and
+  // retriggers the slots effect → infinite spinner flicker on TestFlight.
+  const supabase = useMemo(() => createClient(), []);
+  const loadRequestId = useRef(0);
 
   const [rooms, setRooms] = useState<Room[]>([]);
   const [selectedRoomId, setSelectedRoomId] = useState<string>("");
@@ -78,6 +81,7 @@ export default function PrenotazioniScreen() {
       return;
     }
 
+    const requestId = ++loadRequestId.current;
     setLoadingSlots(true);
 
     try {
@@ -94,13 +98,18 @@ export default function PrenotazioniScreen() {
           accessToken: session?.access_token,
         },
       );
+      if (requestId !== loadRequestId.current) return;
       setSlots(availability.slots);
+      setError(null);
     } catch (err) {
+      if (requestId !== loadRequestId.current) return;
       setError(
         err instanceof Error ? err.message : "Errore nel caricamento degli slot",
       );
     } finally {
-      setLoadingSlots(false);
+      if (requestId === loadRequestId.current) {
+        setLoadingSlots(false);
+      }
     }
   }, [durationMinutes, selectedDate, selectedRoomId, supabase]);
 
