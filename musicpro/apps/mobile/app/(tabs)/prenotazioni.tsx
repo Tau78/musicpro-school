@@ -8,6 +8,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { useLocalSearchParams } from "expo-router";
 
 import {
   type CreateBookingResult,
@@ -30,16 +31,30 @@ import {
 import { addRomeDays } from "@/lib/lezioni-dates";
 import { createClient } from "../../lib/supabase";
 
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const TIME_RE = /^\d{2}:\d{2}$/;
+
 export default function PrenotazioniScreen() {
   // Stable client: a new client every render recreates loadAvailability and
   // retriggers the slots effect → infinite spinner flicker on TestFlight.
   const supabase = useMemo(() => createClient(), []);
   const loadRequestId = useRef(0);
+  const params = useLocalSearchParams<{ date?: string; ora?: string }>();
+  const prefDate =
+    typeof params.date === "string" && DATE_RE.test(params.date)
+      ? params.date
+      : null;
+  const prefOra =
+    typeof params.ora === "string" && TIME_RE.test(params.ora)
+      ? params.ora
+      : null;
 
   const [rooms, setRooms] = useState<Room[]>([]);
   const [selectedRoomId, setSelectedRoomId] = useState<string>("");
   const [durationMinutes, setDurationMinutes] = useState(120);
-  const [selectedDate, setSelectedDate] = useState(todayInRome());
+  const [selectedDate, setSelectedDate] = useState(
+    () => prefDate ?? todayInRome(),
+  );
   const [slots, setSlots] = useState<TimeSlot[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   const [memberId, setMemberId] = useState<string | null>(null);
@@ -155,9 +170,28 @@ export default function PrenotazioniScreen() {
   }, [supabase]);
 
   useEffect(() => {
+    if (prefDate) setSelectedDate(prefDate);
+  }, [prefDate]);
+
+  useEffect(() => {
     setSelectedSlot(null);
     void loadAvailability();
   }, [loadAvailability]);
+
+  useEffect(() => {
+    if (!prefOra || slots.length === 0) return;
+    const match = slots.find((slot) => {
+      if (!slot.available) return false;
+      const label = new Intl.DateTimeFormat("it-IT", {
+        timeZone: "Europe/Rome",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).format(new Date(slot.startAt));
+      return label === prefOra;
+    });
+    if (match) setSelectedSlot(match);
+  }, [prefOra, slots]);
 
   useEffect(() => {
     if (!selectedRoomId) return;

@@ -39,7 +39,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { lessonColor } from "@/lib/lezioni-colors";
 import {
   addRomeDays,
-  formatRomeDay,
   startOfWeekMonday,
 } from "@/lib/lezioni-dates";
 import { createClient } from "@/lib/supabase";
@@ -432,11 +431,6 @@ export default function DashboardScreen() {
         />
       }
     >
-      <Text style={styles.greeting}>
-        Ciao{member ? `, ${member.firstName}` : ""}
-      </Text>
-      <Text style={styles.subtitle}>{formatRomeDay(today)}</Text>
-
       {loading ? (
         <ActivityIndicator style={styles.loader} color="#1e3a5f" />
       ) : null}
@@ -451,14 +445,10 @@ export default function DashboardScreen() {
         </View>
       ) : null}
 
-      <View style={styles.section}>
+      <View style={[styles.section, styles.sectionFirst]}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Sala prove</Text>
+          <Text style={styles.sectionTitle}>Prenotazioni</Text>
         </View>
-        <Text style={styles.sectionHint}>
-          Calendario orario: tocca un evento, tieni premuto e trascina per
-          spostarlo.
-        </Text>
         <WeekNav
           label={weekLabel(salaWeekStart)}
           onPrev={() => setSalaWeekStart((d) => addRomeDays(d, -7))}
@@ -478,6 +468,16 @@ export default function DashboardScreen() {
               setSelectedLesson(null);
             }}
             onMove={manageSala ? handleMoveBooking : undefined}
+            onEmptyPress={({ date, startMinute }) => {
+              setSelectedBooking(null);
+              router.push({
+                pathname: "/(tabs)/prenotazioni",
+                params: {
+                  date,
+                  ora: minutesToTimeLabel(startMinute),
+                },
+              });
+            }}
           />
         ) : null}
 
@@ -531,10 +531,6 @@ export default function DashboardScreen() {
       {isStaff && !isDocente ? (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Lezioni</Text>
-          <Text style={styles.sectionHint}>
-            Crea prova, corso o corso collettivo (stesso flusso della
-            segreteria).
-          </Text>
           <TimeGridAddBar
             label="+ Aggiungi lezione"
             onPress={() => openCreateLesson()}
@@ -553,10 +549,6 @@ export default function DashboardScreen() {
               <Text style={styles.secondaryBtnText}>Calendario completo</Text>
             </Pressable>
           </View>
-          <Text style={styles.sectionHint}>
-            Stesso calendario: trascina per spostare, tocca per modificare o
-            eliminare. Tocca uno slot vuoto per aggiungere.
-          </Text>
           <WeekNav
             label={weekLabel(lezioniWeekStart)}
             onPrev={() => setLezioniWeekStart((d) => addRomeDays(d, -7))}
@@ -650,24 +642,16 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fafafa" },
   content: { padding: 20, paddingBottom: 48 },
-  greeting: { fontSize: 22, fontWeight: "600", color: "#1e3a5f" },
-  subtitle: { marginTop: 4, fontSize: 14, color: "#666" },
-  loader: { marginTop: 24 },
+  loader: { marginTop: 8 },
   section: { marginTop: 28 },
+  sectionFirst: { marginTop: 0 },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
   },
-  sectionTitle: { fontSize: 20, fontWeight: "600", color: "#1e3a5f" },
-  sectionHint: {
-    marginTop: 8,
-    marginBottom: 12,
-    fontSize: 13,
-    color: "#666",
-    lineHeight: 18,
-  },
+  sectionTitle: { fontSize: 20, fontWeight: "600", color: "#1e3a5f", marginBottom: 12 },
   weekNav: {
     flexDirection: "row",
     alignItems: "center",
