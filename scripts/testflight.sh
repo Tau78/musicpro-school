@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 # MusicPro School — TestFlight via Xcode tools (niente EAS / Expo cloud).
-# Genera il progetto iOS in locale solo se manca, poi:
-#   xcodebuild archive → export IPA → upload App Store Connect
 #
-# Uso:
+# Expo qui NON è runtime di distribuzione: serve solo a generare/aggiornare
+# il progetto nativo iOS in locale (`expo prebuild`). Ship = xcodebuild + ASC.
+# Expo Go e EAS Build sono deprecati. Doc: docs/MOBILE_TESTFLIGHT.md
+#
+# Flusso:
+#   expo prebuild (toolchain) → xcodebuild archive → export IPA → App Store Connect
+#
+# Uso (path documentato = root):
 #   npm run testflight
 #   ./scripts/testflight.sh
 #   ./scripts/testflight.sh --prebuild   # forza expo prebuild locale
@@ -50,7 +55,8 @@ need_cmd() {
 }
 
 write_export_options() {
-  local dest="$1" method_dest="$2"
+  # $1 = destination: export | upload
+  local method_dest="${1:-export}"
   cat > "$DIST/ExportOptions.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -89,6 +95,17 @@ BUILD_NUMBER="${BUILD_NUMBER:-$(date +%Y%m%d%H%M)}"
 API_KEY_ID="$(read_env_value "$ROOT/musicpro/.env" APPLE_API_KEY_ID)"
 API_ISSUER="$(read_env_value "$ROOT/musicpro/.env" APPLE_API_ISSUER_ID)"
 API_KEY_PATH="$(read_env_value "$ROOT/musicpro/.env" APPLE_API_KEY_PATH)"
+# Fallback globale Mac (ReWavier / tutte le app): ~/.app-store/asc-api/key.env
+ASC_GLOBAL="$HOME/.app-store/asc-api/key.env"
+if [[ -z "$API_KEY_ID" || -z "$API_ISSUER" || -z "$API_KEY_PATH" ]] && [[ -f "$ASC_GLOBAL" ]]; then
+  API_KEY_ID="${API_KEY_ID:-$(read_env_value "$ASC_GLOBAL" ASC_KEY_ID)}"
+  API_KEY_ID="${API_KEY_ID:-$(read_env_value "$ASC_GLOBAL" APPLE_API_KEY_ID)}"
+  API_ISSUER="${API_ISSUER:-$(read_env_value "$ASC_GLOBAL" ASC_ISSUER_ID)}"
+  API_ISSUER="${API_ISSUER:-$(read_env_value "$ASC_GLOBAL" APPLE_API_ISSUER_ID)}"
+  API_KEY_PATH="${API_KEY_PATH:-$(read_env_value "$ASC_GLOBAL" ASC_KEY_PATH)}"
+  API_KEY_PATH="${API_KEY_PATH:-$(read_env_value "$ASC_GLOBAL" APPLE_API_KEY_PATH)}"
+  note "ASC API key da $ASC_GLOBAL"
+fi
 
 step "Preflight Xcode tools"
 need_cmd xcodebuild
@@ -219,6 +236,16 @@ mkdir -p "$DIST"
 ARCHIVE="$DIST/MusicProSchool.xcarchive"
 IPA_DIR="$DIST/export"
 
+step "NODE_BINARY per script phases Xcode"
+NODE_BIN="$(command -v node || true)"
+[[ -n "$NODE_BIN" && -x "$NODE_BIN" ]] || die "node non trovato nel PATH"
+# Preferisci il symlink brew stabile (le versioni Cellar cambiano e rompono .xcode.env.local).
+if [[ -x /opt/homebrew/bin/node ]]; then
+  NODE_BIN=/opt/homebrew/bin/node
+fi
+printf 'export NODE_BINARY=%s\n' "$NODE_BIN" > "$MOBILE/ios/.xcode.env.local"
+ok "NODE_BINARY=$NODE_BIN"
+
 step "Hermes Release (tar quotato: il path ha uno spazio)"
 # replace_hermes_version.js di RN 0.76 non quota il path → fallisce su "MusicPro School".
 HERMES_PODS="$MOBILE/ios/Pods"
@@ -259,26 +286,63 @@ xcodebuild \
 ok "archive $ARCHIVE"
 
 step "Export IPA (xcodebuild, niente EAS)"
-write_export_options export
+# Xcode CLI su questo Mac spesso non vede gli Accounts → export automatico fallisce.
+# Preferiamo firma manuale con profilo App Store (sigh / Developer Portal).
+PROFILE_NAME="${IOS_PROFILE_NAME:-${BUNDLE_ID} AppStore}"
+cat > "$DIST/ExportOptions.plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>method</key>
+  <string>app-store-connect</string>
+  <key>destination</key>
+  <string>export</string>
+  <key>signingStyle</key>
+  <string>manual</string>
+  <key>signingCertificate</key>
+  <string>Apple Distribution</string>
+  <key>teamID</key>
+  <string>${TEAM_ID}</string>
+  <key>provisioningProfiles</key>
+  <dict>
+    <key>${BUNDLE_ID}</key>
+    <string>${PROFILE_NAME}</string>
+  </dict>
+  <key>uploadSymbols</key>
+  <true/>
+  <key>manageAppVersionAndBuildNumber</key>
+  <false/>
+</dict>
+</plist>
+EOF
 xcodebuild \
   -exportArchive \
   -archivePath "$ARCHIVE" \
   -exportPath "$IPA_DIR" \
   -exportOptionsPlist "$DIST/ExportOptions.plist" \
-  -allowProvisioningUpdates \
   | tee /tmp/mps-export.log | tail -20
 IPA="$(find "$IPA_DIR" -name '*.ipa' | head -1)"
 [[ -n "$IPA" ]] || die "IPA non trovato in $IPA_DIR"
 ok "IPA $IPA"
 
 if [[ -n "$API_KEY_ID" && -n "$API_ISSUER" && -n "$API_KEY_PATH" ]]; then
+  [[ -f "$API_KEY_PATH" ]] || die "APPLE_API_KEY_PATH non trovato: $API_KEY_PATH"
   step "Upload TestFlight (App Store Connect API)"
-  xcrun altool --upload-app \
-    --type ios \
-    --file "$IPA" \
-    --apiKey "$API_KEY_ID" \
-    --apiIssuer "$API_ISSUER" \
-    --apiKeyPath "$API_KEY_PATH"
+  # altool cerca AuthKey_<KEY_ID>.p8 in cwd o in ~/.private_keys / ~/private_keys
+  API_KEY_DIR="$(cd "$(dirname "$API_KEY_PATH")" && pwd)"
+  API_KEY_FILE="$(basename "$API_KEY_PATH")"
+  if [[ "$API_KEY_FILE" != "AuthKey_${API_KEY_ID}.p8" ]]; then
+    note "altool si aspetta AuthKey_${API_KEY_ID}.p8 (file attuale: $API_KEY_FILE)"
+  fi
+  (
+    cd "$API_KEY_DIR"
+    xcrun altool --upload-app \
+      --type ios \
+      --file "$IPA" \
+      --apiKey "$API_KEY_ID" \
+      --apiIssuer "$API_ISSUER"
+  )
   ok "caricato $IPA su TestFlight (API key)"
 else
   step "Upload TestFlight (sessione Xcode)"
@@ -297,6 +361,8 @@ else
     ok "caricato su App Store Connect / TestFlight"
   elif grep -q 'missingApp\|Error Downloading App Information' /tmp/mps-upload.log; then
     die "L'app $BUNDLE_ID non esiste su App Store Connect. Creala una volta (iOS, stesso bundle id) e rilancia npm run testflight. IPA già pronto: $IPA"
+  elif grep -qi 'No Accounts\|Failed to Use Accounts\|app-specific password' /tmp/mps-upload.log; then
+    die "Upload bloccato: manca la App Store Connect API Key. In musicpro/.env imposta APPLE_API_KEY_ID, APPLE_API_ISSUER_ID, APPLE_API_KEY_PATH (file AuthKey_*.p8), poi rilancia. IPA già pronto: $IPA"
   else
     die "Upload TestFlight fallito. Log: /tmp/mps-upload.log — IPA: $IPA"
   fi
