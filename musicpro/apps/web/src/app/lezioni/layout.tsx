@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { getCurrentMemberWithRoles } from "@musicpro/database";
 import { APP_NAME, MemberRole } from "@musicpro/shared";
 
-import { SignOutButton } from "@/components/auth/sign-out-button";
+import { SettingsGearLink } from "@/components/dashboard/settings-gear-link";
 import { LezioniSubNav } from "@/components/lezioni/lezioni-sub-nav";
 import { canManageMembers } from "@/lib/admin/roles";
 import { createClient } from "@/lib/supabase/server";
@@ -44,14 +44,14 @@ export default async function LezioniLayout({
             </p>
             <h1 className="text-xl font-semibold">Lezioni</h1>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <Link
               href="/dashboard"
               className="text-sm text-white/80 hover:text-white"
             >
               Dashboard
             </Link>
-            <SignOutButton className="border-white/30 text-white hover:bg-white/10" />
+            <SettingsGearLink className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-white/80 hover:bg-white/10 hover:text-white" />
           </div>
         </div>
       </header>

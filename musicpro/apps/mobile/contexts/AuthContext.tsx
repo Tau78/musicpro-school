@@ -160,7 +160,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     if (session && !isBiometricUnlockRequired && inAuthGroup) {
-      router.replace("/(tabs)/area-personale");
+      router.replace("/(tabs)/dashboard");
     }
   }, [isBiometricUnlockRequired, isLoading, router, segments, session]);
 

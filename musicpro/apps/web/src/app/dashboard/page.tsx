@@ -1,24 +1,48 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 
 import {
   getCurrentMemberWithRoles,
-  listReimbursements,
+  getLessonSchoolSettings,
+  getTeacherProfile,
+  listBookingsInRange,
+  listExternalCalendarEventsInRange,
+  listLessonsInRange,
+  listMemberLabelsWithRole,
+  listRooms,
+  todayInRome,
 } from "@musicpro/database";
-import {
-  APP_NAME,
-  MEMBER_ROLE_LABELS,
-  MemberRole,
-} from "@musicpro/shared";
+import { APP_NAME, MemberRole } from "@musicpro/shared";
 
-import { ChangePasswordForm } from "@/components/auth/change-password-form";
-import { PasskeySettings } from "@/components/auth/passkey-settings";
-import { SignOutButton } from "@/components/auth/sign-out-button";
-import { MyReimbursements } from "@/components/dashboard/my-reimbursements";
-import { canAccessAdmin } from "@/lib/admin/roles";
+import { SettingsGearLink } from "@/components/dashboard/settings-gear-link";
+import { mergeCalendarEvents } from "@/components/lezioni/calendar-bookings";
+import { LessonsCalendarPage } from "@/components/lezioni/lessons-calendar-page";
+import { UnplacedLessonsBlock } from "@/components/lezioni/unplaced-lessons-block";
+import {
+  canAccessAdmin,
+  canManageBookings,
+  canManageMembers,
+} from "@/lib/admin/roles";
+import {
+  isIsoDate,
+  monthBounds,
+  parseCalendarView,
+  weekBounds,
+} from "@/lib/lezioni/calendar-range";
 import { createClient } from "@/lib/supabase/server";
 
-export default async function DashboardPage() {
+interface PageProps {
+  searchParams: Promise<{
+    view?: string;
+    date?: string;
+    sala?: string;
+    docente?: string;
+    hl?: string;
+  }>;
+}
+
+export default async function DashboardPage({ searchParams }: PageProps) {
   const supabase = await createClient();
   const member = await getCurrentMemberWithRoles(supabase);
 
@@ -26,15 +50,117 @@ export default async function DashboardPage() {
     redirect("/login?error=member_not_linked");
   }
 
+  const params = await searchParams;
+  const today = todayInRome();
+  const view = parseCalendarView(params.view);
+  const anchorDate = isIsoDate(params.date) ? params.date : today;
+  const highlightDay = isIsoDate(params.hl) ? params.hl : null;
+
+  const isDocente = member.roles.includes(MemberRole.Docente);
+  const showBookingsCalendar = canManageBookings(member.roles);
+  const showStaffLessons = canManageMembers(member.roles);
+  const showTeacherLessons = isDocente;
+  const showOperational =
+    showBookingsCalendar || showTeacherLessons || showStaffLessons;
   const showAdminLink = canAccessAdmin(member.roles);
-  const myReimbursements = await listReimbursements(supabase, {
-    memberId: member.id,
-  });
+
+  const [settings, rooms] = await Promise.all([
+    getLessonSchoolSettings(supabase),
+    listRooms(supabase),
+  ]);
+
+  const roomOptions = rooms.map((room) => ({ id: room.id, name: room.name }));
+  const roomId =
+    params.sala && roomOptions.some((row) => row.id === params.sala)
+      ? params.sala
+      : null;
+
+  const sundayVisible = settings?.sundayVisible ?? false;
+  const bounds =
+    view === "month"
+      ? monthBounds(anchorDate)
+      : weekBounds(anchorDate, sundayVisible);
+
+  const calendarSettings = {
+    sundayVisible,
+    gridOpenMinute: settings?.gridOpenMinute ?? 600,
+    gridCloseMinute: settings?.gridCloseMinute ?? 1380,
+    slotGranularityMinutes: settings?.slotGranularityMinutes ?? 15,
+  };
+
+  const [
+    salaBookings,
+    salaExternals,
+    lessonBookings,
+    lessonExternals,
+    teachers,
+    teacherProfile,
+  ] = await Promise.all([
+    showBookingsCalendar
+      ? listBookingsInRange(supabase, {
+          from: bounds.from,
+          to: bounds.to,
+          roomId: roomId ?? undefined,
+        })
+      : Promise.resolve([]),
+    showBookingsCalendar
+      ? listExternalCalendarEventsInRange(supabase, {
+          from: bounds.from,
+          to: bounds.to,
+          roomId: roomId ?? undefined,
+        })
+      : Promise.resolve([]),
+    showStaffLessons
+      ? listBookingsInRange(supabase, {
+          from: bounds.from,
+          to: bounds.to,
+        })
+      : Promise.resolve([]),
+    showStaffLessons
+      ? listExternalCalendarEventsInRange(supabase, {
+          from: bounds.from,
+          to: bounds.to,
+        })
+      : Promise.resolve([]),
+    showStaffLessons
+      ? listMemberLabelsWithRole(supabase, MemberRole.Docente)
+      : Promise.resolve([]),
+    showTeacherLessons && !showStaffLessons
+      ? getTeacherProfile(supabase, member.id)
+      : Promise.resolve(null),
+  ]);
+
+  const teacherId =
+    showStaffLessons &&
+    params.docente &&
+    teachers.some((row) => row.id === params.docente)
+      ? params.docente
+      : null;
+
+  const lessonEvents =
+    showStaffLessons || showTeacherLessons
+      ? await listLessonsInRange(supabase, {
+          from: bounds.from,
+          to: bounds.to,
+          includePendingHold: true,
+          ...(showStaffLessons
+            ? { titularMemberId: teacherId ?? undefined }
+            : { teacherMemberId: member.id }),
+        })
+      : [];
+
+  const bookingOnlyEvents = showBookingsCalendar
+    ? mergeCalendarEvents([], salaBookings, salaExternals)
+    : [];
+
+  const staffLessonEvents = showStaffLessons
+    ? mergeCalendarEvents(lessonEvents, lessonBookings, lessonExternals)
+    : lessonEvents;
 
   return (
-    <main className="min-h-screen">
+    <main className="min-h-screen bg-[var(--background)]">
       <header className="border-b border-neutral-200 bg-white">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6">
           <div>
             <p className="text-sm font-medium text-[var(--brand-accent)]">
               {APP_NAME}
@@ -43,153 +169,231 @@ export default async function DashboardPage() {
               Dashboard
             </h1>
           </div>
-          <div className="flex items-center gap-3">
-            {member.roles.includes(MemberRole.Docente) ? (
+          <div className="flex items-center gap-2 sm:gap-3">
+            {isDocente ? (
               <Link
                 href="/lezioni"
-                className="text-sm text-neutral-600 hover:text-[var(--brand)]"
+                className="hidden text-sm text-neutral-600 hover:text-[var(--brand)] sm:inline"
               >
-                Lezioni
+                Area lezioni
               </Link>
             ) : null}
             {showAdminLink ? (
               <Link
                 href="/admin"
-                className="text-sm text-neutral-600 hover:text-[var(--brand)]"
+                className="hidden text-sm text-neutral-600 hover:text-[var(--brand)] sm:inline"
               >
                 Admin
               </Link>
             ) : null}
-            <SignOutButton />
+            <SettingsGearLink />
           </div>
         </div>
       </header>
 
-      <div className="mx-auto max-w-5xl px-6 py-8">
-        <section className="rounded-xl border border-neutral-200 bg-white p-6">
-          <h2 className="text-lg font-medium text-[var(--brand)]">Profilo</h2>
-          <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
-            <div>
-              <dt className="text-neutral-500">Nome</dt>
-              <dd className="font-medium text-neutral-900">
-                {member.firstName} {member.lastName}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-neutral-500">Email</dt>
-              <dd className="font-medium text-neutral-900">
-                {member.email ?? "—"}
-              </dd>
-            </div>
-            {member.memberNumber ? (
-              <div>
-                <dt className="text-neutral-500">N. associato</dt>
-                <dd className="font-medium text-neutral-900">
-                  {member.memberNumber}
-                </dd>
+      <div className="mx-auto max-w-7xl space-y-10 px-4 py-6 sm:px-6 sm:py-8">
+        {!showOperational ? (
+          <MemberQuickLinks />
+        ) : (
+          <>
+            <section className="space-y-3">
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <h2 className="text-2xl font-semibold text-[var(--brand)]">
+                    Sala prove
+                  </h2>
+                  <p className="mt-1 text-sm text-neutral-600">
+                    {showBookingsCalendar
+                      ? "Calendario cliccabile: trascina su uno slot vuoto per creare, clicca un evento per modificare o cancellare."
+                      : "Prenota una sala o gestisci le tue prove dall’area riservata."}
+                  </p>
+                </div>
+                {showBookingsCalendar ? (
+                  <Link
+                    href="/admin/prenotazioni/calendario"
+                    className="text-sm font-medium text-[var(--brand)] hover:underline"
+                  >
+                    Apri in Admin
+                  </Link>
+                ) : null}
               </div>
+
+              {showBookingsCalendar ? (
+                <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white p-3 sm:p-4">
+                  <LessonsCalendarPage
+                    initialLessons={bookingOnlyEvents}
+                    settings={calendarSettings}
+                    rooms={roomOptions}
+                    bookingRooms={rooms}
+                    initialRoomId={roomId}
+                    initialView={view}
+                    initialDate={anchorDate}
+                    initialMode="sala"
+                    isStaff
+                    canDrag={false}
+                    courseDetailBasePath="/admin/prenotazioni"
+                    today={today}
+                    highlightDay={highlightDay}
+                    memberId={member.id}
+                    bookingsOnly
+                  />
+                </div>
+              ) : (
+                <MemberSalaLinks />
+              )}
+            </section>
+
+            {showTeacherLessons || showStaffLessons ? (
+              <section className="space-y-3">
+                <div className="flex flex-wrap items-end justify-between gap-3">
+                  <div>
+                    <h2 className="text-2xl font-semibold text-[var(--brand)]">
+                      Lezioni
+                    </h2>
+                    <p className="mt-1 text-sm text-neutral-600">
+                      Calendario cliccabile con modifiche e cancellazioni.
+                      Aggiungi o riposiziona lezioni al volo dagli slot e dalle
+                      lezioni da piazzare.
+                    </p>
+                  </div>
+                  <Link
+                    href={
+                      showStaffLessons
+                        ? "/admin/lezioni/calendario"
+                        : "/lezioni/calendario"
+                    }
+                    className="text-sm font-medium text-[var(--brand)] hover:underline"
+                  >
+                    Apri calendario completo
+                  </Link>
+                </div>
+
+                {showStaffLessons ? (
+                  <Suspense fallback={null}>
+                    <UnplacedLessonsBlock
+                      actor={{
+                        memberId: member.id,
+                        isStaff: true,
+                        canReschedule: true,
+                      }}
+                      rooms={roomOptions}
+                      courseDetailBaseHref="/admin/lezioni/corsi"
+                    />
+                  </Suspense>
+                ) : null}
+
+                {showTeacherLessons &&
+                !showStaffLessons &&
+                teacherProfile?.canReschedule ? (
+                  <Suspense fallback={null}>
+                    <UnplacedLessonsBlock
+                      actor={{
+                        memberId: member.id,
+                        isStaff: false,
+                        canReschedule: true,
+                      }}
+                      rooms={roomOptions}
+                      courseDetailBaseHref="/lezioni/corsi"
+                      titularMemberId={member.id}
+                    />
+                  </Suspense>
+                ) : null}
+
+                <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white p-3 sm:p-4">
+                  <LessonsCalendarPage
+                    initialLessons={
+                      showStaffLessons ? staffLessonEvents : lessonEvents
+                    }
+                    settings={calendarSettings}
+                    rooms={roomOptions}
+                    teachers={showStaffLessons ? teachers : []}
+                    initialTeacherId={teacherId}
+                    initialView={view}
+                    initialDate={anchorDate}
+                    initialMode="docente"
+                    isStaff={showStaffLessons}
+                    canDrag={
+                      showStaffLessons ||
+                      (teacherProfile?.canReschedule ?? false)
+                    }
+                    courseDetailBasePath={
+                      showStaffLessons
+                        ? "/admin/lezioni/corsi"
+                        : "/lezioni/corsi"
+                    }
+                    today={today}
+                    highlightDay={highlightDay}
+                    memberId={member.id}
+                  />
+                </div>
+              </section>
             ) : null}
-          </dl>
-          <div className="mt-6 border-t border-neutral-100 pt-5">
-            <h3 className="text-sm font-medium text-neutral-800">Password</h3>
-            <div className="mt-3">
-              <ChangePasswordForm />
-            </div>
-          </div>
-          <div className="mt-6 border-t border-neutral-100 pt-5">
-            <h3 className="text-sm font-medium text-neutral-800">Passkey</h3>
-            <div className="mt-3">
-              <PasskeySettings />
-            </div>
-          </div>
-        </section>
-
-        <section className="mt-8">
-          <h2 className="text-lg font-medium text-[var(--brand)]">I tuoi ruoli</h2>
-          {member.roles.length > 0 ? (
-            <ul className="mt-4 flex flex-wrap gap-2">
-              {member.roles.map((role) => (
-                <li
-                  key={role}
-                  className="rounded-full bg-[var(--brand)]/10 px-3 py-1 text-sm font-medium text-[var(--brand)]"
-                >
-                  {MEMBER_ROLE_LABELS[role as MemberRole]}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="mt-4 text-sm text-neutral-600">
-              Nessun ruolo assegnato. Contatta la segreteria.
-            </p>
-          )}
-        </section>
-
-        <section className="mt-8 rounded-xl border border-neutral-200 bg-white p-6">
-          <h2 className="text-lg font-medium text-[var(--brand)]">
-            Le mie notule
-          </h2>
-          <p className="mt-2 text-sm text-neutral-600">
-            Firma le notule di rimborso spese per confermare la ricezione.
-          </p>
-          <MyReimbursements initialRows={myReimbursements.reimbursements} />
-        </section>
-
-        <section className="mt-8 rounded-xl border border-neutral-200 bg-white p-6">
-          <h2 className="text-lg font-medium text-[var(--brand)]">
-            Le mie band
-          </h2>
-          <p className="mt-2 text-sm text-neutral-600">
-            Crea o gestisci le band a cui appartieni, invita nuovi membri e
-            preparati alle prenotazioni di gruppo.
-          </p>
-          <Link
-            href="/dashboard/band"
-            className="mt-4 inline-flex rounded-lg bg-[var(--brand)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90"
-          >
-            Vai alle band
-          </Link>
-        </section>
-
-        <section className="mt-8 rounded-xl border border-neutral-200 bg-white p-6">
-          <h2 className="text-lg font-medium text-[var(--brand)]">
-            Shop crediti
-          </h2>
-          <p className="mt-2 text-sm text-neutral-600">
-            Acquista pacchetti crediti per le prenotazioni sale prova.
-          </p>
-          <Link
-            href="/dashboard/shop"
-            className="mt-4 inline-flex rounded-lg bg-[var(--brand)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90"
-          >
-            Vai allo shop
-          </Link>
-        </section>
-
-        <section className="mt-8 rounded-xl border border-neutral-200 bg-white p-6">
-          <h2 className="text-lg font-medium text-[var(--brand)]">
-            Sale prova
-          </h2>
-          <p className="mt-2 text-sm text-neutral-600">
-            Prenota una sala, consulta le tue prenotazioni o annulla entro i
-            termini previsti — tutto dall&apos;area riservata, senza email.
-          </p>
-          <div className="mt-4 flex flex-wrap gap-3">
-            <Link
-              href="/prenotazioni"
-              className="inline-flex rounded-lg bg-[var(--brand)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90"
-            >
-              Prenota una sala
-            </Link>
-            <Link
-              href="/prenotazioni/mie"
-              className="inline-flex rounded-lg border border-neutral-300 px-5 py-2.5 text-sm font-medium text-neutral-800 hover:bg-neutral-50"
-            >
-              Le mie prenotazioni
-            </Link>
-          </div>
-        </section>
-
+          </>
+        )}
       </div>
     </main>
+  );
+}
+
+function MemberSalaLinks() {
+  return (
+    <div className="rounded-xl border border-neutral-200 bg-white p-6">
+      <div className="flex flex-wrap gap-3">
+        <Link
+          href="/prenotazioni"
+          className="inline-flex rounded-lg bg-[var(--brand)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90"
+        >
+          Prenota una sala
+        </Link>
+        <Link
+          href="/prenotazioni/mie"
+          className="inline-flex rounded-lg border border-neutral-300 px-5 py-2.5 text-sm font-medium text-neutral-800 hover:bg-neutral-50"
+        >
+          Le mie prenotazioni
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+function MemberQuickLinks() {
+  return (
+    <div className="space-y-6">
+      <section className="rounded-xl border border-neutral-200 bg-white p-6">
+        <h2 className="text-lg font-medium text-[var(--brand)]">Sala prove</h2>
+        <p className="mt-2 text-sm text-neutral-600">
+          Prenota una sala, consulta le tue prenotazioni o annulla entro i
+          termini previsti.
+        </p>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <Link
+            href="/prenotazioni"
+            className="inline-flex rounded-lg bg-[var(--brand)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90"
+          >
+            Prenota una sala
+          </Link>
+          <Link
+            href="/prenotazioni/mie"
+            className="inline-flex rounded-lg border border-neutral-300 px-5 py-2.5 text-sm font-medium text-neutral-800 hover:bg-neutral-50"
+          >
+            Le mie prenotazioni
+          </Link>
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-neutral-200 bg-white p-6">
+        <h2 className="text-lg font-medium text-[var(--brand)]">Account</h2>
+        <p className="mt-2 text-sm text-neutral-600">
+          Profilo, ruoli, band, shop e uscita sono nell&apos;ingranaggio
+          Impostazioni.
+        </p>
+        <Link
+          href="/dashboard/impostazioni"
+          className="mt-4 inline-flex rounded-lg border border-neutral-300 px-5 py-2.5 text-sm font-medium text-neutral-800 hover:bg-neutral-50"
+        >
+          Apri impostazioni
+        </Link>
+      </section>
+    </div>
   );
 }

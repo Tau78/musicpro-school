@@ -10,12 +10,13 @@ export default function RootLayout() {
       <Stack>
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="login" options={{ title: "Accedi" }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="calendario-lezioni" options={{ title: "Calendario" }} />
-        <Stack.Screen
-          name="mie-prenotazioni"
-          options={{ title: "Le mie prenotazioni" }}
-        />
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="impostazioni" options={{ title: "Impostazioni" }} />
+          <Stack.Screen name="calendario-lezioni" options={{ title: "Calendario" }} />
+          <Stack.Screen
+            name="mie-prenotazioni"
+            options={{ title: "Le mie prenotazioni" }}
+          />
       </Stack>
     </AuthProvider>
   );

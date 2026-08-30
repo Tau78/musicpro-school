@@ -16,7 +16,7 @@ export default function Index() {
   }
 
   if (session && !isBiometricUnlockRequired) {
-    return <Redirect href="/(tabs)/area-personale" />;
+    return <Redirect href="/(tabs)/dashboard" />;
   }
 
   return <Redirect href="/login" />;

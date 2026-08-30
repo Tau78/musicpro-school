@@ -6,7 +6,7 @@ import { APP_NAME } from "@musicpro/shared";
 
 import { BandCard } from "@/components/band/band-card";
 import { BandCreateForm } from "@/components/band/band-create-form";
-import { SignOutButton } from "@/components/auth/sign-out-button";
+import { SettingsGearLink } from "@/components/dashboard/settings-gear-link";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function BandDashboardPage() {
@@ -31,16 +31,24 @@ export default async function BandDashboardPage() {
               Le mie band
             </h1>
           </div>
-          <SignOutButton />
+          <div className="flex items-center gap-3">
+            <Link
+              href="/dashboard/impostazioni"
+              className="text-sm text-neutral-600 hover:text-[var(--brand)]"
+            >
+              Impostazioni
+            </Link>
+            <SettingsGearLink />
+          </div>
         </div>
       </header>
 
       <div className="mx-auto max-w-5xl px-6 py-8">
         <Link
-          href="/dashboard"
+          href="/dashboard/impostazioni"
           className="text-sm font-medium text-[var(--brand)] hover:underline"
         >
-          ← Torna alla dashboard
+          ← Torna alle impostazioni
         </Link>
 
         <section className="mt-8">
