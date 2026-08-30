@@ -1,13 +1,30 @@
 import { Link, Tabs } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { Pressable, Text } from "react-native";
 
 import { APP_NAME, MemberRole } from "@musicpro/shared";
 
 import { useAuth } from "@/contexts/AuthContext";
 
+function GearButton() {
+  return (
+    <Link href="/impostazioni" asChild>
+      <Pressable
+        accessibilityLabel="Impostazioni"
+        style={{ marginRight: 16, padding: 4 }}
+      >
+        <Ionicons name="settings-outline" size={22} color="#fff" />
+      </Pressable>
+    </Link>
+  );
+}
+
 export default function TabsLayout() {
   const { roles } = useAuth();
   const isDocente = roles.includes(MemberRole.Docente);
+  const isAssociato = roles.includes(MemberRole.Associato);
+  const isTutore = roles.includes(MemberRole.Tutore);
+  const showLezioni = isDocente || isAssociato || isTutore;
 
   return (
     <Tabs
@@ -16,12 +33,13 @@ export default function TabsLayout() {
         headerTintColor: "#fff",
         tabBarActiveTintColor: "#1e3a5f",
         tabBarInactiveTintColor: "#999",
+        headerRight: () => <GearButton />,
       }}
     >
       <Tabs.Screen
-        name="area-personale"
+        name="dashboard"
         options={{
-          title: "Area personale",
+          title: "Dashboard",
           headerTitle: APP_NAME,
         }}
       />
@@ -31,13 +49,16 @@ export default function TabsLayout() {
           title: "Prenotazioni",
           headerTitle: APP_NAME,
           headerRight: () => (
-            <Link href="/mie-prenotazioni" asChild>
-              <Pressable style={{ marginRight: 16 }}>
-                <Text style={{ color: "#fff", fontSize: 14, fontWeight: "500" }}>
-                  Le mie
-                </Text>
-              </Pressable>
-            </Link>
+            <>
+              <Link href="/mie-prenotazioni" asChild>
+                <Pressable style={{ marginRight: 12 }}>
+                  <Text style={{ color: "#fff", fontSize: 14, fontWeight: "500" }}>
+                    Le mie
+                  </Text>
+                </Pressable>
+              </Link>
+              <GearButton />
+            </>
           ),
         }}
       />
@@ -46,7 +67,13 @@ export default function TabsLayout() {
         options={{
           title: "Lezioni",
           headerTitle: APP_NAME,
-          href: isDocente ? "/(tabs)/lezioni" : null,
+          href: showLezioni ? "/(tabs)/lezioni" : null,
+        }}
+      />
+      <Tabs.Screen
+        name="area-personale"
+        options={{
+          href: null,
         }}
       />
     </Tabs>

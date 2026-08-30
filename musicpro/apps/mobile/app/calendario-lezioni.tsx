@@ -147,7 +147,7 @@ export default function LezioniCalendarioScreen() {
   useEffect(() => {
     if (authLoading) return;
     if (!isDocente) {
-      router.replace("/(tabs)/area-personale");
+      router.replace("/(tabs)/dashboard");
     }
   }, [authLoading, isDocente, router]);
 

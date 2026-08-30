@@ -7,7 +7,7 @@ import { APP_NAME } from "@musicpro/shared";
 import { AdminNav } from "@/components/admin/admin-nav";
 import { DocumentiSubNav } from "@/components/admin/documenti-sub-nav";
 import { SettingsSubNav } from "@/components/admin/settings-sub-nav";
-import { SignOutButton } from "@/components/auth/sign-out-button";
+import { SettingsGearLink } from "@/components/dashboard/settings-gear-link";
 import { getAdminMember } from "@/lib/admin/current-member";
 import {
   canAccessAdmin,
@@ -124,7 +124,7 @@ export default async function AdminLayout({
             >
               Dashboard
             </Link>
-            <SignOutButton className="border-white/30 text-white hover:bg-white/10" />
+            <SettingsGearLink className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-white/80 hover:bg-white/10 hover:text-white" />
           </div>
         </div>
         <AdminNav
