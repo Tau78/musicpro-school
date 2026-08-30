@@ -34,6 +34,7 @@ import {
   TimeGridWeek,
   type TimeGridEvent,
 } from "@/components/calendar/time-grid-week";
+import { CreateLessonSheet } from "@/components/lezioni/create-lesson-sheet";
 import { useAuth } from "@/contexts/AuthContext";
 import { lessonColor } from "@/lib/lezioni-colors";
 import {
@@ -137,6 +138,15 @@ export default function DashboardScreen() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createDate, setCreateDate] = useState<string | undefined>();
+  const [createOra, setCreateOra] = useState<string | undefined>();
+
+  function openCreateLesson(prefill?: { date?: string; ora?: string }) {
+    setCreateDate(prefill?.date);
+    setCreateOra(prefill?.ora);
+    setCreateOpen(true);
+  }
 
   const load = useCallback(
     async (mode: "initial" | "refresh" = "initial") => {
@@ -409,6 +419,7 @@ export default function DashboardScreen() {
   }
 
   return (
+    <>
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
@@ -457,7 +468,7 @@ export default function DashboardScreen() {
               setSelectedLesson(null);
             }}
             onMove={manageSala ? handleMoveBooking : undefined}
-            onSlotPress={(date, startMinute) => {
+            onEmptyPress={({ date, startMinute }) => {
               setSelectedBooking(null);
               router.push({
                 pathname: "/(tabs)/prenotazioni",
@@ -517,10 +528,26 @@ export default function DashboardScreen() {
         />
       </View>
 
+      {isStaff && !isDocente ? (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Lezioni</Text>
+          <TimeGridAddBar
+            label="+ Aggiungi lezione"
+            onPress={() => openCreateLesson()}
+          />
+        </View>
+      ) : null}
+
       {isDocente ? (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Lezioni</Text>
+            <Pressable
+              onPress={() => router.push("/calendario-lezioni")}
+              hitSlop={8}
+            >
+              <Text style={styles.secondaryBtnText}>Calendario completo</Text>
+            </Pressable>
           </View>
           <WeekNav
             label={weekLabel(lezioniWeekStart)}
@@ -541,16 +568,12 @@ export default function DashboardScreen() {
                 setSelectedBooking(null);
               }}
               onMove={canReschedule ? handleMoveLesson : undefined}
-              onSlotPress={(date, startMinute) => {
-                setSelectedLesson(null);
-                router.push({
-                  pathname: "/calendario-lezioni",
-                  params: {
-                    date,
-                    ora: minutesToTimeLabel(startMinute),
-                  },
-                });
-              }}
+              onEmptyPress={({ date, startMinute }) =>
+                openCreateLesson({
+                  date,
+                  ora: minutesToTimeLabel(startMinute),
+                })
+              }
             />
           ) : null}
 
@@ -593,33 +616,47 @@ export default function DashboardScreen() {
 
           <TimeGridAddBar
             label="+ Aggiungi lezione"
-            onPress={() => router.push("/calendario-lezioni")}
+            onPress={() => openCreateLesson()}
           />
         </View>
       ) : null}
     </ScrollView>
+
+    {member?.id ? (
+      <CreateLessonSheet
+        visible={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={() => {
+          void load("refresh");
+        }}
+        actorMemberId={member.id}
+        roles={roles}
+        initialDate={createDate}
+        initialOra={createOra}
+      />
+    ) : null}
+    </>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fafafa" },
-  content: { padding: 20, paddingTop: 12, paddingBottom: 48 },
-  loader: { marginTop: 12 },
-  section: { marginTop: 20 },
+  content: { padding: 20, paddingBottom: 48 },
+  loader: { marginTop: 8 },
+  section: { marginTop: 28 },
   sectionFirst: { marginTop: 0 },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
-    marginBottom: 8,
   },
-  sectionTitle: { fontSize: 18, fontWeight: "700", color: "#1e3a5f" },
+  sectionTitle: { fontSize: 20, fontWeight: "600", color: "#1e3a5f", marginBottom: 12 },
   weekNav: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 8,
+    marginBottom: 12,
     gap: 8,
   },
   weekNavBtn: {

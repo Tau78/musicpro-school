@@ -41,8 +41,8 @@ export type TimeGridWeekProps = {
     event: TimeGridEvent,
     next: { date: string; startMinute: number },
   ) => void;
-  /** Tap su slot vuoto (stile Google Calendar). */
-  onSlotPress?: (date: string, startMinute: number) => void;
+  /** Tap su area vuota della colonna giorno → slot (date + minuto). */
+  onEmptyPress?: (slot: { date: string; startMinute: number }) => void;
   openMinute?: number;
   closeMinute?: number;
   dayCount?: number;
@@ -156,7 +156,7 @@ function EventBlock({
       { translateY: translateY.value },
       { scale: dragging.value ? 1.04 : 1 },
     ],
-    zIndex: dragging.value ? 20 : 1,
+    zIndex: dragging.value ? 20 : 2,
     opacity: dragging.value ? 0.95 : 1,
   }));
 
@@ -200,7 +200,7 @@ export function TimeGridWeek({
   selectedId,
   onSelect,
   onMove,
-  onSlotPress,
+  onEmptyPress,
   openMinute = 8 * 60,
   closeMinute = 22 * 60,
   dayCount = 6,
@@ -218,10 +218,6 @@ export function TimeGridWeek({
 
   const gridHeight = ((closeMinute - openMinute) / 60) * PX_PER_HOUR;
   const [headerWidth, setHeaderWidth] = useState(DAY_COL_WIDTH * dayCount);
-  const [ghost, setGhost] = useState<{
-    date: string;
-    startMinute: number;
-  } | null>(null);
 
   const eventsByDay = useMemo(() => {
     const map = new Map<string, TimeGridEvent[]>();
@@ -241,14 +237,6 @@ export function TimeGridWeek({
 
   const onHeaderLayout = (e: LayoutChangeEvent) => {
     setHeaderWidth(e.nativeEvent.layout.width);
-  };
-
-  const handleSlotPress = (date: string, locationY: number) => {
-    if (!onSlotPress) return;
-    const raw = openMinute + (locationY / PX_PER_HOUR) * 60;
-    const startMinute = snapMinute(raw, openMinute, closeMinute, 60);
-    setGhost({ date, startMinute });
-    onSlotPress(date, startMinute);
   };
 
   return (
@@ -301,12 +289,7 @@ export function TimeGridWeek({
               </View>
 
               {days.map((date, dayIndex) => (
-                <Pressable
-                  key={date}
-                  style={styles.dayCol}
-                  onPress={(e) => handleSlotPress(date, e.nativeEvent.locationY)}
-                  disabled={!onSlotPress}
-                >
+                <View key={date} style={styles.dayCol}>
                   {hours.map((m) => (
                     <View
                       key={m}
@@ -316,22 +299,23 @@ export function TimeGridWeek({
                       ]}
                     />
                   ))}
-                  {ghost?.date === date ? (
-                    <View
-                      pointerEvents="none"
-                      style={[
-                        styles.ghost,
-                        {
-                          top:
-                            ((ghost.startMinute - openMinute) / 60) * PX_PER_HOUR,
-                          height: PX_PER_HOUR - 2,
-                        },
-                      ]}
-                    >
-                      <Text style={styles.ghostText}>
-                        {minutesToTimeLabel(ghost.startMinute)} · nuovo
-                      </Text>
-                    </View>
+                  {onEmptyPress ? (
+                    <Pressable
+                      style={StyleSheet.absoluteFill}
+                      accessibilityLabel={`Aggiungi lezione il ${date}`}
+                      onPress={(e) => {
+                        const y = e.nativeEvent.locationY;
+                        const raw =
+                          openMinute + Math.round((y / PX_PER_HOUR) * 60);
+                        const startMinute = snapMinute(
+                          raw,
+                          openMinute,
+                          closeMinute,
+                          SLOT,
+                        );
+                        onEmptyPress({ date, startMinute });
+                      }}
+                    />
                   ) : null}
                   {(eventsByDay.get(date) ?? []).map((event) => (
                     <EventBlock
@@ -345,14 +329,14 @@ export function TimeGridWeek({
                       onMove={onMove}
                     />
                   ))}
-                </Pressable>
+                </View>
               ))}
             </View>
           </ScrollView>
         </View>
       </ScrollView>
       <Text style={styles.hint}>
-        Tocca uno slot vuoto per creare · tieni premuto e trascina per spostare
+        Tieni premuto e trascina per spostare · tocca per modificare o eliminare
       </Text>
     </View>
   );
@@ -431,24 +415,6 @@ const styles = StyleSheet.create({
   eventTime: { fontSize: 10, fontWeight: "700" },
   eventTitle: { fontSize: 11, fontWeight: "600", marginTop: 1 },
   eventSub: { fontSize: 10, marginTop: 1, opacity: 0.85 },
-  ghost: {
-    position: "absolute",
-    left: 2,
-    right: 2,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderStyle: "dashed",
-    borderColor: "#1e3a5f",
-    backgroundColor: "rgba(30, 58, 95, 0.12)",
-    paddingHorizontal: 4,
-    paddingVertical: 4,
-    zIndex: 0,
-  },
-  ghostText: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: "#1e3a5f",
-  },
   hint: {
     paddingHorizontal: 10,
     paddingVertical: 8,
