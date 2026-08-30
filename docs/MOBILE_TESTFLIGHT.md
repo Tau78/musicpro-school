@@ -2,7 +2,10 @@
 
 ## Crash all’apertura (TestFlight)
 
-Build `1.0.0 (202608282351)` crashava subito (“si è bloccato”) con New Architecture attiva ma **senza** i peer di Expo Router (`react-native-gesture-handler`, `react-native-reanimated`). Fix: dipendenze + import in `app/_layout.tsx` + plugin Reanimated in `babel.config.js`, poi `./scripts/testflight.sh --prebuild`.
+1. Build `1.0.0 (202608282351)` crashava subito (“si è bloccato”) con New Architecture attiva ma **senza** i peer di Expo Router (`react-native-gesture-handler`, `react-native-reanimated`). Fix: dipendenze + import in `app/_layout.tsx` + plugin Reanimated in `babel.config.js`.
+2. Build `1.0.0 (202608301239)` (VALID su ASC) aveva già i peer nativi linkati (`RNGestureHandler`, `RNReanimated`, `RNScreens`, safe-area) ma **New Architecture / Fabric restava ON** (`newArchEnabled: true`, compile flag `RCT_NEW_ARCH_ENABLED=1`). Crash immediato invariato → disabilitare New Arch (`newArchEnabled: false` in `app.json`) e **sempre** `./scripts/testflight.sh --prebuild` così `ios/Podfile.properties.json` e i Pods non restano con Fabric.
+
+Diagnosi IPA: non mancano altri peer obbligatori di `expo-router` rispetto a `package.json`. Auth/env: `EXPO_PUBLIC_SUPABASE_*` risultano inline nel `main.jsbundle` (URL progetto presente); non è un throw di `createMobileClient` al boot.
 
 ## Path di produzione
 
