@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { cloneJson } from "./clone";
 import type { Database } from "./types/database";
 import {
   DEFAULT_WEBSITE_HUB_CONTENT,
@@ -399,7 +400,7 @@ export function migrateV1ToV2(v1: WebsiteHubContent): WebsiteHubDocumentV2 {
   };
 }
 
-export const DEFAULT_WEBSITE_HUB_DOCUMENT: WebsiteHubDocumentV2 = structuredClone(
+export const DEFAULT_WEBSITE_HUB_DOCUMENT: WebsiteHubDocumentV2 = cloneJson(
   migrateV1ToV2(DEFAULT_WEBSITE_HUB_CONTENT),
 );
 
@@ -492,7 +493,7 @@ function emptyV1Sections(): Pick<
       cta2: { ...EMPTY_V1_LINK },
     },
     socials: { kicker: "", title: "", lede: "", items: [] },
-    sede: structuredClone(EMPTY_PLACE),
+    sede: cloneJson(EMPTY_PLACE),
   };
 }
 
@@ -644,7 +645,7 @@ function emptySocials(): WebsiteSocialsData {
 }
 
 function emptyPlace(): WebsitePlaceData {
-  return structuredClone(EMPTY_PLACE);
+  return cloneJson(EMPTY_PLACE);
 }
 
 export function createEmptyBlock(
@@ -820,17 +821,17 @@ function normalizeDocument(raw: Record<string, unknown>): WebsiteHubDocumentV2 {
         : undefined,
     publishedAt: typeof raw.publishedAt === "string" && raw.publishedAt ? raw.publishedAt : undefined,
     site: {
-      seo: mergeDeep(structuredClone(DEFAULT_WEBSITE_HUB_CONTENT.seo), site.seo),
-      nav: mergeDeep(structuredClone(DEFAULT_WEBSITE_HUB_CONTENT.nav), site.nav),
-      contact: mergeDeep(structuredClone(DEFAULT_WEBSITE_HUB_CONTENT.contact), site.contact),
-      footer: mergeDeep(structuredClone(DEFAULT_WEBSITE_HUB_CONTENT.footer), site.footer),
+      seo: mergeDeep(cloneJson(DEFAULT_WEBSITE_HUB_CONTENT.seo), site.seo),
+      nav: mergeDeep(cloneJson(DEFAULT_WEBSITE_HUB_CONTENT.nav), site.nav),
+      contact: mergeDeep(cloneJson(DEFAULT_WEBSITE_HUB_CONTENT.contact), site.contact),
+      footer: mergeDeep(cloneJson(DEFAULT_WEBSITE_HUB_CONTENT.footer), site.footer),
     },
     home: {
       blocks: blocks
         .map(normalizeBlock)
         .filter((block): block is WebsiteHomeBlock => block !== null),
     },
-    pages: mergeDeep(structuredClone(DEFAULT_WEBSITE_HUB_CONTENT.pages), pages),
+    pages: mergeDeep(cloneJson(DEFAULT_WEBSITE_HUB_CONTENT.pages), pages),
   };
 }
 
@@ -840,7 +841,7 @@ function isEmptySetting(raw: string | null | undefined): boolean {
 
 export function parseWebsiteHubDocument(raw: string | null | undefined): WebsiteHubDocumentV2 {
   if (isEmptySetting(raw)) {
-    return structuredClone(DEFAULT_WEBSITE_HUB_DOCUMENT);
+    return cloneJson(DEFAULT_WEBSITE_HUB_DOCUMENT);
   }
   try {
     const parsed = JSON.parse(raw as string) as unknown;
@@ -848,11 +849,11 @@ export function parseWebsiteHubDocument(raw: string | null | undefined): Website
       return normalizeDocument(parsed as Record<string, unknown>);
     }
     if (isObject(parsed) && parsed.version === 2) {
-      return structuredClone(DEFAULT_WEBSITE_HUB_DOCUMENT);
+      return cloneJson(DEFAULT_WEBSITE_HUB_DOCUMENT);
     }
     return migrateV1ToV2(parseWebsiteHubContent(raw));
   } catch {
-    return structuredClone(DEFAULT_WEBSITE_HUB_DOCUMENT);
+    return cloneJson(DEFAULT_WEBSITE_HUB_DOCUMENT);
   }
 }
 
@@ -964,7 +965,7 @@ export async function getWebsiteAdminState(client: SettingsClient): Promise<{
     getWebsitePublished(client),
   ]);
   const draft = isEmptySetting(draftRaw)
-    ? structuredClone(published)
+    ? cloneJson(published)
     : parseWebsiteHubDocument(draftRaw);
   return {
     draft,
