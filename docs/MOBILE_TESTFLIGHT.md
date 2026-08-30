@@ -4,6 +4,17 @@
 
 1. Build `1.0.0 (202608282351)` crashava subito (“si è bloccato”) con New Architecture attiva ma **senza** i peer di Expo Router (`react-native-gesture-handler`, `react-native-reanimated`). Fix: dipendenze + import in `app/_layout.tsx` + plugin Reanimated in `babel.config.js`.
 2. Build `1.0.0 (202608301239)` (VALID su ASC) aveva già i peer nativi linkati (`RNGestureHandler`, `RNReanimated`, `RNScreens`, safe-area) ma **New Architecture / Fabric restava ON** (`newArchEnabled: true`, compile flag `RCT_NEW_ARCH_ENABLED=1`). Crash immediato invariato → disabilitare New Arch (`newArchEnabled: false` in `app.json`) e **sempre** `./scripts/testflight.sh --prebuild` così `ios/Podfile.properties.json` e i Pods non restano con Fabric.
+3. Build `1.0.0 (202608301250)` (New Arch OFF, peer nativi presenti) crashava ancora. Riprodotto su **Simulator** (`npx expo run:ios --configuration Release`, stesso `CFBundleVersion` e stessi Pods dell'IPA in `/tmp/mps-tf-build`) con l'errore reale in console:
+
+   ```
+   [CoreFoundation] *** Terminating app due to uncaught exception
+   'RCTFatalException: Unhandled JS Exception: ReferenceError: Property
+   'structuredClone' doesn't exist, js engine: hermes'
+   stack: ... getRoutes → loadRoute → getLayoutNode → metroRequire → ...
+   ```
+
+   **Causa**: non è New Architecture, non è `AuthProvider` (usa `useRouter`/`useSegments` mentre wrappa `<Stack>`, pattern standard e supportato da expo-router: il context del router viene fornito da `ExpoRoot` sopra tutto l'albero di `_layout.tsx`, non da `<Stack>` stesso — nessun problema lì). Il vero bug: `musicpro/packages/database/src/website-document.ts` chiamava `structuredClone(...)` **a livello di modulo** (`export const DEFAULT_WEBSITE_HUB_DOCUMENT = structuredClone(...)`), eseguito immediatamente all'import. `structuredClone` è un global Node 18+/browser; **Hermes (RN 0.76.9) non lo definisce** (nessun polyfill in `react-native/Libraries/Core/setUpGlobals.js`) → `ReferenceError` fatale al boot. `@musicpro/database/index.ts` fa da barrel-export e ri-esporta `website-document.ts`/`website-content.ts` (feature web-only del "website hub"): qualunque import da `@musicpro/database` (es. `AuthContext.tsx` → `getSession`) valuta l'intero modulo, tirando dentro al bundle Hermes questo codice mai usato su mobile.
+   Fix: helper `cloneJson()` in `packages/database/src/clone.ts` (usa `structuredClone` nativo su web/Node, fallback `JSON.parse(JSON.stringify())` su Hermes/RN) al posto delle chiamate dirette in `website-content.ts` e `website-document.ts`. Verificato: stesso build number, stessa build tree, stesso Simulator → l'app arriva alla schermata di login senza crash. `@musicpro/shared` non ha codice Node-only.
 
 Diagnosi IPA: non mancano altri peer obbligatori di `expo-router` rispetto a `package.json`. Auth/env: `EXPO_PUBLIC_SUPABASE_*` risultano inline nel `main.jsbundle` (URL progetto presente); non è un throw di `createMobileClient` al boot.
 

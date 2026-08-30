@@ -1,3 +1,5 @@
+import { cloneJson } from "./clone";
+
 export const WEBSITE_HUB_SETTING_KEY = "website_hub_content";
 
 export type WebsiteLink = {
@@ -344,8 +346,8 @@ export const DEFAULT_WEBSITE_HUB_CONTENT: WebsiteHubContent = {
     legal: "Associazione Culturale M.P. – Il Cervellone Genova",
     address: "Zona Loreto 42, 16042 Carasco (GE)",
     email: "info@musicproeventi.it",
-    phone: "328 215 7015",
-    phoneHref: "tel:+393282157015",
+    phone: "371 675 2550",
+    phoneHref: "tel:+393716752550",
     cta1: { label: "Diventa associato", href: "https://iscrizione.musicproeventi.it" },
     mapsGoogle: { label: "Google Maps", href: "https://goo.gl/maps/2M1eB8atjzWH8yNb9" },
     mapsApple: {
@@ -448,11 +450,11 @@ function mergeDeep<T>(base: T, patch: unknown): T {
 
 export function parseWebsiteHubContent(raw: string | null | undefined): WebsiteHubContent {
   if (!raw || !raw.trim() || raw.trim() === "{}") {
-    return structuredClone(DEFAULT_WEBSITE_HUB_CONTENT);
+    return cloneJson(DEFAULT_WEBSITE_HUB_CONTENT);
   }
   try {
-    return mergeDeep(structuredClone(DEFAULT_WEBSITE_HUB_CONTENT), JSON.parse(raw) as unknown);
+    return mergeDeep(cloneJson(DEFAULT_WEBSITE_HUB_CONTENT), JSON.parse(raw) as unknown);
   } catch {
-    return structuredClone(DEFAULT_WEBSITE_HUB_CONTENT);
+    return cloneJson(DEFAULT_WEBSITE_HUB_CONTENT);
   }
 }
