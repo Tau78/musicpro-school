@@ -16,21 +16,84 @@ import {
   cancelBooking,
   formatBookingDateTime,
   listBookingsInRange,
-  listLessonsOnDate,
+  listLessonsInRange,
   listMyBookings,
   todayInRome,
   type CalendarLesson,
 } from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
 
-import { OggiList } from "@/components/lezioni/oggi-list";
+import { CalendarWeek } from "@/components/lezioni/calendar-week";
+import { BookingWeek } from "@/components/sala/booking-week";
 import { useAuth } from "@/contexts/AuthContext";
-import { addRomeDays, formatRomeDay } from "@/lib/lezioni-dates";
+import {
+  addRomeDays,
+  formatRomeDay,
+  startOfWeekMonday,
+} from "@/lib/lezioni-dates";
 import { createClient } from "@/lib/supabase";
+
+const MONTHS_IT = [
+  "gennaio",
+  "febbraio",
+  "marzo",
+  "aprile",
+  "maggio",
+  "giugno",
+  "luglio",
+  "agosto",
+  "settembre",
+  "ottobre",
+  "novembre",
+  "dicembre",
+] as const;
 
 function canManageSala(roles: string[]): boolean {
   return (
     roles.includes(MemberRole.Admin) || roles.includes(MemberRole.Segreteria)
+  );
+}
+
+function weekLabel(weekStart: string): string {
+  const weekEnd = addRomeDays(weekStart, 5);
+  const startDay = Number(weekStart.slice(8, 10));
+  const endDay = Number(weekEnd.slice(8, 10));
+  const startMonth = MONTHS_IT[Number(weekStart.slice(5, 7)) - 1];
+  const endMonth = MONTHS_IT[Number(weekEnd.slice(5, 7)) - 1];
+  const year = weekEnd.slice(0, 4);
+  if (startMonth === endMonth) {
+    return `${startDay}–${endDay} ${startMonth} ${year}`;
+  }
+  return `${startDay} ${startMonth} – ${endDay} ${endMonth} ${year}`;
+}
+
+function WeekNav({
+  label,
+  onPrev,
+  onNext,
+}: {
+  label: string;
+  onPrev: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <View style={styles.weekNav}>
+      <Pressable
+        onPress={onPrev}
+        style={styles.weekNavBtn}
+        accessibilityLabel="Settimana precedente"
+      >
+        <Text style={styles.weekNavBtnText}>‹</Text>
+      </Pressable>
+      <Text style={styles.weekNavLabel}>{label}</Text>
+      <Pressable
+        onPress={onNext}
+        style={styles.weekNavBtn}
+        accessibilityLabel="Settimana successiva"
+      >
+        <Text style={styles.weekNavBtnText}>›</Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -42,10 +105,22 @@ export default function DashboardScreen() {
   const manageSala = canManageSala(roles);
   const today = todayInRome();
 
+  const [salaWeekStart, setSalaWeekStart] = useState(() =>
+    startOfWeekMonday(todayInRome()),
+  );
+  const [lezioniWeekStart, setLezioniWeekStart] = useState(() =>
+    startOfWeekMonday(todayInRome()),
+  );
+
   const [bookings, setBookings] = useState<BookingWithRoom[]>([]);
   const [lessons, setLessons] = useState<CalendarLesson[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedBooking, setSelectedBooking] =
+    useState<BookingWithRoom | null>(null);
+  const [selectedLesson, setSelectedLesson] = useState<CalendarLesson | null>(
+    null,
+  );
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -64,24 +139,48 @@ export default function DashboardScreen() {
       setError(null);
 
       try {
-        const weekTo = addRomeDays(today, 7);
+        const salaTo = addRomeDays(salaWeekStart, 7);
+        const lezioniTo = addRomeDays(lezioniWeekStart, 7);
+
         const [bookingRows, lessonRows] = await Promise.all([
           manageSala
             ? listBookingsInRange(supabase, {
-                from: today,
-                to: weekTo,
+                from: salaWeekStart,
+                to: salaTo,
               })
-            : listMyBookings(supabase, member.id, "upcoming"),
+            : listMyBookings(supabase, member.id, "upcoming").then((rows) =>
+                rows.filter((row) => {
+                  const d = new Intl.DateTimeFormat("en-CA", {
+                    timeZone: "Europe/Rome",
+                    year: "numeric",
+                    month: "2-digit",
+                    day: "2-digit",
+                  }).format(new Date(row.start_at));
+                  return d >= salaWeekStart && d < salaTo;
+                }),
+              ),
           isDocente
-            ? listLessonsOnDate(supabase, today, {
+            ? listLessonsInRange(supabase, {
+                from: lezioniWeekStart,
+                to: lezioniTo,
                 teacherMemberId: member.id,
                 includePendingHold: true,
               })
             : Promise.resolve([] as CalendarLesson[]),
         ]);
 
-        setBookings(bookingRows.slice(0, 12));
+        setBookings(bookingRows);
         setLessons(lessonRows);
+        setSelectedBooking((current) =>
+          current
+            ? (bookingRows.find((row) => row.id === current.id) ?? null)
+            : null,
+        );
+        setSelectedLesson((current) =>
+          current
+            ? (lessonRows.find((row) => row.id === current.id) ?? null)
+            : null,
+        );
       } catch (err) {
         setError(
           err instanceof Error
@@ -93,7 +192,14 @@ export default function DashboardScreen() {
         setRefreshing(false);
       }
     },
-    [isDocente, manageSala, member?.id, supabase, today],
+    [
+      isDocente,
+      lezioniWeekStart,
+      manageSala,
+      member?.id,
+      salaWeekStart,
+      supabase,
+    ],
   );
 
   useEffect(() => {
@@ -112,6 +218,7 @@ export default function DashboardScreen() {
         return;
       }
       setMessage("Prenotazione cancellata.");
+      setSelectedBooking(null);
       await load("refresh");
     } catch (err) {
       setError(
@@ -162,27 +269,39 @@ export default function DashboardScreen() {
             style={styles.primaryBtn}
             onPress={() => router.push("/(tabs)/prenotazioni")}
           >
-            <Text style={styles.primaryBtnText}>Aggiungi</Text>
+            <Text style={styles.primaryBtnText}>+ Aggiungi</Text>
           </Pressable>
         </View>
         <Text style={styles.sectionHint}>
-          {manageSala
-            ? "Prossime prenotazioni della settimana. Aggiungi al volo o cancella da qui."
-            : "Le tue prenotazioni. Aggiungi al volo o cancella da qui."}
+          Calendario settimanale: tocca una prenotazione per modificarla o
+          cancellarla.
         </Text>
-
-        {!loading && bookings.length === 0 ? (
-          <Text style={styles.empty}>Nessuna prenotazione in arrivo.</Text>
+        <WeekNav
+          label={weekLabel(salaWeekStart)}
+          onPrev={() => setSalaWeekStart((d) => addRomeDays(d, -7))}
+          onNext={() => setSalaWeekStart((d) => addRomeDays(d, 7))}
+        />
+        {!loading ? (
+          <BookingWeek
+            weekStart={salaWeekStart}
+            bookings={bookings}
+            today={today}
+            selectedBookingId={selectedBooking?.id}
+            onSelectBooking={setSelectedBooking}
+          />
         ) : null}
 
-        {bookings.map((booking) => (
-          <View key={booking.id} style={styles.card}>
-            <Text style={styles.cardTitle}>
-              {booking.room?.name ?? "Sala"} ·{" "}
-              {formatBookingDateTime(booking.start_at, booking.end_at)}
+        {selectedBooking ? (
+          <View style={styles.detailCard}>
+            <Text style={styles.detailTitle}>
+              {selectedBooking.room?.name ?? "Sala"} ·{" "}
+              {formatBookingDateTime(
+                selectedBooking.start_at,
+                selectedBooking.end_at,
+              )}
             </Text>
-            <Text style={styles.cardMuted}>
-              {bookingStatusLabel(booking.status)}
+            <Text style={styles.detailMuted}>
+              {bookingStatusLabel(selectedBooking.status)}
             </Text>
             <View style={styles.cardActions}>
               <Pressable
@@ -193,16 +312,22 @@ export default function DashboardScreen() {
               </Pressable>
               <Pressable
                 style={styles.dangerBtn}
-                disabled={cancellingId === booking.id}
-                onPress={() => void handleCancel(booking.id)}
+                disabled={cancellingId === selectedBooking.id}
+                onPress={() => void handleCancel(selectedBooking.id)}
               >
                 <Text style={styles.dangerBtnText}>
-                  {cancellingId === booking.id ? "…" : "Cancella"}
+                  {cancellingId === selectedBooking.id ? "…" : "Cancella"}
                 </Text>
+              </Pressable>
+              <Pressable
+                style={styles.ghostBtn}
+                onPress={() => setSelectedBooking(null)}
+              >
+                <Text style={styles.ghostBtnText}>Chiudi</Text>
               </Pressable>
             </View>
           </View>
-        ))}
+        ) : null}
       </View>
 
       {isDocente ? (
@@ -213,20 +338,36 @@ export default function DashboardScreen() {
               style={styles.primaryBtn}
               onPress={() => router.push("/calendario-lezioni")}
             >
-              <Text style={styles.primaryBtnText}>Calendario</Text>
+              <Text style={styles.primaryBtnText}>Apri completo</Text>
             </Pressable>
           </View>
           <Text style={styles.sectionHint}>
-            Calendario cliccabile con modifiche e cancellazioni. Oggi qui sotto.
+            Calendario settimanale: tocca una lezione per aprirla e
+            modificarla.
           </Text>
-          {!loading && member?.id ? (
-            <OggiList
+          <WeekNav
+            label={weekLabel(lezioniWeekStart)}
+            onPrev={() => setLezioniWeekStart((d) => addRomeDays(d, -7))}
+            onNext={() => setLezioniWeekStart((d) => addRomeDays(d, 7))}
+          />
+          {!loading ? (
+            <CalendarWeek
+              weekStart={lezioniWeekStart}
               lessons={lessons}
-              arrears={[]}
-              actorMemberId={member.id}
-              onSaved={() => void load("refresh")}
+              today={today}
+              selectedLessonId={selectedLesson?.id}
+              onSelectLesson={(lesson) => {
+                setSelectedLesson(lesson);
+                router.push("/calendario-lezioni");
+              }}
             />
           ) : null}
+          <Pressable
+            style={styles.addLessonBtn}
+            onPress={() => router.push("/calendario-lezioni")}
+          >
+            <Text style={styles.addLessonBtnText}>+ Aggiungi lezione</Text>
+          </Pressable>
         </View>
       ) : null}
     </ScrollView>
@@ -235,7 +376,7 @@ export default function DashboardScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fafafa" },
-  content: { padding: 24, paddingBottom: 40 },
+  content: { padding: 24, paddingBottom: 48 },
   greeting: { fontSize: 22, fontWeight: "600", color: "#1e3a5f" },
   subtitle: { marginTop: 4, fontSize: 14, color: "#666" },
   loader: { marginTop: 24 },
@@ -247,21 +388,47 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   sectionTitle: { fontSize: 20, fontWeight: "600", color: "#1e3a5f" },
-  sectionHint: { marginTop: 8, fontSize: 13, color: "#666", lineHeight: 18 },
-  empty: { marginTop: 12, fontSize: 14, color: "#888" },
-  card: {
+  sectionHint: { marginTop: 8, marginBottom: 12, fontSize: 13, color: "#666", lineHeight: 18 },
+  weekNav: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+    gap: 8,
+  },
+  weekNavBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#d4d4d4",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
+  },
+  weekNavBtnText: { fontSize: 22, color: "#1e3a5f", lineHeight: 24 },
+  weekNavLabel: {
+    flex: 1,
+    textAlign: "center",
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1e3a5f",
+    textTransform: "capitalize",
+  },
+  detailCard: {
     marginTop: 12,
     backgroundColor: "#fff",
     borderRadius: 12,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#e5e5e5",
+    borderColor: "#1e3a5f",
   },
-  cardTitle: { fontSize: 15, fontWeight: "600", color: "#222" },
-  cardMuted: { marginTop: 4, fontSize: 13, color: "#666" },
+  detailTitle: { fontSize: 15, fontWeight: "600", color: "#222" },
+  detailMuted: { marginTop: 4, fontSize: 13, color: "#666" },
   cardActions: {
     marginTop: 12,
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
   },
   primaryBtn: {
@@ -286,6 +453,20 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   dangerBtnText: { color: "#991b1b", fontSize: 13, fontWeight: "600" },
+  ghostBtn: {
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  ghostBtnText: { color: "#666", fontSize: 13, fontWeight: "500" },
+  addLessonBtn: {
+    marginTop: 16,
+    alignItems: "center",
+    backgroundColor: "#1e3a5f",
+    borderRadius: 10,
+    paddingVertical: 14,
+  },
+  addLessonBtnText: { color: "#fff", fontSize: 15, fontWeight: "700" },
   alertError: {
     marginTop: 16,
     padding: 12,
