@@ -50,7 +50,7 @@ need_cmd() {
 }
 
 write_export_options() {
-  local dest="$1" method_dest="$2"
+  local method_dest="${1:?destination richiesta (export|upload)}"
   cat > "$DIST/ExportOptions.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -89,6 +89,18 @@ BUILD_NUMBER="${BUILD_NUMBER:-$(date +%Y%m%d%H%M)}"
 API_KEY_ID="$(read_env_value "$ROOT/musicpro/.env" APPLE_API_KEY_ID)"
 API_ISSUER="$(read_env_value "$ROOT/musicpro/.env" APPLE_API_ISSUER_ID)"
 API_KEY_PATH="$(read_env_value "$ROOT/musicpro/.env" APPLE_API_KEY_PATH)"
+if [[ -n "$API_KEY_PATH" ]]; then
+  API_KEY_PATH="$(cd "$(dirname "$API_KEY_PATH")" && pwd)/$(basename "$API_KEY_PATH")"
+fi
+
+AUTH_ARGS=()
+if [[ -n "$API_KEY_ID" && -n "$API_ISSUER" && -n "$API_KEY_PATH" && -f "$API_KEY_PATH" ]]; then
+  AUTH_ARGS=(
+    -authenticationKeyPath "$API_KEY_PATH"
+    -authenticationKeyID "$API_KEY_ID"
+    -authenticationKeyIssuerID "$API_ISSUER"
+  )
+fi
 
 step "Preflight Xcode tools"
 need_cmd xcodebuild
@@ -248,37 +260,46 @@ xcodebuild \
   -archivePath "$ARCHIVE" \
   -derivedDataPath "$DERIVED" \
   -allowProvisioningUpdates \
+  "${AUTH_ARGS[@]}" \
   DEVELOPMENT_TEAM="$TEAM_ID" \
   PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
   CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
   ENABLE_USER_SCRIPT_SANDBOXING=NO \
   archive \
   | tee /tmp/mps-archive.log | tail -40
-
-[[ -d "$ARCHIVE" ]] || die "Archive non creato: $ARCHIVE"
+archive_rc=${PIPESTATUS[0]}
+[[ "$archive_rc" -eq 0 && -d "$ARCHIVE" ]] || die "Archive fallito (rc=$archive_rc): $ARCHIVE"
 ok "archive $ARCHIVE"
 
 step "Export IPA (xcodebuild, niente EAS)"
 write_export_options export
+set +e
 xcodebuild \
   -exportArchive \
   -archivePath "$ARCHIVE" \
   -exportPath "$IPA_DIR" \
   -exportOptionsPlist "$DIST/ExportOptions.plist" \
   -allowProvisioningUpdates \
-  | tee /tmp/mps-export.log | tail -20
+  "${AUTH_ARGS[@]}" \
+  | tee /tmp/mps-export.log | tail -40
+export_rc=${PIPESTATUS[0]}
+set -e
+[[ "$export_rc" -eq 0 ]] || die "Export IPA fallito. Log: /tmp/mps-export.log"
 IPA="$(find "$IPA_DIR" -name '*.ipa' | head -1)"
 [[ -n "$IPA" ]] || die "IPA non trovato in $IPA_DIR"
 ok "IPA $IPA"
 
-if [[ -n "$API_KEY_ID" && -n "$API_ISSUER" && -n "$API_KEY_PATH" ]]; then
+if [[ -n "$API_KEY_ID" && -n "$API_ISSUER" && -n "$API_KEY_PATH" && -f "$API_KEY_PATH" ]]; then
   step "Upload TestFlight (App Store Connect API)"
+  # altool cerca AuthKey_<id>.p8 in ./private_keys, ~/private_keys, ~/.appstoreconnect/private_keys
+  mkdir -p "$HOME/private_keys" "$HOME/.appstoreconnect/private_keys"
+  ln -sfn "$API_KEY_PATH" "$HOME/private_keys/AuthKey_${API_KEY_ID}.p8"
+  ln -sfn "$API_KEY_PATH" "$HOME/.appstoreconnect/private_keys/AuthKey_${API_KEY_ID}.p8"
   xcrun altool --upload-app \
     --type ios \
     --file "$IPA" \
     --apiKey "$API_KEY_ID" \
-    --apiIssuer "$API_ISSUER" \
-    --apiKeyPath "$API_KEY_PATH"
+    --apiIssuer "$API_ISSUER"
   ok "caricato $IPA su TestFlight (API key)"
 else
   step "Upload TestFlight (sessione Xcode)"
@@ -290,6 +311,7 @@ else
     -exportPath "$IPA_DIR" \
     -exportOptionsPlist "$DIST/ExportOptions.plist" \
     -allowProvisioningUpdates \
+    "${AUTH_ARGS[@]}" \
     | tee /tmp/mps-upload.log | tail -25
   up_rc=${PIPESTATUS[0]}
   set -e
