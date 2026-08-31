@@ -19,19 +19,49 @@ import {
 import { MemberRole } from "@musicpro/shared";
 
 import { OggiList } from "@/components/lezioni/oggi-list";
+import { StudentLessonsView } from "@/components/lezioni/student-lessons-view";
 import { useAuth } from "@/contexts/AuthContext";
 import { addRomeDays, formatRomeDay } from "@/lib/lezioni-dates";
 import { createClient } from "@/lib/supabase";
+
+function isStillUpcoming(lesson: CalendarLesson, nowIso: string): boolean {
+  if (!lesson.startsAt) return false;
+  // In corso (endsAt futuro) resta in “Prossima”, non in Recenti.
+  if (lesson.endsAt && lesson.endsAt > nowIso) return true;
+  return lesson.startsAt >= nowIso;
+}
+
+function splitStudentLessons(rows: CalendarLesson[], nowIso: string) {
+  const dated = rows.filter(
+    (lesson): lesson is CalendarLesson & { startsAt: string } =>
+      Boolean(lesson.startsAt),
+  );
+  const upcoming = dated
+    .filter((lesson) => isStillUpcoming(lesson, nowIso))
+    .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+  const past = dated
+    .filter((lesson) => !isStillUpcoming(lesson, nowIso))
+    .sort((a, b) => b.startsAt!.localeCompare(a.startsAt!))
+    .slice(0, 12);
+  return { upcoming, past };
+}
 
 export default function LezioniScreen() {
   const router = useRouter();
   const { member, roles, isLoading: authLoading } = useAuth();
   const supabase = useMemo(() => createClient(), []);
+  // Docente+associato/tutore → preferisci sempre la vista docente.
   const isDocente = roles.includes(MemberRole.Docente);
+  const isStudentOrTutor =
+    !isDocente &&
+    (roles.includes(MemberRole.Associato) ||
+      roles.includes(MemberRole.Tutore));
   const [today, setToday] = useState(todayInRome);
 
   const [lessons, setLessons] = useState<CalendarLesson[]>([]);
   const [arrears, setArrears] = useState<CalendarLesson[]>([]);
+  const [lessonsUpcoming, setLessonsUpcoming] = useState<CalendarLesson[]>([]);
+  const [lessonsPast, setLessonsPast] = useState<CalendarLesson[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +76,7 @@ export default function LezioniScreen() {
     return () => clearInterval(id);
   }, []);
 
-  const load = useCallback(
+  const loadDocente = useCallback(
     async (mode: "initial" | "refresh" = "initial") => {
       if (!member?.id) {
         setLessons([]);
@@ -98,17 +128,106 @@ export default function LezioniScreen() {
     [member?.id, supabase],
   );
 
-  useEffect(() => {
-    if (authLoading) return;
-    if (!isDocente) {
-      router.replace("/(tabs)/dashboard");
-    }
-  }, [authLoading, isDocente, router]);
+  const loadStudent = useCallback(
+    async (mode: "initial" | "refresh" = "initial") => {
+      if (!member?.id) {
+        setLessonsUpcoming([]);
+        setLessonsPast([]);
+        setLoading(false);
+        return;
+      }
+
+      if (mode === "initial") setLoading(true);
+      else setRefreshing(true);
+      setError(null);
+
+      const day = todayInRome();
+      setToday(day);
+
+      try {
+        // Una fetch today-21 … today+28 (to esclusivo → +29). Niente hold.
+        // Niente studentMemberId: RLS (enrollment proprio + ward del tutore).
+        // Con studentMemberId=me il tutore puro vedrebbe sempre lista vuota.
+        const rows = await listLessonsInRange(supabase, {
+          from: addRomeDays(day, -21),
+          to: addRomeDays(day, 29),
+        });
+
+        const { upcoming, past } = splitStudentLessons(
+          rows,
+          new Date().toISOString(),
+        );
+        setLessonsUpcoming(upcoming);
+        setLessonsPast(past);
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Impossibile caricare le lezioni.",
+        );
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [member?.id, supabase],
+  );
 
   useEffect(() => {
-    if (!isDocente) return;
-    void load("initial");
-  }, [isDocente, load, today]);
+    if (authLoading) return;
+    if (!isDocente && !isStudentOrTutor) {
+      router.replace("/(tabs)/dashboard");
+    }
+  }, [authLoading, isDocente, isStudentOrTutor, router]);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (isDocente) {
+      void loadDocente("initial");
+      return;
+    }
+    if (isStudentOrTutor) {
+      void loadStudent("initial");
+    }
+  }, [
+    authLoading,
+    isDocente,
+    isStudentOrTutor,
+    loadDocente,
+    loadStudent,
+    today,
+  ]);
+
+  if (isStudentOrTutor) {
+    return (
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => void loadStudent("refresh")}
+            tintColor="#1e3a5f"
+          />
+        }
+      >
+        <StudentLessonsView
+          lessonsUpcoming={lessonsUpcoming}
+          lessonsPast={lessonsPast}
+          loading={loading}
+          error={error}
+        />
+      </ScrollView>
+    );
+  }
+
+  if (!isDocente) {
+    return (
+      <View style={styles.container}>
+        <ActivityIndicator style={styles.loader} color="#1e3a5f" />
+      </View>
+    );
+  }
 
   return (
     <ScrollView
@@ -117,7 +236,7 @@ export default function LezioniScreen() {
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
-          onRefresh={() => void load("refresh")}
+          onRefresh={() => void loadDocente("refresh")}
           tintColor="#1e3a5f"
         />
       }
@@ -135,7 +254,9 @@ export default function LezioniScreen() {
         </Pressable>
       </View>
 
-      {loading ? <ActivityIndicator style={styles.loader} color="#1e3a5f" /> : null}
+      {loading ? (
+        <ActivityIndicator style={styles.loader} color="#1e3a5f" />
+      ) : null}
 
       {error ? (
         <View style={styles.alertError}>
@@ -152,7 +273,7 @@ export default function LezioniScreen() {
           lessons={lessons}
           arrears={arrears}
           actorMemberId={member.id}
-          onSaved={() => void load("refresh")}
+          onSaved={() => void loadDocente("refresh")}
         />
       ) : null}
     </ScrollView>
