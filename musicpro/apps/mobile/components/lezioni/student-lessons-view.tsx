@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -18,6 +18,18 @@ import {
 
 const NAVY = "#1e3a5f";
 const PAST_LIMIT = 10;
+/** Tick per etichette relative «tra X min» / «in corso» quando nowIso non è iniettato. */
+const RELATIVE_TICK_MS = 45_000;
+const WARN_AMBER_BG = "#fef3c7";
+const WARN_AMBER_TEXT = "#92400e";
+
+export type StudentWalletRow = {
+  enrollmentId: string;
+  courseId: string;
+  courseName: string;
+  /** Lezioni residue sul pack. */
+  balance: number;
+};
 
 export type StudentLessonsViewProps = {
   lessonsUpcoming: CalendarLesson[];
@@ -26,6 +38,11 @@ export type StudentLessonsViewProps = {
   error?: string | null;
   /** Instant ISO per relative labels (test / clock injection). */
   nowIso?: string;
+  /**
+   * Pack/crediti per corso.
+   * `undefined` → sezione nascosta; `[]` → empty muted; non-vuoto → elenco.
+   */
+  wallets?: StudentWalletRow[];
 };
 
 function dateInRome(iso: string | null | undefined): string | null {
@@ -86,8 +103,22 @@ export function StudentLessonsView({
   loading = false,
   error = null,
   nowIso,
+  wallets,
 }: StudentLessonsViewProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [liveNowIso, setLiveNowIso] = useState(() => new Date().toISOString());
+
+  // Tick locale solo se il parent non inietta nowIso (test / clock fisso).
+  useEffect(() => {
+    if (nowIso != null) return;
+    setLiveNowIso(new Date().toISOString());
+    const id = setInterval(() => {
+      setLiveNowIso(new Date().toISOString());
+    }, RELATIVE_TICK_MS);
+    return () => clearInterval(id);
+  }, [nowIso]);
+
+  const effectiveNowIso = nowIso ?? liveNowIso;
 
   if (loading) {
     return (
@@ -118,9 +149,11 @@ export function StudentLessonsView({
     <View>
       <NextHero
         lesson={next}
-        nowIso={nowIso}
+        nowIso={effectiveNowIso}
         compactEmpty={hasAny && !next}
       />
+
+      {wallets != null ? <CreditsSection wallets={wallets} /> : null}
 
       {upcomingRest.length > 0 ? (
         <View style={styles.section}>
@@ -129,7 +162,7 @@ export function StudentLessonsView({
             <UpcomingCard
               key={lesson.id}
               lesson={lesson}
-              nowIso={nowIso}
+              nowIso={effectiveNowIso}
               expanded={expandedId === lesson.id}
               onPress={() => toggle(lesson.id)}
             />
@@ -149,6 +182,74 @@ export function StudentLessonsView({
             />
           ))}
         </View>
+      ) : null}
+    </View>
+  );
+}
+
+function CreditsSection({ wallets }: { wallets: StudentWalletRow[] }) {
+  if (wallets.length === 0) {
+    return (
+      <View style={styles.section} accessibilityLabel="Crediti lezione">
+        <Text style={styles.sectionTitle}>Crediti lezione</Text>
+        <Text style={styles.creditsEmpty}>Nessun credito da mostrare</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.section} accessibilityLabel="Crediti lezione">
+      <Text style={styles.sectionTitle}>Crediti lezione</Text>
+      {wallets.map((wallet) => (
+        <CreditRow key={wallet.enrollmentId} wallet={wallet} />
+      ))}
+    </View>
+  );
+}
+
+function CreditRow({ wallet }: { wallet: StudentWalletRow }) {
+  const exhausted = wallet.balance <= 0;
+  const low = !exhausted && wallet.balance <= 1;
+  const warn = exhausted || low;
+
+  const balanceLabel = exhausted
+    ? "0 residue"
+    : wallet.balance === 1
+      ? "1 residua"
+      : `${wallet.balance} residue`;
+
+  const statusText = exhausted
+    ? "Nessun credito — contatta la segreteria"
+    : low
+      ? "Pacchetto in esaurimento"
+      : null;
+
+  return (
+    <View
+      style={[styles.creditRow, warn ? styles.creditRowWarn : null]}
+      accessibilityLabel={[
+        wallet.courseName.trim() || "Corso",
+        balanceLabel,
+        statusText,
+      ]
+        .filter(Boolean)
+        .join(", ")}
+    >
+      <View style={styles.creditRowMain}>
+        <Text
+          style={[styles.creditCourse, warn ? styles.creditTextWarn : null]}
+          numberOfLines={2}
+        >
+          {wallet.courseName.trim() || "Corso"}
+        </Text>
+        <Text
+          style={[styles.creditBalance, warn ? styles.creditTextWarn : null]}
+        >
+          {balanceLabel}
+        </Text>
+      </View>
+      {statusText ? (
+        <Text style={styles.creditStatus}>{statusText}</Text>
       ) : null}
     </View>
   );
@@ -482,6 +583,51 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: NAVY,
     marginBottom: 4,
+  },
+  creditsEmpty: {
+    marginTop: 8,
+    fontSize: 14,
+    color: "#666",
+  },
+  creditRow: {
+    marginTop: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    backgroundColor: "#fff",
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  creditRowWarn: {
+    backgroundColor: WARN_AMBER_BG,
+    borderColor: "#fcd34d",
+  },
+  creditRowMain: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  creditCourse: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 15,
+    fontWeight: "500",
+    color: "#222",
+  },
+  creditBalance: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: NAVY,
+  },
+  creditTextWarn: {
+    color: WARN_AMBER_TEXT,
+  },
+  creditStatus: {
+    marginTop: 6,
+    fontSize: 13,
+    fontWeight: "500",
+    color: WARN_AMBER_TEXT,
   },
   card: {
     marginTop: 10,

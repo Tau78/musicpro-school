@@ -13,11 +13,14 @@ import { useRouter } from "expo-router";
 import {
   listLessonsInRange,
   listLessonsOnDate,
+  listMyEnrollmentWallets,
   todayInRome,
   type CalendarLesson,
+  type MemberEnrollmentWallet,
 } from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
 
+import { CreateLessonSheet } from "@/components/lezioni/create-lesson-sheet";
 import { OggiList } from "@/components/lezioni/oggi-list";
 import { StudentLessonsView } from "@/components/lezioni/student-lessons-view";
 import { useAuth } from "@/contexts/AuthContext";
@@ -26,7 +29,6 @@ import { createClient } from "@/lib/supabase";
 
 function isStillUpcoming(lesson: CalendarLesson, nowIso: string): boolean {
   if (!lesson.startsAt) return false;
-  // In corso (endsAt futuro) resta in “Prossima”, non in Recenti.
   if (lesson.endsAt && lesson.endsAt > nowIso) return true;
   return lesson.startsAt >= nowIso;
 }
@@ -50,29 +52,34 @@ export default function LezioniScreen() {
   const router = useRouter();
   const { member, roles, isLoading: authLoading } = useAuth();
   const supabase = useMemo(() => createClient(), []);
-  // Docente+associato/tutore → preferisci sempre la vista docente.
   const isDocente = roles.includes(MemberRole.Docente);
   const isStudentOrTutor =
     !isDocente &&
     (roles.includes(MemberRole.Associato) ||
       roles.includes(MemberRole.Tutore));
   const [today, setToday] = useState(todayInRome);
+  const [nowIso, setNowIso] = useState(() => new Date().toISOString());
 
   const [lessons, setLessons] = useState<CalendarLesson[]>([]);
   const [arrears, setArrears] = useState<CalendarLesson[]>([]);
   const [lessonsUpcoming, setLessonsUpcoming] = useState<CalendarLesson[]>([]);
   const [lessonsPast, setLessonsPast] = useState<CalendarLesson[]>([]);
+  const [wallets, setWallets] = useState<MemberEnrollmentWallet[] | undefined>(
+    undefined,
+  );
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
 
   useEffect(() => {
     const sync = () => {
       const next = todayInRome();
       setToday((prev) => (prev === next ? prev : next));
+      setNowIso(new Date().toISOString());
     };
     sync();
-    const id = setInterval(sync, 60_000);
+    const id = setInterval(sync, 45_000);
     return () => clearInterval(id);
   }, []);
 
@@ -91,6 +98,7 @@ export default function LezioniScreen() {
 
       const day = todayInRome();
       setToday(day);
+      setNowIso(new Date().toISOString());
 
       try {
         const [todayLessons, arrearsRange] = await Promise.all([
@@ -133,6 +141,7 @@ export default function LezioniScreen() {
       if (!member?.id) {
         setLessonsUpcoming([]);
         setLessonsPast([]);
+        setWallets(undefined);
         setLoading(false);
         return;
       }
@@ -143,22 +152,22 @@ export default function LezioniScreen() {
 
       const day = todayInRome();
       setToday(day);
+      const now = new Date().toISOString();
+      setNowIso(now);
 
       try {
-        // Una fetch today-21 … today+28 (to esclusivo → +29). Niente hold.
-        // Niente studentMemberId: RLS (enrollment proprio + ward del tutore).
-        // Con studentMemberId=me il tutore puro vedrebbe sempre lista vuota.
-        const rows = await listLessonsInRange(supabase, {
-          from: addRomeDays(day, -21),
-          to: addRomeDays(day, 29),
-        });
+        const [rows, walletRows] = await Promise.all([
+          listLessonsInRange(supabase, {
+            from: addRomeDays(day, -21),
+            to: addRomeDays(day, 29),
+          }),
+          listMyEnrollmentWallets(supabase),
+        ]);
 
-        const { upcoming, past } = splitStudentLessons(
-          rows,
-          new Date().toISOString(),
-        );
+        const { upcoming, past } = splitStudentLessons(rows, now);
         setLessonsUpcoming(upcoming);
         setLessonsPast(past);
+        setWallets(walletRows);
       } catch (err) {
         setError(
           err instanceof Error
@@ -216,6 +225,8 @@ export default function LezioniScreen() {
           lessonsPast={lessonsPast}
           loading={loading}
           error={error}
+          nowIso={nowIso}
+          wallets={wallets}
         />
       </ScrollView>
     );
@@ -230,53 +241,79 @@ export default function LezioniScreen() {
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={() => void loadDocente("refresh")}
-          tintColor="#1e3a5f"
-        />
-      }
-    >
-      <View style={styles.header}>
-        <View style={styles.headerText}>
-          <Text style={styles.title}>Oggi</Text>
-          <Text style={styles.subtitle}>{formatRomeDay(today)}</Text>
+    <>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => void loadDocente("refresh")}
+            tintColor="#1e3a5f"
+          />
+        }
+      >
+        <View style={styles.header}>
+          <View style={styles.headerText}>
+            <Text style={styles.title}>Oggi</Text>
+            <Text style={styles.subtitle}>{formatRomeDay(today)}</Text>
+          </View>
+          <View style={styles.headerActions}>
+            <Pressable
+              style={styles.secondaryButton}
+              onPress={() => setCreateOpen(true)}
+            >
+              <Text style={styles.secondaryButtonText}>Nuova prova</Text>
+            </Pressable>
+            <Pressable
+              style={styles.calendarButton}
+              onPress={() => router.push("/calendario-lezioni")}
+            >
+              <Text style={styles.calendarButtonText}>Calendario</Text>
+            </Pressable>
+          </View>
         </View>
-        <Pressable
-          style={styles.calendarButton}
-          onPress={() => router.push("/calendario-lezioni")}
-        >
-          <Text style={styles.calendarButtonText}>Calendario</Text>
-        </Pressable>
-      </View>
 
-      {loading ? (
-        <ActivityIndicator style={styles.loader} color="#1e3a5f" />
-      ) : null}
+        {loading ? (
+          <ActivityIndicator style={styles.loader} color="#1e3a5f" />
+        ) : null}
 
-      {error ? (
-        <View style={styles.alertError}>
-          <Text style={styles.alertErrorText}>{error}</Text>
-        </View>
-      ) : null}
+        {error ? (
+          <View style={styles.alertError}>
+            <Text style={styles.alertErrorText}>{error}</Text>
+          </View>
+        ) : null}
 
-      {!member?.id && !loading ? (
-        <Text style={styles.emptyHint}>Accedi per vedere le lezioni.</Text>
-      ) : null}
+        {!member?.id && !loading ? (
+          <Text style={styles.emptyHint}>Accedi per vedere le lezioni.</Text>
+        ) : null}
 
-      {!loading && member?.id ? (
-        <OggiList
-          lessons={lessons}
-          arrears={arrears}
+        {!loading && member?.id ? (
+          <OggiList
+            lessons={lessons}
+            arrears={arrears}
+            actorMemberId={member.id}
+            nowIso={nowIso}
+            onSaved={() => void loadDocente("refresh")}
+            onOpenCalendar={() => router.push("/calendario-lezioni")}
+            onNewTrial={() => setCreateOpen(true)}
+          />
+        ) : null}
+      </ScrollView>
+
+      {member?.id ? (
+        <CreateLessonSheet
+          visible={createOpen}
+          onClose={() => setCreateOpen(false)}
           actorMemberId={member.id}
-          onSaved={() => void loadDocente("refresh")}
+          roles={roles}
+          onCreated={() => {
+            setCreateOpen(false);
+            void loadDocente("refresh");
+          }}
         />
       ) : null}
-    </ScrollView>
+    </>
   );
 }
 
@@ -298,6 +335,13 @@ const styles = StyleSheet.create({
   headerText: {
     flex: 1,
   },
+  headerActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
+    gap: 8,
+    maxWidth: "55%",
+  },
   title: {
     fontSize: 22,
     fontWeight: "600",
@@ -307,6 +351,19 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 14,
     color: "#666",
+  },
+  secondaryButton: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#1e3a5f",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  secondaryButtonText: {
+    color: "#1e3a5f",
+    fontSize: 13,
+    fontWeight: "600",
   },
   calendarButton: {
     backgroundColor: "#1e3a5f",

@@ -52,6 +52,16 @@ export type EnrollmentWallet = {
   leftoverEurFamily: number;
 };
 
+/** Wallet crediti lezione per associato/tutore (enrollment attivi visibili via RLS). */
+export type MemberEnrollmentWallet = {
+  enrollmentId: string;
+  courseId: string;
+  courseName: string;
+  memberId: string;
+  /** Lezioni residue (somma delta ledger). */
+  balance: number;
+};
+
 type FeeRow = Database["public"]["Tables"]["lesson_fees"]["Row"];
 type EnrollmentRow = Database["public"]["Tables"]["course_enrollments"]["Row"];
 
@@ -739,6 +749,67 @@ export async function getEnrollmentWallet(
     openingPrepaidLessons: enrollment.opening_prepaid_lessons,
     leftoverEurFamily,
   };
+}
+
+/**
+ * Wallet crediti lezione per enrollment attivi visibili al caller via RLS
+ * (own + ward per tutore; docenti/staff via policy esistenti su enrollments).
+ */
+export async function listMyEnrollmentWallets(
+  client: WalletClient,
+): Promise<MemberEnrollmentWallet[]> {
+  const { data: enrollments, error } = await client
+    .from("course_enrollments")
+    .select("id, course_id, member_id")
+    .is("left_at", null)
+    .order("created_at", { ascending: true });
+  if (error) {
+    throw new Error(
+      error.message || "Impossibile caricare le iscrizioni del wallet.",
+    );
+  }
+  const rows = enrollments ?? [];
+  if (rows.length === 0) return [];
+
+  const courseIds = [...new Set(rows.map((row) => row.course_id))];
+  const enrollmentIds = rows.map((row) => row.id);
+
+  const [coursesRes, ledgerRes] = await Promise.all([
+    client.from("courses").select("id, name").in("id", courseIds),
+    client
+      .from("lesson_credit_ledger")
+      .select("course_enrollment_id, delta")
+      .in("course_enrollment_id", enrollmentIds),
+  ]);
+  if (coursesRes.error) {
+    throw new Error(
+      coursesRes.error.message || "Impossibile caricare i corsi del wallet.",
+    );
+  }
+  if (ledgerRes.error) {
+    throw new Error(
+      ledgerRes.error.message || "Impossibile caricare i movimenti wallet.",
+    );
+  }
+
+  const courseNameById = new Map(
+    (coursesRes.data ?? []).map((row) => [row.id, row.name]),
+  );
+  const balanceByEnrollment = new Map<string, number>();
+  for (const row of ledgerRes.data ?? []) {
+    balanceByEnrollment.set(
+      row.course_enrollment_id,
+      (balanceByEnrollment.get(row.course_enrollment_id) ?? 0) + row.delta,
+    );
+  }
+
+  return rows.map((row) => ({
+    enrollmentId: row.id,
+    courseId: row.course_id,
+    courseName: courseNameById.get(row.course_id) ?? "",
+    memberId: row.member_id,
+    balance: balanceByEnrollment.get(row.id) ?? 0,
+  }));
 }
 
 export async function listEnrollmentWalletsForCourse(
