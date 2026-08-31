@@ -28,6 +28,8 @@ export type ListLessonsCalendarOptions = {
   titularMemberId?: string;
   /** Titolare o riga attiva in `course_teachers` (coordinatore). */
   teacherMemberId?: string;
+  /** Iscritto (o ward del tutore): filtra sui corsi con enrollment attivo. */
+  studentMemberId?: string;
   roomId?: string;
   includePendingHold?: boolean;
 };
@@ -147,6 +149,7 @@ function resolveRangeBound(value: string, label: string): string {
 async function lessonIdsWithAttendance(
   client: CalendarClient,
   lessonIds: string[],
+  opts?: { softFail?: boolean },
 ): Promise<Set<string>> {
   if (lessonIds.length === 0) return new Set();
   const { data, error } = await client
@@ -154,6 +157,8 @@ async function lessonIdsWithAttendance(
     .select("lesson_id")
     .in("lesson_id", lessonIds);
   if (error) {
+    // Soft-fail solo sul list calendar (studente/tutore): moveLesson deve fallire.
+    if (opts?.softFail) return new Set();
     throw new Error(
       `Impossibile verificare le presenze: ${error.message}`,
     );
@@ -352,6 +357,14 @@ export async function listLessonsInRange(
     query = query.in("course_id", teacherCourseIds);
   }
 
+  const studentCourseIds = input.studentMemberId
+    ? await resolveStudentCourseIds(client, input.studentMemberId)
+    : undefined;
+  if (studentCourseIds) {
+    if (studentCourseIds.length === 0) return [];
+    query = query.in("course_id", studentCourseIds);
+  }
+
   const { data: lessonRows, error: lessonError } = await query;
   if (lessonError) {
     throw new Error(`Impossibile caricare le lezioni: ${lessonError.message}`);
@@ -510,6 +523,7 @@ export async function listLessonsInRange(
   const attendedIds = await lessonIdsWithAttendance(
     client,
     mapped.map((row) => row.id),
+    { softFail: true },
   );
   for (const lesson of mapped) {
     lesson.hasAttendance = attendedIds.has(lesson.id);
@@ -556,6 +570,23 @@ async function resolveTeacherCourseIds(
   for (const row of titularRes.data ?? []) ids.add(row.id);
   for (const row of assignedRes.data ?? []) ids.add(row.course_id);
   return [...ids];
+}
+
+async function resolveStudentCourseIds(
+  client: CalendarClient,
+  studentMemberId: string,
+): Promise<string[]> {
+  const { data, error } = await client
+    .from("course_enrollments")
+    .select("course_id")
+    .eq("member_id", studentMemberId)
+    .is("left_at", null);
+  if (error) {
+    throw new Error(
+      `Impossibile caricare i corsi dell'allievo: ${error.message}`,
+    );
+  }
+  return [...new Set((data ?? []).map((row) => row.course_id))];
 }
 
 async function listHoldCardsInRange(
