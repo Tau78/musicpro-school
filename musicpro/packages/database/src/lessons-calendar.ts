@@ -73,6 +73,11 @@ export interface CalendarLesson extends Lesson {
   titularLastName: string;
   /** «Cognome Nome» degli iscritti attivi (`left_at` null). */
   studentNames: string[];
+  /**
+   * Telefoni allievi, stesso ordine di `studentNames`.
+   * Preferisce `phone`, altrimenti `manual_tutor_phone`; stringa vuota se assente.
+   */
+  studentPhones: string[];
   roomName: string | null;
   /** True se esiste almeno una riga in lesson_attendances. */
   hasAttendance: boolean;
@@ -119,6 +124,15 @@ function addMinutesIso(iso: string, minutes: number): string {
 
 function studentLabel(lastName: string, firstName: string): string {
   return `${lastName} ${firstName}`.trim();
+}
+
+function studentPhone(row: {
+  phone: string | null;
+  manual_tutor_phone: string | null;
+}): string {
+  const phone = row.phone?.trim() ?? "";
+  if (phone) return phone;
+  return row.manual_tutor_phone?.trim() ?? "";
 }
 
 function intervalsOverlap(
@@ -470,13 +484,18 @@ export async function listLessonsInRange(
   const studentIds = [...new Set(enrollments.map((row) => row.member_id))];
   const studentsById = new Map<
     string,
-    { first_name: string; last_name: string }
+    {
+      first_name: string;
+      last_name: string;
+      phone: string | null;
+      manual_tutor_phone: string | null;
+    }
   >();
 
   if (studentIds.length > 0) {
     const { data: students, error: studentsError } = await client
       .from("members")
-      .select("id, first_name, last_name")
+      .select("id, first_name, last_name, phone, manual_tutor_phone")
       .in("id", studentIds);
     if (studentsError) {
       throw new Error(
@@ -488,22 +507,27 @@ export async function listLessonsInRange(
     }
   }
 
-  const namesByCourse = new Map<string, string[]>();
+  type StudentEntry = { name: string; phone: string };
+  const studentsByCourse = new Map<string, StudentEntry[]>();
   for (const enrollment of enrollments) {
     const student = studentsById.get(enrollment.member_id);
     if (!student) continue;
-    const list = namesByCourse.get(enrollment.course_id) ?? [];
-    list.push(studentLabel(student.last_name, student.first_name));
-    namesByCourse.set(enrollment.course_id, list);
+    const list = studentsByCourse.get(enrollment.course_id) ?? [];
+    list.push({
+      name: studentLabel(student.last_name, student.first_name),
+      phone: studentPhone(student),
+    });
+    studentsByCourse.set(enrollment.course_id, list);
   }
-  for (const [courseId, names] of namesByCourse) {
-    names.sort((a, b) => a.localeCompare(b, "it"));
-    namesByCourse.set(courseId, names);
+  for (const [courseId, entries] of studentsByCourse) {
+    entries.sort((a, b) => a.name.localeCompare(b.name, "it"));
+    studentsByCourse.set(courseId, entries);
   }
 
   const mapped = visibleLessons.map((row) => {
     const course = coursesById.get(row.course_id)!;
     const titular = titularById.get(course.titular_member_id);
+    const students = studentsByCourse.get(course.id) ?? [];
     return {
       ...mapLesson(row),
       courseName: course.name,
@@ -514,7 +538,8 @@ export async function listLessonsInRange(
       titularMemberId: course.titular_member_id,
       titularFirstName: titular?.first_name ?? "",
       titularLastName: titular?.last_name ?? "",
-      studentNames: namesByCourse.get(course.id) ?? [],
+      studentNames: students.map((s) => s.name),
+      studentPhones: students.map((s) => s.phone),
       roomName: row.room_id ? roomById.get(row.room_id) ?? null : null,
       hasAttendance: false,
     };
@@ -692,23 +717,32 @@ async function listHoldCardsInRange(
     studentIds.length > 0
       ? await client
           .from("members")
-          .select("id, first_name, last_name")
+          .select("id, first_name, last_name, phone, manual_tutor_phone")
           .in("id", studentIds)
       : { data: [] };
   const studentById = new Map((students ?? []).map((row) => [row.id, row]));
-  const namesByCourse = new Map<string, string[]>();
+  type StudentEntry = { name: string; phone: string };
+  const studentsByCourse = new Map<string, StudentEntry[]>();
   for (const enrollment of enrollmentsRes.data ?? []) {
     const student = studentById.get(enrollment.member_id);
     if (!student) continue;
-    const list = namesByCourse.get(enrollment.course_id) ?? [];
-    list.push(studentLabel(student.last_name, student.first_name));
-    namesByCourse.set(enrollment.course_id, list);
+    const list = studentsByCourse.get(enrollment.course_id) ?? [];
+    list.push({
+      name: studentLabel(student.last_name, student.first_name),
+      phone: studentPhone(student),
+    });
+    studentsByCourse.set(enrollment.course_id, list);
+  }
+  for (const [courseId, entries] of studentsByCourse) {
+    entries.sort((a, b) => a.name.localeCompare(b.name, "it"));
+    studentsByCourse.set(courseId, entries);
   }
 
   return visible.map((course) => {
     const booking = bookingById.get(course.hold_booking_id!)!;
     const titular = titularById.get(course.titular_member_id);
     const roomId = booking.room_id ?? course.room_id;
+    const students = studentsByCourse.get(course.id) ?? [];
     return {
       id: `hold:${course.id}`,
       courseId: course.id,
@@ -734,7 +768,8 @@ async function listHoldCardsInRange(
       titularMemberId: course.titular_member_id,
       titularFirstName: titular?.first_name ?? "",
       titularLastName: titular?.last_name ?? "",
-      studentNames: namesByCourse.get(course.id) ?? [],
+      studentNames: students.map((s) => s.name),
+      studentPhones: students.map((s) => s.phone),
       roomName: roomId ? roomById.get(roomId) ?? null : null,
       hasAttendance: false,
     };

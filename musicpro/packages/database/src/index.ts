@@ -516,6 +516,7 @@ export {
   getEnrollmentWallet,
   listEnrollmentWalletsForCourse,
   listLessonFees,
+  listMyEnrollmentWallets,
   maybeSendPackReminders,
   registerFamilyCollection,
   seedOpeningPrepaidCredits,
@@ -528,6 +529,7 @@ export type {
   LessonFeeKind,
   LessonFeeRow,
   LessonFeeStatus,
+  MemberEnrollmentWallet,
 } from "./lessons-wallet";
 export {
   confirmTeacherCashAdvance,
