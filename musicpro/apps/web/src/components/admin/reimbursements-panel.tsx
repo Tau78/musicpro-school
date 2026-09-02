@@ -21,6 +21,7 @@ import {
   type ReimbursementDisplay,
 } from "@musicpro/database";
 
+import { CollapsibleSection } from "@/components/admin/collapsible-section";
 import {
   generateReimbursementHtml,
   openPrintableNotula,
@@ -823,37 +824,40 @@ export function ReimbursementsPanel({
         </div>
       </section>
 
-      <section>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold text-[var(--brand)]">
-            Elenco rimborsi
-          </h2>
-          {selectedIds.size > 0 ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm text-neutral-600">
-                {selectedIds.size} selezionati
-              </span>
+      <CollapsibleSection
+        title="Elenco rimborsi"
+        defaultOpen={false}
+        description={
+          loading
+            ? "Caricamento…"
+            : `${reimbursements.length} notul${reimbursements.length === 1 ? "a" : "e"} · ${formatEuro(totalAmount)}`
+        }
+      >
+        {selectedIds.size > 0 ? (
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <span className="text-sm text-neutral-600">
+              {selectedIds.size} selezionati
+            </span>
+            <button
+              type="button"
+              disabled={bulkBusy}
+              onClick={() => void handleBulkEmail()}
+              className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm hover:bg-neutral-50 disabled:opacity-50"
+            >
+              Invia email
+            </button>
+            {canDelete ? (
               <button
                 type="button"
                 disabled={bulkBusy}
-                onClick={() => void handleBulkEmail()}
-                className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm hover:bg-neutral-50 disabled:opacity-50"
+                onClick={() => setDeleteConfirm(true)}
+                className="rounded-lg border border-red-200 px-3 py-1.5 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
               >
-                Invia email
+                Elimina
               </button>
-              {canDelete ? (
-                <button
-                  type="button"
-                  disabled={bulkBusy}
-                  onClick={() => setDeleteConfirm(true)}
-                  className="rounded-lg border border-red-200 px-3 py-1.5 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
-                >
-                  Elimina
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
+            ) : null}
+          </div>
+        ) : null}
 
         {loading ? (
           <p className="mt-4 text-sm text-neutral-500">Caricamento…</p>
@@ -1014,7 +1018,7 @@ export function ReimbursementsPanel({
             </table>
           </div>
         )}
-      </section>
+      </CollapsibleSection>
 
       <section className="rounded-xl border border-neutral-200 bg-white p-6">
         <h2 className="text-lg font-semibold text-[var(--brand)]">
