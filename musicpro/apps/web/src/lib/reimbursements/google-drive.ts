@@ -134,7 +134,7 @@ async function findChild(
     files?: Array<{ id: string; webViewLink?: string }>;
   }>(
     token,
-    `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,webViewLink)&pageSize=1&supportsAllDrives=true&includeItemsFromAllDrives=true`,
+    `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,webViewLink)&pageSize=1&supportsAllDrives=true&includeItemsFromAllDrives=true&corpora=allDrives`,
   );
   return data.files?.[0] ?? null;
 }
