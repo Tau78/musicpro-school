@@ -1408,7 +1408,8 @@ function mapPostgresError(error: { code?: string; message: string }): CreateBook
 }
 
 export function formatDateItalian(date: string): string {
-  const noonUtc = romeLocalToUtcIso(date, 12, 0);
+  const dateOnly = /^\d{4}-\d{2}-\d{2}/.test(date) ? date.slice(0, 10) : date;
+  const noonUtc = romeLocalToUtcIso(dateOnly, 12, 0);
   return new Intl.DateTimeFormat("it-IT", {
     timeZone: BOOKING_TIMEZONE,
     weekday: "long",

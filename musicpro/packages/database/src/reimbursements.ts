@@ -666,11 +666,18 @@ export function formatEuro(amount: number): string {
   }).format(amount);
 }
 
-export function formatDateItalian(isoDate: string): string {
+export function formatDateItalian(isoDate: string | null | undefined): string {
+  if (!isoDate?.trim()) return "—";
+  const raw = isoDate.trim();
+  const dateOnly = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const parsed = dateOnly
+    ? new Date(`${dateOnly[1]}-${dateOnly[2]}-${dateOnly[3]}T12:00:00+01:00`)
+    : new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return "—";
   return new Intl.DateTimeFormat("it-IT", {
     timeZone: "Europe/Rome",
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
-  }).format(new Date(isoDate));
+  }).format(parsed);
 }
