@@ -2,22 +2,13 @@ import { NextResponse } from "next/server";
 
 import {
   getCurrentMemberWithRoles,
-  getMemberById,
   getReimbursementById,
 } from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
 
 import { canManageReimbursements } from "@/lib/admin/roles";
-import {
-  buildNotulaEmailContent,
-  sendReimbursementEmailViaResend,
-  uint8ToBase64,
-} from "@/lib/reimbursements/email";
-import { reimbursementPdfLink, toNotulaPdfInput } from "@/lib/reimbursements/notula";
-import { generateReimbursementPdf } from "@/lib/reimbursements/pdf";
+import { sendReimbursementNotulaEmail } from "@/lib/reimbursements/send";
 import { createClient } from "@/lib/supabase/server";
-
-const STORAGE_BUCKET = "reimbursements";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -79,75 +70,8 @@ export async function POST(request: Request) {
       continue;
     }
 
-    const member = await getMemberById(supabase, reimbursement.memberId);
-    const recipient = member?.email?.trim();
-    if (!recipient) {
-      results.push({
-        id,
-        success: true,
-        skipped: true,
-        message: "Email associato mancante",
-      });
-      continue;
-    }
-
-    const docLabel = `${reimbursement.progressive}-${reimbursement.fiscalYear} - ${reimbursement.associateName}`;
-    const content = buildNotulaEmailContent({
-      associateName: reimbursement.associateName,
-      docLabel,
-      pdfLink: reimbursementPdfLink(reimbursement),
-    });
-
-    let attachment:
-      | { filename: string; content: string; content_type: string }
-      | undefined;
-
-    if (reimbursement.pdfStoragePath) {
-      const { data, error } = await supabase.storage
-        .from(STORAGE_BUCKET)
-        .download(reimbursement.pdfStoragePath);
-      if (!error && data) {
-        const buf = new Uint8Array(await data.arrayBuffer());
-        attachment = {
-          filename:
-            reimbursement.pdfStoragePath.split("/").pop() || "notula.pdf",
-          content: uint8ToBase64(buf),
-          content_type: "application/pdf",
-        };
-      }
-    }
-
-    if (!attachment) {
-      const pdf = await generateReimbursementPdf(
-        await toNotulaPdfInput(supabase, reimbursement),
-      );
-      attachment = {
-        filename: pdf.filename,
-        content: uint8ToBase64(pdf.bytes),
-        content_type: pdf.contentType,
-      };
-    }
-
-    const result = await sendReimbursementEmailViaResend({
-      to: recipient,
-      subject: content.subject,
-      html: content.html,
-      text: content.text,
-      attachments: [attachment],
-    });
-
-    if (!result.ok) {
-      results.push({ id, success: false, message: result.error, recipient });
-      continue;
-    }
-
-    results.push({
-      id,
-      success: true,
-      sent: true,
-      message: "Email inviata",
-      recipient,
-    });
+    const result = await sendReimbursementNotulaEmail(supabase, reimbursement);
+    results.push(result);
   }
 
   const sent = results.filter((r) => r.sent).length;
@@ -162,7 +86,7 @@ export async function POST(request: Request) {
     results,
     message:
       failed > 0
-        ? `${failed} email non inviate. Controlla RESEND_API_KEY e gli indirizzi associati.`
+        ? `${failed} email non inviate. Controlla RESEND_API_KEY e gli indirizzi dei docenti.`
         : undefined,
   });
 }

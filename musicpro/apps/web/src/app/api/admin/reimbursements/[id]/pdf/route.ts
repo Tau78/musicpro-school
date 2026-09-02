@@ -4,20 +4,28 @@ import {
   getCurrentMemberWithRoles,
   getReimbursementById,
   isExternalPdfUrl,
-  updateReimbursementPdf,
 } from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
 
 import { canManageReimbursements } from "@/lib/admin/roles";
-import { toNotulaPdfInput } from "@/lib/reimbursements/notula";
-import { generateReimbursementPdf } from "@/lib/reimbursements/pdf";
+import {
+  persistReimbursementPdf,
+  REIMBURSEMENTS_STORAGE_BUCKET,
+} from "@/lib/reimbursements/persist";
 import { createClient } from "@/lib/supabase/server";
-
-const STORAGE_BUCKET = "reimbursements";
+import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
 };
+
+function tryServiceRole() {
+  try {
+    return createServiceRoleClient();
+  } catch {
+    return null;
+  }
+}
 
 async function authorize(id: string) {
   const supabase = await createClient();
@@ -74,13 +82,14 @@ async function signedStorageUrl(
   supabase: Awaited<ReturnType<typeof createClient>>,
   storagePath: string,
 ): Promise<string | null> {
-  const { data: signed, error } = await supabase.storage
-    .from(STORAGE_BUCKET)
+  const storageClient = tryServiceRole() ?? supabase;
+  const { data: signed, error } = await storageClient.storage
+    .from(REIMBURSEMENTS_STORAGE_BUCKET)
     .createSignedUrl(storagePath, 60 * 60);
   if (!error && signed?.signedUrl) return signed.signedUrl;
 
-  const { data: publicData } = supabase.storage
-    .from(STORAGE_BUCKET)
+  const { data: publicData } = storageClient.storage
+    .from(REIMBURSEMENTS_STORAGE_BUCKET)
     .getPublicUrl(storagePath);
   return publicData.publicUrl || null;
 }
@@ -104,7 +113,8 @@ export async function GET(_request: Request, context: RouteContext) {
       success: true,
       id,
       pdfUrl: reimbursement.pdfUrl,
-      source: "legacy",
+      pdfStoragePath: reimbursement.pdfStoragePath,
+      source: "drive",
     });
   }
 
@@ -115,6 +125,7 @@ export async function GET(_request: Request, context: RouteContext) {
         success: true,
         id,
         pdfUrl,
+        pdfStoragePath: reimbursement.pdfStoragePath,
         source: "storage",
       });
     }
@@ -139,56 +150,22 @@ export async function POST(_request: Request, context: RouteContext) {
   if ("error" in auth && auth.error) return auth.error;
   const { supabase, reimbursement } = auth;
 
-  if (isExternalPdfUrl(reimbursement.pdfUrl)) {
+  if (isExternalPdfUrl(reimbursement.pdfUrl) && reimbursement.pdfStoragePath) {
     return NextResponse.json({
       success: true,
       id,
       pdfUrl: reimbursement.pdfUrl,
-      source: "legacy",
+      pdfStoragePath: reimbursement.pdfStoragePath,
+      source: "drive",
     });
   }
 
-  const input = await toNotulaPdfInput(supabase, reimbursement);
-  const pdf = await generateReimbursementPdf(input);
-  const storagePath = `${reimbursement.fiscalYear}/${reimbursement.memberId}/${pdf.filename}`;
-
-  let pdfUrl: string | null = null;
-  let pdfStoragePath: string | null = null;
-  let storageSkipped = false;
-
-  const { error: uploadError } = await supabase.storage
-    .from(STORAGE_BUCKET)
-    .upload(storagePath, pdf.bytes, {
-      contentType: pdf.contentType,
-      upsert: true,
-    });
-
-  if (uploadError) {
-    storageSkipped = true;
-    const base64 =
-      typeof Buffer !== "undefined"
-        ? Buffer.from(pdf.bytes).toString("base64")
-        : "";
-    pdfUrl = base64 ? `data:application/pdf;base64,${base64}` : null;
-  } else {
-    pdfStoragePath = storagePath;
-    pdfUrl = await signedStorageUrl(supabase, storagePath);
-    await updateReimbursementPdf(supabase, id, {
-      pdfUrl: null,
-      pdfStoragePath,
-    });
-  }
-
-  return NextResponse.json({
-    success: true,
-    id,
-    pdfUrl,
-    pdfStoragePath,
-    storageSkipped,
-    filename: pdf.filename,
-    pdfBase64:
-      typeof Buffer !== "undefined"
-        ? Buffer.from(pdf.bytes).toString("base64")
-        : undefined,
-  });
+  const persisted = await persistReimbursementPdf(supabase, reimbursement);
+  return NextResponse.json(
+    {
+      ...persisted,
+      source: persisted.driveUrl ? "drive" : persisted.pdfStoragePath ? "storage" : "inline",
+    },
+    { status: persisted.success ? 200 : 502 },
+  );
 }

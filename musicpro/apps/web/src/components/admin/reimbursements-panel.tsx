@@ -130,6 +130,7 @@ export function ReimbursementsPanel({
   const [reportMemberId, setReportMemberId] = useState("");
   const [reportRows, setReportRows] = useState<ReimbursementDisplay[]>([]);
   const [reportLoading, setReportLoading] = useState(false);
+  const [pdfBusyId, setPdfBusyId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -315,10 +316,11 @@ export function ReimbursementsPanel({
       }
 
       let pdfOk = 0;
+      let pdfFailed = 0;
       let emailSent = 0;
       let emailSkipped = 0;
       let emailFailed = 0;
-      const emailErrors: string[] = [];
+      const flowErrors: string[] = [];
 
       for (let i = 0; i < batch.results.length; i++) {
         const result = batch.results[i];
@@ -331,9 +333,26 @@ export function ReimbursementsPanel({
             `/api/admin/reimbursements/${encodeURIComponent(id)}/pdf`,
             { method: "POST" },
           );
-          if (pdfRes.ok) pdfOk += 1;
-        } catch {
-          // PDF best-effort
+          const pdfPayload = (await pdfRes.json().catch(() => ({}))) as {
+            success?: boolean;
+            message?: string;
+            driveError?: string;
+            storageError?: string;
+          };
+          if (pdfRes.ok && pdfPayload.success) {
+            pdfOk += 1;
+            if (pdfPayload.driveError) {
+              flowErrors.push(`Drive: ${pdfPayload.driveError}`);
+            }
+          } else {
+            pdfFailed += 1;
+            if (pdfPayload.message) flowErrors.push(pdfPayload.message);
+          }
+        } catch (err) {
+          pdfFailed += 1;
+          flowErrors.push(
+            err instanceof Error ? err.message : "Errore generazione PDF",
+          );
         }
 
         if (input.sendEmail) {
@@ -351,10 +370,13 @@ export function ReimbursementsPanel({
             else if (payload.skipped) emailSkipped += 1;
             else {
               emailFailed += 1;
-              if (payload.message) emailErrors.push(payload.message);
+              if (payload.message) flowErrors.push(payload.message);
             }
-          } catch {
+          } catch (err) {
             emailFailed += 1;
+            flowErrors.push(
+              err instanceof Error ? err.message : "Errore invio email docente",
+            );
           }
         }
       }
@@ -362,17 +384,18 @@ export function ReimbursementsPanel({
       const partsMsg = [
         `${batch.createdIds.length} rimborso/i registrato/i`,
         pdfOk ? `${pdfOk} PDF` : null,
+        pdfFailed ? `${pdfFailed} PDF NON generati` : null,
         emailSent ? `${emailSent} email inviate` : null,
-        emailSkipped ? `${emailSkipped} senza email associato` : null,
+        emailSkipped ? `${emailSkipped} senza email docente` : null,
         emailFailed ? `${emailFailed} email NON inviate` : null,
         batch.success ? null : "(alcuni errori in generazione)",
       ].filter(Boolean);
 
       setGenerateMessage(partsMsg.join(" · "));
-      if (emailFailed > 0) {
+      if (pdfFailed > 0 || emailFailed > 0 || flowErrors.length > 0) {
         setError(
-          emailErrors[0] ??
-            "Una o più email non sono state inviate. Controlla RESEND_API_KEY.",
+          flowErrors[0] ??
+            "PDF o email non completati. Riprova da Genera PDF o controlla RESEND_API_KEY.",
         );
       }
       setCards([
@@ -434,62 +457,115 @@ export function ReimbursementsPanel({
     }
   }
 
-  async function openPdf(item: ReimbursementDisplay) {
-    if (item.pdfUrl && isExternalPdfUrl(item.pdfUrl)) {
-      window.open(item.pdfUrl, "_blank", "noopener,noreferrer");
-      return;
+  function openInPreview(
+    preview: Window | null,
+    url: string,
+  ): boolean {
+    if (preview && !preview.closed) {
+      preview.location.href = url;
+      return true;
     }
+    const fallback = window.open(url, "_blank", "noopener,noreferrer");
+    return Boolean(fallback);
+  }
 
-    const openPayload = async (method: "GET" | "POST") => {
+  function pdfUrlFromPayload(payload: {
+    pdfUrl?: string | null;
+    pdfBase64?: string;
+  }): string | null {
+    if (payload.pdfUrl && !payload.pdfUrl.startsWith("data:")) {
+      return payload.pdfUrl;
+    }
+    if (payload.pdfBase64) {
+      const bin = atob(payload.pdfBase64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      return URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+    }
+    if (payload.pdfUrl?.startsWith("data:application/pdf")) {
+      const comma = payload.pdfUrl.indexOf(",");
+      if (comma > 0) {
+        return pdfUrlFromPayload({ pdfBase64: payload.pdfUrl.slice(comma + 1) });
+      }
+    }
+    return null;
+  }
+
+  async function openPdf(item: ReimbursementDisplay) {
+    setError(null);
+    setPdfBusyId(item.id);
+    const preview = window.open("about:blank", "_blank");
+
+    type PdfPayload = {
+      pdfUrl?: string | null;
+      pdfBase64?: string;
+      success?: boolean;
+      message?: string;
+    };
+
+    const fetchPdf = async (method: "GET" | "POST") => {
       const res = await fetch(
         `/api/admin/reimbursements/${encodeURIComponent(item.id)}/pdf`,
         { method },
       );
-      return (await res.json()) as {
-        pdfUrl?: string | null;
-        pdfBase64?: string;
-        success?: boolean;
-      };
+      const payload = (await res.json().catch(() => ({}))) as PdfPayload;
+      return { ok: res.ok, payload };
     };
 
     try {
-      let payload = item.pdfStoragePath
-        ? await openPayload("GET")
-        : { success: false as boolean | undefined };
-      if (!payload.pdfUrl && !payload.pdfBase64) {
-        payload = await openPayload("POST");
-        void loadData();
-      }
-      if (payload.pdfUrl) {
-        window.open(payload.pdfUrl, "_blank", "noopener,noreferrer");
+      if (item.pdfUrl && isExternalPdfUrl(item.pdfUrl)) {
+        if (!openInPreview(preview, item.pdfUrl)) {
+          setError("Il browser ha bloccato il PDF. Consenti i popup per questa pagina.");
+        }
         return;
       }
-      if (payload.pdfBase64) {
-        const bin = atob(payload.pdfBase64);
-        const bytes = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-        const blob = new Blob([bytes], { type: "application/pdf" });
-        window.open(URL.createObjectURL(blob), "_blank", "noopener,noreferrer");
-        return;
-      }
-    } catch {
-      // fall through to HTML
-    }
 
-    openPrintableNotula(
-      generateReimbursementHtml({
-        progressive: item.progressive,
-        fiscalYear: item.fiscalYear,
-        associateName: item.associateName,
-        grossAmountEur: item.grossAmountEur,
-        paymentMethod: item.paymentMethod,
-        paymentDate: item.paymentDate,
-        receiptsAmountEur: item.receiptsAmountEur,
-        receiptsNote: item.receiptsNotes,
-        generatedAt: item.generatedAt,
-        signedAt: item.signedAt,
-      }),
-    );
+      let { payload } =
+        item.pdfStoragePath || item.pdfUrl
+          ? await fetchPdf("GET")
+          : { payload: { success: false } as PdfPayload };
+      if (!payload.pdfUrl && !payload.pdfBase64) {
+        const generated = await fetchPdf("POST");
+        payload = generated.payload;
+        void loadData();
+        if (!generated.ok && !payload.pdfBase64) {
+          preview?.close();
+          setError(payload.message ?? "Impossibile generare il PDF.");
+          return;
+        }
+      }
+
+      const url = pdfUrlFromPayload(payload);
+      if (url) {
+        if (!openInPreview(preview, url)) {
+          setError("Il browser ha bloccato il PDF. Consenti i popup per questa pagina.");
+        }
+        return;
+      }
+
+      preview?.close();
+      openPrintableNotula(
+        generateReimbursementHtml({
+          progressive: item.progressive,
+          fiscalYear: item.fiscalYear,
+          associateName: item.associateName,
+          grossAmountEur: item.grossAmountEur,
+          paymentMethod: item.paymentMethod,
+          paymentDate: item.paymentDate,
+          receiptsAmountEur: item.receiptsAmountEur,
+          receiptsNote: item.receiptsNotes,
+          generatedAt: item.generatedAt,
+          signedAt: item.signedAt,
+        }),
+      );
+    } catch (err) {
+      preview?.close();
+      setError(
+        err instanceof Error ? err.message : "Errore durante l'apertura del PDF.",
+      );
+    } finally {
+      setPdfBusyId(null);
+    }
   }
 
   async function loadReport() {
@@ -908,12 +984,15 @@ export function ReimbursementsPanel({
                     <td className="px-4 py-3">
                       <button
                         type="button"
+                        disabled={pdfBusyId === item.id}
                         onClick={() => void openPdf(item)}
-                        className="text-[var(--brand)] hover:underline"
+                        className="text-[var(--brand)] hover:underline disabled:opacity-50"
                       >
-                        {item.pdfUrl || item.pdfStoragePath
-                          ? "Visualizza PDF"
-                          : "Genera PDF"}
+                        {pdfBusyId === item.id
+                          ? "Generazione…"
+                          : item.pdfUrl || item.pdfStoragePath
+                            ? "Visualizza PDF"
+                            : "Genera PDF"}
                       </button>
                     </td>
                     {canDelete ? (
