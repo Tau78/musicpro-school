@@ -4,6 +4,7 @@ import {
   buildReceiptsNote,
   formatDateItalian,
   formatEuro,
+  reimbursementPdfFilename,
 } from "@musicpro/database";
 
 export interface NotulaPdfInput {
@@ -48,7 +49,8 @@ function buildReceiptsLine(input: NotulaPdfInput): string {
 }
 
 /**
- * Generates a simple Italian notula PDF (no Google Drive).
+ * Generates an Italian notula PDF. Persistence (Storage + Drive
+ * `Rimborsi {year}/{cognome}`) is handled by persistReimbursementPdf.
  */
 export async function generateReimbursementPdf(
   input: NotulaPdfInput,
@@ -130,11 +132,11 @@ export async function generateReimbursementPdf(
   }
 
   const bytes = await doc.save();
-  const safeName = input.associateName
-    .replace(/[^\w\s\-àèéìòùÀÈÉÌÒÙ]/gi, "")
-    .trim()
-    .replace(/\s+/g, "_");
-  const filename = `${input.progressive}-${input.fiscalYear}_${safeName || "notula"}.pdf`;
+  const filename = reimbursementPdfFilename({
+    progressive: input.progressive,
+    fiscalYear: input.fiscalYear,
+    associateName: input.associateName,
+  });
 
   return {
     bytes,

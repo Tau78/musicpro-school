@@ -8,7 +8,8 @@
     "testflight": "bash scripts/testflight.sh",
     "check:hermes-clone": "bash scripts/check-hermes-structuredclone.sh",
     "import:cespiti": "node scripts/import-libro-cespiti.mjs",
-    "smoke:documenti": "node scripts/smoke-documenti.mjs"
+    "smoke:documenti": "node scripts/smoke-documenti.mjs",
+    "smoke:rimborsi": "node scripts/smoke-rimborsi-pdf.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.8",

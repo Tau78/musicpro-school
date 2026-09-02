@@ -149,6 +149,24 @@ export async function updateBookingSettings(
   return { success: true };
 }
 
+export async function getAppSettingValue(
+  client: SettingsClient,
+  key: string,
+): Promise<string | null> {
+  const { data, error } = await client
+    .from("app_settings")
+    .select("value")
+    .eq("key", key)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Impossibile leggere l'impostazione ${key}: ${error.message}`);
+  }
+
+  const value = typeof data?.value === "string" ? data.value.trim() : "";
+  return value || null;
+}
+
 export async function listAppSettings(
   client: SettingsClient,
   keys?: readonly string[],
