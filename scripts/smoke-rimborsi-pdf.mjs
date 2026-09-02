@@ -61,16 +61,15 @@ function sourceMustInclude(relPath, snippets) {
 }
 
 async function generateSamplePdf() {
-  const pdfLibPath = path.join(
-    rootDir,
-    "musicpro/apps/web/node_modules/pdf-lib/dist/pdf-lib.js",
-  );
   let PDFDocument;
+  let StandardFonts;
   try {
-    ({ PDFDocument } = await import(pdfLibPath));
+    ({ PDFDocument, StandardFonts } = await import(
+      path.join(rootDir, "musicpro/node_modules/pdf-lib/dist/pdf-lib.esm.js")
+    ));
   } catch {
     try {
-      ({ PDFDocument } = await import("pdf-lib"));
+      ({ PDFDocument, StandardFonts } = await import("pdf-lib"));
     } catch {
       ok("pdf-lib non in cwd — skip generazione binaria (contratto path ok)");
       return;
@@ -78,7 +77,15 @@ async function generateSamplePdf() {
   }
   const doc = await PDFDocument.create();
   const page = doc.addPage([595.28, 841.89]);
-  page.drawText("MusicPro School notula rimborso", { x: 50, y: 780, size: 14 });
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const raw = "Importo lordo: 100,00 € — Josè";
+  const safe = raw.replace(/€/g, "EUR").replace(/\u2013|\u2014/g, "-");
+  try {
+    page.drawText(safe, { x: 50, y: 780, size: 12, font });
+  } catch (err) {
+    fail(`Helvetica reject: ${err instanceof Error ? err.message : err}`);
+    return;
+  }
   const bytes = await doc.save();
   if (bytes.length < 200) {
     fail(`PDF troppo piccolo (${bytes.length} byte)`);
@@ -133,6 +140,10 @@ function main() {
   sourceMustInclude("musicpro/apps/web/src/lib/reimbursements/send.ts", [
     "persistReimbursementPdf",
     "sendReimbursementEmailViaResend",
+  ]);
+  sourceMustInclude("musicpro/apps/web/src/lib/reimbursements/pdf.ts", [
+    '.replace(/€/g, "EUR")',
+    "sanitizePdfText",
   ]);
 
   return generateSamplePdf();

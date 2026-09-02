@@ -160,12 +160,28 @@ export async function POST(_request: Request, context: RouteContext) {
     });
   }
 
-  const persisted = await persistReimbursementPdf(supabase, reimbursement);
-  return NextResponse.json(
-    {
-      ...persisted,
-      source: persisted.driveUrl ? "drive" : persisted.pdfStoragePath ? "storage" : "inline",
-    },
-    { status: persisted.success ? 200 : 502 },
-  );
+  try {
+    const persisted = await persistReimbursementPdf(supabase, reimbursement);
+    return NextResponse.json(
+      {
+        ...persisted,
+        source: persisted.driveUrl
+          ? "drive"
+          : persisted.pdfStoragePath
+            ? "storage"
+            : "inline",
+      },
+      { status: persisted.pdfBase64 || persisted.success ? 200 : 502 },
+    );
+  } catch (err) {
+    return NextResponse.json(
+      {
+        success: false,
+        id,
+        message:
+          err instanceof Error ? err.message : "Impossibile generare il PDF.",
+      },
+      { status: 500 },
+    );
+  }
 }
