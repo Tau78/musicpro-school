@@ -1020,15 +1020,12 @@ export function ReimbursementsPanel({
         )}
       </CollapsibleSection>
 
-      <section className="rounded-xl border border-neutral-200 bg-white p-6">
-        <h2 className="text-lg font-semibold text-[var(--brand)]">
-          Report rimborsi
-        </h2>
-        <p className="mt-1 text-sm text-neutral-500">
-          Esporta CSV o apri una versione stampabile (totale / dettagliato).
-        </p>
-
-        <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-end">
+      <CollapsibleSection
+        title="Report rimborsi"
+        defaultOpen={false}
+        description="Esporta CSV o apri una versione stampabile (totale / dettagliato)."
+      >
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
           <Field label="Anno report">
             <select
               value={reportYear}
@@ -1069,7 +1066,7 @@ export function ReimbursementsPanel({
         </div>
 
         {reportRows.length > 0 ? (
-          <div className="mt-4 space-y-3">
+          <div className="space-y-3">
             <p className="text-sm text-neutral-600">
               {reportRows.length} righe · Totale{" "}
               <strong>{formatEuro(reportGrandTotal)}</strong>
@@ -1106,11 +1103,11 @@ export function ReimbursementsPanel({
             </div>
           </div>
         ) : (
-          <p className="mt-4 text-sm text-neutral-500">
+          <p className="text-sm text-neutral-500">
             Carica i dati per esportare il report.
           </p>
         )}
-      </section>
+      </CollapsibleSection>
 
       {deleteConfirm ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
