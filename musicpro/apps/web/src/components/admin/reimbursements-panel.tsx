@@ -687,46 +687,6 @@ export function ReimbursementsPanel({
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col gap-4 rounded-xl border border-neutral-200 bg-white p-4 sm:flex-row sm:items-end">
-        <Field label="Anno">
-          <select
-            value={year}
-            onChange={(e) => setYear(Number(e.target.value))}
-            className={selectClass}
-          >
-            {yearOptions.map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </select>
-        </Field>
-
-        {!isDocenteOnly ? (
-          <Field label="Associato (filtro)">
-            <select
-              value={memberFilter}
-              onChange={(e) => setMemberFilter(e.target.value)}
-              className={selectClass}
-            >
-              <option value="">Tutti</option>
-              {members.map((member) => (
-                <option key={member.id} value={member.id}>
-                  {member.lastName} {member.firstName}
-                </option>
-              ))}
-            </select>
-          </Field>
-        ) : null}
-
-        <p className="text-sm text-neutral-600 sm:ml-auto">
-          Totale:{" "}
-          <strong className="text-[var(--brand)]">
-            {formatEuro(totalAmount)}
-          </strong>
-        </p>
-      </div>
-
       {error ? (
         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
@@ -833,6 +793,46 @@ export function ReimbursementsPanel({
             : `${reimbursements.length} notul${reimbursements.length === 1 ? "a" : "e"} · ${formatEuro(totalAmount)}`
         }
       >
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+          <Field label="Anno">
+            <select
+              value={year}
+              onChange={(e) => setYear(Number(e.target.value))}
+              className={selectClass}
+            >
+              {yearOptions.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          {!isDocenteOnly ? (
+            <Field label="Associato">
+              <select
+                value={memberFilter}
+                onChange={(e) => setMemberFilter(e.target.value)}
+                className={selectClass}
+              >
+                <option value="">Tutti</option>
+                {members.map((member) => (
+                  <option key={member.id} value={member.id}>
+                    {member.lastName} {member.firstName}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          ) : null}
+
+          <p className="text-sm text-neutral-600 sm:ml-auto">
+            Totale:{" "}
+            <strong className="text-[var(--brand)]">
+              {formatEuro(totalAmount)}
+            </strong>
+          </p>
+        </div>
+
         {selectedIds.size > 0 ? (
           <div className="flex flex-wrap items-center justify-end gap-2">
             <span className="text-sm text-neutral-600">
@@ -860,13 +860,13 @@ export function ReimbursementsPanel({
         ) : null}
 
         {loading ? (
-          <p className="mt-4 text-sm text-neutral-500">Caricamento…</p>
+          <p className="text-sm text-neutral-500">Caricamento…</p>
         ) : reimbursements.length === 0 ? (
-          <p className="mt-4 text-sm text-neutral-500">
+          <p className="text-sm text-neutral-500">
             Nessun rimborso per i filtri selezionati.
           </p>
         ) : (
-          <div className="mt-4 overflow-x-auto rounded-xl border border-neutral-200 bg-white">
+          <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white">
             <table className="min-w-full text-sm">
               <thead className="border-b border-neutral-200 bg-neutral-50 text-left text-neutral-600">
                 <tr>
