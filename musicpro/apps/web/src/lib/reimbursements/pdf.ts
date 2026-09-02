@@ -74,7 +74,7 @@ export async function generateReimbursementPdf(
     const used = opts?.bold ? fontBold : font;
     const lines = text.split("\n");
     for (const line of lines) {
-      page.drawText(sanitizePdfText(line), {
+      page.drawText(sanitizePdfText(line, used), {
         x: margin,
         y,
         size,
@@ -146,12 +146,32 @@ export async function generateReimbursementPdf(
 }
 
 /** WinAnsi-safe text for Helvetica (maps common Italian chars). */
-function sanitizePdfText(value: string): string {
-  return value
-    .replace(/\u2019/g, "'")
+function sanitizePdfText(
+  value: string,
+  font?: { encodeText: (text: string) => unknown },
+): string {
+  const mapped = value
+    .replace(/€/g, "EUR")
+    .replace(/\u2019|\u2018/g, "'")
+    .replace(/\u201c|\u201d/g, '"')
     .replace(/\u2013|\u2014/g, "-")
-    .replace(/\u00A0/g, " ")
-    .slice(0, 110);
+    .replace(/\u2026/g, "...")
+    .replace(/\u00A0/g, " ");
+
+  let out = "";
+  for (const ch of mapped) {
+    if (!font) {
+      out += ch;
+      continue;
+    }
+    try {
+      font.encodeText(ch);
+      out += ch;
+    } catch {
+      out += "?";
+    }
+  }
+  return out.slice(0, 110);
 }
 
 /**

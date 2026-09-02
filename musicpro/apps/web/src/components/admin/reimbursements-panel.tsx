@@ -528,10 +528,8 @@ export function ReimbursementsPanel({
         const generated = await fetchPdf("POST");
         payload = generated.payload;
         void loadData();
-        if (!generated.ok && !payload.pdfBase64) {
-          preview?.close();
+        if (!generated.ok && !payload.pdfBase64 && !payload.pdfUrl) {
           setError(payload.message ?? "Impossibile generare il PDF.");
-          return;
         }
       }
 
@@ -544,6 +542,7 @@ export function ReimbursementsPanel({
       }
 
       preview?.close();
+      if (payload.message) setError(payload.message);
       openPrintableNotula(
         generateReimbursementHtml({
           progressive: item.progressive,
