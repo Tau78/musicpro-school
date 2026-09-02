@@ -142,9 +142,18 @@ function main() {
     "sendReimbursementEmailViaResend",
   ]);
   sourceMustInclude("musicpro/apps/web/src/lib/reimbursements/pdf.ts", [
-    '.replace(/€/g, "EUR")',
+    "RICHIESTA DI RIMBORSO SPESE",
+    "Associazione Culturale M.P.",
+    "TOTALE SPESE",
+    "per accettazione",
+    "IL PRESIDENTE",
+    "Mauro Andreoni",
     "sanitizePdfText",
   ]);
+  sourceMustInclude(
+    "musicpro/apps/web/src/components/admin/reimbursements-panel.tsx",
+    ['title="Report rimborsi"', "defaultOpen={false}"],
+  );
 
   return generateSamplePdf();
 }

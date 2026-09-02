@@ -280,22 +280,49 @@ export async function updateReimbursementPdf(
  * Balance = SUM(receipts) - SUM(gross) across all reimbursements for the member.
  * Positive = surplus (credit from past receipts); negative = debt.
  */
+
+/** GAS-style amount: `€ 100,00` (symbol before, comma decimal). */
+export function formatEuroPrefix(amount: number): string {
+  return `€ ${formatPaymentAmountIt(amount)}`;
+}
+
+/** GAS `{{IMPORTO}}`: `100.00` (period decimal, no currency). */
+export function formatImportoPlain(amount: number): string {
+  return Number(amount).toFixed(2);
+}
+
+/**
+ * Template line: `Versati a rimborso totale in {metodo} il {data}`.
+ * `payment_method` already looks like `Bonifico Bancario: € 100,00`.
+ */
+export function buildVersatiRimborsoLine(params: {
+  paymentMethod: string | null | undefined;
+  grossAmountEur: number;
+  paymentDateLabel: string;
+}): string {
+  const method = params.paymentMethod?.trim() || "—";
+  const mid = /\d/.test(method)
+    ? method
+    : `${method}: € ${formatImportoPlain(params.grossAmountEur)}`;
+  return `Versati a rimborso totale in ${mid} il ${params.paymentDateLabel}`;
+}
+
 export function buildReceiptsNote(params: {
   grossAmountEur: number;
   receiptsAmountEur: number;
   historicBalanceEur: number;
 }): string {
-  const receipts = formatEuro(params.receiptsAmountEur);
+  const receipts = formatEuroPrefix(params.receiptsAmountEur);
   const delta = params.grossAmountEur - params.receiptsAmountEur;
   let line = `Importo consegnato: ${receipts}`;
   if (delta > 0.01) {
     if (params.historicBalanceEur >= delta - 0.01) {
-      line += `\nScontrini precedentemente ricevuti: ${formatEuro(delta)}`;
+      line += `\nScontrini precedentemente ricevuti: ${formatEuroPrefix(delta)}`;
     } else {
-      line += `\nRicevute ancora da consegnare (anticipo): ${formatEuro(delta)}`;
+      line += `\nRicevute ancora da consegnare (anticipo): ${formatEuroPrefix(delta)}`;
     }
   } else if (delta < -0.01) {
-    line += `\nEccedenza a credito per prossimi rimborsi: ${formatEuro(Math.abs(delta))}`;
+    line += `\nEccedenza a credito per prossimi rimborsi: ${formatEuroPrefix(Math.abs(delta))}`;
   }
   return line;
 }
