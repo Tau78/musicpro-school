@@ -68,6 +68,20 @@ export function AuthSignInPanel({
       return;
     }
 
+    const { data: memberRow } = await supabase
+      .from("members")
+      .select("is_active")
+      .eq("id", memberId)
+      .maybeSingle();
+
+    if (memberRow && memberRow.is_active === false) {
+      setError(
+        "Account disattivato. Contatta la segreteria per riattivarlo.",
+      );
+      await supabase.auth.signOut();
+      return;
+    }
+
     // Ricarica completa: sincronizza cookie SSR e aggiorna UI (es. login inline su /prenotazioni)
     window.location.assign(redirectTo);
   }

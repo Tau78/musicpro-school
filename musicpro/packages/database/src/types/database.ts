@@ -54,6 +54,8 @@ export interface Database {
           gdpr_consent_at: string | null;
           photo_consent: boolean;
           photo_consent_at: string | null;
+          mailing_opt_in: boolean;
+          mailing_opt_in_at: string | null;
           is_active: boolean;
           is_enrollment_draft: boolean;
           draft_expires_at: string | null;
@@ -91,6 +93,8 @@ export interface Database {
           gdpr_consent_at?: string | null;
           photo_consent?: boolean;
           photo_consent_at?: string | null;
+          mailing_opt_in?: boolean;
+          mailing_opt_in_at?: string | null;
           is_active?: boolean;
           is_enrollment_draft?: boolean;
           draft_expires_at?: string | null;
@@ -1917,6 +1921,10 @@ export interface Database {
       [_ in never]: never;
     };
     Functions: {
+      deactivate_own_account: {
+        Args: Record<string, never>;
+        Returns: boolean;
+      };
       ensure_member_linked: {
         Args: Record<string, never>;
         Returns: string | null;

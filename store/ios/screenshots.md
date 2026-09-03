@@ -37,10 +37,12 @@ Device / Simulator → Screenshot (Cmd+S su Mac Simulator).
 ```
 
 Cartella ready (PNG senza alpha): `store/ios/screenshots/iphone-69/`
-- `01-accedi-1320x2868.png` (+ nativo `01-accedi-1290x2796.png`)
-- `03-prenotazioni-1320x2868.png` (+ nativo)
+- `01-accedi-*` — Accedi (reale)
+- `03-prenotazioni-*` — calendario con prenotazioni fittizie
+- `04-lezioni-*` — lezioni + crediti fittizi
+- `05-prenota-sala-*` — form sala con slot fittizi
 
-Prossimi scatti: `02-area-personale`, poi ripeti Prenotazioni **dopo** una prenotazione reale (quota demo già in regola).
+Ogni file in `1290×2796` e `1320×2868`. Manca ancora `02-area-personale` (scatto reale Dashboard).
 
 ## App Preview (opzionale)
 

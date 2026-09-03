@@ -4,6 +4,7 @@ export {
   getCurrentMemberWithRoles,
   getMemberRoles,
   getSession,
+  deactivateOwnAccount,
 } from "./auth";
 export {
   grantMemberRole,
@@ -250,6 +251,7 @@ export {
   listMembers,
   listMembersDetail,
   updateMember,
+  updateOwnProfile,
 } from "./members";
 export {
   findDuplicateMembers,
