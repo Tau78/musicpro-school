@@ -45,6 +45,8 @@ export interface MemberDetail {
   gdprConsentAt: string | null;
   photoConsent: boolean;
   photoConsentAt: string | null;
+  mailingOptIn: boolean;
+  mailingOptInAt: string | null;
   isActive: boolean;
   isEnrollmentDraft: boolean;
   draftExpiresAt: string | null;
@@ -85,6 +87,8 @@ type MemberRow = {
   gdpr_consent_at: string | null;
   photo_consent: boolean;
   photo_consent_at: string | null;
+  mailing_opt_in: boolean;
+  mailing_opt_in_at: string | null;
   is_active: boolean;
   is_enrollment_draft: boolean;
   draft_expires_at: string | null;
@@ -96,7 +100,7 @@ const MEMBER_LIST_COLUMNS =
   "id, member_number, first_name, last_name, phone, email, telegram_chat_id, is_active, is_enrollment_draft, draft_expires_at";
 
 const MEMBER_DETAIL_COLUMNS =
-  "id, member_number, enrolled_at, first_name, last_name, birth_place, birth_province, birth_date, address_street, address_postal_code, address_city, address_province, tax_code, phone, email, legacy_tutor_member_number, legacy_tutor_full_name, manual_tutor_first_name, manual_tutor_last_name, manual_tutor_phone, manual_tutor_email, manual_tutor_tax_code, telegram_chat_id, gdpr_consent, gdpr_consent_at, photo_consent, photo_consent_at, is_active, is_enrollment_draft, draft_expires_at, membership_card_picked_up_at, gadgets_picked_up_at";
+  "id, member_number, enrolled_at, first_name, last_name, birth_place, birth_province, birth_date, address_street, address_postal_code, address_city, address_province, tax_code, phone, email, legacy_tutor_member_number, legacy_tutor_full_name, manual_tutor_first_name, manual_tutor_last_name, manual_tutor_phone, manual_tutor_email, manual_tutor_tax_code, telegram_chat_id, gdpr_consent, gdpr_consent_at, photo_consent, photo_consent_at, mailing_opt_in, mailing_opt_in_at, is_active, is_enrollment_draft, draft_expires_at, membership_card_picked_up_at, gadgets_picked_up_at";
 
 function mapMemberSummary(row: MemberRow): MemberSummary {
   return {
@@ -142,6 +146,8 @@ function mapMemberDetail(row: MemberRow): MemberDetail {
     gdprConsentAt: row.gdpr_consent_at,
     photoConsent: Boolean(row.photo_consent),
     photoConsentAt: row.photo_consent_at ?? null,
+    mailingOptIn: row.mailing_opt_in !== false,
+    mailingOptInAt: row.mailing_opt_in_at ?? null,
     isActive: row.is_active,
     isEnrollmentDraft: Boolean(row.is_enrollment_draft),
     draftExpiresAt: row.draft_expires_at ?? null,
@@ -180,6 +186,8 @@ function memberInputToRow(input: MemberInput): Record<string, unknown> {
     photo_consent_at: input.photoConsent
       ? input.photoConsentAt ?? new Date().toISOString()
       : null,
+    mailing_opt_in: input.mailingOptIn,
+    mailing_opt_in_at: input.mailingOptInAt ?? new Date().toISOString(),
     is_active: input.isActive,
     membership_card_picked_up_at: input.membershipCardPickedUpAt,
     gadgets_picked_up_at: input.gadgetsPickedUpAt,
@@ -320,6 +328,67 @@ export async function updateMember(
   }
 
   return { success: true, id };
+}
+
+/** Self-service profile fields (RLS members_update_own). Does not touch staff-only flags. */
+export type OwnProfilePatch = {
+  firstName?: string;
+  lastName?: string;
+  phone?: string | null;
+  birthPlace?: string | null;
+  birthProvince?: string | null;
+  birthDate?: string | null;
+  addressStreet?: string | null;
+  addressPostalCode?: string | null;
+  addressCity?: string | null;
+  addressProvince?: string | null;
+  taxCode?: string | null;
+  photoConsent?: boolean;
+  mailingOptIn?: boolean;
+};
+
+export async function updateOwnProfile(
+  client: MembersClient,
+  memberId: string,
+  patch: OwnProfilePatch,
+): Promise<MemberMutationResult> {
+  const row: Record<string, unknown> = {};
+
+  if (patch.firstName !== undefined) row.first_name = patch.firstName.trim();
+  if (patch.lastName !== undefined) row.last_name = patch.lastName.trim();
+  if (patch.phone !== undefined) row.phone = emptyToNull(patch.phone);
+  if (patch.birthPlace !== undefined) row.birth_place = emptyToNull(patch.birthPlace);
+  if (patch.birthProvince !== undefined)
+    row.birth_province = emptyToNull(patch.birthProvince);
+  if (patch.birthDate !== undefined) row.birth_date = patch.birthDate || null;
+  if (patch.addressStreet !== undefined)
+    row.address_street = emptyToNull(patch.addressStreet);
+  if (patch.addressPostalCode !== undefined)
+    row.address_postal_code = emptyToNull(patch.addressPostalCode);
+  if (patch.addressCity !== undefined) row.address_city = emptyToNull(patch.addressCity);
+  if (patch.addressProvince !== undefined)
+    row.address_province = emptyToNull(patch.addressProvince);
+  if (patch.taxCode !== undefined) row.tax_code = emptyToNull(patch.taxCode);
+  if (patch.photoConsent !== undefined) {
+    row.photo_consent = patch.photoConsent;
+    row.photo_consent_at = patch.photoConsent ? new Date().toISOString() : null;
+  }
+  if (patch.mailingOptIn !== undefined) {
+    row.mailing_opt_in = patch.mailingOptIn;
+    row.mailing_opt_in_at = new Date().toISOString();
+  }
+
+  if (Object.keys(row).length === 0) {
+    return { success: true, id: memberId };
+  }
+
+  const { error } = await client.from("members").update(row as never).eq("id", memberId);
+
+  if (error) {
+    return { success: false, errorMessage: error.message };
+  }
+
+  return { success: true, id: memberId };
 }
 
 export async function deleteMember(

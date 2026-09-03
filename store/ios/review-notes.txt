@@ -1,7 +1,7 @@
 GUIDELINE 2.1 — APP REVIEW INFORMATION
 
-1) HOW THE REVIEWER SEES THE APP (NO VIDEO REQUIRED BY DEFAULT)
-No screen recording is attached unless Apple asks for one in Resolution Center. Core path in text:
+1) SCREEN RECORDING
+A screen recording on a physical iPhone (latest iOS) is attached in App Review Information (or will be uploaded before submit). It starts from the home-screen icon (not Safari) and shows:
 - Launch → Accedi (Sign In). Email + password only. No magic link / Link di accesso. No Sign in with Apple or Google (not offered).
 - Sign in with the demo account (section 4; password only in Sign-In Required fields above).
 - Tab Area personale (Personal area).
@@ -24,12 +24,13 @@ SIGN IN — open app → Accedi. Email + password only. No magic link. No Apple 
 Demo account required: Yes (Sign-In Required = ON).
 Email: appstore.review@musicproeventi.it
 Password: use the Sign-In Required fields above (not in this file).
+Demo identity: Demo DocenteStore (fictitious). Sample students: Alfa/Beta DemoAllievo (emails demo.allievo.*@musicproeventi.it) — APPSTORE_DEMO only, not real members.
 Then:
 1. Area personale (Personal area).
-2. Prenotazioni (Bookings) — browse/create a practice-room booking as in the UI.
-3. Teacher: Lezioni → Oggi / Calendario / presenze; Nuova prova if available for the demo user.
-4. Account deletion: no dedicated in-app Delete Account button yet; school office manages roster accounts. Before public submit, add in-app deletion (Guideline 5.1.1) or stay on TestFlight.
-Please do not cancel or edit real student/teacher records beyond demo paths.
+2. Prenotazioni (Bookings) — browse DEMO bookings or + Aggiungi prenotazione.
+3. Lezioni → Oggi / Calendario / presenze; Nuova prova.
+4. Account deletion: Impostazioni → Elimina account (disattiva). Soft-disable: sets members.is_active=false; anagrafica stays; secretariat reactivates with Attivo in admin. User cannot sign in until reactivated.
+Please do not cancel or edit real student/teacher records. Prefer DEMO* rows only.
 
 5) EXTERNAL SERVICES USED FOR CORE FEATURES
 - Supabase (auth + database) over HTTPS for login, personal area, bookings, lessons.

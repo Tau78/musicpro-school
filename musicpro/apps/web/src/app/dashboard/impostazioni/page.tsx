@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import {
   getCurrentMemberWithRoles,
+  getMemberById,
   listReimbursements,
 } from "@musicpro/database";
 import {
@@ -12,11 +13,16 @@ import {
 } from "@musicpro/shared";
 
 import { ChangePasswordForm } from "@/components/auth/change-password-form";
+import { DeleteAccountButton } from "@/components/auth/delete-account-button";
 import { PasskeySettings } from "@/components/auth/passkey-settings";
 import { SignOutButton } from "@/components/auth/sign-out-button";
+import { MailingOptInToggle } from "@/components/dashboard/mailing-opt-in-toggle";
 import { MyReimbursements } from "@/components/dashboard/my-reimbursements";
+import { ProfileSettingsForm } from "@/components/dashboard/profile-settings-form";
 import { canAccessAdmin } from "@/lib/admin/roles";
 import { createClient } from "@/lib/supabase/server";
+
+const PRIVACY_URL = "https://www.musicproeventi.it/privacy";
 
 export default async function DashboardImpostazioniPage() {
   const supabase = await createClient();
@@ -26,10 +32,13 @@ export default async function DashboardImpostazioniPage() {
     redirect("/login?error=member_not_linked");
   }
 
+  const [profile, myReimbursements] = await Promise.all([
+    getMemberById(supabase, member.id),
+    listReimbursements(supabase, { memberId: member.id }),
+  ]);
+
   const showAdminLink = canAccessAdmin(member.roles);
-  const myReimbursements = await listReimbursements(supabase, {
-    memberId: member.id,
-  });
+  const detail = profile ?? null;
 
   return (
     <main className="min-h-screen">
@@ -70,16 +79,10 @@ export default async function DashboardImpostazioniPage() {
         </div>
       </header>
 
-      <div className="mx-auto max-w-5xl px-6 py-8">
+      <div className="mx-auto max-w-5xl space-y-8 px-6 py-8">
         <section className="rounded-xl border border-neutral-200 bg-white p-6">
           <h2 className="text-lg font-medium text-[var(--brand)]">Profilo</h2>
           <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
-            <div>
-              <dt className="text-neutral-500">Nome</dt>
-              <dd className="font-medium text-neutral-900">
-                {member.firstName} {member.lastName}
-              </dd>
-            </div>
             <div>
               <dt className="text-neutral-500">Email</dt>
               <dd className="font-medium text-neutral-900">
@@ -95,6 +98,54 @@ export default async function DashboardImpostazioniPage() {
               </div>
             ) : null}
           </dl>
+
+          <div className="mt-6 border-t border-neutral-100 pt-5">
+            <h3 className="text-sm font-medium text-neutral-800">
+              Dati personali
+            </h3>
+            <p className="mt-1 text-sm text-neutral-600">
+              Aggiorna i dati anagrafici usati dalla segreteria.
+            </p>
+            <ProfileSettingsForm
+              initial={{
+                memberId: member.id,
+                firstName: detail?.firstName ?? member.firstName,
+                lastName: detail?.lastName ?? member.lastName,
+                phone: detail?.phone ?? null,
+                addressStreet: detail?.addressStreet ?? null,
+                addressPostalCode: detail?.addressPostalCode ?? null,
+                addressCity: detail?.addressCity ?? null,
+                addressProvince: detail?.addressProvince ?? null,
+                birthDate: detail?.birthDate ?? null,
+                birthPlace: detail?.birthPlace ?? null,
+                birthProvince: detail?.birthProvince ?? null,
+                taxCode: detail?.taxCode ?? null,
+              }}
+            />
+          </div>
+
+          <div className="mt-6 border-t border-neutral-100 pt-5">
+            <h3 className="text-sm font-medium text-neutral-800">Privacy</h3>
+            <p className="mt-1 text-sm text-neutral-600">
+              Informativa sul trattamento dei dati personali.
+            </p>
+            <a
+              href={PRIVACY_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 inline-flex text-sm font-medium text-[var(--brand)] underline-offset-2 hover:underline"
+            >
+              Apri informativa privacy
+            </a>
+          </div>
+
+          <div className="mt-6 border-t border-neutral-100 pt-5">
+            <MailingOptInToggle
+              memberId={member.id}
+              initialOptIn={detail?.mailingOptIn ?? true}
+            />
+          </div>
+
           <div className="mt-6 border-t border-neutral-100 pt-5">
             <h3 className="text-sm font-medium text-neutral-800">Password</h3>
             <div className="mt-3">
@@ -107,9 +158,10 @@ export default async function DashboardImpostazioniPage() {
               <PasskeySettings />
             </div>
           </div>
+          <DeleteAccountButton />
         </section>
 
-        <section className="mt-8">
+        <section>
           <h2 className="text-lg font-medium text-[var(--brand)]">I tuoi ruoli</h2>
           {member.roles.length > 0 ? (
             <ul className="mt-4 flex flex-wrap gap-2">
@@ -129,7 +181,7 @@ export default async function DashboardImpostazioniPage() {
           )}
         </section>
 
-        <section className="mt-8 rounded-xl border border-neutral-200 bg-white p-6">
+        <section className="rounded-xl border border-neutral-200 bg-white p-6">
           <h2 className="text-lg font-medium text-[var(--brand)]">
             Le mie notule
           </h2>
@@ -139,7 +191,7 @@ export default async function DashboardImpostazioniPage() {
           <MyReimbursements initialRows={myReimbursements.reimbursements} />
         </section>
 
-        <section className="mt-8 rounded-xl border border-neutral-200 bg-white p-6">
+        <section className="rounded-xl border border-neutral-200 bg-white p-6">
           <h2 className="text-lg font-medium text-[var(--brand)]">
             Le mie band
           </h2>
@@ -155,7 +207,7 @@ export default async function DashboardImpostazioniPage() {
           </Link>
         </section>
 
-        <section className="mt-8 rounded-xl border border-neutral-200 bg-white p-6">
+        <section className="rounded-xl border border-neutral-200 bg-white p-6">
           <h2 className="text-lg font-medium text-[var(--brand)]">
             Shop crediti
           </h2>
@@ -170,13 +222,18 @@ export default async function DashboardImpostazioniPage() {
           </Link>
         </section>
 
-        <section className="mt-8 rounded-xl border border-neutral-200 bg-white p-6">
+        <section className="rounded-xl border border-neutral-200 bg-white p-6">
           <h2 className="text-lg font-medium text-[var(--brand)]">Account</h2>
           <p className="mt-2 text-sm text-neutral-600">
-            Esci dall&apos;area riservata di {APP_NAME}.
+            Esci dall&apos;area riservata di {APP_NAME} o cambia utente: la
+            sessione viene chiusa e torni al login.
           </p>
           <div className="mt-4">
-            <SignOutButton className="inline-flex rounded-lg border border-neutral-300 bg-white px-5 py-2.5 text-sm font-medium text-neutral-800 hover:bg-neutral-50 disabled:opacity-60" />
+            <SignOutButton
+              label="Esci / Cambia utente"
+              loadingLabel="Uscita…"
+              className="inline-flex rounded-lg border border-neutral-300 bg-white px-5 py-2.5 text-sm font-medium text-neutral-800 hover:bg-neutral-50 disabled:opacity-60"
+            />
           </div>
         </section>
       </div>

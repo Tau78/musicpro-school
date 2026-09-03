@@ -89,7 +89,12 @@ export async function getCurrentMember(client: AuthClient): Promise<Member | nul
     return null;
   }
 
-  return mapMember(data as MemberRow);
+  const member = mapMember(data as MemberRow);
+  if (!member.isActive) {
+    return null;
+  }
+
+  return member;
 }
 
 export async function getMemberRoles(
@@ -121,4 +126,19 @@ export async function getCurrentMemberWithRoles(
   const roles = await getMemberRoles(client, member.id);
 
   return { ...member, roles };
+}
+
+/** Soft-disable own app access. Member row stays; secretariat reactivates. */
+export async function deactivateOwnAccount(
+  client: AuthClient,
+): Promise<{ success: boolean; errorMessage?: string }> {
+  const { error } = await client.rpc("deactivate_own_account");
+  if (error) {
+    return {
+      success: false,
+      errorMessage: error.message || "Impossibile disattivare l'account.",
+    };
+  }
+  await client.auth.signOut();
+  return { success: true };
 }

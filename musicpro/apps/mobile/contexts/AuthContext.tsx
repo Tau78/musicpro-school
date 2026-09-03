@@ -179,6 +179,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const profile = await getCurrentMemberWithRoles(supabase);
 
       if (!profile) {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (user) {
+          const { data: inactive } = await supabase
+            .from("members")
+            .select("id, is_active")
+            .eq("user_id", user.id)
+            .maybeSingle();
+          if (inactive && inactive.is_active === false) {
+            await supabase.auth.signOut();
+            return "Account disattivato. Contatta la segreteria per riattivarlo.";
+          }
+        }
         await supabase.auth.signOut();
         return "Nessun profilo associato trovato per questa email. Contatta la segreteria.";
       }

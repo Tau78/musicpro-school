@@ -96,6 +96,8 @@ function emptyMemberInput(defaultMemberNumber?: number): MemberInput {
     gdprConsentAt: null,
     photoConsent: false,
     photoConsentAt: null,
+    mailingOptIn: true,
+    mailingOptInAt: null,
     isActive: true,
     membershipCardPickedUpAt: null,
     gadgetsPickedUpAt: null,
@@ -103,8 +105,12 @@ function emptyMemberInput(defaultMemberNumber?: number): MemberInput {
 }
 
 function memberToInput(member: MemberDetail): MemberInput {
-  const { id: _id, ...rest } = member;
-  return rest;
+  const { id: _id, isEnrollmentDraft: _draft, draftExpiresAt: _exp, ...rest } =
+    member;
+  return {
+    ...rest,
+    mailingOptIn: member.mailingOptIn,
+  };
 }
 
 export function MemberForm({
