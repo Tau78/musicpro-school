@@ -10,7 +10,7 @@
 | Demo user | andreoni.mauro@gmail.com |
 | Demo password | solo nei campi ASC Sign-In Required (non in git) |
 | Notes | incolla `store/ios/review-notes.txt` |
-| Attachment | video iPhone fisico (vedi screenshots.md) |
+| Attachment | solo se Apple lo chiede in Resolution Center (non obbligatorio di default) |
 
 Support URL: https://school.musicproeventi.it
 Marketing URL: (opzionale) https://school.musicproeventi.it

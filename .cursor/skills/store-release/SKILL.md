@@ -35,11 +35,11 @@ Due rilasci. Confonderli costa giorni.
 
 | Azione | Cosa arriva | Cosa non arriva |
 | --- | --- | --- |
-| **Xcode locale** → TestFlight | Binary su **TestFlight** | Scheda Store, note, video, credenziali, Age Rating |
+| **Xcode locale** → TestFlight | Binary su **TestFlight** | Scheda Store, note, credenziali, Age Rating |
 | **`bash scripts/xcode-testflight.sh`** / **VAI** (se nativi) | Come sopra | Come sopra |
 | **`npm run ios:ship-testflight`** / **`npm run testflight`** | Come sopra | Come sopra — verifica che non chiamino EAS/Expo; se sì → chiedi |
 | **`eas build` / Expo** | Solo con **OK esplicito** | — |
-| **`asc-metadata.sh` / `asc-submit.sh`** | Metadati / Submit via API | Video fisico, allegati |
+| **`asc-metadata.sh` / `asc-submit.sh`** | Metadati / Submit via API | Allegati / selezione build in UI se serve |
 | **Submit for Review** | Recensione Store | — |
 
 VAI in altri repo ≠ recensione Store.
@@ -139,18 +139,19 @@ Blocca Submit se manca anche una riga.
 2. **Screenshot** — app in uso, non splash/solo login (2.3.3). Niente TEST/REVIEW/SMOKE.
 3. **Sign-In Required** — se c’è login: ON; user/pass nei **campi dedicati**.
 4. **Notes** — inglese, < 4000, 7 punti del template; percorso tap esatto (Password vs magic link).
-5. **Video** — iPhone **fisico**, ultimo iOS, dall’icona.
-6. **Account demo** — stessa build; non scade; non cliente reale.
-7. **Elimina account** — se si crea account (5.1.1); stessa build del video.
-8. **Purpose string** — ogni permesso, parole piane.
-9. **Device testati** — modelli/iOS veri; se non sai, chiedi.
-10. **Contatto** — nome, `+393716752550`, email in App Review Information.
-11. **Age Rating** — Individual: Simulated Gambling = **None**. Quiz/classifiche/punti = Contests Infrequent/Mild.
-12. **App Privacy** — nutrition labels; non dichiarare dati non raccolti.
-13. **Export compliance** — `ITSAppUsesNonExemptEncryption = false` **nel binary**.
-14. **Login visibile** — Accedi sul primo schermo.
-15. **Password iOS** — crea/conferma: `textContentType="none"`, `passwordRules=""`, autofill off.
-16. **Listing ≠ Notes** — vetrina = ruolo utente; staff/demo solo in Review Information.
+5. **Account demo** — stessa build; non scade; non cliente reale.
+6. **Elimina account** — se si crea account (5.1.1); stessa build in review.
+7. **Purpose string** — ogni permesso, parole piane.
+8. **Device testati** — modelli/iOS veri; se non sai, chiedi.
+9. **Contatto** — nome, `+393716752550`, email in App Review Information.
+10. **Age Rating** — Individual: Simulated Gambling = **None**. Quiz/classifiche/punti = Contests Infrequent/Mild.
+11. **App Privacy** — nutrition labels; non dichiarare dati non raccolti.
+12. **Export compliance** — `ITSAppUsesNonExemptEncryption = false` **nel binary**.
+13. **Login visibile** — Accedi sul primo schermo.
+14. **Password iOS** — crea/conferma: `textContentType="none"`, `passwordRules=""`, autofill off.
+15. **Listing ≠ Notes** — vetrina = ruolo utente; staff/demo solo in Review Information.
+
+**Non** è obbligatorio un video / screen recording di default. Solo se Apple lo chiede esplicitamente (es. Resolution Center / Information Needed in un caso concreto) — vedi `lessons.md`.
 
 Niente IAP / social / Drive / AI: dillo. Email+password only → niente SIWA (4.8 se c’è Google/Facebook).
 
@@ -167,7 +168,7 @@ bash scripts/asc-metadata.sh
 bash scripts/asc-submit.sh
 ```
 
-**Manuale:** video iPhone, allegati, selezione build.
+**Manuale:** selezione build, Age Rating / App Privacy in UI se non via API.
 
 ### Flusso 1.0.x tipico
 
@@ -182,14 +183,14 @@ bash scripts/asc-submit.sh
 2. Testi `store/android/…`
 3. Build/submit: script del repo; se lo script è solo EAS Android, **chiedi** prima (stessa policy “niente Expo/EAS senza OK”)
 
-## Video / Notes / Bocciature
+## Notes / Bocciature
 
-Video fisico; template 7 punti; `lessons.md` se bocciano. Stessa build se solo metadati. Nuova build solo se manca nel binario.
+Template 7 punti; `lessons.md` se bocciano. Stessa build se solo metadati. Nuova build solo se manca nel binario. Screen recording: **solo** se Apple lo richiede in quel review — non è parte del pacchetto standard.
 
 ## Cosa può / non può fare l’agente
 
 - **Sì:** Notes, demo, delete, Age Rating, checklist, Xcode TestFlight, ASC script, Agreements se TestFlight è vuoto, aggiornare skill su “aggiungi alla skill Release”.
-- **No:** inventare video; Submit incompleto; VAI = “è sullo Store”; Simulated Gambling Yes «per sicurezza»; **Expo/EAS senza OK esplicito**; **expire di build** (API o UI) come pulizia.
+- **No:** Submit incompleto; VAI = “è sullo Store”; Simulated Gambling Yes «per sicurezza»; **Expo/EAS senza OK esplicito**; **expire di build** (API o UI) come pulizia; chiedere/produrre un video “perché è nella skill” se Apple non l’ha chiesto.
 
 ## Manutenzione
 

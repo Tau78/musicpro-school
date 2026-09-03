@@ -11,8 +11,8 @@ TestFlight vuoto / «build rimossa» su **più** app insieme: [Agreements](https
 
 Su `#release`, prima di “è pronta per lo Store”, o se Apple chiede Information Needed (2.1): leggi `.cursor/skills/store-release/SKILL.md` (o `~/.cursor/skills/store-release/`). Segreti in `secrets.md`. Compila `review-notes.template.txt` dall’app vera.
 
-Non inviare se manca il pacchetto: Notes (7 punti, inglese, < 4000), Sign-In Required + demo, video su iPhone fisico dall’icona, privacy URL https, screenshot in uso, Age Rating (Individual → Simulated Gambling = None). Se c’è registrazione, serve Elimina account nella stessa build.
+Non inviare se manca il pacchetto: Notes (7 punti, inglese, < 4000), Sign-In Required + demo, privacy URL https, screenshot in uso, Age Rating (Individual → Simulated Gambling = None). Se c’è registrazione, serve Elimina account nella stessa build.
 
-Il video non si gira da VM cloud. Chiedi all’utente. Non inventare modelli iPhone.
+**Video / screen recording:** non è obbligatorio di default. Solo se Apple lo chiede in quel review (Resolution Center). Non inventare modelli iPhone.
 
 *Aggiungi alla skill Release* → aggiorna la skill `store-release` (globale + copia repo).
