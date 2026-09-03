@@ -19,6 +19,7 @@ import { SettingsGearLink } from "@/components/dashboard/settings-gear-link";
 import { mergeCalendarEvents } from "@/components/lezioni/calendar-bookings";
 import { LessonsCalendarPage } from "@/components/lezioni/lessons-calendar-page";
 import { UnplacedLessonsBlock } from "@/components/lezioni/unplaced-lessons-block";
+import { BookingPaymentReturnNotice } from "@/components/prenotazioni/booking-payment-return";
 import {
   canAccessAdmin,
   canManageBookings,
@@ -39,6 +40,8 @@ interface PageProps {
     sala?: string;
     docente?: string;
     hl?: string;
+    dopoPagamento?: string;
+    bookingId?: string;
   }>;
 }
 
@@ -55,6 +58,8 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const view = parseCalendarView(params.view);
   const anchorDate = isIsoDate(params.date) ? params.date : today;
   const highlightDay = isIsoDate(params.hl) ? params.hl : null;
+  const paymentComplete = params.dopoPagamento === "1";
+  const paymentBookingId = params.bookingId?.trim() || null;
 
   const isDocente = member.roles.includes(MemberRole.Docente);
   const showBookingsCalendar = canManageBookings(member.roles);
@@ -192,6 +197,10 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       </header>
 
       <div className="mx-auto max-w-7xl space-y-10 px-4 py-6 sm:px-6 sm:py-8">
+        {paymentComplete ? (
+          <BookingPaymentReturnNotice bookingId={paymentBookingId} />
+        ) : null}
+
         {!showOperational ? (
           <MemberQuickLinks />
         ) : (

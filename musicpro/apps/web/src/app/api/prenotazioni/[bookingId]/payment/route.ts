@@ -70,7 +70,7 @@ export async function POST(
       process.env.NEXT_PUBLIC_APP_URL ||
       "http://localhost:3000";
 
-    const returnBase = `${origin.replace(/\/$/, "")}/prenotazioni/mie`;
+    const returnBase = `${origin.replace(/\/$/, "")}/dashboard`;
 
     const service = createServiceRoleClient();
     const result = await createRoomBookingPaymentSession(

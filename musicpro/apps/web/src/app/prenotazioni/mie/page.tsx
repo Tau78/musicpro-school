@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 
 import {
@@ -54,6 +54,7 @@ function buildCancelSuccessMessage(result: CancelBookingResult): string {
 
 function MiePrenotazioniContent() {
   const supabase = createClient();
+  const router = useRouter();
   const searchParams = useSearchParams();
 
   const [tab, setTab] = useState<"upcoming" | "past">("upcoming");
@@ -135,16 +136,14 @@ function MiePrenotazioniContent() {
   }, [loadBookings, memberId]);
 
   useEffect(() => {
-    if (searchParams.get("dopoPagamento") === "1") {
-      setMessage(
-        "Pagamento ricevuto. La prenotazione sarà confermata entro pochi secondi.",
-      );
-      const bookingId = searchParams.get("bookingId")?.trim();
-      if (bookingId) {
-        void requestBookingCalendarSync(bookingId, "upsert");
-      }
-    }
-  }, [searchParams]);
+    if (searchParams.get("dopoPagamento") !== "1") return;
+
+    const params = new URLSearchParams({ dopoPagamento: "1" });
+    const bookingId = searchParams.get("bookingId")?.trim();
+    if (bookingId) params.set("bookingId", bookingId);
+
+    router.replace(`/dashboard?${params.toString()}`);
+  }, [router, searchParams]);
 
   async function handlePay(bookingId: string) {
     setPayingId(bookingId);
