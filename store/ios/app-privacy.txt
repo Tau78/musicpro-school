@@ -1,0 +1,35 @@
+# App Privacy (nutrition labels) — solo ciò che l’app fa
+
+Niente tracking ads. Niente ATT. Niente pubblicità. Niente Sign in with Apple / Google.
+
+Dichiarare **sì** solo tipi realmente raccolti, uso **App Functionality**, linked to identity dove c’è login, **not used for tracking**.
+
+## Raccolti
+
+| Tipo ASC | Dettaglio | Linked to user? | Tracking? |
+| --- | --- | --- | --- |
+| Contact Info → Email Address | Email per login (Supabase Auth) | Yes | No |
+| Contact Info → Name (se mostrato/salvato in profilo) | Nome in anagrafica / area personale | Yes | No |
+| Identifiers → User ID | ID account autenticato (Supabase) | Yes | No |
+| User Content → Other User Content | Prenotazioni sale, dati lezioni, presenze, nuova prova | Yes | No |
+
+Destinazione: backend Supabase della scuola (HTTPS). Non venduti. Non usati per ads.
+
+## Non raccolti (lascia No)
+
+- Location, Advertising Data, Purchases / IAP
+- Usage Data / Product Interaction analytics SDK per ads
+- Diagnostics (salvo se un giorno aggiungi crash reporter dichiarato)
+- Sensitive Info, Health, Browse History, Search History
+- Photos, Camera, Microphone, Contacts
+- Device ID / Advertising Identifier
+
+## On device only (non “collect” se non esce dal telefono)
+
+Secure storage / biometria locale: sessione e sblocco Face ID dopo login. Non è tracking.
+
+## Privacy policy URL
+
+`https://www.musicproeventi.it/privacy`
+
+Deve rispondere 200 **prima** di Submit.

@@ -6,6 +6,8 @@
     "migrate:sheets": "node scripts/migrate-from-sheets/index.js",
     "vai": "bash scripts/vai.sh",
     "testflight": "bash scripts/testflight.sh",
+    "asc:metadata": "bash scripts/asc-metadata.sh",
+    "asc:submit": "bash scripts/asc-submit.sh",
     "check:hermes-clone": "bash scripts/check-hermes-structuredclone.sh",
     "import:cespiti": "node scripts/import-libro-cespiti.mjs",
     "smoke:documenti": "node scripts/smoke-documenti.mjs",
