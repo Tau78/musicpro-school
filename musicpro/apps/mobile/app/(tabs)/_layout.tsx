@@ -39,8 +39,11 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="dashboard"
         options={{
-          title: "Dashboard",
+          title: "Area personale",
           headerTitle: APP_NAME,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person-circle-outline" size={size} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
@@ -48,6 +51,9 @@ export default function TabsLayout() {
         options={{
           title: "Prenotazioni",
           headerTitle: APP_NAME,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="calendar-outline" size={size} color={color} />
+          ),
           headerRight: () => (
             <>
               <Link href="/mie-prenotazioni" asChild>
@@ -68,6 +74,9 @@ export default function TabsLayout() {
           title: "Lezioni",
           headerTitle: APP_NAME,
           href: showLezioni ? "/(tabs)/lezioni" : null,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="musical-notes-outline" size={size} color={color} />
+          ),
         }}
       />
       <Tabs.Screen

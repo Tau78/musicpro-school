@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { ensureMemberLinked } from "@musicpro/database";
+import { mapAuthError, mapLoginQueryError } from "@musicpro/shared";
 
 import { passkeyErrorMessage } from "@/lib/auth/passkey-errors";
 import { authCallbackUrl } from "@/lib/auth/redirect-url";
@@ -30,6 +31,7 @@ export function AuthSignInPanel({
 }: AuthSignInPanelProps) {
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect") ?? defaultRedirect;
+  const queryError = mapLoginQueryError(searchParams.get("error"));
 
   const [mode, setMode] = useState<AuthMode>("password");
   const [email, setEmail] = useState("");
@@ -47,6 +49,12 @@ export function AuthSignInPanel({
     const params = new URLSearchParams({ redirect: redirectTo });
     return `/signup?${params.toString()}`;
   }, [redirectTo]);
+
+  useEffect(() => {
+    if (queryError) {
+      setError(queryError);
+    }
+  }, [queryError]);
 
   async function finishSignIn() {
     const supabase = createClient();
@@ -78,14 +86,16 @@ export function AuthSignInPanel({
       });
 
       if (signInError) {
-        setError(signInError.message);
+        setError(mapAuthError(signInError.message));
         return;
       }
 
       await finishSignIn();
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Errore imprevisto durante l'accesso.",
+        err instanceof Error
+          ? mapAuthError(err.message)
+          : "Errore imprevisto durante l'accesso.",
       );
     } finally {
       setIsLoading(false);
@@ -110,7 +120,7 @@ export function AuthSignInPanel({
     setIsLoading(false);
 
     if (otpError) {
-      setError(otpError.message);
+      setError(mapAuthError(otpError.message));
       return;
     }
 

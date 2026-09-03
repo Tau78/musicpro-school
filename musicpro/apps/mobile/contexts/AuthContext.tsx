@@ -16,6 +16,7 @@ import {
   getSession,
 } from "@musicpro/database";
 import type { AuthState, MemberWithRoles, SignInCredentials } from "@musicpro/shared";
+import { mapAuthError } from "@musicpro/shared";
 
 import { createClient } from "@/lib/supabase";
 
@@ -172,7 +173,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (error) {
-        return error.message;
+        return mapAuthError(error.message);
       }
 
       const profile = await getCurrentMemberWithRoles(supabase);

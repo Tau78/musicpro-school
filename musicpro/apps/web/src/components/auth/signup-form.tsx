@@ -7,6 +7,7 @@ import { FormEvent, useMemo, useState } from "react";
 import { BrandLogo } from "@/components/brand/brand-logo";
 
 import { ensureMemberLinked } from "@musicpro/database";
+import { mapAuthError } from "@musicpro/shared";
 
 import { createClient } from "@/lib/supabase/client";
 
@@ -51,7 +52,7 @@ export function SignupForm() {
       });
 
       if (signUpError) {
-        setError(signUpError.message);
+        setError(mapAuthError(signUpError.message));
         return;
       }
 
@@ -75,7 +76,9 @@ export function SignupForm() {
       );
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Errore imprevisto durante la registrazione.",
+        err instanceof Error
+          ? mapAuthError(err.message)
+          : "Errore imprevisto durante la registrazione.",
       );
     } finally {
       setIsLoading(false);

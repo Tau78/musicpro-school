@@ -19,6 +19,7 @@ import {
   listMyBookings,
   requestRoomBookingPaymentUrl,
 } from "@musicpro/database";
+import { mapUserFacingError } from "@musicpro/shared";
 
 import { createClient } from "@/lib/supabase/client";
 import { requestBookingCalendarSync } from "@/lib/calendar/sync-booking";
@@ -81,9 +82,10 @@ function MiePrenotazioniContent() {
       setBookings(list);
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : "Impossibile caricare le prenotazioni",
+        mapUserFacingError(
+          err instanceof Error ? err.message : "",
+          "Impossibile caricare le prenotazioni.",
+        ),
       );
     }
   }, [memberId, supabase, tab]);
@@ -108,7 +110,10 @@ function MiePrenotazioniContent() {
       } catch (err) {
         if (!cancelled) {
           setError(
-            err instanceof Error ? err.message : "Errore di caricamento",
+            mapUserFacingError(
+              err instanceof Error ? err.message : "",
+              "Errore di caricamento.",
+            ),
           );
         }
       } finally {
@@ -132,7 +137,7 @@ function MiePrenotazioniContent() {
   useEffect(() => {
     if (searchParams.get("dopoPagamento") === "1") {
       setMessage(
-        "Pagamento inviato a Stripe. La prenotazione risulta confermata dopo l'elaborazione del webhook (di solito pochi secondi).",
+        "Pagamento ricevuto. La prenotazione sarà confermata entro pochi secondi.",
       );
       const bookingId = searchParams.get("bookingId")?.trim();
       if (bookingId) {
@@ -150,7 +155,12 @@ function MiePrenotazioniContent() {
 
     if (!result.success || !result.url) {
       setPayingId(null);
-      setError(result.message ?? "Impossibile avviare il pagamento.");
+      setError(
+        mapUserFacingError(
+          result.message ?? "",
+          "Impossibile avviare il pagamento.",
+        ),
+      );
       return;
     }
 

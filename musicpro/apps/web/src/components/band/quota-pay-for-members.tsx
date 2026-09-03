@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import { formatQuotaEuro } from "@musicpro/database";
+import { mapUserFacingError } from "@musicpro/shared";
 
 export interface BandMemberQuotaOption {
   memberId: string;
@@ -76,7 +77,10 @@ export function QuotaPayForMembers({
       window.location.href = data.url;
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Impossibile avviare il pagamento.",
+        mapUserFacingError(
+          err instanceof Error ? err.message : "",
+          "Impossibile avviare il pagamento.",
+        ),
       );
       setLoading(false);
     }
@@ -93,7 +97,7 @@ export function QuotaPayForMembers({
       </h2>
       <p className="mt-2 text-sm text-neutral-600">
         Seleziona i membri della band senza quota {fiscalYear} e paga con un
-        unico checkout Stripe.
+        unico pagamento con carta.
       </p>
 
       <ul className="mt-4 divide-y divide-neutral-100 rounded-lg border border-neutral-200">

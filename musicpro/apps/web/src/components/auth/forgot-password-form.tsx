@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
 
 import { BrandLogo } from "@/components/brand/brand-logo";
+import { mapAuthError } from "@musicpro/shared";
 import { authCallbackUrl } from "@/lib/auth/redirect-url";
 import { createClient } from "@/lib/supabase/client";
 
@@ -42,7 +43,7 @@ export function ForgotPasswordForm() {
     setIsLoading(false);
 
     if (resetError) {
-      setError(resetError.message);
+      setError(mapAuthError(resetError.message));
       return;
     }
 

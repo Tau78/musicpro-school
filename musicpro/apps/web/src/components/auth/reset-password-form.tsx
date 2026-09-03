@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 
 import { BrandLogo } from "@/components/brand/brand-logo";
+import { mapPasswordUpdateError } from "@musicpro/shared";
 import { createClient } from "@/lib/supabase/client";
 
 const inputClass =
@@ -63,7 +64,7 @@ export function ResetPasswordForm() {
     setIsLoading(false);
 
     if (updateError) {
-      setError(updateError.message);
+      setError(mapPasswordUpdateError(updateError.message));
       return;
     }
 

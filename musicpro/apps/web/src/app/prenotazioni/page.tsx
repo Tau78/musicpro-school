@@ -34,7 +34,7 @@ import {
   type MemberCreditBalance,
   type ProviScheduleEntry,
 } from "@musicpro/database";
-
+import { mapUserFacingError } from "@musicpro/shared";
 import { AuthSignInPanel } from "@/components/auth/auth-sign-in-panel";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { SiteHeader } from "@/components/layout/site-header";
@@ -172,7 +172,10 @@ export default function PrenotazioniPage() {
       setSlots(availability.slots);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Errore nel caricamento degli slot",
+        mapUserFacingError(
+          err instanceof Error ? err.message : "",
+          "Errore nel caricamento degli slot.",
+        ),
       );
     }
   }, [currentStepKey, durationMinutes, selectedDate, selectedRoomId, supabase]);
@@ -224,9 +227,10 @@ export default function PrenotazioniPage() {
       } catch (err) {
         if (!cancelled) {
           setError(
-            err instanceof Error
-              ? err.message
-              : "Impossibile caricare le sale prova",
+            mapUserFacingError(
+              err instanceof Error ? err.message : "",
+              "Impossibile caricare le sale prova.",
+            ),
           );
         }
       } finally {
@@ -354,8 +358,10 @@ export default function PrenotazioniPage() {
         return;
       }
       setError(
-        payment.message ??
+        mapUserFacingError(
+          payment.message ?? "",
           "Prenotazione registrata ma il pagamento non è partito. Puoi pagare da «Le mie prenotazioni».",
+        ),
       );
     }
 
@@ -456,8 +462,10 @@ export default function PrenotazioniPage() {
 
       if (!creditPayment.success) {
         setError(
-          creditPayment.message ??
+          mapUserFacingError(
+            creditPayment.message ?? "",
             "Prenotazione registrata ma il pagamento con crediti non è riuscito. Puoi riprovare da «Le mie prenotazioni».",
+          ),
         );
         return;
       }

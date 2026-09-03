@@ -129,14 +129,15 @@ ok "build tree pronta"
 step "Icona 1024×1024"
 if [[ ! -f "$MOBILE/assets/icon.png" ]]; then
   mkdir -p "$MOBILE/assets"
-  if [[ -f "$REAL_ROOT/assets/music-pro-logo.png" ]]; then
+  if [[ -f "$REAL_ROOT/musicpro/apps/mobile/assets/icon.png" ]]; then
+    cp "$REAL_ROOT/musicpro/apps/mobile/assets/icon.png" "$MOBILE/assets/icon.png"
+  elif [[ -f "$REAL_ROOT/assets/music-pro-logo.png" ]]; then
     sips --padToHeightWidth 1024 1024 --padColor 1E3A5F \
       "$REAL_ROOT/assets/music-pro-logo.png" \
       --out "$MOBILE/assets/icon.png" >/dev/null
-  elif [[ -f "$REAL_ROOT/musicpro/apps/mobile/assets/icon.png" ]]; then
-    cp "$REAL_ROOT/musicpro/apps/mobile/assets/icon.png" "$MOBILE/assets/icon.png"
   fi
 fi
+[[ -f "$MOBILE/assets/icon.png" ]] || die "Manca assets/icon.png (fonte App Icon)"
 ok "$MOBILE/assets/icon.png"
 
 patch_ios_podfile() {
@@ -213,6 +214,10 @@ else
   (cd "$MOBILE/ios" && pod install)
   ok "ios/ pronto"
 fi
+
+# Expo prebuild may leave a single-size AppIcon; always expand from brand icon.
+step "AppIcon.appiconset completo (iPhone + iPad + 1024)"
+bash "$REAL_ROOT/scripts/generate-ios-appicon.sh" "$MOBILE"
 
 WORKSPACE="$(find "$XCODE_IOS" -maxdepth 1 -name '*.xcworkspace' | head -1)"
 [[ -n "$WORKSPACE" ]] || die "Nessun .xcworkspace in $MOBILE/ios"

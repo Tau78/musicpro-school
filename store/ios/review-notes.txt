@@ -22,7 +22,7 @@ MusicPro School is for MusicPro Eventi members and teachers: personal area, prac
 4) HOW TO SET UP AND USE THE MAIN FEATURES
 SIGN IN — open app → Accedi. Email + password only. No magic link. No Apple / Google.
 Demo account required: Yes (Sign-In Required = ON).
-Email: andreoni.mauro@gmail.com
+Email: appstore.review@musicproeventi.it
 Password: use the Sign-In Required fields above (not in this file).
 Then:
 1. Area personale (Personal area).

@@ -7,7 +7,7 @@
 | Phone | +393716752550 |
 | Email | andreoni.mauro@gmail.com |
 | Sign-In Required | **Yes** |
-| Demo user | andreoni.mauro@gmail.com |
+| Demo user | appstore.review@musicproeventi.it |
 | Demo password | solo nei campi ASC Sign-In Required (non in git) |
 | Notes | incolla `store/ios/review-notes.txt` |
 | Attachment | solo se Apple lo chiede in Resolution Center (non obbligatorio di default) |
