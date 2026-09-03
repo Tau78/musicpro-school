@@ -1,0 +1,25 @@
+# Age Rating — App Store Connect
+
+Account **Individual** (Mauro Andreoni / YSU7PL673A).
+Se Simulated Gambling ≠ None, Apple blocca **prima** della review. Non rispondere Yes «per sicurezza».
+
+| Domanda | Risposta |
+| --- | --- |
+| Cartoon or Fantasy Violence | None |
+| Realistic Violence | None |
+| Prolonged Graphic or Sadistic Realistic Violence | None |
+| Sexual Content or Nudity | None |
+| Pornographic | None |
+| Profanity or Crude Humor | None |
+| Alcohol, Tobacco, or Drug Use or References | None |
+| Mature / Suggestive Themes | None |
+| Horror / Fear Themes | None |
+| Medical / Treatment Information | None |
+| Gambling | None |
+| **Simulated Gambling** | **None** |
+| Gambling and Contests | None (no quiz, no leaderboard, no prizes, no contests) |
+| Unrestricted Web Access | No |
+| User Generated Content (social / pubblico) | No — dati scuola privati, non un feed pubblico |
+| Age | 4+ / Ages 4+ |
+
+Niente IAP, niente contest, niente soldi giocati.

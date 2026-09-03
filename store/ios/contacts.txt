@@ -1,0 +1,21 @@
+# App Review Information — contatto
+
+| Campo ASC | Valore |
+| --- | --- |
+| First name | Mauro |
+| Last name | Andreoni |
+| Phone | +393716752550 |
+| Email | andreoni.mauro@gmail.com |
+| Sign-In Required | **Yes** |
+| Demo user | andreoni.mauro@gmail.com |
+| Demo password | solo nei campi ASC Sign-In Required (non in git) |
+| Notes | incolla `store/ios/review-notes.txt` |
+| Attachment | video iPhone fisico (vedi screenshots.md) |
+
+Support URL: https://school.musicproeventi.it
+Marketing URL: (opzionale) https://school.musicproeventi.it
+Privacy URL: https://www.musicproeventi.it/privacy
+Copyright: 2026 Mauro Andreoni / MusicPro Eventi
+Category suggerita: Education (secondary Lifestyle)
+Price: Free — no IAP
+Bundle: it.musicproeventi.school — ASC id 6806407450

@@ -1,0 +1,14 @@
+name: MusicPro School
+subtitle: Lessons & practice rooms
+promotional_text: Personal area, room bookings and lessons for MusicPro Eventi members and teachers. School roster access only.
+keywords: school,music,lessons,booking,practice room,teacher,member,musicpro,calendar,attendance
+whats_new: First TestFlight release: personal area, bookings, teacher lessons, new practice session.
+
+description: |
+  MusicPro School is the app for MusicPro Eventi members and teachers: personal area, practice-room bookings, and lesson tools.
+
+  Sign in with your school email and password. Personal area shows your profile and status. Bookings covers practice rooms. Teachers also get Lessons: Today, Calendar, attendance, and New practice session (Nuova prova).
+
+  Access is limited to people on the school roster. No social feed. No in-app ads.
+
+  Support: https://school.musicproeventi.it

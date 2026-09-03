@@ -1,0 +1,18 @@
+---
+description: "#release — TestFlight ≠ Submit for Review; pacchetto App Review obbligatorio"
+alwaysApply: true
+---
+
+# Store release
+
+**VAI** / Xcode → TestFlight. Non è Submit for Review. **Niente Expo/EAS** senza OK esplicito di Mauro.
+
+TestFlight vuoto / «build rimossa» su **più** app insieme: [Agreements](https://appstoreconnect.apple.com/agreements) prima dei tester. Mai expire di build. Nuovo upload + Installa, non Aggiorna.
+
+Su `#release`, prima di “è pronta per lo Store”, o se Apple chiede Information Needed (2.1): leggi `.cursor/skills/store-release/SKILL.md` (o `~/.cursor/skills/store-release/`). Segreti in `secrets.md`. Compila `review-notes.template.txt` dall’app vera.
+
+Non inviare se manca il pacchetto: Notes (7 punti, inglese, < 4000), Sign-In Required + demo, video su iPhone fisico dall’icona, privacy URL https, screenshot in uso, Age Rating (Individual → Simulated Gambling = None). Se c’è registrazione, serve Elimina account nella stessa build.
+
+Il video non si gira da VM cloud. Chiedi all’utente. Non inventare modelli iPhone.
+
+*Aggiungi alla skill Release* → aggiorna la skill `store-release` (globale + copia repo).
