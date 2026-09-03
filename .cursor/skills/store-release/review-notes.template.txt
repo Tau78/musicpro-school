@@ -1,9 +1,10 @@
 GUIDELINE 2.1 — APP REVIEW INFORMATION
 
-1) SCREEN RECORDING
-A screen recording on a physical iPhone (latest iOS) is attached to this reply. It starts at app launch and shows:
+1) HOW THE REVIEWER SEES THE APP (NO VIDEO REQUIRED BY DEFAULT)
+Describe the first screens and the core path in text (button labels as in the UI, English in parentheses). A screen recording is **not** part of the standard package — attach one only if Apple asked for it in Resolution Center / Information Needed for this review.
+Walkthrough:
 - [login / registration with the demo account — which button, which tab: Password not magic link]
-- [core flow, button labels as in the UI, with English in parentheses]
+- [core flow]
 - [account deletion path, if the app has accounts]
 - [any permission prompt: which one, when it appears]
 No in-app purchases or subscriptions. [If IAP: where to buy, sandbox note.]

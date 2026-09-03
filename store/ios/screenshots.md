@@ -1,4 +1,4 @@
-# Screenshot e video — App Store (MusicPro School)
+# Screenshot — App Store (MusicPro School)
 
 Guideline **2.3.3**: app **in uso**, non splash / schermata vuota / solo logo. Niente testo TEST, REVIEW, SMOKE, Lorem, password in chiaro, errori di rete.
 
@@ -38,13 +38,6 @@ Device / Simulator → Screenshot (Cmd+S su Mac Simulator).
 
 Cartella suggerita (PNG pesanti spesso fuori git): `store/ios/screenshots/iphone-69/` e `store/ios/screenshots/iphone-65/`.
 
-## Video review (obbligatorio per 2.1 — non App Preview)
-
-- iPhone **fisico**, iOS attuale, dalla **icona** Home (non Safari).
-- 30–90 s: Accedi (password) → Area personale → Prenotazioni → Lezioni (Oggi / Nuova prova se docente).
-- Password solo digitata, non mostrata a lungo.
-- Carica in App Review Information → Attachment. L’agente non può girarlo.
-
 ## App Preview (opzionale)
 
-Non sostituisce il video review. Solo dopo screenshot reali.
+Solo dopo screenshot reali. Non è lo stesso di un eventuale allegato review: uno screen recording serve **solo** se Apple lo chiede in Resolution Center, non di default.

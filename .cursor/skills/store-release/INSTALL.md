@@ -21,7 +21,7 @@ In `AGENTS.md`:
 ```md
 # Store release
 
-`#release` / skill `store-release`. TestFlight = Xcode nativo (niente Expo/EAS senza OK). ≠ Submit for Review. Segreti: `secrets.md`. Pacchetto Notes 7 punti, demo, video iPhone fisico, privacy, Age Rating.
+`#release` / skill `store-release`. TestFlight = Xcode nativo (niente Expo/EAS senza OK). ≠ Submit for Review. Segreti: `secrets.md`. Pacchetto Notes 7 punti, demo, privacy, Age Rating. Video solo se Apple lo chiede.
 ```
 
 Notes **compilate** dell’app → `docs/` (o `store/ios/`), non nella skill globale.

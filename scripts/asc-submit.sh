@@ -240,11 +240,12 @@ else:
 # --- Checklist grezza (informativa) ---
 print()
 print("Checklist (manuale / fuori da questo script se manca):")
-print("  [ ] screenshot / preview video")
+print("  [ ] screenshot (App Preview opzionale)")
 print("  [ ] Age Rating Individual")
 print("  [ ] App Privacy")
 print("  [ ] review notes + demo password Sign-In Required (ASC UI)")
 print("  [ ] build VALID collegata alla versione")
+print("  [ ] allegato video solo se Apple lo ha chiesto")
 if vstate not in SUBMITTABLE:
     print(f"  [!] stato versione={vstate} (serve PREPARE_FOR_SUBMISSION o READY_FOR_REVIEW)")
 else:

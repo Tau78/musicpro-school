@@ -6,11 +6,11 @@ Le regole stanno in `SKILL.md` (skill **store-release**, `#release`). Qui i rifi
 
 **Cosa ha detto Apple:** Information Needed. Volevano vedere registrazione, login ed eliminazione account. La build su TestFlight c’era; **App Review Information** no.
 
-**Causa:** VAI / build TestFlight ≠ Submit for Review. Pacchetto Notes + demo + video assente. (TestFlight oggi: Xcode locale via `scripts/xcode-testflight.sh`, non più solo EAS.)
+**Causa:** VAI / build TestFlight ≠ Submit for Review. Pacchetto Notes + demo assente. (TestFlight oggi: Xcode locale via `scripts/xcode-testflight.sh`, non più solo EAS.)
 
-**Fix:** Notes a 7 punti, Sign-In Required nei campi dedicati, account demo, Elimina account in Impostazioni, video su iPhone fisico, privacy allineata.
+**Fix:** Notes a 7 punti, Sign-In Required nei campi dedicati, account demo, Elimina account in Impostazioni, privacy allineata. In quel caso Apple chiese anche uno screen recording — **evento particolare**, non regola permanente del pacchetto `#release`.
 
-**Regola:** non dichiarare la scheda pronta se manca anche una riga del pacchetto.
+**Regola:** non dichiarare la scheda pronta se manca anche una riga del pacchetto standard. Non richiedere un video a ogni Submit.
 
 ---
 

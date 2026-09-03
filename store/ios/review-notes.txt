@@ -1,7 +1,7 @@
 GUIDELINE 2.1 — APP REVIEW INFORMATION
 
-1) SCREEN RECORDING
-A screen recording on a physical iPhone (latest iOS) is attached in App Review Information (or will be uploaded before submit). It starts from the home-screen icon (not Safari) and shows:
+1) HOW THE REVIEWER SEES THE APP (NO VIDEO REQUIRED BY DEFAULT)
+No screen recording is attached unless Apple asks for one in Resolution Center. Core path in text:
 - Launch → Accedi (Sign In). Email + password only. No magic link / Link di accesso. No Sign in with Apple or Google (not offered).
 - Sign in with the demo account (section 4; password only in Sign-In Required fields above).
 - Tab Area personale (Personal area).

@@ -250,10 +250,11 @@ else:
 print()
 print("=== Metadati caricati. NON è Submit for Review. ===")
 print("Mancano ancora (manuale / non via questo script):")
-print("  - screenshot (es. 6.9″ + iPad 13″) e video iPhone fisico")
+print("  - screenshot (es. 6.9″ + iPad 13″)")
 print("  - Age Rating (Individual)")
 print("  - App Privacy (nutrition labels)")
 print("  - password demo Sign-In Required su ASC (App Review Information)")
+print("  - video/allegato solo se Apple lo chiede in Resolution Center (non di default)")
 print("Bundle:", bundle_id, "| App ID:", app_id)
 print("Poi: bash scripts/asc-submit.sh  (dry-run)  oppure  ASC_SUBMIT=1 bash scripts/asc-submit.sh --yes")
 PY

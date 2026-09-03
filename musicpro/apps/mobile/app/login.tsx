@@ -95,9 +95,6 @@ export default function LoginScreen() {
       <View style={styles.card}>
         <Text style={styles.brand}>{APP_NAME}</Text>
         <Text style={styles.title}>Accedi</Text>
-        <Text style={styles.subtitle}>
-          Area riservata associati — email e password Supabase.
-        </Text>
 
         <Text style={styles.label}>Email</Text>
         <TextInput
