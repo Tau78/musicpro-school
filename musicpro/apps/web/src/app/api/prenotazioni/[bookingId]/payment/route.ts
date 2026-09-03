@@ -89,7 +89,9 @@ export async function POST(
 
     return NextResponse.json({ success: true, url: result.url });
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ success: false, message }, { status: 500 });
+    return NextResponse.json(
+      { success: false, message: "Impossibile avviare il pagamento." },
+      { status: 500 },
+    );
   }
 }

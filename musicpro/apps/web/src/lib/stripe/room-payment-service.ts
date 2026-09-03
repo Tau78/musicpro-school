@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database } from "@musicpro/database";
+import { mapUserFacingError } from "@musicpro/shared";
 
 import {
   createStripePaymentLinkRoomBooking,
@@ -89,7 +90,10 @@ export async function createRoomBookingPaymentSession(
   if (!linkRes.success || !linkRes.url) {
     return {
       success: false,
-      message: linkRes.message ?? "Impossibile creare il link di pagamento.",
+      message: mapUserFacingError(
+        linkRes.message ?? "",
+        "Impossibile avviare il pagamento.",
+      ),
     };
   }
 

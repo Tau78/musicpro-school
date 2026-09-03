@@ -36,7 +36,11 @@ Login con account demo.
 Device / Simulator → Screenshot (Cmd+S su Mac Simulator).
 ```
 
-Cartella suggerita (PNG pesanti spesso fuori git): `store/ios/screenshots/iphone-69/` e `store/ios/screenshots/iphone-65/`.
+Cartella ready (PNG senza alpha): `store/ios/screenshots/iphone-69/`
+- `01-accedi-1320x2868.png` (+ nativo `01-accedi-1290x2796.png`)
+- `03-prenotazioni-1320x2868.png` (+ nativo)
+
+Prossimi scatti: `02-area-personale`, poi ripeti Prenotazioni **dopo** una prenotazione reale (quota demo già in regola).
 
 ## App Preview (opzionale)
 

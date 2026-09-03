@@ -14,3 +14,9 @@ export type {
   SignUpCredentials,
 } from "./auth";
 export type { MemberRoleValue } from "./types";
+export {
+  mapAuthError,
+  mapLoginQueryError,
+  mapPasswordUpdateError,
+  mapUserFacingError,
+} from "./user-facing-errors";

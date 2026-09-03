@@ -66,8 +66,7 @@ export default async function DashboardShopPage({ searchParams }: ShopPageProps)
 
         {paymentComplete ? (
           <div className="mt-6 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
-            Pagamento ricevuto. I crediti saranno aggiornati a breve dopo la
-            conferma di Stripe.
+            Pagamento ricevuto. I crediti saranno aggiornati a breve.
           </div>
         ) : null}
 
@@ -102,8 +101,7 @@ export default async function DashboardShopPage({ searchParams }: ShopPageProps)
             Pacchetti disponibili
           </h2>
           <p className="mt-2 text-sm text-neutral-600">
-            Acquista crediti per prenotare le sale prova. Il pagamento avviene in
-            modo sicuro tramite Stripe.
+            Acquista crediti per prenotare le sale prova. Pagamento sicuro con carta.
           </p>
           <CreditShopPackages packages={packages} />
         </section>

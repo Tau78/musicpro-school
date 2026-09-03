@@ -34,7 +34,7 @@ export function passkeyErrorMessage(error: unknown): string {
     text.includes("relying party") ||
     text.includes("invalid for this domain")
   ) {
-    return "Le passkey non sono configurate per questo sito. In Supabase: Authentication → Passkeys, imposta Relying Party ID su musicproeventi.it e Origin su https://school.musicproeventi.it";
+    return "Le passkey non sono disponibili su questo sito. Entra con email e password.";
   }
-  return raw || "Impossibile usare la passkey.";
+  return "Impossibile usare la passkey.";
 }

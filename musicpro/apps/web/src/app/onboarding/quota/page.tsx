@@ -98,7 +98,7 @@ export default async function OnboardingQuotaPage({ searchParams }: QuotaPagePro
           </div>
 
           <p className="mt-4 text-xs text-neutral-500">
-            Pagamento sicuro tramite Stripe. Riceverai conferma via email.
+            Pagamento sicuro con carta. Riceverai conferma via email.
           </p>
         </section>
       </div>

@@ -2,24 +2,12 @@
 
 import { FormEvent, useState } from "react";
 
+import { mapPasswordUpdateError } from "@musicpro/shared";
+
 import { createClient } from "@/lib/supabase/client";
 
 const inputClass =
   "mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/20";
-
-function passwordUpdateMessage(message: string): string {
-  const text = message.toLowerCase();
-  if (text.includes("same") || text.includes("should be different")) {
-    return "La nuova password deve essere diversa da quella attuale.";
-  }
-  if (text.includes("leaked") || text.includes("pwned") || text.includes("data breach")) {
-    return "Questa password risulta compromessa. Scegline un’altra.";
-  }
-  if (text.includes("weak") || text.includes("characters")) {
-    return "La password è troppo debole. Usa almeno 8 caratteri.";
-  }
-  return message || "Impossibile aggiornare la password.";
-}
 
 export function ChangePasswordForm() {
   const [password, setPassword] = useState("");
@@ -48,7 +36,7 @@ export function ChangePasswordForm() {
     setBusy(false);
 
     if (updateError) {
-      setError(passwordUpdateMessage(updateError.message));
+      setError(mapPasswordUpdateError(updateError.message));
       return;
     }
 
