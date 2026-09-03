@@ -346,13 +346,14 @@ export default function PrenotazioniPage() {
     result: CreateBookingResult,
     paidWithCredits: boolean,
   ) {
-    if (
+    const needsCardPayment =
       !paidWithCredits &&
-      result.status === "pending" &&
       result.requiresPayment &&
-      result.bookingId
-    ) {
-      const payment = await requestRoomBookingPaymentUrl(result.bookingId);
+      result.bookingId &&
+      (result.status === "pending" || result.status === "pending_approval");
+
+    if (needsCardPayment) {
+      const payment = await requestRoomBookingPaymentUrl(result.bookingId!);
       if (payment.success && payment.url) {
         window.location.href = payment.url;
         return;
@@ -360,9 +361,15 @@ export default function PrenotazioniPage() {
       setError(
         mapUserFacingError(
           payment.message ?? "",
-          "Prenotazione registrata ma il pagamento non è partito. Puoi pagare da «Le mie prenotazioni».",
+          "Impossibile avviare il pagamento. Riprova o contatta la segreteria.",
         ),
       );
+      return;
+    }
+
+    if (result.requiresPayment && !paidWithCredits) {
+      setError("Completa il pagamento per confermare la prenotazione.");
+      return;
     }
 
     let successMessage = "Prenotazione registrata.";
@@ -378,9 +385,6 @@ export default function PrenotazioniPage() {
     } else if (result.status === "pending_approval") {
       successMessage =
         "Richiesta inviata: in attesa di approvazione dalla segreteria.";
-    } else if (result.status === "pending") {
-      successMessage =
-        "Prenotazione registrata. Completa il pagamento per confermare lo slot.";
     } else if (result.status === "confirmed") {
       successMessage = "Prenotazione confermata!";
     }
@@ -401,6 +405,11 @@ export default function PrenotazioniPage() {
       } else if (result.status === "pending_approval") {
         void requestBookingConfirmationEmail(result.bookingId, { template: "confirm" });
       }
+    }
+
+    if (paidWithCredits) {
+      window.location.assign("/dashboard");
+      return;
     }
   }
 
@@ -927,7 +936,7 @@ export default function PrenotazioniPage() {
                 onClick={() => void handleConfirm(false)}
                 className="rounded-lg bg-[var(--brand)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-60"
               >
-                {submitting ? "Invio…" : "Conferma prenotazione"}
+                {submitting ? "Reindirizzamento…" : "Procedi al pagamento"}
               </button>
               {canPayWithCredits && (
                 <button

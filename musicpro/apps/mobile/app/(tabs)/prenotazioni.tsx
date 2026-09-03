@@ -234,11 +234,12 @@ export default function PrenotazioniScreen() {
       return;
     }
 
-    if (
-      result.status === "pending" &&
+    const needsCardPayment =
       result.requiresPayment &&
-      result.bookingId
-    ) {
+      result.bookingId &&
+      (result.status === "pending" || result.status === "pending_approval");
+
+    if (needsCardPayment) {
       const apiBaseUrl = process.env.EXPO_PUBLIC_WEB_URL?.trim();
       const {
         data: { session },
@@ -253,17 +254,12 @@ export default function PrenotazioniScreen() {
 
       if (payment.success && payment.url) {
         await Linking.openURL(payment.url);
-        setMessage(
-          "Prenotazione registrata. Completa il pagamento nel browser.",
-        );
-        setSelectedSlot(null);
-        await loadAvailability();
         return;
       }
 
       setError(
         payment.message ??
-          "Prenotazione registrata ma il pagamento non è partito. Puoi pagare da «Le mie prenotazioni».",
+          "Impossibile avviare il pagamento. Riprova o contatta la segreteria.",
       );
       setSelectedSlot(null);
       await loadAvailability();
@@ -272,12 +268,17 @@ export default function PrenotazioniScreen() {
 
     setSubmitting(false);
 
+    if (result.requiresPayment) {
+      setError("Completa il pagamento per confermare la prenotazione.");
+      setSelectedSlot(null);
+      await loadAvailability();
+      return;
+    }
+
     setMessage(
       result.status === "pending_approval"
         ? "Richiesta inviata: in attesa di approvazione."
-        : result.status === "pending"
-          ? "Prenotazione registrata (pagamento in arrivo)."
-          : "Prenotazione confermata!",
+        : "Prenotazione confermata!",
     );
     setSelectedSlot(null);
     await loadAvailability();

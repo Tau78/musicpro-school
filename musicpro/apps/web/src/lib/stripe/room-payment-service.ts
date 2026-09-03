@@ -38,7 +38,10 @@ export async function createRoomBookingPaymentSession(
     return { success: false, message: "Non autorizzato." };
   }
 
-  if (booking.status !== "pending") {
+  if (
+    booking.status !== "pending" &&
+    booking.status !== "pending_approval"
+  ) {
     return {
       success: false,
       message: "Questa prenotazione non richiede pagamento online.",
