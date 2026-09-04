@@ -33,6 +33,10 @@ test("authPublicOrigin ignora env e window localhost", () => {
     authPublicOrigin({}, "https://school.musicproeventi.it"),
     SCHOOL_PRODUCTION_ORIGIN,
   );
+  assert.equal(
+    authPublicOrigin({ NEXT_PUBLIC_APP_URL: "http://localhost:3000" }, ""),
+    SCHOOL_PRODUCTION_ORIGIN,
+  );
 });
 
 test("authCallbackUrl punta sempre al callback school, mai a localhost", () => {
