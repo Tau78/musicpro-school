@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { createBandInvite, listBandMembers } from "@musicpro/database";
 
+import { authPublicOrigin, isLocalDevOrigin } from "@/lib/auth/redirect-url";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -61,11 +62,12 @@ export async function POST(request: NextRequest, context: RouteContext) {
       );
     }
 
+    const requestOrigin =
+      request.headers.get("origin") || request.nextUrl.origin || "";
     const origin =
-      request.headers.get("origin") ||
-      request.nextUrl.origin ||
-      process.env.NEXT_PUBLIC_APP_URL ||
-      "http://localhost:3000";
+      requestOrigin && !isLocalDevOrigin(requestOrigin)
+        ? requestOrigin.replace(/\/$/, "")
+        : authPublicOrigin(process.env);
 
     const result = await createBandInvite(supabase, {
       bandId,

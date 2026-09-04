@@ -1,6 +1,7 @@
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 
+import { authPublicOrigin, isLocalDevOrigin } from "@/lib/auth/redirect-url";
 import { createRoomBookingPaymentSession } from "@/lib/stripe/room-payment-service";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
@@ -64,11 +65,12 @@ export async function POST(
       );
     }
 
+    const requestOrigin =
+      request.headers.get("origin") || request.nextUrl.origin || "";
     const origin =
-      request.headers.get("origin") ||
-      request.nextUrl.origin ||
-      process.env.NEXT_PUBLIC_APP_URL ||
-      "http://localhost:3000";
+      requestOrigin && !isLocalDevOrigin(requestOrigin)
+        ? requestOrigin.replace(/\/$/, "")
+        : authPublicOrigin(process.env);
 
     const returnBase = `${origin.replace(/\/$/, "")}/dashboard`;
 
