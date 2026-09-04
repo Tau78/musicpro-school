@@ -14,7 +14,7 @@ export function isLocalDevOrigin(origin: string): boolean {
 }
 
 export function authPublicOrigin(
-  env: NodeJS.ProcessEnv = process.env,
+  env: Record<string, string | undefined> = process.env,
   windowOrigin?: string,
 ): string {
   const fromEnv = trimOrigin(
