@@ -18,7 +18,9 @@ export function authPublicOrigin(
   windowOrigin?: string,
 ): string {
   const fromEnv = trimOrigin(
-    env.NEXT_PUBLIC_SCHOOL_PUBLIC_URL ?? env.SCHOOL_PUBLIC_URL,
+    env.NEXT_PUBLIC_SCHOOL_PUBLIC_URL ??
+      env.SCHOOL_PUBLIC_URL ??
+      env.NEXT_PUBLIC_APP_URL,
   );
   if (fromEnv && !isLocalDevOrigin(fromEnv)) {
     return fromEnv;
