@@ -372,6 +372,13 @@ else
   edge_smoke_post stripe-credit-shop-webhook
   edge_smoke_post stripe-quota-webhook
 
+  if node "$ROOT/scripts/sync-school-auth-urls.mjs" --check; then
+    ok "auth reset/magic link → $PRODUCTION_HOST"
+  else
+    warn "auth Site URL non allineato (reset password su localhost?)"
+    FAIL_SMOKE=1
+  fi
+
   [[ "$FAIL_SMOKE" -eq 0 ]] || die "Smoke HTTP fallito: produzione non allineata"
 fi
 

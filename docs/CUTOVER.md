@@ -104,8 +104,9 @@ Complete **all** items before opening the cutover window. Use a **dedicated Supa
    - `reimbursements`, `enrollments` (keys in `app_settings`)
 
 5. **Auth configuration** (Supabase Dashboard → Authentication):
-   - Site URL: production Next.js URL
-   - Redirect URLs: production + `http://localhost:3000/**` for dev
+   - Site URL: `https://school.musicproeventi.it` (**mai** localhost)
+   - Redirect URLs: `https://school.musicproeventi.it/**` + `http://localhost:3000/**` per il dev
+   - Allinea/verifica: `node scripts/sync-school-auth-urls.mjs --check`
    - Email provider configured (SMTP or Supabase default)
    - Decide: email confirmation on/off for launch
 
