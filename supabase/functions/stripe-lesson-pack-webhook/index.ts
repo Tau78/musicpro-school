@@ -7,6 +7,7 @@ import {
   stripeClient,
   verifyStripeEventWithSecret,
 } from '../_shared/stripe-webhook.ts';
+import { edgeUrlEnvFromDeno, internalAppUrl } from '../_shared/public-url.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -118,16 +119,12 @@ Deno.serve(async (req) => {
     await deactivatePaymentLink(stripe, paymentLinkId);
   }
 
-  const appUrl = (
-    Deno.env.get('NEXT_PUBLIC_APP_URL') ??
-    Deno.env.get('SITE_URL') ??
-    ''
-  ).replace(/\/$/, '');
+  const appUrl = internalAppUrl(edgeUrlEnvFromDeno());
   const cronSecret = Deno.env.get('CRON_SECRET') ?? '';
   const appliedPaymentId = String(result.payment_id ?? paymentId ?? '');
-  if (!appUrl || !cronSecret) {
+  if (!cronSecret) {
     console.error(
-      '[stripe-lesson-pack-webhook] ricevuta saltata: manca NEXT_PUBLIC_APP_URL o CRON_SECRET',
+      '[stripe-lesson-pack-webhook] ricevuta saltata: manca CRON_SECRET',
     );
   } else if (appliedPaymentId) {
     try {

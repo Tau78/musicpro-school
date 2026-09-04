@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentMemberWithRoles } from "@musicpro/database";
 
 import { canManageBookings } from "@/lib/admin/roles";
+import { authPublicOrigin, isLocalDevOrigin } from "@/lib/auth/redirect-url";
 import { createRoomBookingPaymentSession } from "@/lib/stripe/room-payment-service";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
@@ -91,11 +92,12 @@ export async function POST(request: NextRequest, context: RouteContext) {
     );
   }
 
+  const requestOrigin =
+    request.headers.get("origin") || request.nextUrl.origin || "";
   const origin =
-    request.headers.get("origin") ||
-    request.nextUrl.origin ||
-    process.env.NEXT_PUBLIC_APP_URL ||
-    "http://localhost:3000";
+    requestOrigin && !isLocalDevOrigin(requestOrigin)
+      ? requestOrigin.replace(/\/$/, "")
+      : authPublicOrigin(process.env);
   const returnBase = `${origin.replace(/\/$/, "")}/prenotazioni/mie`;
 
   const paymentResult = await createRoomBookingPaymentSession(

@@ -6,6 +6,7 @@ import {
   parseServiceAccountJson,
   upsertCalendarEvent,
 } from './google-calendar.ts';
+import { edgeUrlEnvFromDeno, publicSchoolUrl } from './public-url.ts';
 
 type BookingRow = {
   id: string;
@@ -108,7 +109,7 @@ function buildEventDescription(
 ): string {
   const room = booking.rooms;
   const member = booking.members;
-  const schoolUrl = Deno.env.get('SCHOOL_PUBLIC_URL') ?? 'https://school.musicproeventi.it';
+  const schoolUrl = publicSchoolUrl(edgeUrlEnvFromDeno());
 
   const lines = [
     '═══════════════════════════════════════',

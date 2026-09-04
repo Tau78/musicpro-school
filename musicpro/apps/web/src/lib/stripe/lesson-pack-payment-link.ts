@@ -4,6 +4,10 @@ import {
 } from "@/lib/iscrizione/stripe-config";
 import { QUOTA_ASSOCIATIVA_CENTESIMI } from "@/lib/iscrizione/stripe-payment-link";
 import { eurosToCents } from "@/lib/stripe/room-payment-link";
+import {
+  authPublicOrigin,
+  isLocalDevOrigin,
+} from "@/lib/auth/redirect-url";
 
 export const LESSON_PACK_FLOW = "lesson_pack";
 
@@ -15,19 +19,25 @@ export interface LessonPackPaymentLinkResult {
   message?: string;
 }
 
+function usablePublicUrl(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed || isLocalDevOrigin(trimmed)) return "";
+  return trimmed;
+}
+
 function buildLessonPackReturnUrl(
   cfgReturnBase: string,
   optsReturnUrl?: string,
 ): string {
-  const explicit = (optsReturnUrl || "").trim();
+  const explicit = usablePublicUrl(optsReturnUrl || "");
   if (explicit) return explicit;
 
-  const envReturn = (process.env.STRIPE_RETURN_URL || cfgReturnBase || "").trim();
+  const envReturn = usablePublicUrl(
+    process.env.STRIPE_RETURN_URL || cfgReturnBase || "",
+  );
   if (envReturn) return envReturn;
 
-  const app = (process.env.NEXT_PUBLIC_APP_URL || "").trim().replace(/\/$/, "");
-  if (app) return `${app}/admin/lezioni/rette?pagato=1`;
-  return "/admin/lezioni/rette?pagato=1";
+  return `${authPublicOrigin(process.env)}/admin/lezioni/rette?pagato=1`;
 }
 
 export async function createLessonPackPaymentLink(opts: {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { createQuotaPaymentCheckout } from "@musicpro/database";
 
+import { authPublicOrigin, isLocalDevOrigin } from "@/lib/auth/redirect-url";
 import { createStripePaymentLinkQuotaMultiPay } from "@/lib/stripe/quota-multi-payment-link";
 import { createClient } from "@/lib/supabase/server";
 
@@ -82,11 +83,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const requestOrigin =
+      request.headers.get("origin") || request.nextUrl.origin || "";
     const origin =
-      request.headers.get("origin") ||
-      request.nextUrl.origin ||
-      process.env.NEXT_PUBLIC_APP_URL ||
-      "http://localhost:3000";
+      requestOrigin && !isLocalDevOrigin(requestOrigin)
+        ? requestOrigin.replace(/\/$/, "")
+        : authPublicOrigin(process.env);
 
     const bandId = String(body.bandId || "").trim();
     const returnBase = bandId

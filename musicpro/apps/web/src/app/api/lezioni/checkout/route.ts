@@ -9,6 +9,7 @@ import {
 } from "@musicpro/database";
 
 import { canManageMembers } from "@/lib/admin/roles";
+import { authPublicOrigin, isLocalDevOrigin } from "@/lib/auth/redirect-url";
 import { QUOTA_ASSOCIATIVA_CENTESIMI } from "@/lib/iscrizione/stripe-payment-link";
 import { createLessonPackPaymentLink } from "@/lib/stripe/lesson-pack-payment-link";
 import { eurosToCents } from "@/lib/stripe/room-payment-link";
@@ -226,14 +227,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const requestOrigin =
+      request.headers.get("origin") || request.nextUrl.origin || "";
     const origin =
-      request.headers.get("origin") ||
-      request.nextUrl.origin ||
-      process.env.NEXT_PUBLIC_APP_URL ||
-      "";
-    const returnUrl = origin
-      ? `${origin.replace(/\/$/, "")}/admin/lezioni/rette?pagato=1`
-      : undefined;
+      requestOrigin && !isLocalDevOrigin(requestOrigin)
+        ? requestOrigin.replace(/\/$/, "")
+        : authPublicOrigin(process.env);
+    const returnUrl = `${origin.replace(/\/$/, "")}/admin/lezioni/rette?pagato=1`;
 
     const studentName = `${student.first_name ?? ""} ${student.last_name ?? ""}`.trim();
     const linkRes = await createLessonPackPaymentLink({

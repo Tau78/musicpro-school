@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getCreditPackageById } from "@musicpro/database";
 
+import { authPublicOrigin, isLocalDevOrigin } from "@/lib/auth/redirect-url";
 import { createStripePaymentLinkCreditShop } from "@/lib/stripe/credit-shop-payment-link";
 import { createClient } from "@/lib/supabase/server";
 
@@ -64,11 +65,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const requestOrigin =
+      request.headers.get("origin") || request.nextUrl.origin || "";
     const origin =
-      request.headers.get("origin") ||
-      request.nextUrl.origin ||
-      process.env.NEXT_PUBLIC_APP_URL ||
-      "http://localhost:3000";
+      requestOrigin && !isLocalDevOrigin(requestOrigin)
+        ? requestOrigin.replace(/\/$/, "")
+        : authPublicOrigin(process.env);
 
     const returnBase = `${origin.replace(/\/$/, "")}/dashboard/shop`;
     const memberName = `${member.first_name ?? ""} ${member.last_name ?? ""}`.trim();

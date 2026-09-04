@@ -1,8 +1,9 @@
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.49.8';
 
+import { edgeUrlEnvFromDeno, publicSchoolUrl } from './public-url.ts';
+
 const ROME = 'Europe/Rome';
 const DEFAULT_FROM = 'MusicPro School <noreply@school.musicproeventi.it>';
-const DEFAULT_APP_URL = 'https://school.musicproeventi.it';
 
 export type BookingEmailTemplate = 'confirm' | 'modified';
 
@@ -41,11 +42,7 @@ export interface BookingEmailContent {
 }
 
 function appUrl(): string {
-  const raw =
-    Deno.env.get('BOOKING_EMAIL_APP_URL')?.trim() ||
-    Deno.env.get('SCHOOL_PUBLIC_URL')?.trim() ||
-    DEFAULT_APP_URL;
-  return raw.replace(/\/$/, '');
+  return publicSchoolUrl(edgeUrlEnvFromDeno());
 }
 
 function fromAddress(): string {
