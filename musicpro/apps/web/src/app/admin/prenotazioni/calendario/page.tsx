@@ -8,7 +8,6 @@ import {
   todayInRome,
 } from "@musicpro/database";
 
-import { CalendarExportBar } from "@/components/admin/calendar-export-bar";
 import { mergeCalendarEvents } from "@/components/lezioni/calendar-bookings";
 import { LessonsCalendarPage } from "@/components/lezioni/lessons-calendar-page";
 import { getAdminMember } from "@/lib/admin/current-member";
@@ -88,13 +87,6 @@ export default async function AdminPrenotazioniCalendarioPage({
           vuoto per creare, clicca un evento per modificarlo.
         </p>
       </div>
-
-      <CalendarExportBar
-        rooms={roomOptions}
-        defaultFrom={bounds.from}
-        defaultTo={bounds.to}
-        defaultRoomId={roomId}
-      />
 
       <LessonsCalendarPage
         initialLessons={mergeCalendarEvents([], bookings, externals)}

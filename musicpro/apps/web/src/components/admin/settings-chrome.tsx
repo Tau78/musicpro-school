@@ -114,13 +114,19 @@ export function ToggleRow({
   label,
   checked,
   onChange,
+  disabled = false,
 }: {
   label: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
+  disabled?: boolean;
 }) {
   return (
-    <label className="flex cursor-pointer items-center justify-between gap-3">
+    <label
+      className={`flex items-center justify-between gap-3 ${
+        disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+      }`}
+    >
       <span className="text-sm font-medium text-neutral-800">{label}</span>
       <span
         className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors ${
@@ -131,6 +137,7 @@ export function ToggleRow({
           type="checkbox"
           className="sr-only"
           checked={checked}
+          disabled={disabled}
           onChange={(event) => onChange(event.target.checked)}
         />
         <span

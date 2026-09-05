@@ -98,6 +98,7 @@ export default async function LezioniCalendarioPage({
         today={today}
         highlightDay={highlightDay}
         memberId={member.id}
+        bookingRooms={rooms}
       />
     </div>
   );

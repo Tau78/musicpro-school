@@ -220,7 +220,7 @@ export function BookingsAdminPanel({
                   )}
                   <BookingPaymentDetails booking={booking} />
                   <p className="mt-2 text-xs font-medium text-[var(--brand)]">
-                    Apri dettaglio →
+                    APRI DETTAGLIO →
                   </p>
                 </div>
                 <span

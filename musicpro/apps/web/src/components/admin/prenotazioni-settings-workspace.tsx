@@ -9,6 +9,7 @@ import {
 } from "@musicpro/database";
 
 import { BookingSettingsForm } from "@/components/admin/booking-settings-form";
+import { CalendarExportBar } from "@/components/admin/calendar-export-bar";
 import { PenaltyRulesPanel } from "@/components/admin/penalty-rules-panel";
 import {
   SettingsPageHeader,
@@ -34,10 +35,16 @@ export function PrenotazioniSettingsWorkspace({
   initialSection,
   settings,
   rules,
+  exportRooms = [],
+  exportDefaultFrom,
+  exportDefaultTo,
 }: {
   initialSection: PrenotazioniSettingsSection;
   settings: BookingSettings;
   rules: CancellationPenaltyRule[];
+  exportRooms?: { id: string; name: string }[];
+  exportDefaultFrom?: string;
+  exportDefaultTo?: string;
 }) {
   const [section, setSection] = useState(initialSection);
 
@@ -68,6 +75,14 @@ export function PrenotazioniSettingsWorkspace({
 
       {section === "crediti" ? (
         <CreditiPrenotazioniSection rules={rules} />
+      ) : null}
+
+      {exportDefaultFrom && exportDefaultTo ? (
+        <CalendarExportBar
+          rooms={exportRooms}
+          defaultFrom={exportDefaultFrom}
+          defaultTo={exportDefaultTo}
+        />
       ) : null}
     </div>
   );

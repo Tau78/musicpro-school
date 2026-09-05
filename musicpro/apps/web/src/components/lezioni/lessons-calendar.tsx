@@ -48,6 +48,7 @@ export interface CalendarLesson {
   titularLastName: string | null;
   roomName: string | null;
   hasAttendance?: boolean;
+  bookingId?: string | null;
   source?: "lesson" | "booking" | "external";
   bookingStatus?: "pending" | "pending_approval" | "confirmed" | "cancelled";
   proviDaSolo?: boolean;

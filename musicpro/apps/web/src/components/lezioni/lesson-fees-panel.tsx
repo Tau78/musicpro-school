@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   formatEuro,
+  getMemberLessonPaymentHistory,
   listLessonFees,
   listMembers,
   registerFamilyCollection,
@@ -12,6 +13,8 @@ import {
   waiveLessonFee,
   type LessonFeeRow,
   type LessonFeeStatus,
+  type LessonPackPaymentMethod,
+  type MemberLessonPaymentHistory,
   type MemberSummary,
 } from "@musicpro/database";
 
@@ -66,6 +69,20 @@ function parseEuroAmount(raw: string): number | null {
   return Math.round(value * 100) / 100;
 }
 
+function paymentMethodLabel(method: LessonPackPaymentMethod): string {
+  if (method === "stripe") return "Stripe";
+  if (method === "bonifico") return "Bonifico";
+  if (method === "contanti") return "Contanti";
+  return "Altro";
+}
+
+function paymentDisplayDate(paidOn: string | null, createdAt: string): string {
+  if (paidOn && /^\d{4}-\d{2}-\d{2}$/.test(paidOn)) {
+    return formatShortDate(paidOn);
+  }
+  return formatDateTimeIt(createdAt);
+}
+
 function listOptions(filter: StatusFilter): {
   mode?: "default" | "all";
   status?: LessonFeeStatus[];
@@ -112,6 +129,16 @@ export function LessonFeesPanel({
   const [collectNote, setCollectNote] = useState("");
   const [collecting, setCollecting] = useState(false);
 
+  const [historyQuery, setHistoryQuery] = useState("");
+  const [historyMemberId, setHistoryMemberId] = useState<string | null>(null);
+  const [history, setHistory] = useState<MemberLessonPaymentHistory | null>(
+    null,
+  );
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyCollectingId, setHistoryCollectingId] = useState<string | null>(
+    null,
+  );
+
   const loadFees = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -126,6 +153,26 @@ export function LessonFeesPanel({
       setLoading(false);
     }
   }, [statusFilter, supabase]);
+
+  const loadHistory = useCallback(
+    async (memberId: string) => {
+      setHistoryLoading(true);
+      try {
+        const rows = await getMemberLessonPaymentHistory(supabase, memberId);
+        setHistory(rows);
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error
+            ? err.message
+            : "Impossibile caricare lo storico.";
+        setError(message);
+        setHistory(null);
+      } finally {
+        setHistoryLoading(false);
+      }
+    },
+    [supabase],
+  );
 
   useEffect(() => {
     void loadFees();
@@ -142,6 +189,14 @@ export function LessonFeesPanel({
         setError(message);
       });
   }, [supabase]);
+
+  useEffect(() => {
+    if (!historyMemberId) {
+      setHistory(null);
+      return;
+    }
+    void loadHistory(historyMemberId);
+  }, [historyMemberId, loadHistory]);
 
   const visibleFees = useMemo(() => {
     const term = nameQuery.trim().toLowerCase();
@@ -165,7 +220,51 @@ export function LessonFeesPanel({
       .slice(0, 8);
   }, [collectQuery, members]);
 
+  const historyMatches = useMemo(() => {
+    const term = historyQuery.trim().toLowerCase();
+    if (!term) return [];
+    return members
+      .filter((row) => row.isActive)
+      .filter((row) => {
+        const hay =
+          `${row.lastName} ${row.firstName} ${row.email ?? ""} ${row.memberNumber ?? ""}`.toLowerCase();
+        return hay.includes(term);
+      })
+      .slice(0, 8);
+  }, [historyQuery, members]);
+
   const selectedCollectMember = members.find((row) => row.id === collectMemberId);
+  const selectedHistoryMember = members.find((row) => row.id === historyMemberId);
+
+  async function afterSuccessfulCollection(paymentId: string | undefined) {
+    let extra = "";
+    if (paymentId) {
+      try {
+        const emailed = await issueAndEmailReceiptCopy(
+          supabase,
+          paymentId,
+          actorMemberId,
+        );
+        if (!emailed.success) {
+          extra =
+            emailed.errorMessage ??
+            "Ricevuta da inviare dalla scheda Ricevute.";
+        }
+      } catch {
+        extra = "Ricevuta da inviare dalla scheda Ricevute.";
+      }
+    }
+
+    setNotice(
+      extra
+        ? `Incasso registrato. ${extra}`
+        : "Incasso registrato. Ricevuta inviata alla famiglia.",
+    );
+    await loadFees();
+    if (historyMemberId) {
+      await loadHistory(historyMemberId);
+    }
+  }
 
   async function handleDunning(row: LessonFeeRow) {
     setBusyId(row.id);
@@ -231,6 +330,9 @@ export function LessonFeesPanel({
     setWaiveNote("");
     setNotice(`Abbuono registrato per ${row.studentLabel}.`);
     await loadFees();
+    if (historyMemberId) {
+      await loadHistory(historyMemberId);
+    }
   }
 
   async function handleCollect(e: React.FormEvent) {
@@ -274,30 +376,37 @@ export function LessonFeesPanel({
     setCollectCro("");
     setCollectNote("");
 
-    let extra = "";
-    if (result.id) {
-      try {
-        const emailed = await issueAndEmailReceiptCopy(
-          supabase,
-          result.id,
-          actorMemberId,
-        );
-        if (!emailed.success) {
-          extra =
-            emailed.errorMessage ??
-            "Ricevuta da inviare dalla scheda Ricevute.";
-        }
-      } catch {
-        extra = "Ricevuta da inviare dalla scheda Ricevute.";
-      }
+    await afterSuccessfulCollection(result.id);
+  }
+
+  async function handleHistoryIncassa(fee: LessonFeeRow) {
+    const amount = Math.round(fee.remainingEur * 100) / 100;
+    if (!(amount > 0)) {
+      setError("Residuo non valido per questa retta.");
+      return;
     }
 
-    setNotice(
-      extra
-        ? `Incasso registrato. ${extra}`
-        : "Incasso registrato. Ricevuta inviata alla famiglia.",
-    );
-    await loadFees();
+    setHistoryCollectingId(fee.id);
+    setError(null);
+    setNotice(null);
+
+    const result = await registerFamilyCollection(supabase, {
+      memberId: fee.memberId,
+      amountEur: amount,
+      method: "bonifico",
+      paidOn: todayInRome(),
+      note: `Incasso da storico — ${fee.kind === "quota" ? "quota" : fee.courseName || "pacchetto"}`,
+      actorMemberId,
+    });
+
+    setHistoryCollectingId(null);
+
+    if (!result.success) {
+      setError(result.errorMessage ?? "Impossibile registrare l’incasso.");
+      return;
+    }
+
+    await afterSuccessfulCollection(result.id);
   }
 
   return (
@@ -597,6 +706,232 @@ export function LessonFeesPanel({
           {collecting ? "Registrazione…" : "Registra incasso"}
         </button>
       </form>
+
+      <section className="space-y-4 rounded-xl border border-neutral-200 bg-white p-6">
+        <div>
+          <h3 className="text-sm font-semibold text-[var(--brand)]">Storico</h3>
+          <p className="mt-1 text-sm text-neutral-600">
+            Pagamenti ricevuti, rette da incassare e saldo attuale della famiglia
+            (acconto − da incassare).
+          </p>
+        </div>
+
+        <label className="block text-sm">
+          <span className="mb-1 block text-neutral-600">Associato</span>
+          {selectedHistoryMember ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-neutral-100 px-3 py-1 text-neutral-800">
+                {memberLabel(selectedHistoryMember)}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setHistoryMemberId(null);
+                  setHistoryQuery("");
+                  setHistory(null);
+                }}
+                className="text-neutral-500 hover:text-neutral-900"
+                aria-label="Rimuovi associato"
+              >
+                ×
+              </button>
+            </div>
+          ) : (
+            <>
+              <input
+                type="search"
+                value={historyQuery}
+                onChange={(e) => setHistoryQuery(e.target.value)}
+                placeholder="Cerca associato…"
+                className={inputClass}
+              />
+              {historyQuery.trim() ? (
+                <ul className="mt-2 divide-y divide-neutral-100 overflow-hidden rounded-lg border border-neutral-200 bg-white">
+                  {historyMatches.length === 0 ? (
+                    <li className="px-3 py-2 text-neutral-500">
+                      Nessun associato trovato.
+                    </li>
+                  ) : (
+                    historyMatches.map((member) => (
+                      <li key={member.id}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setHistoryMemberId(member.id);
+                            setHistoryQuery("");
+                          }}
+                          className="flex w-full items-center justify-between px-3 py-2 text-left hover:bg-neutral-50"
+                        >
+                          <span>{memberLabel(member)}</span>
+                          {member.email ? (
+                            <span className="text-neutral-400">
+                              {member.email}
+                            </span>
+                          ) : null}
+                        </button>
+                      </li>
+                    ))
+                  )}
+                </ul>
+              ) : null}
+            </>
+          )}
+        </label>
+
+        {!historyMemberId ? (
+          <p className="text-sm text-neutral-500">
+            Seleziona un associato per vedere lo storico.
+          </p>
+        ) : historyLoading ? (
+          <p className="text-sm text-neutral-500">Caricamento storico…</p>
+        ) : history ? (
+          <div className="space-y-6">
+            <div>
+              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                Pagamenti ricevuti
+              </h4>
+              <div className="overflow-x-auto rounded-lg border border-neutral-200">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-neutral-200 text-left text-neutral-500">
+                      <th className="px-3 py-2 font-medium">Importo</th>
+                      <th className="px-3 py-2 font-medium">Data</th>
+                      <th className="px-3 py-2 font-medium">Metodo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {history.received.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={3}
+                          className="px-3 py-4 text-neutral-500"
+                        >
+                          Nessun pagamento ricevuto.
+                        </td>
+                      </tr>
+                    ) : (
+                      history.received.map((row) => (
+                        <tr
+                          key={row.id}
+                          className="border-b border-neutral-100 last:border-0"
+                        >
+                          <td className="px-3 py-2 font-medium text-neutral-900">
+                            {formatEuro(row.amountEur)}
+                          </td>
+                          <td className="px-3 py-2 text-neutral-700">
+                            {paymentDisplayDate(row.paidOn, row.createdAt)}
+                          </td>
+                          <td className="px-3 py-2 text-neutral-700">
+                            {paymentMethodLabel(row.method)}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div>
+              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                Pagamenti da incassare
+              </h4>
+              <div className="overflow-x-auto rounded-lg border border-neutral-200">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-neutral-200 text-left text-neutral-500">
+                      <th className="px-3 py-2 font-medium">Allievo</th>
+                      <th className="px-3 py-2 font-medium">Voce</th>
+                      <th className="px-3 py-2 font-medium">Residuo</th>
+                      <th className="px-3 py-2 font-medium">Scadenza</th>
+                      <th className="px-3 py-2 font-medium">Azioni</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {history.openFees.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={5}
+                          className="px-3 py-4 text-neutral-500"
+                        >
+                          Nulla da incassare.
+                        </td>
+                      </tr>
+                    ) : (
+                      history.openFees.map((fee) => (
+                        <tr
+                          key={fee.id}
+                          className="border-b border-neutral-100 last:border-0"
+                        >
+                          <td className="px-3 py-2 text-neutral-900">
+                            {fee.studentLabel || "—"}
+                          </td>
+                          <td className="px-3 py-2 text-neutral-700">
+                            {fee.kind === "quota"
+                              ? "Quota"
+                              : fee.courseName || "Pacchetto"}
+                          </td>
+                          <td className="px-3 py-2 font-medium text-neutral-900">
+                            {formatEuro(fee.remainingEur)}
+                          </td>
+                          <td className="px-3 py-2 text-neutral-700">
+                            {formatShortDate(fee.dueOn)}
+                          </td>
+                          <td className="px-3 py-2">
+                            <button
+                              type="button"
+                              onClick={() => void handleHistoryIncassa(fee)}
+                              disabled={historyCollectingId === fee.id}
+                              className="rounded-lg bg-[var(--brand)] px-3 py-1.5 text-xs font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
+                            >
+                              {historyCollectingId === fee.id
+                                ? "…"
+                                : "Incassa"}
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-end justify-between gap-3 rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3">
+              <div className="space-y-1 text-sm text-neutral-600">
+                <p>Ricevuti: {formatEuro(history.receivedTotalEur)}</p>
+                <p>Da incassare: {formatEuro(history.openTotalEur)}</p>
+                {history.leftoverEurFamily > 0 ? (
+                  <p>Acconto famiglia: {formatEuro(history.leftoverEurFamily)}</p>
+                ) : null}
+              </div>
+              <div className="text-right">
+                <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                  Saldo attuale
+                </p>
+                <p
+                  className={`text-xl font-semibold ${
+                    history.saldoEur < 0
+                      ? "text-red-700"
+                      : history.saldoEur > 0
+                        ? "text-green-800"
+                        : "text-neutral-900"
+                  }`}
+                >
+                  {formatEuro(history.saldoEur)}
+                </p>
+                <p className="text-xs text-neutral-500">
+                  {history.saldoEur < 0
+                    ? "In debito"
+                    : history.saldoEur > 0
+                      ? "In credito"
+                      : "A posto"}
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </section>
     </div>
   );
 }

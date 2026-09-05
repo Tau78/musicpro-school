@@ -333,6 +333,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                     today={today}
                     highlightDay={highlightDay}
                     memberId={member.id}
+                    bookingRooms={rooms}
                   />
                 </div>
               </section>

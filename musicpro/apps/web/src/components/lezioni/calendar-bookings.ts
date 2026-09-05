@@ -13,6 +13,18 @@ export function parseBookingId(id: string): string | null {
   return id.startsWith("booking:") ? id.slice("booking:".length) : null;
 }
 
+export function resolveBookingIdFromCalendarEvent(
+  lessonId: string,
+  lesson?: Pick<CalendarLesson, "id" | "source" | "bookingId"> | null,
+): string | null {
+  const fromId = parseBookingId(lessonId);
+  if (fromId) return fromId;
+  if (lesson?.source === "booking") {
+    return parseBookingId(lesson.id);
+  }
+  return null;
+}
+
 export function toBookingLesson(booking: AdminBookingListItem): CalendarLesson {
   const memberName = booking.member
     ? `${booking.member.last_name} ${booking.member.first_name}`.trim()
