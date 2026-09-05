@@ -336,7 +336,8 @@ export interface Database {
             | "unpaid"
             | "link_sent"
             | "paid"
-            | "not_required";
+            | "not_required"
+            | "refunded";
           payment_link_url: string | null;
           payment_link_id: string | null;
           stripe_payment_intent_id: string | null;
@@ -375,7 +376,8 @@ export interface Database {
             | "unpaid"
             | "link_sent"
             | "paid"
-            | "not_required";
+            | "not_required"
+            | "refunded";
           payment_link_url?: string | null;
           payment_link_id?: string | null;
           stripe_payment_intent_id?: string | null;
@@ -1943,6 +1945,7 @@ export interface Database {
       cancel_booking_safe: {
         Args: {
           p_booking_id: string;
+          p_skip_penalty?: boolean;
         };
         Returns: Json;
       };

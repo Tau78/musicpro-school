@@ -23,7 +23,8 @@ MusicPro School is for MusicPro Eventi members and teachers: personal area, prac
 SIGN IN — open app → Accedi. Email + password only. No magic link. No Apple / Google.
 Demo account required: Yes (Sign-In Required = ON).
 Email: appstore.review@musicproeventi.it
-Password: use the Sign-In Required fields above (not in this file).
+Password: ReviewSchool2026
+(Also paste the same credentials in the dedicated Sign-In Required fields above.)
 Demo identity: Demo DocenteStore (fictitious). Sample students: Alfa/Beta DemoAllievo (emails demo.allievo.*@musicproeventi.it) — APPSTORE_DEMO only, not real members.
 Then:
 1. Area personale (Personal area).
@@ -49,4 +50,4 @@ No licensed third-party music catalogs shipped.
 Privacy policy: https://www.musicproeventi.it/privacy
 Support: https://school.musicproeventi.it
 Contact: Mauro Andreoni, +393716752550, andreoni.mauro@gmail.com
-Staff notes: not in the public listing. Demo password only in ASC Sign-In Required fields.
+Staff notes: not in the public listing. Demo password is in section 4 and in ASC Sign-In Required fields.

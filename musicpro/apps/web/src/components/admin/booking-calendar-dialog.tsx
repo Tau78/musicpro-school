@@ -12,6 +12,7 @@ import {
   durationOptionsForRoom,
   formatDurationLabel,
   formatEuro,
+  formatCreditsCount,
   getAdminBookingById,
   listMembers,
   proviDaSoloDiscountTotalEur,
@@ -102,6 +103,8 @@ export function BookingCalendarDialog({
   const [sendConfirmEmail, setSendConfirmEmail] = useState(false);
   const [includePayment, setIncludePayment] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -283,6 +286,82 @@ export function BookingCalendarDialog({
       setSaving(false);
     }
   }
+
+  async function handleDelete(skipPenalty: boolean) {
+    if (!bookingId || !booking) return;
+
+    setDeleting(true);
+    setError(null);
+
+    try {
+      const response = await fetch(
+        `/api/admin/bookings/${encodeURIComponent(bookingId)}/cancel`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ skipPenalty }),
+          credentials: "same-origin",
+        },
+      );
+
+      const payload = (await response.json()) as {
+        success?: boolean;
+        message?: string;
+        stripeRefundWarning?: string | null;
+      };
+
+      if (!response.ok || !payload.success) {
+        setError(payload.message ?? "Eliminazione non riuscita.");
+        return;
+      }
+
+      if (payload.stripeRefundWarning) {
+        setError(payload.stripeRefundWarning);
+        return;
+      }
+
+      void requestBookingCalendarSync(bookingId, "delete");
+      onSaved();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Eliminazione non riuscita.");
+    } finally {
+      setDeleting(false);
+      setDeleteConfirmOpen(false);
+    }
+  }
+
+  const canDelete =
+    mode === "edit" &&
+    booking != null &&
+    booking.status !== "cancelled";
+
+  const deleteHint = useMemo(() => {
+    if (!booking) return null;
+
+    const parts: string[] = [];
+    if (
+      booking.payment_method === "credits" &&
+      booking.credits_used != null &&
+      booking.credits_used > 0
+    ) {
+      parts.push(
+        `Pagamento con ${formatCreditsCount(booking.credits_used)}.`,
+      );
+    } else if (booking.payment_status === "paid") {
+      parts.push("Pagamento con carta.");
+    } else if (booking.credits_held > 0) {
+      parts.push(
+        `${formatCreditsCount(booking.credits_held)} crediti riservati.`,
+      );
+    }
+
+    if (parts.length === 0) {
+      return "La prenotazione verrà annullata.";
+    }
+
+    return `${parts.join(" ")} «Elimina» applica le regole di penale; «Elimina e riaccredita» restituisce l'intero importo all'associato.`;
+  }, [booking]);
 
   const title =
     mode === "create"
@@ -520,7 +599,62 @@ export function BookingCalendarDialog({
               </p>
             ) : null}
 
-            <div className="flex flex-wrap justify-end gap-2">
+            {deleteConfirmOpen ? (
+              <div className="rounded-lg border border-red-200 bg-red-50/60 p-4">
+                <p className="text-sm font-medium text-red-900">
+                  Eliminare questa prenotazione?
+                </p>
+                {deleteHint ? (
+                  <p className="mt-2 text-sm text-red-800">{deleteHint}</p>
+                ) : null}
+                <div className="mt-4 flex flex-wrap justify-end gap-2">
+                  <button
+                    type="button"
+                    disabled={deleting}
+                    onClick={() => {
+                      setDeleteConfirmOpen(false);
+                      setError(null);
+                    }}
+                    className="rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50 disabled:opacity-50"
+                  >
+                    Annulla
+                  </button>
+                  <button
+                    type="button"
+                    disabled={deleting}
+                    onClick={() => void handleDelete(false)}
+                    className="rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-800 hover:bg-red-50 disabled:opacity-50"
+                  >
+                    {deleting ? "Eliminazione…" : "Elimina"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={deleting}
+                    onClick={() => void handleDelete(true)}
+                    className="rounded-lg bg-red-700 px-4 py-2 text-sm font-medium text-white hover:bg-red-800 disabled:opacity-50"
+                  >
+                    {deleting ? "Eliminazione…" : "Elimina e riaccredita"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                {canDelete ? (
+                  <button
+                    type="button"
+                    disabled={saving || deleting}
+                    onClick={() => {
+                      setError(null);
+                      setDeleteConfirmOpen(true);
+                    }}
+                    className="rounded-lg border border-red-200 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                  >
+                    Elimina
+                  </button>
+                ) : null}
+              </div>
+              <div className="flex flex-wrap justify-end gap-2">
               {mode === "edit" && bookingId ? (
                 <Link
                   href={`/admin/prenotazioni/${bookingId}`}
@@ -538,12 +672,14 @@ export function BookingCalendarDialog({
               </button>
               <button
                 type="submit"
-                disabled={saving}
+                disabled={saving || deleting}
                 className="rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
               >
                 {saving ? "Salvataggio…" : mode === "create" ? "Crea" : "Salva"}
               </button>
+              </div>
             </div>
+            )}
           </form>
         )}
       </div>

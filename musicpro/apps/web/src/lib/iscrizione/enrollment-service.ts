@@ -2,7 +2,11 @@ import { randomUUID } from "crypto";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import type { Database } from "@musicpro/database";
+import {
+  listAnnualQuotaSettings,
+  upsertMemberAnnualQuotas,
+  type Database,
+} from "@musicpro/database";
 
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -17,8 +21,17 @@ type Db = SupabaseClient<Database>;
 type EnrollmentRow = Database["public"]["Tables"]["enrollments"]["Row"];
 type MemberRow = Database["public"]["Tables"]["members"]["Row"];
 
+type MagicTokenInfo = {
+  email: string;
+  expiresAt: string;
+  usedAt: string | null;
+  memberId?: string | null;
+  cashQuotaPaid?: boolean;
+};
+
 const MAGIC_LINK_TTL_MS = 24 * 60 * 60 * 1000;
 const TOKEN_KEY_PREFIX = "iscrizione_token:";
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export interface EnrollmentFormData {
   nome?: string;
@@ -136,6 +149,24 @@ async function findMemberByIdentifier(
   return null;
 }
 
+async function hasQuotaPaidForMember(
+  db: Db,
+  memberId: string,
+): Promise<boolean> {
+  const id = String(memberId || "").trim();
+  if (!id) return false;
+
+  const anno = currentFiscalYear();
+  const { data: quota } = await db
+    .from("member_annual_quotas")
+    .select("paid_at")
+    .eq("member_id", id)
+    .eq("fiscal_year", anno)
+    .maybeSingle();
+
+  return !!quota?.paid_at;
+}
+
 async function hasQuotaPaidThisYear(db: Db, cf: string): Promise<boolean> {
   const target = String(cf || "").toUpperCase().trim();
   if (!target) return false;
@@ -157,14 +188,23 @@ async function hasQuotaPaidThisYear(db: Db, cf: string): Promise<boolean> {
   const member = await findMemberByCf(db, target);
   if (!member) return false;
 
-  const { data: quota } = await db
-    .from("member_annual_quotas")
-    .select("paid_at")
-    .eq("member_id", member.id)
-    .eq("fiscal_year", anno)
+  return hasQuotaPaidForMember(db, member.id);
+}
+
+async function findMemberById(
+  db: Db,
+  memberId: string,
+): Promise<MemberRow | null> {
+  const id = String(memberId || "").trim();
+  if (!id) return null;
+
+  const { data } = await db
+    .from("members")
+    .select("*")
+    .eq("id", id)
     .maybeSingle();
 
-  return !!quota?.paid_at;
+  return data;
 }
 
 async function getEnrollmentById(
@@ -288,15 +328,26 @@ export async function sincronizzaPagamento(idIscrizione: string) {
 async function storeMagicToken(
   db: Db,
   email: string,
-  ttlMs?: number,
+  options?: {
+    ttlMs?: number;
+    memberId?: string;
+    cashQuotaPaid?: boolean;
+  },
 ): Promise<string> {
   const token = randomUUID();
-  const ttl = ttlMs ?? MAGIC_LINK_TTL_MS;
+  const ttl = options?.ttlMs ?? MAGIC_LINK_TTL_MS;
   const expiresAt = new Date(Date.now() + ttl).toISOString();
+  const payload: MagicTokenInfo = {
+    email: String(email || "").trim().toLowerCase(),
+    expiresAt,
+    usedAt: null,
+  };
+  if (options?.memberId) payload.memberId = options.memberId;
+  if (options?.cashQuotaPaid) payload.cashQuotaPaid = true;
 
   await db.from("app_settings").upsert({
     key: `${TOKEN_KEY_PREFIX}${token}`,
-    value: JSON.stringify({ email, expiresAt, usedAt: null }),
+    value: JSON.stringify(payload),
     description: "Magic link iscrizione associato",
   });
 
@@ -320,33 +371,58 @@ export async function createIscrizioneMagicLink(
   email: string,
   ttlMs?: number,
 ): Promise<string> {
-  const token = await storeMagicToken(db, email, ttlMs);
+  const token = await storeMagicToken(db, email, { ttlMs });
   return iscrizioneLinkFromToken(token);
 }
 
-async function sendMagicLinkEmail(email: string, link: string, nome: string) {
+async function sendMagicLinkEmail(
+  email: string,
+  link: string,
+  nome: string,
+  variant: "default" | "cash" = "default",
+): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY?.trim();
   const from =
     process.env.EMAIL_FROM?.trim() ||
     process.env.BOOKING_EMAIL_FROM?.trim() ||
     "MusicPro School <noreply@school.musicproeventi.it>";
-  const subject = "Il tuo link per l'iscrizione MusicPro";
-  const body = [
-    `Ciao ${nome},`,
-    "",
-    "Usa questo link per aggiornare i dati e completare l'iscrizione:",
-    link,
-    "",
-    "Se non hai richiesto tu questo messaggio, puoi ignorarlo.",
-    "",
-    "MusicPro School",
-  ].join("\n");
+
+  const subject =
+    variant === "cash"
+      ? "Completa l'iscrizione MusicPro (quota già versata)"
+      : "Il tuo link per l'iscrizione MusicPro";
+
+  const body =
+    variant === "cash"
+      ? [
+          `Ciao ${nome},`,
+          "",
+          "Hai già versato la quota associativa in sede.",
+          "Usa questo link per inserire i dati mancanti e firmare l'iscrizione:",
+          link,
+          "",
+          "Il link è valido 24 ore e può essere usato una sola volta.",
+          "",
+          "Se non hai richiesto tu questo messaggio, puoi ignorarlo.",
+          "",
+          "MusicPro School",
+        ].join("\n")
+      : [
+          `Ciao ${nome},`,
+          "",
+          "Usa questo link per aggiornare i dati e completare l'iscrizione:",
+          link,
+          "",
+          "Se non hai richiesto tu questo messaggio, puoi ignorarlo.",
+          "",
+          "MusicPro School",
+        ].join("\n");
 
   if (!apiKey) {
     console.warn(
       `[iscrizione] RESEND_API_KEY assente: magic link non inviato a ${email} (${nome}): ${link}`,
     );
-    return;
+    return false;
   }
 
   const res = await fetch("https://api.resend.com/emails", {
@@ -374,7 +450,10 @@ async function sendMagicLinkEmail(email: string, link: string, nome: string) {
     console.error(
       `[iscrizione] Resend ${res.status} inviando magic link a ${email}: ${errBody.slice(0, 400)}`,
     );
+    return false;
   }
+
+  return true;
 }
 
 async function createAndSendMagicLink(db: Db, member: MemberRow) {
@@ -409,30 +488,80 @@ function tokenFromForm(data: EnrollmentFormData): string {
   return String(data.iscrizioneToken || data.token || "").trim();
 }
 
+function parseMagicTokenValue(raw: string): MagicTokenInfo | null {
+  try {
+    const parsed = JSON.parse(raw) as MagicTokenInfo;
+    if (!parsed?.email || !parsed?.expiresAt) return null;
+    return {
+      email: String(parsed.email).trim().toLowerCase(),
+      expiresAt: String(parsed.expiresAt),
+      usedAt: parsed.usedAt ? String(parsed.usedAt) : null,
+      memberId: parsed.memberId ? String(parsed.memberId) : null,
+      cashQuotaPaid: Boolean(parsed.cashQuotaPaid),
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function loadMagicToken(
+  db: Db,
+  token: string,
+): Promise<{ key: string; info: MagicTokenInfo } | null> {
+  const tok = String(token || "").trim();
+  if (!tok) return null;
+
+  const key = `${TOKEN_KEY_PREFIX}${tok}`;
+  const { data: setting } = await db
+    .from("app_settings")
+    .select("value")
+    .eq("key", key)
+    .maybeSingle();
+
+  if (!setting?.value) return null;
+  const info = parseMagicTokenValue(setting.value);
+  if (!info) return null;
+  return { key, info };
+}
+
+function isMagicTokenUsable(info: MagicTokenInfo): boolean {
+  if (info.usedAt) return false;
+  return new Date() <= new Date(info.expiresAt);
+}
+
+async function resolveMemberFromTokenInfo(
+  db: Db,
+  info: MagicTokenInfo,
+): Promise<MemberRow | null> {
+  if (info.memberId) {
+    const byId = await findMemberById(db, info.memberId);
+    if (byId) return byId;
+  }
+  return findMemberByEmail(db, info.email);
+}
+
 async function memberFromIscrizioneToken(
   db: Db,
   token: string,
 ): Promise<MemberRow | null> {
-  const tok = String(token || "").trim();
-  if (!tok) return null;
+  const loaded = await loadMagicToken(db, token);
+  if (!loaded || !isMagicTokenUsable(loaded.info)) return null;
+  return resolveMemberFromTokenInfo(db, loaded.info);
+}
 
-  const { data: setting } = await db
+async function markMagicTokenUsed(db: Db, token: string): Promise<void> {
+  const loaded = await loadMagicToken(db, token);
+  if (!loaded) return;
+
+  const next: MagicTokenInfo = {
+    ...loaded.info,
+    usedAt: new Date().toISOString(),
+  };
+
+  await db
     .from("app_settings")
-    .select("value")
-    .eq("key", `${TOKEN_KEY_PREFIX}${tok}`)
-    .maybeSingle();
-
-  if (!setting?.value) return null;
-
-  let rowInfo: { email: string; expiresAt: string; usedAt: string | null };
-  try {
-    rowInfo = JSON.parse(setting.value) as typeof rowInfo;
-  } catch {
-    return null;
-  }
-
-  if (new Date() > new Date(rowInfo.expiresAt)) return null;
-  return findMemberByEmail(db, rowInfo.email);
+    .update({ value: JSON.stringify(next) })
+    .eq("key", loaded.key);
 }
 
 export async function validateIscrizioneToken(token: string) {
@@ -440,21 +569,187 @@ export async function validateIscrizioneToken(token: string) {
   if (!tok) return { found: false, message: "Token mancante." };
 
   const db = createServiceRoleClient();
-  const member = await memberFromIscrizioneToken(db, tok);
+  const loaded = await loadMagicToken(db, tok);
+  if (!loaded) {
+    return { found: false, message: "Link non valido o scaduto." };
+  }
+  if (loaded.info.usedAt) {
+    return { found: false, message: "Questo link è già stato utilizzato." };
+  }
+  if (!isMagicTokenUsable(loaded.info)) {
+    return { found: false, message: "Link non valido o scaduto." };
+  }
+
+  const member = await resolveMemberFromTokenInfo(db, loaded.info);
   if (!member) {
     return { found: false, message: "Link non valido o scaduto." };
   }
 
   const fields = memberToFormFields(member);
+  const quotaByMember = await hasQuotaPaidForMember(db, member.id);
+  const quotaByCf = await hasQuotaPaidThisYear(db, String(fields.cf || ""));
+  const quotaGiaPagata =
+    Boolean(loaded.info.cashQuotaPaid) || quotaByMember || quotaByCf;
+
   return {
     found: true,
     rinnovo: true,
-    quotaGiaPagata: await hasQuotaPaidThisYear(db, String(fields.cf || "")),
+    quotaGiaPagata,
     nome: fields.nome,
     cognome: fields.cognome,
     fields,
     privacyAccepted: true,
     photoAccepted: Boolean(member.photo_consent),
+  };
+}
+
+async function findOrCreateCashEnrollmentMember(
+  db: Db,
+  nome: string,
+  cognome: string,
+  email: string,
+): Promise<MemberRow> {
+  const existing = await findMemberByEmail(db, email);
+  if (existing) {
+    if (existing.is_enrollment_draft) {
+      const patch: Database["public"]["Tables"]["members"]["Update"] = {
+        first_name: nome || existing.first_name,
+        last_name: cognome || existing.last_name,
+        draft_expires_at: new Date(
+          Date.now() + MAGIC_LINK_TTL_MS,
+        ).toISOString(),
+      };
+      const { data, error } = await db
+        .from("members")
+        .update(patch)
+        .eq("id", existing.id)
+        .select("*")
+        .single();
+      if (error || !data) {
+        throw new Error(
+          error?.message || "Impossibile aggiornare la bozza associato.",
+        );
+      }
+      return data;
+    }
+
+    const softPatch: Database["public"]["Tables"]["members"]["Update"] = {};
+    if (!String(existing.first_name || "").trim() && nome) {
+      softPatch.first_name = nome;
+    }
+    if (!String(existing.last_name || "").trim() && cognome) {
+      softPatch.last_name = cognome;
+    }
+    if (Object.keys(softPatch).length > 0) {
+      const { data, error } = await db
+        .from("members")
+        .update(softPatch)
+        .eq("id", existing.id)
+        .select("*")
+        .single();
+      if (error || !data) {
+        throw new Error(
+          error?.message || "Impossibile aggiornare l'associato.",
+        );
+      }
+      return data;
+    }
+
+    return existing;
+  }
+
+  const { data, error } = await db
+    .from("members")
+    .insert({
+      first_name: nome,
+      last_name: cognome,
+      email,
+      is_enrollment_draft: true,
+      member_number: null,
+      draft_expires_at: new Date(Date.now() + MAGIC_LINK_TTL_MS).toISOString(),
+      is_active: true,
+    })
+    .select("*")
+    .single();
+
+  if (error || !data) {
+    throw new Error(error?.message || "Impossibile creare la bozza associato.");
+  }
+
+  return data;
+}
+
+async function markCashQuotaPaid(db: Db, memberId: string): Promise<void> {
+  const anno = currentFiscalYear();
+  const settings = await listAnnualQuotaSettings(db);
+  const setting = settings.find((row) => row.fiscalYear === anno);
+  const amountEur =
+    setting?.amountEur ?? QUOTA_ASSOCIATIVA_CENTESIMI / 100;
+  const paidAt = new Date().toISOString().slice(0, 10);
+
+  const result = await upsertMemberAnnualQuotas(db, [
+    {
+      memberId,
+      fiscalYear: anno,
+      paidAt,
+      amountPaidEur: amountEur,
+      amountDueEur: amountEur,
+      notes: "contanti",
+    },
+  ]);
+
+  if (!result.success) {
+    throw new Error(result.errorMessage || "Impossibile registrare la quota.");
+  }
+}
+
+/** Sportello: nome/cognome/email → quota contanti + magic link 24h. */
+export async function creaIscrizioneContantiEInvia(input: {
+  nome: string;
+  cognome: string;
+  email: string;
+}): Promise<{
+  success: boolean;
+  link?: string;
+  emailSent?: boolean;
+  memberId?: string;
+  message?: string;
+}> {
+  const nome = formText(input.nome);
+  const cognome = formText(input.cognome);
+  const email = formText(input.email).toLowerCase();
+
+  if (!nome || !cognome) {
+    return { success: false, message: "Nome e cognome obbligatori." };
+  }
+  if (!email || !EMAIL_RE.test(email)) {
+    return { success: false, message: "Email non valida." };
+  }
+
+  const db = createServiceRoleClient();
+  const member = await findOrCreateCashEnrollmentMember(
+    db,
+    nome,
+    cognome,
+    email,
+  );
+
+  await markCashQuotaPaid(db, member.id);
+
+  const token = await storeMagicToken(db, email, {
+    memberId: member.id,
+    cashQuotaPaid: true,
+  });
+  const link = iscrizioneLinkFromToken(token);
+  const greeting =
+    String(member.first_name || "").trim() || nome || "Associato";
+  const emailSent = await sendMagicLinkEmail(email, link, greeting, "cash");
+
+  return {
+    success: true,
+    link,
+    emailSent,
+    memberId: member.id,
   };
 }
 
@@ -672,14 +967,27 @@ export async function salvaAggiornamentoAssociatoIscrizione(
   }
 
   const db = createServiceRoleClient();
-  const tokenMember = await memberFromIscrizioneToken(db, tokenFromForm(data));
+  const token = tokenFromForm(data);
+  const loaded = token ? await loadMagicToken(db, token) : null;
+  if (token && (!loaded || !isMagicTokenUsable(loaded.info))) {
+    throw new Error("Link non valido, scaduto o già utilizzato.");
+  }
+
+  const tokenMember = loaded
+    ? await resolveMemberFromTokenInfo(db, loaded.info)
+    : null;
   const member = tokenMember ?? (await findMemberByCf(db, formText(data.cf)));
   if (!member) {
     throw new Error("Associato non trovato in rubrica. Contatta la segreteria.");
   }
 
   const cf = formText(member.tax_code || data.cf).toUpperCase();
-  if (!(await hasQuotaPaidThisYear(db, cf))) {
+  const quotaOk =
+    Boolean(loaded?.info.cashQuotaPaid) ||
+    (await hasQuotaPaidForMember(db, member.id)) ||
+    (await hasQuotaPaidThisYear(db, cf));
+
+  if (!quotaOk) {
     return {
       success: false,
       code: "QUOTA_NON_PAGATA",
@@ -688,6 +996,7 @@ export async function salvaAggiornamentoAssociatoIscrizione(
     };
   }
 
+  const nowIso = new Date().toISOString();
   const patch: Database["public"]["Tables"]["members"]["Update"] = {
     first_name: formText(data.nome),
     last_name: formText(data.cognome),
@@ -705,8 +1014,17 @@ export async function salvaAggiornamentoAssociatoIscrizione(
     manual_tutor_phone: formText(data.tutore_telefono) || null,
     manual_tutor_email: formText(data.tutore_email) || null,
     manual_tutor_tax_code: formText(data.tutore_cf).toUpperCase() || null,
+    is_enrollment_draft: false,
+    draft_expires_at: null,
     ...photoConsentPatch(photoConsentFromForm(data)),
   };
+  if (!member.enrolled_at) {
+    patch.enrolled_at = nowIso;
+  }
+  if (!member.gdpr_consent) {
+    patch.gdpr_consent = true;
+    patch.gdpr_consent_at = nowIso;
+  }
   const dataNascita = formText(data.data_nascita);
   if (dataNascita) {
     patch.birth_date = dataNascita.substring(0, 10);
@@ -717,6 +1035,10 @@ export async function salvaAggiornamentoAssociatoIscrizione(
     throw new Error(
       error.message || "Impossibile aggiornare i dati dell'associato.",
     );
+  }
+
+  if (token) {
+    await markMagicTokenUsed(db, token);
   }
 
   return {
