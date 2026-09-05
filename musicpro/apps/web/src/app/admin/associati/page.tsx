@@ -10,6 +10,7 @@ import {
 import { MemberRole } from "@musicpro/shared";
 
 import { AssociatesBookButton } from "@/components/admin/associates-book-button";
+import { CashEnrollmentCard } from "@/components/admin/cash-enrollment-card";
 import { MemberList } from "@/components/admin/member-list";
 import { getAdminMember } from "@/lib/admin/current-member";
 import {
@@ -65,6 +66,8 @@ export default async function AssociatiPage() {
           ) : null}
         </div>
       </div>
+
+      <CashEnrollmentCard />
 
       <MemberList
         members={members}

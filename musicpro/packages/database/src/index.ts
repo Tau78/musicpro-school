@@ -232,6 +232,7 @@ export type {
   BookingSettings,
   BookingStatus,
   BookingWithRoom,
+  BookingStripeRefundPlan,
   CancelBookingResult,
   CreateBookingResult,
   LeadTimeCategory,
@@ -526,6 +527,7 @@ export {
   adjustEnrollmentCredits,
   ensureOpenPackFee,
   getEnrollmentWallet,
+  getMemberLessonPaymentHistory,
   listEnrollmentWalletsForCourse,
   listLessonFees,
   listMyEnrollmentWallets,
@@ -541,7 +543,10 @@ export type {
   LessonFeeKind,
   LessonFeeRow,
   LessonFeeStatus,
+  LessonPackPaymentHistoryRow,
+  LessonPackPaymentMethod,
   MemberEnrollmentWallet,
+  MemberLessonPaymentHistory,
 } from "./lessons-wallet";
 export {
   confirmTeacherCashAdvance,

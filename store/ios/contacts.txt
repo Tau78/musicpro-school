@@ -8,7 +8,7 @@
 | Email | andreoni.mauro@gmail.com |
 | Sign-In Required | **Yes** |
 | Demo user | appstore.review@musicproeventi.it |
-| Demo password | solo nei campi ASC Sign-In Required (non in git) |
+| Demo password | ReviewSchool2026 (anche in Sign-In Required ASC + review-notes) |
 | Notes | incolla `store/ios/review-notes.txt` |
 | Attachment | solo se Apple lo chiede in Resolution Center (non obbligatorio di default) |
 

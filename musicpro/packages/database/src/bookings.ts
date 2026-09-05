@@ -32,7 +32,8 @@ export type BookingPaymentStatus =
   | "unpaid"
   | "link_sent"
   | "paid"
-  | "not_required";
+  | "not_required"
+  | "refunded";
 
 export type BookingPaymentMethod = "stripe" | "credits";
 
@@ -190,6 +191,15 @@ export interface CreateBookingResult {
   errorMessage?: string;
 }
 
+export interface BookingStripeRefundPlan {
+  needed?: boolean;
+  booking_id?: string;
+  payment_intent_id?: string;
+  amount_cents?: number;
+  penalty_cents?: number;
+  penalty_percent?: number;
+}
+
 export interface CancelBookingResult {
   success: boolean;
   bookingId?: string;
@@ -202,6 +212,8 @@ export interface CancelBookingResult {
   /** Crediti restituiti sul saldo dopo la penale. */
   creditsRefunded?: number;
   penaltyApplied?: boolean;
+  penaltySkipped?: boolean;
+  stripeRefund?: BookingStripeRefundPlan;
 }
 
 export interface ReviewBookingResult {
@@ -242,6 +254,8 @@ interface CancelBookingSafeResponse {
   penalty_percent?: number;
   credits_refunded?: number;
   penalty_applied?: boolean;
+  penalty_skipped?: boolean;
+  stripe_refund?: BookingStripeRefundPlan;
 }
 
 interface ReviewBookingSafeResponse {
@@ -1157,9 +1171,11 @@ export async function createBooking(
 export async function cancelBooking(
   client: BookingsClient,
   bookingId: string,
+  options?: { skipPenalty?: boolean },
 ): Promise<CancelBookingResult> {
   const { data, error } = await client.rpc("cancel_booking_safe", {
     p_booking_id: bookingId,
+    p_skip_penalty: options?.skipPenalty ?? false,
   });
 
   if (error) {
@@ -1190,6 +1206,8 @@ export async function cancelBooking(
     penaltyPercent: result.penalty_percent,
     creditsRefunded: result.credits_refunded,
     penaltyApplied: result.penalty_applied,
+    penaltySkipped: result.penalty_skipped,
+    stripeRefund: result.stripe_refund,
   };
 }
 

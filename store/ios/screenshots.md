@@ -2,48 +2,37 @@
 
 Guideline **2.3.3**: app **in uso**, non splash / schermata vuota / solo logo. Niente testo TEST, REVIEW, SMOKE, Lorem, password in chiaro, errori di rete.
 
-**Non inventare screenshot.** Servono scatti reali da device o TestFlight (o Simulator solo se l’app gira davvero).
+Formato: PNG o JPEG, **senza alpha**.
 
-Tema: UI reale post-login. Dati demo ok se sembrano credibili.
+## iPhone — dimensioni accettate
 
-Formato: PNG o JPEG, **senza alpha**. Verticale.
+| Orientamento | Pixel |
+| --- | --- |
+| Verticale | **1242 × 2688** |
+| Orizzontale | **2688 × 1242** |
+| Verticale | **1284 × 2778** |
+| Orizzontale | **2778 × 1284** |
 
-## Size class obbligatorie (2026)
+Cartelle: `store/ios/screenshots/1242x2688/`, `store/ios/screenshots/1284x2778/`
 
-| Slot ASC | Pixel (verticale) | Come ottenerli |
+## iPad 13″ (obbligatorio se l’app gira su iPad)
+
+| Orientamento | Pixel |
+| --- | --- |
+| Verticale | **2064 × 2752** (consigliato) |
+| Orizzontale | **2752 × 2064** |
+| Alternativa | **2048 × 2732** / **2732 × 2048** |
+
+Cartella: `store/ios/screenshots/ipad-13-2064x2752/`
+
+## Shot list (file in ogni cartella size)
+
+| # | File | Contenuto |
 | --- | --- | --- |
-| iPhone **6.9″** (obbligatorio) | **1320 × 2868** (accetta anche 1290 × 2796 o 1260 × 2736) | iPhone 16/17 Pro Max, o Simulator → Cmd+S |
-| iPhone **6.5″** (se richiesto / legacy) | tipicamente 1242 × 2688 | device / Simulator |
-| iPad **13″** (se tablet supportato) | **2064 × 2752** (accetta anche 2048 × 2732) | iPad Pro 13″ |
+| 1 | `01-accedi.png` | Accedi |
+| 2 | `02-area-personale.png` | Area personale *(manca scatto)* |
+| 3 | `03-prenotazioni.png` | Prenotazioni |
+| 4 | `04-lezioni.png` | Lezioni |
+| 5 | `05-prenota-sala.png` | Prenota sala |
 
-## Shot list (da fare a mano)
-
-| # | Schermata | Percorso | Cosa deve vedersi |
-| --- | --- | --- | --- |
-| 1 | Accedi | cold start | Schermo Accedi, email + password (senza password riempita in vetrina) |
-| 2 | Area personale | tab Area personale | Profilo / stato associato dopo login demo |
-| 3 | Prenotazioni | tab Prenotazioni | Elenco o form sale prova |
-| 4 | Lezioni docente | tab Lezioni → Oggi o Calendario | Vista docente con lezioni |
-| 5 | Nuova prova / presenze | Lezioni → Nuova prova o presenze | Flusso docente in uso |
-
-Non mettere Impostazioni tecniche o errori API in vetrina.
-
-## Come scattare
-
-```text
-Installa build TestFlight (o Simulator con l’app vera).
-Login con account demo.
-Device / Simulator → Screenshot (Cmd+S su Mac Simulator).
-```
-
-Cartella ready (PNG senza alpha): `store/ios/screenshots/iphone-69/`
-- `01-accedi-*` — Accedi (reale)
-- `03-prenotazioni-*` — calendario con prenotazioni fittizie
-- `04-lezioni-*` — lezioni + crediti fittizi
-- `05-prenota-sala-*` — form sala con slot fittizi
-
-Ogni file in `1290×2796` e `1320×2868`. Manca ancora `02-area-personale` (scatto reale Dashboard).
-
-## App Preview (opzionale)
-
-Solo dopo screenshot reali. Non è lo stesso di un eventuale allegato review: uno screen recording serve **solo** se Apple lo chiede in Resolution Center, non di default.
+Niente TEST/REVIEW/SMOKE. Video: solo se Apple lo chiede in Resolution Center.

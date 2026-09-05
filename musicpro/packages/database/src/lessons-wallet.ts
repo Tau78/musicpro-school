@@ -1497,3 +1497,158 @@ export async function adjustEnrollmentCredits(
   }
   return ok(input.enrollmentId);
 }
+
+export type LessonPackPaymentMethod =
+  | "stripe"
+  | "bonifico"
+  | "contanti"
+  | "altro";
+
+export type LessonPackPaymentHistoryRow = {
+  id: string;
+  amountEur: number;
+  method: LessonPackPaymentMethod;
+  status: "pending" | "completed" | "failed";
+  paidOn: string | null;
+  createdAt: string;
+  note: string | null;
+  cro: string | null;
+};
+
+export type MemberLessonPaymentHistory = {
+  memberId: string;
+  received: LessonPackPaymentHistoryRow[];
+  openFees: LessonFeeRow[];
+  receivedTotalEur: number;
+  openTotalEur: number;
+  leftoverEurFamily: number;
+  /** Acconto famiglia − rette aperte (positivo = credito, negativo = debito). */
+  saldoEur: number;
+};
+
+async function familyMemberIds(
+  client: WalletClient,
+  memberId: string,
+): Promise<string[]> {
+  const ids = new Set<string>([memberId]);
+  const { data: member, error } = await client
+    .from("members")
+    .select("id, manual_tutor_email")
+    .eq("id", memberId)
+    .maybeSingle();
+  if (error) {
+    throw new Error(error.message || "Impossibile caricare l'associato.");
+  }
+  const tutorEmail = member?.manual_tutor_email?.trim() ?? "";
+  if (!tutorEmail) return [...ids];
+
+  const { data: siblings, error: siblingError } = await client
+    .from("members")
+    .select("id")
+    .ilike("manual_tutor_email", tutorEmail);
+  if (siblingError) {
+    throw new Error(
+      siblingError.message || "Impossibile caricare i familiari.",
+    );
+  }
+  for (const row of siblings ?? []) {
+    ids.add(row.id);
+  }
+  return [...ids];
+}
+
+export async function getMemberLessonPaymentHistory(
+  client: WalletClient,
+  memberId: string,
+): Promise<MemberLessonPaymentHistory> {
+  const id = memberId.trim();
+  if (!id) {
+    return {
+      memberId: "",
+      received: [],
+      openFees: [],
+      receivedTotalEur: 0,
+      openTotalEur: 0,
+      leftoverEurFamily: 0,
+      saldoEur: 0,
+    };
+  }
+
+  const family = await lessonFamilyKey(client, id);
+  if ("errorMessage" in family) {
+    throw new Error(family.errorMessage);
+  }
+
+  const memberIds = await familyMemberIds(client, id);
+
+  const [paymentsRes, leftoverEurFamily, ...feeLists] = await Promise.all([
+    client
+      .from("lesson_pack_payments")
+      .select(
+        "id, amount_eur, method, status, paid_on, created_at, note, cro",
+      )
+      .eq("family_key", family.key)
+      .eq("status", "completed")
+      .order("created_at", { ascending: false }),
+    leftoverForFamilyKey(client, family.key),
+    ...memberIds.map((mid) =>
+      listLessonFees(client, {
+        mode: "all",
+        status: ["aperta", "parziale"],
+        memberId: mid,
+      }),
+    ),
+  ]);
+
+  if (paymentsRes.error) {
+    throw new Error(
+      paymentsRes.error.message || "Impossibile caricare i pagamenti.",
+    );
+  }
+
+  const received: LessonPackPaymentHistoryRow[] = (paymentsRes.data ?? []).map(
+    (row) => ({
+      id: row.id,
+      amountEur: Number(row.amount_eur),
+      method: row.method,
+      status: row.status,
+      paidOn: row.paid_on,
+      createdAt: row.created_at,
+      note: row.note,
+      cro: row.cro,
+    }),
+  );
+
+  const feeById = new Map<string, LessonFeeRow>();
+  for (const list of feeLists) {
+    for (const fee of list) {
+      feeById.set(fee.id, fee);
+    }
+  }
+  const openFees = [...feeById.values()].sort((a, b) => {
+    const byDue = a.dueOn.localeCompare(b.dueOn);
+    if (byDue !== 0) return byDue;
+    return a.studentLabel.localeCompare(b.studentLabel, "it");
+  });
+
+  const receivedTotalEur = received.reduce(
+    (sum, row) => sum + row.amountEur,
+    0,
+  );
+  const openTotalEur = openFees.reduce(
+    (sum, row) => sum + row.remainingEur,
+    0,
+  );
+  const saldoEur =
+    Math.round((leftoverEurFamily - openTotalEur) * 100) / 100;
+
+  return {
+    memberId: id,
+    received,
+    openFees,
+    receivedTotalEur: Math.round(receivedTotalEur * 100) / 100,
+    openTotalEur: Math.round(openTotalEur * 100) / 100,
+    leftoverEurFamily,
+    saldoEur,
+  };
+}
