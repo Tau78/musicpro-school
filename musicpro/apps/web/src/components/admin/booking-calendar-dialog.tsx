@@ -660,7 +660,7 @@ export function BookingCalendarDialog({
                   href={`/admin/prenotazioni/${bookingId}`}
                   className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium hover:bg-neutral-50"
                 >
-                  Pagina completa
+                  APRI DETTAGLIO
                 </Link>
               ) : null}
               <button

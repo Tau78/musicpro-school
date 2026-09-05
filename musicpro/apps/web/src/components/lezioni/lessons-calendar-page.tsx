@@ -28,6 +28,7 @@ import {
   mergeCalendarEvents,
   parseBookingId,
   parseExternalEventId,
+  resolveBookingIdFromCalendarEvent,
 } from "@/components/lezioni/calendar-bookings";
 import { LessonAttendancePanel } from "@/components/lezioni/lesson-attendance-panel";
 import {
@@ -260,14 +261,20 @@ export function LessonsCalendarPage({
     });
   }
 
+  const canManageBookingEvents =
+    bookingsOnly || (isStaff && bookingRooms.length > 0);
+
   function openCourse(lesson: CalendarLesson) {
     router.push(`${courseDetailBasePath}/${lessonCourseId(lesson)}`);
   }
 
   function handleOpenLesson(lessonId: string) {
-    const bookingId = parseBookingId(lessonId);
+    const lesson = lessons.find((row) => row.id === lessonId);
+    const bookingId = resolveBookingIdFromCalendarEvent(lessonId, lesson);
     if (bookingId) {
-      if (bookingsOnly) {
+      if (canManageBookingEvents) {
+        setAttendanceLesson(null);
+        setActionLesson(null);
         setBookingDialog({ mode: "edit", bookingId });
       } else {
         router.push(`/admin/prenotazioni/${bookingId}`);
@@ -276,8 +283,9 @@ export function LessonsCalendarPage({
     }
     const externalId = parseExternalEventId(lessonId);
     if (externalId) {
-      if (bookingsOnly) {
-        const lesson = lessons.find((row) => row.id === lessonId);
+      if (canManageBookingEvents) {
+        setAttendanceLesson(null);
+        setActionLesson(null);
         if (lesson?.startsAt && lesson.endsAt) {
           setBookingDialog({
             mode: "external",
@@ -292,7 +300,6 @@ export function LessonsCalendarPage({
       }
       return;
     }
-    const lesson = lessons.find((row) => row.id === lessonId);
     if (!lesson) return;
     const hold = lessonId.startsWith("hold:");
     if (!hold && memberId) {
@@ -354,7 +361,7 @@ export function LessonsCalendarPage({
     scope: MoveScope,
   ) {
     const bookingId = parseBookingId(lessonId);
-    if (bookingId && bookingsOnly) {
+    if (bookingId && canManageBookingEvents) {
       const lesson = lessons.find((row) => row.id === lessonId);
       if (!lesson?.startsAt || !lesson.endsAt) {
         throw new Error("Prenotazione non valida.");
@@ -568,7 +575,7 @@ export function LessonsCalendarPage({
           gridCloseMinute={settings.gridCloseMinute}
           slotGranularityMinutes={settings.slotGranularityMinutes}
           canDrag={bookingsOnly || canDrag}
-          canDragBookings={bookingsOnly}
+          canDragBookings={canManageBookingEvents}
           moveSingleScope={bookingsOnly}
           showTeacherName={isStaff}
           rooms={rooms}
@@ -624,7 +631,7 @@ export function LessonsCalendarPage({
         </Dialog>
       ) : null}
 
-      {bookingDialog && bookingsOnly ? (
+      {bookingDialog && canManageBookingEvents ? (
         <BookingCalendarDialog
           mode={bookingDialog.mode}
           bookingId={

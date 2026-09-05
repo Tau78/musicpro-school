@@ -123,6 +123,7 @@ export default async function AdminLezioniCalendarioPage({
         today={today}
         highlightDay={highlightDay}
         memberId={member.id}
+        bookingRooms={rooms}
       />
     </div>
   );

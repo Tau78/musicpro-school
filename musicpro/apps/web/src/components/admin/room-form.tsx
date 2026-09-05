@@ -252,6 +252,30 @@ export function RoomForm({ room, tab, otherRooms = [] }: RoomFormProps) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  async function handleActiveToggle(checked: boolean) {
+    const previous = form.isActive;
+    setError(null);
+    setSuccess(null);
+    setForm((prev) => ({ ...prev, isActive: checked }));
+    setSaving(true);
+
+    const result = await updateRoom(supabase, room.id, {
+      ...form,
+      isActive: checked,
+    });
+
+    setSaving(false);
+
+    if (!result.success) {
+      setForm((prev) => ({ ...prev, isActive: previous }));
+      setError(result.errorMessage ?? "Impossibile aggiornare lo stato della sala.");
+      return;
+    }
+
+    setSuccess(checked ? "Sala aperta." : "Sala chiusa.");
+    router.refresh();
+  }
+
   function updateDayRow(
     dayOfWeek: number,
     patch: Partial<Omit<DayScheduleRow, "dayOfWeek">>,
@@ -313,7 +337,8 @@ export function RoomForm({ room, tab, otherRooms = [] }: RoomFormProps) {
           <ToggleRow
             label="Aperta"
             checked={form.isActive}
-            onChange={(checked) => updateField("isActive", checked)}
+            disabled={saving}
+            onChange={(checked) => void handleActiveToggle(checked)}
           />
         </div>
 
