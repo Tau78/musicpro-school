@@ -1,40 +1,33 @@
-# Legacy local Next tree (gitignored); keep out of uploads if present
+# Legacy local Next tree (gitignored)
 /apps/
 
-# Not needed for school web build (rootDirectory = musicpro/apps/web)
-# Anchor with / so we do NOT ignore nested paths like src/lib/supabase or apps/web/scripts
+# Not needed for @musicpro/web build (Root Directory: musicpro/apps/web)
 /store/
 /docs/
-/scripts/
 /assets/
 /.cursor/
 /.github/
 /supabase/
+/scripts/
 /Codice.js
-*.html
+/*.html
 /appsscript.json
 /.iscrizione-ftp.env
 /.clasp.json
 /clasp.json
+/FirmaPdfOriginale.js
+/FirmaDocumento.js
+/StripePagamenti.js
+/iscrizioni.js
+/deploy-iscrizione.js
 
-# Mobile / native (Expo) — never part of Vercel web deploy
+# Mobile / Expo — never part of Vercel web
 /musicpro/apps/mobile/
 
-# Local build artifacts that may leak into upload
+# Local build artifacts
 **/.next/
 **/.turbo/
 **/dist/
 **/.expo/
 **/coverage/
 **/*.tsbuildinfo
-
-# Large / binary noise
-**/*.png
-**/*.jpg
-**/*.jpeg
-**/*.webp
-**/*.gif
-**/*.mp4
-**/*.mov
-**/*.pdf
-**/screenshots/
