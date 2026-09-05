@@ -2,22 +2,23 @@
 /apps/
 
 # Not needed for school web build (rootDirectory = musicpro/apps/web)
-store/
-docs/
-scripts/
-assets/
-.cursor/
-.github/
-supabase/
-Codice.js
+# Anchor with / so we do NOT ignore nested paths like src/lib/supabase or apps/web/scripts
+/store/
+/docs/
+/scripts/
+/assets/
+/.cursor/
+/.github/
+/supabase/
+/Codice.js
 *.html
-appsscript.json
-.iscrizione-ftp.env
-.clasp.json
-clasp.json
+/appsscript.json
+/.iscrizione-ftp.env
+/.clasp.json
+/clasp.json
 
 # Mobile / native (Expo) — never part of Vercel web deploy
-musicpro/apps/mobile/
+/musicpro/apps/mobile/
 
 # Local build artifacts that may leak into upload
 **/.next/
