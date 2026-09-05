@@ -1,21 +1,23 @@
 ---
-description: Decisioni all'utente sempre con AskQuestion (form tappable / multitap)
+description: Decisioni all'utente SEMPRE con strumento AskQuestion (form tappable). Mai elenco in chat.
 alwaysApply: true
 ---
 
 # AskQuestion — sempre form tappable
 
-Quando serve una decisione dell'utente (prodotto, scope, default, A/B): usa lo strumento **AskQuestion** (form tappable / multitap). Mai elenco 1/2/3 solo in chat.
+Quando serve una decisione (prodotto, scope, default, A/B) o l’utente dice `#askquestion`:
 
-- Opzioni in italiano, **2–4**.
-- Una consigliata se c'è: prima, con `(consigliato)` nella label.
-- Ultima: `Altro (lo scrivo in chat)`.
-- Un form per tornata. Se le domande sono tante, tutte nello stesso form.
-- Testo libero su una voce = risposta valida; tap solo sul resto.
+1. Chiama lo strumento di sistema **AskQuestion** (form multitap).
+2. **Mai** elenco 1/2/3 o A/B solo in chat, anche se «il tool manca».
+3. Se AskQuestion **non è nel toolset**: una riga che non è disponibile + chiedi modello/runtime con form UI. **Non** elencare le opzioni.
+4. Opzioni in italiano, **2–4**; consigliata prima con `(consigliato)`; ultima `Altro (lo scrivo in chat)`.
+5. Un form per tornata; più domande nello stesso form.
+6. Preferisci AskQuestion come unica tool call di quel messaggio.
 
 ```
 ❌ “Preferisci A o B? Dimmi tu.”
-✅ AskQuestion: A / B / C altro
+❌ “AskQuestion assente, scegli: 1) … 2) …”
+✅ strumento AskQuestion → tap
 ```
 
-Conferma sì/no operativa (es. eseguo VAI?) può restare in chat.
+Conferma sì/no operativa unica (es. eseguo VAI?) può restare in chat.

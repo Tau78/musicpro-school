@@ -12,7 +12,8 @@
     "import:cespiti": "node scripts/import-libro-cespiti.mjs",
     "smoke:documenti": "node scripts/smoke-documenti.mjs",
     "smoke:rimborsi": "node scripts/smoke-rimborsi-pdf.mjs",
-    "smoke:auth-urls": "node scripts/sync-school-auth-urls.mjs --check"
+    "smoke:auth-urls": "node scripts/sync-school-auth-urls.mjs --check",
+    "vercel:cleanup": "bash scripts/vercel-cleanup.sh"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.8",
