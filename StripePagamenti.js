@@ -593,6 +593,8 @@ function sincronizzaPagamentoIscrizioneStripe(idIscrizione) {
   if (!rec) return { found: false, pagato: false };
 
   if (String(rec.pagamentoStato || '').toUpperCase().trim() === 'PAGATO') {
+    // Solo osservazione + eventuale retry se Email_Conferma_Inviata è vuota/ERRORE.
+    // Il claim IN_CORSO in _eseguiInvioIscrizioneSync evita doppie email in race con webhook.
     if (typeof accodaInvioEmailIscrizioneSeNecessario === 'function') {
       accodaInvioEmailIscrizioneSeNecessario(id);
     }

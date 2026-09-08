@@ -354,7 +354,7 @@
 </div>
 </div>
 
-<footer class="site-footer">v1.2.0 &middot; 2026-09-05</footer>
+<footer class="site-footer">v__ISCRIZIONE_VERSION__ &middot; __ISCRIZIONE_DATE__</footer>
 
 <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
 <script>
@@ -439,15 +439,7 @@
         });
     }
 
-    function inviaIscrizioneAutomatica(id, nome) {
-        showLoading('Pagamento confermato', 'Invio iscrizione in corso...');
-        return gasApiPost({ action: 'completaInvioIscrizione', idIscrizione: id })
-            .then(function(res) {
-                if (res && res.success === false) throw new Error(res.message || 'Invio non riuscito.');
-                showFinaleOk((res && res.name) ? res.name : nome);
-            });
-    }
-
+    /** Dopo il pagamento: solo poll. L'invio PDF/email è ownership del server (webhook). */
     function pollERinvia(id, nome, attempt) {
         gasApiGet('sincronizzaPagamento', { idIscrizione: id })
             .then(function(res) {
@@ -456,7 +448,26 @@
                     return;
                 }
                 if (res && res.pagato) {
-                    inviaIscrizioneAutomatica(id, res.nome || nome);
+                    if (attempt === 0 || attempt % 3 === 0) {
+                        showLoading(
+                            'Pagamento confermato',
+                            (res.invioInCorso
+                                ? 'Invio iscrizione in corso...'
+                                : 'Preparazione modulo PDF e email...')
+                        );
+                    }
+                    if (attempt < 30) {
+                        setTimeout(function() { pollERinvia(id, nome, attempt + 1); }, 2000);
+                        return;
+                    }
+                    Swal.fire({
+                        icon: 'info',
+                        title: 'Pagamento ricevuto',
+                        html: 'Il pagamento è confermato.<br>La email con il modulo arriverà a breve (controlla anche lo spam).<br>Se non arriva, contatta la segreteria.',
+                        confirmButtonColor: '#e10600'
+                    }).then(function() {
+                        window.location.href = window.location.pathname;
+                    });
                     return;
                 }
                 if (attempt < 24) {

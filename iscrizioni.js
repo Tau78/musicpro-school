@@ -193,13 +193,14 @@ function getStatoIscrizione(idIscrizione) {
   var rec = getIscrizioneById(idIscrizione);
   if (!rec) return { found: false };
   var emailSt = String(rec.emailConfermaInviata || "").toUpperCase().trim();
-  var inviata = emailSt === "SI" || !!String(rec.pdfUrl || "").trim();
+  var inviata = emailSt === "SI";
   return {
     found: true,
     idIscrizione: rec.id,
     pagamentoStato: rec.pagamentoStato,
     pagato: String(rec.pagamentoStato || "").toUpperCase().trim() === "PAGATO",
     inviata: inviata,
+    invioInCorso: emailSt === "IN_CORSO",
     nome: rec.nome,
     cognome: rec.cognome,
     importoCentesimi: rec.importoCentesimi,
@@ -242,10 +243,47 @@ function iscrizioneNeedsPostPaymentEmail(idIscrizione) {
   if (!rec) return false;
   if (String(rec.pagamentoStato || "").toUpperCase().trim() !== "PAGATO") return false;
   var emailSt = String(rec.emailConfermaInviata || "").toUpperCase().trim();
-  if (emailSt === "IN_CORSO") return false;
-  var hasPdf = !!String(rec.pdfUrl || "").trim();
-  if (hasPdf && emailSt === "SI") return false;
+  // SI / IN_CORSO: già inviata o claim in corso (anti-doppia email).
+  if (emailSt === "SI" || emailSt === "IN_CORSO") return false;
   return true;
+}
+
+/**
+ * Claim atomico dell'invio (IN_CORSO) sotto lock.
+ * @returns {{ claimed: boolean, alreadyDone?: boolean, inProgress?: boolean, located?: object }}
+ */
+function _claimInvioIscrizione_(idIscrizione, options) {
+  options = options || {};
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) {
+    throw new Error("Sistema occupato sull'invio iscrizione. Riprova tra poco.");
+  }
+  try {
+    var located = _locateIscrizioneRowById_(idIscrizione);
+    if (!located) throw new Error("Iscrizione non trovata.");
+
+    var row = located.sheet.getRange(located.rowNum, 1, 1, ISCRIZIONI_HEADERS.length).getValues()[0];
+    var rec = _iscrizioneRowToObject(row);
+    var emailSt = String((rec && rec.emailConfermaInviata) || "").toUpperCase().trim();
+    var hasPdf = !!(rec && String(rec.pdfUrl || "").trim());
+
+    if (!options.force) {
+      if (emailSt === "SI") {
+        return { claimed: false, alreadyDone: true, located: located, hasPdf: hasPdf };
+      }
+      if (emailSt === "IN_CORSO") {
+        return { claimed: false, inProgress: true, located: located, hasPdf: hasPdf };
+      }
+    }
+
+    if (!located.inArchivio || options.force) {
+      located.sheet.getRange(located.rowNum, ISCR_COL.EMAIL_CONFERMA_INVIATA + 1).setValue("IN_CORSO");
+      SpreadsheetApp.flush();
+    }
+    return { claimed: true, located: located, hasPdf: hasPdf };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 /** Accoda PDF + email se pagamento ok ma invio non ancora partito. */
@@ -1042,7 +1080,8 @@ function aggiornaIscrizionePagamentoPagato(idIscrizione, finStripe, piId) {
 }
 
 /**
- * Invio finale: accoda PDF + email e risponde subito (elaborazione in background).
+ * Invio finale: PDF + email (idempotente grazie al claim IN_CORSO).
+ * Preferire il percorso server post-pagamento; il client deve solo osservare lo stato.
  */
 function completaInvioIscrizione(idIscrizione) {
   var rec = getIscrizioneById(idIscrizione);
@@ -1051,33 +1090,38 @@ function completaInvioIscrizione(idIscrizione) {
     throw new Error("Pagamento non ancora confermato. Attendi qualche secondo e riprova.");
   }
   var emailSt = String(rec.emailConfermaInviata || "").toUpperCase().trim();
-  var hasPdf = !!String(rec.pdfUrl || "").trim();
-  if (hasPdf && emailSt === "SI") {
+  if (emailSt === "SI") {
     return { success: true, alreadySent: true, name: rec.nome, pdfUrl: rec.pdfUrl || "" };
   }
-  if (!rec.payloadJson) throw new Error("Dati iscrizione mancanti.");
-
-  var located = _locateIscrizioneRowById_(idIscrizione);
-  if (located && !located.inArchivio) {
-    located.sheet.getRange(located.rowNum, ISCR_COL.EMAIL_CONFERMA_INVIATA + 1).setValue("IN_CORSO");
+  if (emailSt === "IN_CORSO") {
+    return { success: true, inProgress: true, name: rec.nome, pdfUrl: rec.pdfUrl || "" };
   }
+  if (!rec.payloadJson) throw new Error("Dati iscrizione mancanti.");
 
   try {
     _eseguiInvioIscrizioneSync(idIscrizione);
     rec = getIscrizioneById(idIscrizione);
+    var finalSt = String((rec && rec.emailConfermaInviata) || "").toUpperCase().trim();
     return {
       success: true,
       queued: false,
-      alreadySent: false,
+      alreadySent: finalSt === "SI",
+      inProgress: finalSt === "IN_CORSO",
       name: rec ? rec.nome : "",
       pdfUrl: rec ? rec.pdfUrl : ""
     };
   } catch (err) {
-    if (located) {
-      try {
-        located.sheet.getRange(located.rowNum, ISCR_COL.EMAIL_CONFERMA_INVIATA + 1).setValue("ERRORE");
-      } catch (eMark) {}
-    }
+    try {
+      var located = _locateIscrizioneRowById_(idIscrizione);
+      if (located) {
+        var stNow = String(located.sheet.getRange(located.rowNum, ISCR_COL.EMAIL_CONFERMA_INVIATA + 1).getValue() || "")
+          .toUpperCase().trim();
+        // Non sovrascrivere SI di un altro worker riuscito; solo il claim IN_CORSO → ERRORE.
+        if (stNow === "IN_CORSO") {
+          located.sheet.getRange(located.rowNum, ISCR_COL.EMAIL_CONFERMA_INVIATA + 1).setValue("ERRORE");
+        }
+      }
+    } catch (eMark) {}
     throw err;
   }
 }
@@ -1138,46 +1182,55 @@ function _deferredIscrizioneInvioWork() {
     try {
       _eseguiInvioIscrizioneSync(item.id);
     } catch (itemErr) {
+      // ERRORE è già impostato da _eseguiInvioIscrizioneSync se questo worker aveva il claim.
       Logger.log("[_deferredIscrizioneInvioWork] id=" + item.id + " " + (itemErr.message || itemErr));
-      try {
-        var located = _locateIscrizioneRowById_(item.id);
-        if (located) {
-          located.sheet.getRange(located.rowNum, ISCR_COL.EMAIL_CONFERMA_INVIATA + 1).setValue("ERRORE");
-        }
-      } catch (eMark) {}
     }
   }
 }
 
 function _eseguiInvioIscrizioneSync(idIscrizione, options) {
   options = options || {};
-  var located = _locateIscrizioneRowById_(idIscrizione);
+  var claim = _claimInvioIscrizione_(idIscrizione, options);
+  var located = claim.located;
   if (!located) throw new Error("Iscrizione non trovata.");
+
+  if (!options.force) {
+    if (claim.alreadyDone) {
+      if (!located.inArchivio) _archiviaRigaIscrizioneCompletata_(located.rowNum);
+      return;
+    }
+    if (claim.inProgress || !claim.claimed) {
+      return;
+    }
+  }
 
   var row = located.sheet.getRange(located.rowNum, 1, 1, ISCRIZIONI_HEADERS.length).getValues()[0];
   var rec = _iscrizioneRowToObject(row);
   if (!rec || !rec.payloadJson) throw new Error("Dati iscrizione mancanti.");
 
-  var emailSt = String(rec.emailConfermaInviata || "").toUpperCase().trim();
-  var hasPdf = !!String(rec.pdfUrl || "").trim();
-  if (!options.force && hasPdf && emailSt === "SI") {
-    if (!located.inArchivio) _archiviaRigaIscrizioneCompletata_(located.rowNum);
-    return;
-  }
-
   var data = JSON.parse(rec.payloadJson);
   data.metodo_pagamento = "Stripe";
 
-  var pdfRes = processMembershipApplication(data);
-  if (!pdfRes || !pdfRes.pdfUrl) {
-    throw new Error("Generazione PDF non riuscita.");
-  }
+  try {
+    var pdfRes = processMembershipApplication(data);
+    if (!pdfRes || !pdfRes.pdfUrl) {
+      throw new Error("Generazione PDF non riuscita.");
+    }
 
-  located.sheet.getRange(located.rowNum, ISCR_COL.PDF_URL + 1).setValue(pdfRes.pdfUrl);
-  located.sheet.getRange(located.rowNum, ISCR_COL.EMAIL_CONFERMA_INVIATA + 1).setValue("SI");
+    located.sheet.getRange(located.rowNum, ISCR_COL.PDF_URL + 1).setValue(pdfRes.pdfUrl);
+    located.sheet.getRange(located.rowNum, ISCR_COL.EMAIL_CONFERMA_INVIATA + 1).setValue("SI");
+    SpreadsheetApp.flush();
 
-  if (!located.inArchivio) {
-    _archiviaRigaIscrizioneCompletata_(located.rowNum);
+    if (!located.inArchivio) {
+      _archiviaRigaIscrizioneCompletata_(located.rowNum);
+    }
+  } catch (sendErr) {
+    if (claim.claimed || options.force) {
+      try {
+        located.sheet.getRange(located.rowNum, ISCR_COL.EMAIL_CONFERMA_INVIATA + 1).setValue("ERRORE");
+      } catch (eMark) {}
+    }
+    throw sendErr;
   }
 }
 
