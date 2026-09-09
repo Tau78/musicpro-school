@@ -101,7 +101,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $op = isset($_GET['op']) ? $_GET['op'] : '';
     $id = isset($_GET['idIscrizione']) ? $_GET['idIscrizione'] : '';
     $token = isset($_GET['token']) ? $_GET['token'] : '';
-    $supabaseOps = array('validateIscrizioneToken', 'getStatoIscrizione', 'sincronizzaPagamento');
+    $supabaseOps = array(
+        'validateIscrizioneToken',
+        'getStatoIscrizione',
+        'sincronizzaPagamento',
+        'getDatiIscrizionePerForm',
+    );
     if (in_array($op, $supabaseOps, true)) {
         $sb = supabase_try_get($op, $id, $token);
         if ($sb !== null) {
@@ -136,12 +141,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $token = trim((string) $payload['token']);
         }
     }
+    // Iscrizione pubblica full Supabase (niente stub GAS su questi action).
+    $supabaseAlwaysPost = array(
+        'inviaIscrizioneConPagamento',
+        'inviaIscrizione',
+        'completaInvioIscrizione',
+        'getDatiIscrizionePerForm',
+        'richiediLinkIscrizioneAssociato',
+        'salvaAggiornamentoAssociatoIscrizione',
+    );
+    if (in_array($action, $supabaseAlwaysPost, true)) {
+        supabase_request($API_BASE, 'POST', $body);
+    }
     // Flussi con magic link / contanti: sempre Next (mai fallback GAS → hang).
     $supabasePostActions = array(
         'salvaAggiornamentoAssociatoIscrizione',
         'inviaIscrizioneConPagamento',
         'inviaIscrizione',
         'richiediLinkIscrizioneAssociato',
+        'completaInvioIscrizione',
     );
     if ($token !== '' && in_array($action, $supabasePostActions, true)) {
         supabase_request($API_BASE, 'POST', $body);
