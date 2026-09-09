@@ -500,20 +500,97 @@ async function notifyAdminCashEnrollmentCompleted(input: {
     "Il socio ha compilato e firmato il modulo online.",
   ].join("\n");
 
-  await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from,
-      to: recipients,
-      subject,
-      text,
-      html: text.replace(/\r\n|\r|\n/g, "<br />"),
-    }),
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  try {
+    await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        from,
+        to: recipients,
+        subject,
+        text,
+        html: text.replace(/\r\n|\r|\n/g, "<br />"),
+      }),
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Controlli anagrafici condivisi (form contanti / rinnovo / nuova iscrizione). */
+export function validateEnrollmentAnagrafica(data: EnrollmentFormData): string | null {
+  const nome = formText(data.nome);
+  const cognome = formText(data.cognome);
+  const cf = formText(data.cf).toUpperCase();
+  const email = formText(data.email).toLowerCase();
+  const telefono = formText(data.telefono).replace(/[\s().-]/g, "");
+  const cap = formText(data.cap);
+  const prov = formText(data.prov).toUpperCase();
+  const provNascita = formText(data.prov_nascita).toUpperCase();
+  const dataNascita = formText(data.data_nascita).substring(0, 10);
+  const luogo = formText(data.luogo_nascita);
+  const indirizzo = formText(data.indirizzo);
+  const citta = formText(data.citta);
+
+  if (!nome || !cognome) return "Nome e cognome obbligatori.";
+  if (!luogo) return "Luogo di nascita obbligatorio.";
+  if (!/^[A-Z]{2}$/.test(provNascita)) {
+    return "Provincia di nascita: inserisci 2 lettere (es. GE).";
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dataNascita)) {
+    return "Data di nascita non valida.";
+  }
+  const born = new Date(`${dataNascita}T12:00:00`);
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
+  if (Number.isNaN(born.getTime()) || born > today) {
+    return "La data di nascita non può essere nel futuro.";
+  }
+  const oldest = new Date();
+  oldest.setFullYear(oldest.getFullYear() - 120);
+  if (born < oldest) {
+    return "Data di nascita non plausibile.";
+  }
+
+  if (!/^[A-Z]{6}[0-9LMNPQRSTUV]{2}[A-EHLMPRST][0-9LMNPQRSTUV]{2}[A-Z][0-9LMNPQRSTUV]{3}[A-Z]$/.test(cf)) {
+    return "Codice fiscale non valido (16 caratteri, formato italiano).";
+  }
+  if (!indirizzo) return "Indirizzo obbligatorio.";
+  if (!/^\d{5}$/.test(cap)) return "CAP non valido (5 cifre).";
+  if (!citta) return "Città obbligatoria.";
+  if (!/^[A-Z]{2}$/.test(prov)) {
+    return "Provincia di residenza: inserisci 2 lettere (es. GE).";
+  }
+  if (!email || !EMAIL_RE.test(email)) return "Email non valida.";
+  const phoneDigits = telefono.replace(/^\+/, "").replace(/\D/g, "");
+  if (phoneDigits.length < 9 || phoneDigits.length > 15) {
+    return "Cellulare non valido (almeno 9 cifre).";
+  }
+
+  const ageMs = today.getTime() - born.getTime();
+  const ageYears = ageMs / (365.25 * 24 * 60 * 60 * 1000);
+  if (ageYears < 18) {
+    if (!formText(data.tutore_nome) || !formText(data.tutore_cognome)) {
+      return "Per i minorenni sono obbligatori nome e cognome del genitore/tutore.";
+    }
+    const tutoreCf = formText(data.tutore_cf).toUpperCase();
+    if (
+      tutoreCf &&
+      !/^[A-Z]{6}[0-9LMNPQRSTUV]{2}[A-EHLMPRST][0-9LMNPQRSTUV]{2}[A-Z][0-9LMNPQRSTUV]{3}[A-Z]$/.test(
+        tutoreCf,
+      )
+    ) {
+      return "Codice fiscale del tutore non valido.";
+    }
+  }
+
+  return null;
 }
 
 async function createAndSendMagicLink(db: Db, member: MemberRow) {
@@ -877,14 +954,9 @@ async function findPendingEnrollmentByCf(
  * Riusa bozza non pagata (id o stesso CF) per ritentare senza rifare il form.
  */
 export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
-  if (!String(data.email || "").trim()) {
-    throw new Error("Email obbligatoria.");
-  }
-  if (!String(data.nome || "").trim() || !String(data.cognome || "").trim()) {
-    throw new Error("Nome e cognome obbligatori.");
-  }
-  if (!String(data.cf || "").trim()) {
-    throw new Error("Codice fiscale obbligatorio.");
+  const anagErr = validateEnrollmentAnagrafica(data);
+  if (anagErr) {
+    throw new Error(anagErr);
   }
   if (!data.signatureData) {
     throw new Error("Firma digitale obbligatoria.");
@@ -1128,11 +1200,9 @@ export async function salvaAggiornamentoAssociatoIscrizione(
   if (!isRinnovo(data)) {
     throw new Error("Operazione riservata agli associati già registrati.");
   }
-  if (!formText(data.nome) || !formText(data.cognome)) {
-    throw new Error("Nome e cognome obbligatori.");
-  }
-  if (!formText(data.cf)) {
-    throw new Error("Codice fiscale obbligatorio.");
+  const anagErr = validateEnrollmentAnagrafica(data);
+  if (anagErr) {
+    throw new Error(anagErr);
   }
   if (!data.signatureData) {
     throw new Error("Firma digitale obbligatoria.");
@@ -1153,7 +1223,7 @@ export async function salvaAggiornamentoAssociatoIscrizione(
     throw new Error("Associato non trovato in rubrica. Contatta la segreteria.");
   }
 
-  const cf = formText(member.tax_code || data.cf).toUpperCase();
+  const cf = formText(data.cf).toUpperCase();
   const quotaOk =
     Boolean(loaded?.info.cashQuotaPaid) ||
     (await hasQuotaPaidForMember(db, member.id)) ||
@@ -1178,7 +1248,7 @@ export async function salvaAggiornamentoAssociatoIscrizione(
     address_postal_code: formText(data.cap) || null,
     address_city: formText(data.citta) || null,
     address_province: formText(data.prov).toUpperCase() || null,
-    tax_code: formText(data.cf).toUpperCase() || null,
+    tax_code: cf,
     phone: formText(data.telefono) || null,
     email: formText(data.email) || null,
     manual_tutor_first_name: formText(data.tutore_nome) || null,
@@ -1216,22 +1286,20 @@ export async function salvaAggiornamentoAssociatoIscrizione(
     await markMagicTokenUsed(db, token);
   }
 
-  // Avviso segreteria: iscrizione contanti completata (firma raccolta).
+  // Non bloccare la risposta su Resend (era la causa del spinner infinito).
   if (loaded?.info.cashQuotaPaid) {
-    try {
-      await notifyAdminCashEnrollmentCompleted({
-        nome: formText(data.nome),
-        cognome: formText(data.cognome),
-        email: formText(data.email) || member.email || "",
-        cf: formText(data.cf).toUpperCase(),
-        memberId: member.id,
-      });
-    } catch (notifyErr) {
+    void notifyAdminCashEnrollmentCompleted({
+      nome: formText(data.nome),
+      cognome: formText(data.cognome),
+      email: formText(data.email) || member.email || "",
+      cf,
+      memberId: member.id,
+    }).catch((notifyErr) => {
       console.error(
         "[salvaAggiornamentoAssociatoIscrizione] notify admin:",
         notifyErr,
       );
-    }
+    });
   }
 
   return {
