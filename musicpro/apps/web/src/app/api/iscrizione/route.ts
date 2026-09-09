@@ -4,13 +4,15 @@ import {
   handleGetOp,
   handlePostAction,
 } from "@/lib/iscrizione/enrollment-service";
+import { isIscrizioneInternalAuthorized } from "@/lib/iscrizione/internal-auth";
 
 export const dynamic = "force-dynamic";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Headers":
+    "Content-Type, Authorization, x-iscrizione-internal-secret",
 };
 
 function jsonResponse(data: unknown, status = 200) {
@@ -41,6 +43,15 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as Record<string, unknown>;
+    const action = String(body.action || "inviaIscrizione").trim();
+    // completaInvioIscrizione: solo Edge/cron interno (secret), non pubblica.
+    // Il browser usa GET sincronizzaPagamento / getStatoIscrizione.
+    if (
+      action === "completaInvioIscrizione" &&
+      !isIscrizioneInternalAuthorized(request)
+    ) {
+      return jsonResponse({ success: false, message: "Non autorizzato" }, 401);
+    }
     const result = await handlePostAction(body);
     return jsonResponse(result);
   } catch (err) {

@@ -2,11 +2,15 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.8';
 import {
   deactivatePaymentLink,
   PAID_STRIPE_EVENT_TYPES,
+  QUOTA_ASSOCIATIVA_FLOW,
   QUOTA_FLOWS,
   resolveQuotaFromEvent,
   stripeClient,
   verifyStripeEventWithSecret,
 } from '../_shared/stripe-webhook.ts';
+import { edgeUrlEnvFromDeno, internalAppUrl } from '../_shared/public-url.ts';
+
+declare const EdgeRuntime: { waitUntil: (promise: Promise<unknown>) => void };
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -33,6 +37,68 @@ function quotaWebhookSecret(): string {
     Deno.env.get('STRIPE_WEBHOOK_SECRET') ??
     ''
   );
+}
+
+function iscrizioneInternalSecret(): string {
+  return (
+    Deno.env.get('ISCRIZIONE_INTERNAL_SECRET')?.trim() ||
+    Deno.env.get('CRON_SECRET')?.trim() ||
+    ''
+  );
+}
+
+/**
+ * Dopo PAGATO su quota_associativa: avvia completaInvioIscrizione su Next
+ * senza dipendere dal poll browser. Fire-and-forget — non blocca/fallisce Stripe.
+ */
+function triggerCompletaInvioIscrizione(enrollmentId: string): void {
+  const id = enrollmentId.trim();
+  if (!id) return;
+
+  const secret = iscrizioneInternalSecret();
+  if (!secret) {
+    console.error(
+      '[stripe-quota-webhook] completaInvio saltato: manca ISCRIZIONE_INTERNAL_SECRET/CRON_SECRET',
+    );
+    return;
+  }
+
+  const appUrl = internalAppUrl(edgeUrlEnvFromDeno());
+  const run = async () => {
+    try {
+      const res = await fetch(`${appUrl}/api/iscrizione`, {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${secret}`,
+          'x-iscrizione-internal-secret': secret,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'completaInvioIscrizione',
+          idIscrizione: id,
+        }),
+      });
+      if (!res.ok) {
+        console.error(
+          '[stripe-quota-webhook] completaInvio HTTP',
+          res.status,
+          await res.text(),
+        );
+      }
+    } catch (err) {
+      console.error(
+        '[stripe-quota-webhook] completaInvio',
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  };
+
+  const pending = run();
+  try {
+    EdgeRuntime.waitUntil(pending);
+  } catch {
+    void pending;
+  }
 }
 
 Deno.serve(async (req) => {
@@ -148,6 +214,14 @@ Deno.serve(async (req) => {
 
   if (paymentLinkId) {
     await deactivatePaymentLink(stripe, paymentLinkId);
+  }
+
+  const appliedEnrollmentId = String(
+    result.enrollment_id ?? enrollmentId ?? '',
+  ).trim();
+  if (flow === QUOTA_ASSOCIATIVA_FLOW && appliedEnrollmentId) {
+    // Anche su duplicate: completaInvio è idempotente (alreadySent / claim).
+    triggerCompletaInvioIscrizione(appliedEnrollmentId);
   }
 
   return json({
