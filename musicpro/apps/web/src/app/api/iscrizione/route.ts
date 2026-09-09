@@ -4,7 +4,10 @@ import {
   handleGetOp,
   handlePostAction,
 } from "@/lib/iscrizione/enrollment-service";
-import { isIscrizioneInternalAuthorized } from "@/lib/iscrizione/internal-auth";
+import {
+  iscrizioneInternalSecret,
+  isIscrizioneInternalAuthorized,
+} from "@/lib/iscrizione/internal-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -44,10 +47,12 @@ export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as Record<string, unknown>;
     const action = String(body.action || "inviaIscrizione").trim();
-    // completaInvioIscrizione: solo Edge/cron interno (secret), non pubblica.
-    // Il browser usa GET sincronizzaPagamento / getStatoIscrizione.
+    // completaInvioIscrizione: gate interno solo se ISCRIZIONE_INTERNAL_SECRET
+    // (o CRON_SECRET) è settato. Senza secret resta accessibile (poll/legacy).
+    // Il browser preferisce GET sincronizzaPagamento / getStatoIscrizione.
     if (
       action === "completaInvioIscrizione" &&
+      iscrizioneInternalSecret() &&
       !isIscrizioneInternalAuthorized(request)
     ) {
       return jsonResponse({ success: false, message: "Non autorizzato" }, 401);

@@ -18,6 +18,10 @@ const corsHeaders = {
     'authorization, x-client-info, apikey, content-type, stripe-signature',
 };
 
+/** Fallback produzione se ISCRIZIONE_COMPLETA_URL / APP_URL non sono settati. */
+const DEFAULT_ISCRIZIONE_COMPLETA_URL =
+  'https://school.musicproeventi.it/api/iscrizione';
+
 function json(body: Record<string, unknown>, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -48,35 +52,56 @@ function iscrizioneInternalSecret(): string {
 }
 
 /**
+ * URL Next per completaInvioIscrizione.
+ * Preferisce ISCRIZIONE_COMPLETA_URL (path completo), altrimenti
+ * `${internalAppUrl}/api/iscrizione`, altrimenti produzione.
+ */
+function completaInvioUrl(): string {
+  const dedicated = Deno.env.get('ISCRIZIONE_COMPLETA_URL')?.trim();
+  if (dedicated) return dedicated.replace(/\/$/, '');
+  const origin = internalAppUrl(edgeUrlEnvFromDeno()).replace(/\/$/, '');
+  if (origin) return `${origin}/api/iscrizione`;
+  return DEFAULT_ISCRIZIONE_COMPLETA_URL;
+}
+
+/**
  * Dopo PAGATO su quota_associativa: avvia completaInvioIscrizione su Next
  * senza dipendere dal poll browser. Fire-and-forget — non blocca/fallisce Stripe.
+ * Ritorna true se lo schedule è partito (anche se la fetch fallirà dopo).
  */
-function triggerCompletaInvioIscrizione(enrollmentId: string): void {
+function triggerCompletaInvioIscrizione(enrollmentId: string): boolean {
   const id = enrollmentId.trim();
-  if (!id) return;
+  if (!id) return false;
 
   const secret = iscrizioneInternalSecret();
   if (!secret) {
-    console.error(
-      '[stripe-quota-webhook] completaInvio saltato: manca ISCRIZIONE_INTERNAL_SECRET/CRON_SECRET',
+    console.warn(
+      '[stripe-quota-webhook] completaInvio senza secret (ISCRIZIONE_INTERNAL_SECRET/CRON_SECRET): chiamata aperta',
     );
-    return;
   }
 
-  const appUrl = internalAppUrl(edgeUrlEnvFromDeno());
+  const url = completaInvioUrl();
   const run = async () => {
+    const controller = new AbortController();
+    // Timeout breve: se Next è lento non teniamo Stripe in attesa.
+    // waitUntil tiene viva la Promise oltre la response HTTP a Stripe.
+    const timer = setTimeout(() => controller.abort(), 12_000);
     try {
-      const res = await fetch(`${appUrl}/api/iscrizione`, {
+      const headers: Record<string, string> = {
+        'content-type': 'application/json',
+      };
+      if (secret) {
+        headers.authorization = `Bearer ${secret}`;
+        headers['x-iscrizione-internal-secret'] = secret;
+      }
+      const res = await fetch(url, {
         method: 'POST',
-        headers: {
-          authorization: `Bearer ${secret}`,
-          'x-iscrizione-internal-secret': secret,
-          'content-type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({
           action: 'completaInvioIscrizione',
           idIscrizione: id,
         }),
+        signal: controller.signal,
       });
       if (!res.ok) {
         console.error(
@@ -90,6 +115,8 @@ function triggerCompletaInvioIscrizione(enrollmentId: string): void {
         '[stripe-quota-webhook] completaInvio',
         err instanceof Error ? err.message : String(err),
       );
+    } finally {
+      clearTimeout(timer);
     }
   };
 
@@ -99,6 +126,7 @@ function triggerCompletaInvioIscrizione(enrollmentId: string): void {
   } catch {
     void pending;
   }
+  return true;
 }
 
 Deno.serve(async (req) => {
@@ -216,12 +244,13 @@ Deno.serve(async (req) => {
     await deactivatePaymentLink(stripe, paymentLinkId);
   }
 
+  let completaInvioTriggered = false;
   const appliedEnrollmentId = String(
     result.enrollment_id ?? enrollmentId ?? '',
   ).trim();
   if (flow === QUOTA_ASSOCIATIVA_FLOW && appliedEnrollmentId) {
     // Anche su duplicate: completaInvio è idempotente (alreadySent / claim).
-    triggerCompletaInvioIscrizione(appliedEnrollmentId);
+    completaInvioTriggered = triggerCompletaInvioIscrizione(appliedEnrollmentId);
   }
 
   return json({
@@ -232,6 +261,7 @@ Deno.serve(async (req) => {
     enrollment_id: result.enrollment_id ?? enrollmentId ?? null,
     quota_payment_id: result.quota_payment_id ?? quotaPaymentId ?? null,
     member_id: result.member_id ?? null,
+    completa_invio_triggered: completaInvioTriggered,
     eventType: event.type,
   });
 });
