@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
+  getNextMemberNumber,
   listAnnualQuotaSettings,
   upsertMemberAnnualQuotas,
   type Database,
@@ -238,17 +239,19 @@ export async function getStatoIscrizione(idIscrizione: string) {
 
   const inviata =
     !!String(rec.pdf_url || "").trim() || rec.confirmation_email_sent;
+  const pagato = isPaidStatus(rec.payment_status);
 
   return {
     found: true as const,
     idIscrizione: rec.legacy_enrollment_id || rec.id,
     pagamentoStato: rec.payment_status,
-    pagato: isPaidStatus(rec.payment_status),
+    pagato,
     inviata,
     nome: rec.first_name,
     cognome: rec.last_name,
     importoCentesimi: rec.amount_centesimi,
     pdfUrl: rec.pdf_url || "",
+    checkoutUrl: pagato ? "" : String(rec.payment_link_url || "").trim(),
   };
 }
 
@@ -380,7 +383,7 @@ async function sendMagicLinkEmail(
   link: string,
   nome: string,
   variant: "default" | "cash" = "default",
-): Promise<boolean> {
+): Promise<{ sent: boolean; error?: string }> {
   const apiKey = process.env.RESEND_API_KEY?.trim();
   const from =
     process.env.EMAIL_FROM?.trim() ||
@@ -422,7 +425,10 @@ async function sendMagicLinkEmail(
     console.warn(
       `[iscrizione] RESEND_API_KEY assente: magic link non inviato a ${email} (${nome}): ${link}`,
     );
-    return false;
+    return {
+      sent: false,
+      error: "RESEND_API_KEY assente su Vercel",
+    };
   }
 
   const res = await fetch("https://api.resend.com/emails", {
@@ -450,10 +456,64 @@ async function sendMagicLinkEmail(
     console.error(
       `[iscrizione] Resend ${res.status} inviando magic link a ${email}: ${errBody.slice(0, 400)}`,
     );
-    return false;
+    return {
+      sent: false,
+      error: `Resend HTTP ${res.status}`,
+    };
   }
 
-  return true;
+  return { sent: true };
+}
+
+async function notifyAdminCashEnrollmentCompleted(input: {
+  nome: string;
+  cognome: string;
+  email: string;
+  cf: string;
+  memberId: string;
+}): Promise<void> {
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  if (!apiKey) return;
+
+  const from =
+    process.env.EMAIL_FROM?.trim() ||
+    process.env.BOOKING_EMAIL_FROM?.trim() ||
+    "MusicPro School <noreply@school.musicproeventi.it>";
+  const toRaw =
+    process.env.EMAIL_SEGRETERIA?.trim() ||
+    process.env.ADMIN_EMAIL?.trim() ||
+    "musicproeventi@gmail.com";
+  const recipients = toRaw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (!recipients.length) return;
+
+  const subject = `ISCRIZIONE CONTANTI: ${input.cognome} ${input.nome}`;
+  const text = [
+    "Nuova iscrizione completata (quota già versata in sede).",
+    `Nome: ${input.nome} ${input.cognome}`,
+    `Email: ${input.email}`,
+    `CF: ${input.cf}`,
+    `Member ID: ${input.memberId}`,
+    "",
+    "Il socio ha compilato e firmato il modulo online.",
+  ].join("\n");
+
+  await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from,
+      to: recipients,
+      subject,
+      text,
+      html: text.replace(/\r\n|\r|\n/g, "<br />"),
+    }),
+  });
 }
 
 async function createAndSendMagicLink(db: Db, member: MemberRow) {
@@ -461,12 +521,12 @@ async function createAndSendMagicLink(db: Db, member: MemberRow) {
   const link = await createIscrizioneMagicLink(db, member.email);
   const fields = memberToFormFields(member);
   const tutorNome = String(member.manual_tutor_first_name || "").trim();
-  await sendMagicLinkEmail(
+  const mail = await sendMagicLinkEmail(
     member.email,
     link,
     tutorNome || String(fields.nome || "Associato"),
   );
-  return true;
+  return mail.sent;
 }
 
 export async function richiediLinkIscrizioneAssociato(identifier: string) {
@@ -712,6 +772,7 @@ export async function creaIscrizioneContantiEInvia(input: {
   success: boolean;
   link?: string;
   emailSent?: boolean;
+  emailError?: string;
   memberId?: string;
   message?: string;
 }> {
@@ -743,12 +804,13 @@ export async function creaIscrizioneContantiEInvia(input: {
   const link = iscrizioneLinkFromToken(token);
   const greeting =
     String(member.first_name || "").trim() || nome || "Associato";
-  const emailSent = await sendMagicLinkEmail(email, link, greeting, "cash");
+  const mail = await sendMagicLinkEmail(email, link, greeting, "cash");
 
   return {
     success: true,
     link,
-    emailSent,
+    emailSent: mail.sent,
+    emailError: mail.error,
     memberId: member.id,
   };
 }
@@ -791,6 +853,29 @@ async function valutaDuplicatoIscrizione(
   return { blocked: false };
 }
 
+async function findPendingEnrollmentByCf(
+  db: Db,
+  cf: string,
+): Promise<EnrollmentRow | null> {
+  const target = String(cf || "").toUpperCase().trim();
+  if (!target) return null;
+
+  const { data } = await db
+    .from("enrollments")
+    .select("*")
+    .eq("tax_code", target)
+    .neq("payment_status", "PAGATO")
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  return data && data.length > 0 ? data[0] : null;
+}
+
+/**
+ * Bozza enrollment + Payment Link.
+ * Non crea members e non invia email admin finché payment_status !== PAGATO.
+ * Riusa bozza non pagata (id o stesso CF) per ritentare senza rifare il form.
+ */
 export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
   if (!String(data.email || "").trim()) {
     throw new Error("Email obbligatoria.");
@@ -824,14 +909,99 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
     }
   }
 
-  const idIscrizione = randomUUID();
   const anno = currentFiscalYear();
   const importoCents = QUOTA_ASSOCIATIVA_CENTESIMI;
-
+  const cf = String(data.cf || "").toUpperCase().trim();
   const payload = {
     ...data,
     metodo_pagamento: "Stripe",
   };
+
+  const resumeId = String(data.idIscrizione || data.id || "").trim();
+  let pending =
+    (resumeId ? await getEnrollmentById(db, resumeId) : null) ||
+    (await findPendingEnrollmentByCf(db, cf));
+
+  if (pending && isPaidStatus(pending.payment_status)) {
+    pending = null;
+  }
+
+  if (pending) {
+    const idIscrizione = pending.legacy_enrollment_id || pending.id;
+    const existingUrl = String(pending.payment_link_url || "").trim();
+    const existingStato = String(pending.payment_status || "")
+      .toUpperCase()
+      .trim();
+
+    await db
+      .from("enrollments")
+      .update({
+        first_name: String(data.nome || "").trim(),
+        last_name: String(data.cognome || "").trim(),
+        email: String(data.email || "").trim(),
+        tax_code: cf,
+        phone: String(data.telefono || "").trim(),
+        fiscal_year: anno,
+        amount_centesimi: importoCents,
+        member_id: tokenMember?.id ?? pending.member_id,
+        form_payload:
+          payload as Database["public"]["Tables"]["enrollments"]["Insert"]["form_payload"],
+      })
+      .eq("id", pending.id);
+
+    if (existingUrl && existingStato !== "ERRORE") {
+      await db
+        .from("enrollments")
+        .update({ payment_status: "INVIATO" })
+        .eq("id", pending.id);
+      return {
+        success: true,
+        idIscrizione,
+        checkoutUrl: existingUrl,
+        reused: true,
+      };
+    }
+
+    const linkResReuse = await createStripePaymentLinkQuotaAssociativa({
+      idIscrizione,
+      memberId: tokenMember?.id ?? pending.member_id ?? undefined,
+      nome: String(data.nome || ""),
+      cognome: String(data.cognome || ""),
+      importoCentesimi: importoCents,
+      annoSocietario: anno,
+      idempotencyKey: `iscrizione_retry_${idIscrizione}_${Date.now()}`,
+    });
+
+    if (!linkResReuse.success || !linkResReuse.url) {
+      await db
+        .from("enrollments")
+        .update({ payment_status: "ERRORE" })
+        .eq("id", pending.id);
+      throw new Error(
+        linkResReuse.message ||
+          "Impossibile creare il link di pagamento Stripe.",
+      );
+    }
+
+    await db
+      .from("enrollments")
+      .update({
+        payment_status: "INVIATO",
+        payment_link_url: linkResReuse.url,
+        payment_link_id: linkResReuse.stripeId || null,
+        payment_total_centesimi: linkResReuse.totaleCents || importoCents,
+      })
+      .eq("id", pending.id);
+
+    return {
+      success: true,
+      idIscrizione,
+      checkoutUrl: linkResReuse.url,
+      reused: true,
+    };
+  }
+
+  const idIscrizione = randomUUID();
 
   const { data: inserted, error: insertErr } = await db
     .from("enrollments")
@@ -842,12 +1012,13 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
       first_name: String(data.nome || "").trim(),
       last_name: String(data.cognome || "").trim(),
       email: String(data.email || "").trim(),
-      tax_code: String(data.cf || "").toUpperCase().trim(),
+      tax_code: cf,
       phone: String(data.telefono || "").trim(),
       fiscal_year: anno,
       amount_centesimi: importoCents,
       payment_status: "PENDING",
-      form_payload: payload as Database["public"]["Tables"]["enrollments"]["Insert"]["form_payload"],
+      form_payload:
+        payload as Database["public"]["Tables"]["enrollments"]["Insert"]["form_payload"],
     })
     .select("id")
     .single();
@@ -890,6 +1061,7 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
     success: true,
     idIscrizione,
     checkoutUrl: linkRes.url,
+    reused: false,
   };
 }
 
@@ -1018,6 +1190,9 @@ export async function salvaAggiornamentoAssociatoIscrizione(
     draft_expires_at: null,
     ...photoConsentPatch(photoConsentFromForm(data)),
   };
+  if (member.member_number == null) {
+    patch.member_number = await getNextMemberNumber(db);
+  }
   if (!member.enrolled_at) {
     patch.enrolled_at = nowIso;
   }
@@ -1039,6 +1214,24 @@ export async function salvaAggiornamentoAssociatoIscrizione(
 
   if (token) {
     await markMagicTokenUsed(db, token);
+  }
+
+  // Avviso segreteria: iscrizione contanti completata (firma raccolta).
+  if (loaded?.info.cashQuotaPaid) {
+    try {
+      await notifyAdminCashEnrollmentCompleted({
+        nome: formText(data.nome),
+        cognome: formText(data.cognome),
+        email: formText(data.email) || member.email || "",
+        cf: formText(data.cf).toUpperCase(),
+        memberId: member.id,
+      });
+    } catch (notifyErr) {
+      console.error(
+        "[salvaAggiornamentoAssociatoIscrizione] notify admin:",
+        notifyErr,
+      );
+    }
   }
 
   return {

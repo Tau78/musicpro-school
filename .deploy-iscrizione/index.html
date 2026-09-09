@@ -346,7 +346,8 @@
         <div class="pay-info" id="pay-info-box">
             Quota annuale: <strong>&euro; 15,00</strong>.<br>
             Compila il modulo, firma e paga con carta di credito.<br>
-            Al termine riceverai conferma e il PDF via email.
+            L'iscrizione è valida solo dopo il pagamento: allora riceverai il PDF e la segreteria verrà avvisata.<br>
+            Se il pagamento non va a buon fine puoi ritentare senza riscrivere tutto.
         </div>
 
         <button type="submit" class="submit-btn" id="submitBtn">PROCEDI AL PAGAMENTO</button>
@@ -354,7 +355,7 @@
 </div>
 </div>
 
-<footer class="site-footer">v__ISCRIZIONE_VERSION__ &middot; __ISCRIZIONE_DATE__</footer>
+<footer class="site-footer">v1.2.1 &middot; 2026-09-09</footer>
 
 <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
 <script>
@@ -363,6 +364,49 @@
     var API_URL = '/api.php';
     var isRinnovoAssociato = false;
     var quotaGiaPagata = false;
+    var PENDING_KEY = 'mp_iscrizione_pending_v1';
+    var pendingIdIscrizione = '';
+
+    function savePendingIscrizione(id, meta) {
+        if (!id) return;
+        pendingIdIscrizione = String(id);
+        try {
+            sessionStorage.setItem(PENDING_KEY, JSON.stringify({
+                idIscrizione: pendingIdIscrizione,
+                nome: (meta && meta.nome) || '',
+                cognome: (meta && meta.cognome) || '',
+                checkoutUrl: (meta && meta.checkoutUrl) || '',
+                savedAt: Date.now()
+            }));
+        } catch (eSs) {}
+    }
+
+    function readPendingIscrizione() {
+        try {
+            var raw = sessionStorage.getItem(PENDING_KEY);
+            if (!raw) return null;
+            var obj = JSON.parse(raw);
+            if (!obj || !obj.idIscrizione) return null;
+            // Scade dopo 7 giorni: bozza Stripe ancora utile per ritentare.
+            if (obj.savedAt && (Date.now() - obj.savedAt) > 7 * 24 * 60 * 60 * 1000) {
+                sessionStorage.removeItem(PENDING_KEY);
+                return null;
+            }
+            return obj;
+        } catch (eR) {
+            return null;
+        }
+    }
+
+    function clearPendingIscrizione() {
+        pendingIdIscrizione = '';
+        try { sessionStorage.removeItem(PENDING_KEY); } catch (eC) {}
+    }
+
+    function goToCheckout(url, id, meta) {
+        savePendingIscrizione(id, Object.assign({}, meta || {}, { checkoutUrl: url }));
+        window.location.href = url;
+    }
 
     function applyQuotaGiaPagataUi() {
         var payTitle = document.getElementById('pay-section-title');
@@ -428,6 +472,7 @@
     }
 
     function showFinaleOk(nome) {
+        clearPendingIscrizione();
         Swal.fire({
             icon: 'success',
             title: 'Pagamento confermato',
@@ -436,6 +481,117 @@
             confirmButtonColor: '#e10600'
         }).then(function() {
             window.location.href = window.location.pathname;
+        });
+    }
+
+    function populateFormFromPending(dati) {
+        if (!dati || !dati.fields) return;
+        var fields = dati.fields;
+        Object.keys(fields).forEach(function(k) {
+            if (k === 'rinnovo_associato' || k === 'signatureData' || k === 'iscrizioneToken' || k === 'token') return;
+            var el = document.querySelector('[name="' + k + '"]');
+            if (!el) return;
+            if (el.type === 'checkbox') {
+                el.checked = fields[k] === true || fields[k] === 'true' || fields[k] === 'on';
+                return;
+            }
+            if (fields[k] != null && fields[k] !== '') el.value = fields[k];
+        });
+        if (fields.data_nascita) {
+            document.getElementById('data_nascita').dispatchEvent(new Event('change'));
+        }
+        document.getElementById('privacy-check').checked = !!dati.privacyAccepted
+            || fields.privacy_accepted === true
+            || fields.privacy_accepted === 'true'
+            || fields.privacy_accepted === 'on';
+        var photoCheck = document.getElementById('photo-check');
+        if (photoCheck) {
+            photoCheck.checked = !!dati.photoAccepted
+                || fields.photo_consent === true
+                || fields.photo_consent === 'true'
+                || fields.photo_consent === 'on';
+        }
+        if (dati.signatureData && signaturePad) {
+            try { signaturePad.fromDataURL(dati.signatureData); } catch (eSig) {}
+        }
+        if (dati.idIscrizione) {
+            pendingIdIscrizione = String(dati.idIscrizione);
+            savePendingIscrizione(pendingIdIscrizione, {
+                nome: fields.nome || '',
+                cognome: fields.cognome || '',
+                checkoutUrl: dati.checkoutUrl || ''
+            });
+        }
+    }
+
+    function showRetryPagamento(opts) {
+        opts = opts || {};
+        var id = opts.idIscrizione || pendingIdIscrizione || '';
+        var checkoutUrl = opts.checkoutUrl || '';
+        var nome = opts.nome || '';
+        document.getElementById('main-form').style.display = '';
+        Swal.fire({
+            icon: 'info',
+            title: 'Pagamento non completato',
+            html: 'L\'iscrizione non è ancora valida: nessun dato associato salvato e nessuna email alla segreteria.<br><br>'
+                + 'Puoi ritentare il pagamento senza riscrivere il modulo.',
+            showCancelButton: true,
+            confirmButtonText: 'Riprova pagamento',
+            cancelButtonText: 'Resta sul modulo',
+            confirmButtonColor: '#e10600',
+            cancelButtonColor: '#6c757d'
+        }).then(function(result) {
+            if (!result.isConfirmed) {
+                if (id) {
+                    showLoading('Ripristino dati...', 'Carico la bozza del modulo.');
+                    gasApiGet('getDatiIscrizionePerForm', { idIscrizione: id })
+                        .then(function(dati) {
+                            Swal.close();
+                            if (dati && dati.found) populateFormFromPending(dati);
+                        })
+                        .catch(function() { Swal.close(); });
+                }
+                return;
+            }
+            if (checkoutUrl) {
+                goToCheckout(checkoutUrl, id, { nome: nome });
+                return;
+            }
+            if (!id) {
+                Swal.fire('Attenzione', 'Bozza non trovata. Compila di nuovo il modulo.', 'warning');
+                return;
+            }
+            showLoading('Preparazione pagamento...', 'Recupero del link Stripe.');
+            gasApiGet('getStatoIscrizione', { idIscrizione: id })
+                .then(function(st) {
+                    if (st && st.pagato) {
+                        clearPendingIscrizione();
+                        showLoading('Pagamento confermato', 'Preparazione modulo PDF e email...');
+                        pollDopoPagato(id, nome || (st && st.nome) || '', 0);
+                        return;
+                    }
+                    if (st && st.checkoutUrl) {
+                        goToCheckout(st.checkoutUrl, id, { nome: nome || st.nome || '' });
+                        return;
+                    }
+                    return gasApiGet('getDatiIscrizionePerForm', { idIscrizione: id }).then(function(dati) {
+                        Swal.close();
+                        if (dati && dati.found) populateFormFromPending(dati);
+                        if (dati && dati.checkoutUrl) {
+                            goToCheckout(dati.checkoutUrl, id, { nome: nome });
+                            return;
+                        }
+                        Swal.fire({
+                            icon: 'info',
+                            title: 'Modulo ripristinato',
+                            text: 'I tuoi dati sono di nuovo nel form. Premi «Procedi al pagamento» per ritentare.',
+                            confirmButtonColor: '#e10600'
+                        });
+                    });
+                })
+                .catch(function(err) {
+                    Swal.fire('Errore', err.message || 'Impossibile recuperare il pagamento.', 'error');
+                });
         });
     }
 
@@ -471,6 +627,7 @@
                         html: 'Il pagamento è confermato.<br>La email con il modulo arriverà a breve (controlla anche lo spam).<br>Se non arriva, contatta la segreteria.',
                         confirmButtonColor: '#e10600'
                     }).then(function() {
+                        clearPendingIscrizione();
                         window.location.href = window.location.pathname;
                     });
                     return;
@@ -479,18 +636,17 @@
                     setTimeout(function() { pollERinvia(id, nome, attempt + 1); }, 2000);
                     return;
                 }
-                Swal.fire({
-                    icon: 'warning',
-                    title: 'Pagamento in elaborazione',
-                    html: 'Stripe sta ancora confermando il pagamento.<br>Ricarica questa pagina tra poco.',
-                    confirmButtonColor: '#e10600'
+                showRetryPagamento({
+                    idIscrizione: id,
+                    nome: nome || (res && res.nome) || '',
+                    checkoutUrl: (res && res.checkoutUrl) || ''
                 });
             })
             .catch(function() {
                 if (attempt < 15) {
                     setTimeout(function() { pollERinvia(id, nome, attempt + 1); }, 3000);
                 } else {
-                    Swal.fire('Errore', 'Impossibile verificare il pagamento. Ricarica la pagina.', 'error');
+                    showRetryPagamento({ idIscrizione: id, nome: nome });
                 }
             });
     }
@@ -520,6 +676,7 @@
                     html: 'Il pagamento è confermato.<br>La email con il modulo arriverà a breve (controlla anche lo spam).<br>Se non arriva, contatta la segreteria.',
                     confirmButtonColor: '#e10600'
                 }).then(function() {
+                    clearPendingIscrizione();
                     window.location.href = window.location.pathname;
                 });
             })
@@ -533,6 +690,7 @@
                         html: 'Il pagamento è confermato.<br>Controlla la email (anche spam) tra pochi minuti.',
                         confirmButtonColor: '#e10600'
                     }).then(function() {
+                        clearPendingIscrizione();
                         window.location.href = window.location.pathname;
                     });
                 }
@@ -542,8 +700,72 @@
     function avviaRitornoPostPagamento(id) {
         document.getElementById('main-form').style.display = 'none';
         var nome = qp('nome') || '';
+        savePendingIscrizione(id, { nome: nome, cognome: qp('cognome') || '' });
         showLoading('Verifica pagamento...', 'Stiamo confermando il pagamento con Stripe.');
         pollERinvia(id, nome, 0);
+    }
+
+    function offerResumePendingIfAny() {
+        if (qp('idIscrizione') || qp('iscrizioneToken')) return;
+        var pending = readPendingIscrizione();
+        if (!pending || !pending.idIscrizione) return;
+        pendingIdIscrizione = pending.idIscrizione;
+        gasApiGet('getStatoIscrizione', { idIscrizione: pending.idIscrizione })
+            .then(function(st) {
+                if (!st || !st.found) {
+                    clearPendingIscrizione();
+                    return;
+                }
+                if (st.pagato) {
+                    if (st.inviata) {
+                        clearPendingIscrizione();
+                        return;
+                    }
+                    avviaRitornoPostPagamento(pending.idIscrizione);
+                    return;
+                }
+                Swal.fire({
+                    icon: 'question',
+                    title: 'Pagamento in sospeso',
+                    html: 'Hai una iscrizione non ancora pagata'
+                        + (pending.nome ? (' di <strong>' + pending.nome + '</strong>') : '')
+                        + '.<br>L\'iscrizione diventa valida solo dopo il pagamento.',
+                    showDenyButton: true,
+                    showCancelButton: true,
+                    confirmButtonText: 'Riprendi pagamento',
+                    denyButtonText: 'Ripristina modulo',
+                    cancelButtonText: 'Nuova iscrizione',
+                    confirmButtonColor: '#e10600'
+                }).then(function(result) {
+                    if (result.isConfirmed) {
+                        if (st.checkoutUrl || pending.checkoutUrl) {
+                            goToCheckout(st.checkoutUrl || pending.checkoutUrl, pending.idIscrizione, pending);
+                            return;
+                        }
+                        showRetryPagamento({
+                            idIscrizione: pending.idIscrizione,
+                            nome: pending.nome,
+                            checkoutUrl: ''
+                        });
+                        return;
+                    }
+                    if (result.isDenied) {
+                        showLoading('Ripristino dati...', 'Carico la bozza del modulo.');
+                        gasApiGet('getDatiIscrizionePerForm', { idIscrizione: pending.idIscrizione })
+                            .then(function(dati) {
+                                Swal.close();
+                                if (dati && dati.found) populateFormFromPending(dati);
+                                else Swal.fire('Attenzione', 'Bozza non trovata.', 'warning');
+                            })
+                            .catch(function(err) {
+                                Swal.fire('Errore', err.message || 'Ripristino non riuscito.', 'error');
+                            });
+                        return;
+                    }
+                    clearPendingIscrizione();
+                });
+            })
+            .catch(function() { /* silenzioso: non bloccare il form */ });
     }
 
     function resizeCanvas() {
@@ -570,7 +792,12 @@
         Object.keys(fields).forEach(function(k) {
             if (k === 'rinnovo_associato') return;
             var el = document.querySelector('[name="' + k + '"]');
-            if (el && fields[k]) el.value = fields[k];
+            if (!el) return;
+            if (el.type === 'checkbox') {
+                el.checked = fields[k] === true || fields[k] === 'true' || fields[k] === 'on';
+                return;
+            }
+            if (fields[k] != null && fields[k] !== '') el.value = fields[k];
         });
         if (fields.data_nascita) {
             document.getElementById('data_nascita').dispatchEvent(new Event('change'));
@@ -589,6 +816,12 @@
         document.getElementById('rinnovo-banner').classList.remove('hidden');
         document.getElementById('gia-associato-box').classList.add('hidden');
         document.getElementById('nuovo-associato-hint').classList.add('hidden');
+        if (quotaGiaPagata) {
+            var banner = document.getElementById('rinnovo-banner');
+            if (banner) {
+                banner.innerHTML = '<strong>Quota già versata.</strong> Completa i dati mancanti, firma e salva — non ti verrà chiesto un nuovo pagamento.';
+            }
+        }
         applyQuotaGiaPagataUi();
     }
 
@@ -614,6 +847,8 @@
     var returnIdIscrizione = qp('idIscrizione');
     if (returnIdIscrizione) {
         avviaRitornoPostPagamento(returnIdIscrizione);
+    } else {
+        offerResumePendingIfAny();
     }
 
     document.getElementById('btn-richiedi-link').addEventListener('click', function() {
@@ -670,6 +905,7 @@
             data.iscrizioneToken = activeIscrizioneToken;
             data.token = activeIscrizioneToken;
         }
+        if (pendingIdIscrizione) data.idIscrizione = pendingIdIscrizione;
 
         var action = (isRinnovoAssociato && quotaGiaPagata)
             ? 'salvaAggiornamentoAssociatoIscrizione'
@@ -678,6 +914,7 @@
         gasApiPost(Object.assign({ action: action }, data))
             .then(function(res) {
                 if (res && res.success && res.skipPayment) {
+                    clearPendingIscrizione();
                     Swal.fire({
                         icon: 'success',
                         title: 'Dati salvati',
@@ -689,7 +926,10 @@
                 }
                 if (res && res.success && res.checkoutUrl) {
                     Swal.update({ title: 'Reindirizzamento a Stripe...', html: 'Non chiudere questa finestra.' });
-                    window.location.href = res.checkoutUrl;
+                    goToCheckout(res.checkoutUrl, res.idIscrizione, {
+                        nome: data.nome || '',
+                        cognome: data.cognome || ''
+                    });
                     return;
                 }
                 Swal.close();

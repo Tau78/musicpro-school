@@ -193,19 +193,57 @@ function getStatoIscrizione(idIscrizione) {
   var rec = getIscrizioneById(idIscrizione);
   if (!rec) return { found: false };
   var emailSt = String(rec.emailConfermaInviata || "").toUpperCase().trim();
+  var pag = String(rec.pagamentoStato || "").toUpperCase().trim();
   var inviata = emailSt === "SI";
+  var pagato = pag === "PAGATO";
   return {
     found: true,
     idIscrizione: rec.id,
     pagamentoStato: rec.pagamentoStato,
-    pagato: String(rec.pagamentoStato || "").toUpperCase().trim() === "PAGATO",
+    pagato: pagato,
     inviata: inviata,
     invioInCorso: emailSt === "IN_CORSO",
     nome: rec.nome,
     cognome: rec.cognome,
     importoCentesimi: rec.importoCentesimi,
-    pdfUrl: rec.pdfUrl
+    pdfUrl: rec.pdfUrl,
+    // Link riusabile finché non PAGATO (ritenta senza rifare il form).
+    checkoutUrl: pagato ? "" : String(rec.pagamentoLinkUrl || "").trim()
   };
+}
+
+/** Trova bozza iscrizione non ancora pagata (stesso CF). Non è un associato. */
+function _findPendingIscrizioneByCf_(cf) {
+  var target = String(cf || "").toUpperCase().trim();
+  if (!target) return null;
+  ensureIscrizioniSheet();
+  var sheet = _getIscrizioniSheet();
+  var last = sheet.getLastRow();
+  if (last < 2) return null;
+  var data = sheet.getRange(2, 1, last - 1, ISCRIZIONI_HEADERS.length).getValues();
+  for (var i = data.length - 1; i >= 0; i--) {
+    var rec = _iscrizioneRowToObject(data[i]);
+    if (!rec || !rec.id) continue;
+    if (String(rec.cf || "").toUpperCase().trim() !== target) continue;
+    var pag = String(rec.pagamentoStato || "").toUpperCase().trim();
+    if (pag === "PAGATO") continue;
+    return { rec: rec, rowNum: i + 2, sheet: sheet };
+  }
+  return null;
+}
+
+function _findPendingIscrizioneById_(idIscrizione) {
+  var id = String(idIscrizione || "").trim();
+  if (!id) return null;
+  var rowNum = _iscrizioneFindRowById(id);
+  if (rowNum < 0) return null;
+  var sheet = _getIscrizioniSheet();
+  var row = sheet.getRange(rowNum, 1, 1, ISCRIZIONI_HEADERS.length).getValues()[0];
+  var rec = _iscrizioneRowToObject(row);
+  if (!rec) return null;
+  var pag = String(rec.pagamentoStato || "").toUpperCase().trim();
+  if (pag === "PAGATO") return null;
+  return { rec: rec, rowNum: rowNum, sheet: sheet };
 }
 
 /** Dati form salvati prima del pagamento (per ripristino in pagina iscrizione). */
@@ -223,15 +261,18 @@ function getDatiIscrizionePerForm(idIscrizione) {
     var photoAccepted = data.photo_consent === true
       || String(data.photo_consent || "").toLowerCase() === "true"
       || String(data.photo_consent || "") === "on";
+    var pagato = String(rec.pagamentoStato || "").toUpperCase().trim() === "PAGATO";
     return {
       found: true,
       idIscrizione: rec.id,
-      pagato: String(rec.pagamentoStato || "").toUpperCase().trim() === "PAGATO",
+      pagato: pagato,
       inviata: !!String(rec.pdfUrl || "").trim(),
       fields: data,
       signatureData: signatureData,
       privacyAccepted: privacyAccepted,
-      photoAccepted: photoAccepted
+      photoAccepted: photoAccepted,
+      checkoutUrl: pagato ? "" : String(rec.pagamentoLinkUrl || "").trim(),
+      pagamentoStato: rec.pagamentoStato
     };
   } catch (e) {
     return { found: false, message: e.message };
@@ -964,8 +1005,11 @@ function validateIscrizioneTokenAndGetForm(token) {
 }
 
 /**
- * Salva iscrizione, crea Payment Link, aggiorna stato INVIATO.
- * @returns {{ success: boolean, checkoutUrl?: string, idIscrizione?: string, message?: string }}
+ * Bozza iscrizione + Payment Link Stripe.
+ * - NON scrive ASSOCIATI e NON invia email admin/utente (solo dopo PAGATO).
+ * - Se esiste già una bozza non pagata per lo stesso CF (o idIscrizione),
+ *   la riusa così si può ritentare il pagamento senza rifare il modulo.
+ * @returns {{ success: boolean, checkoutUrl?: string, idIscrizione?: string, reused?: boolean, message?: string }}
  */
 function inviaIscrizioneConPagamento(data) {
   if (!data || !String(data.email || "").trim()) {
@@ -991,10 +1035,10 @@ function inviaIscrizioneConPagamento(data) {
 
   ensureIscrizioniSheet();
   var sheet = _getIscrizioniSheet();
-  var idIscrizione = Utilities.getUuid();
   var now = new Date();
   var anno = now.getFullYear();
   var importoCents = QUOTA_ASSOCIATIVA_CENTESIMI;
+  var cf = String(data.cf || "").toUpperCase().trim();
 
   data.metodo_pagamento = "Stripe";
   data.photo_consent = data.photo_consent === true
@@ -1002,13 +1046,83 @@ function inviaIscrizioneConPagamento(data) {
     || String(data.photo_consent || "") === "on";
   var payloadJson = JSON.stringify(data);
 
+  var pending = _findPendingIscrizioneById_(data.idIscrizione || data.id)
+    || _findPendingIscrizioneByCf_(cf);
+
+  if (pending) {
+    var rowNum = pending.rowNum;
+    var idIscrizione = pending.rec.id;
+    var existingUrl = String(pending.rec.pagamentoLinkUrl || "").trim();
+    var existingPlId = String(pending.rec.pagamentoLinkId || "").trim();
+    var existingStato = String(pending.rec.pagamentoStato || "").toUpperCase().trim();
+
+    sheet.getRange(rowNum, ISCR_COL.NOME + 1).setValue(String(data.nome || "").trim());
+    sheet.getRange(rowNum, ISCR_COL.COGNOME + 1).setValue(String(data.cognome || "").trim());
+    sheet.getRange(rowNum, ISCR_COL.EMAIL + 1).setValue(String(data.email || "").trim());
+    sheet.getRange(rowNum, ISCR_COL.CF + 1).setValue(cf);
+    sheet.getRange(rowNum, ISCR_COL.TELEFONO + 1).setValue(String(data.telefono || "").trim());
+    sheet.getRange(rowNum, ISCR_COL.ANNO_SOCIETARIO + 1).setValue(anno);
+    sheet.getRange(rowNum, ISCR_COL.IMPORTO_CENTESIMI + 1).setValue(importoCents);
+    sheet.getRange(rowNum, ISCR_COL.PAYLOAD_JSON + 1).setValue(payloadJson);
+
+    // Riusa il Payment Link attivo: niente nuova riga, niente email.
+    if (existingUrl && existingStato !== "ERRORE") {
+      sheet.getRange(rowNum, ISCR_COL.PAGAMENTO_STATO + 1).setValue("INVIATO");
+      return {
+        success: true,
+        idIscrizione: idIscrizione,
+        checkoutUrl: existingUrl,
+        reused: true
+      };
+    }
+
+    var linkResReuse = createStripePaymentLinkQuotaAssociativa({
+      idIscrizione: idIscrizione,
+      nome: data.nome,
+      cognome: data.cognome,
+      importoCentesimi: importoCents,
+      annoSocietario: anno,
+      idempotencyKey: "iscrizione_retry_" + idIscrizione + "_" + Date.now()
+    });
+
+    if (!linkResReuse || !linkResReuse.success || !linkResReuse.url) {
+      sheet.getRange(rowNum, ISCR_COL.PAGAMENTO_STATO + 1).setValue("ERRORE");
+      throw new Error((linkResReuse && linkResReuse.message)
+        ? linkResReuse.message
+        : "Impossibile creare il link di pagamento Stripe.");
+    }
+
+    if (existingPlId && typeof _stripeDeactivatePaymentLinkById === "function") {
+      try {
+        var cfgDeact = typeof _stripeProps_ === "function" ? _stripeProps_() : null;
+        if (cfgDeact && cfgDeact.secret) {
+          _stripeDeactivatePaymentLinkById(cfgDeact.secret, existingPlId);
+        }
+      } catch (eDeact) {}
+    }
+
+    sheet.getRange(rowNum, ISCR_COL.PAGAMENTO_STATO + 1).setValue("INVIATO");
+    sheet.getRange(rowNum, ISCR_COL.PAGAMENTO_LINK_URL + 1).setValue(linkResReuse.url);
+    sheet.getRange(rowNum, ISCR_COL.PAGAMENTO_LINK_ID + 1).setValue(linkResReuse.stripeId || "");
+    sheet.getRange(rowNum, ISCR_COL.PAGAMENTO_TOTALE_CENTESIMI + 1).setValue(linkResReuse.totaleCents || importoCents);
+
+    return {
+      success: true,
+      idIscrizione: idIscrizione,
+      checkoutUrl: linkResReuse.url,
+      reused: true
+    };
+  }
+
+  var idIscrizioneNew = Utilities.getUuid();
+
   var row = new Array(ISCRIZIONI_HEADERS.length);
   for (var c = 0; c < row.length; c++) row[c] = "";
-  row[ISCR_COL.ID] = idIscrizione;
+  row[ISCR_COL.ID] = idIscrizioneNew;
   row[ISCR_COL.NOME] = String(data.nome || "").trim();
   row[ISCR_COL.COGNOME] = String(data.cognome || "").trim();
   row[ISCR_COL.EMAIL] = String(data.email || "").trim();
-  row[ISCR_COL.CF] = String(data.cf || "").toUpperCase().trim();
+  row[ISCR_COL.CF] = cf;
   row[ISCR_COL.TELEFONO] = String(data.telefono || "").trim();
   row[ISCR_COL.ANNO_SOCIETARIO] = anno;
   row[ISCR_COL.IMPORTO_CENTESIMI] = importoCents;
@@ -1017,31 +1131,32 @@ function inviaIscrizioneConPagamento(data) {
   row[ISCR_COL.PAYLOAD_JSON] = payloadJson;
 
   sheet.appendRow(row);
-  var rowNum = sheet.getLastRow();
+  var rowNumNew = sheet.getLastRow();
 
   var linkRes = createStripePaymentLinkQuotaAssociativa({
-    idIscrizione: idIscrizione,
+    idIscrizione: idIscrizioneNew,
     nome: data.nome,
     cognome: data.cognome,
     importoCentesimi: importoCents,
     annoSocietario: anno,
-    idempotencyKey: "iscrizione_" + idIscrizione
+    idempotencyKey: "iscrizione_" + idIscrizioneNew
   });
 
   if (!linkRes || !linkRes.success || !linkRes.url) {
-    sheet.getRange(rowNum, ISCR_COL.PAGAMENTO_STATO + 1).setValue("ERRORE");
+    sheet.getRange(rowNumNew, ISCR_COL.PAGAMENTO_STATO + 1).setValue("ERRORE");
     throw new Error((linkRes && linkRes.message) ? linkRes.message : "Impossibile creare il link di pagamento Stripe.");
   }
 
-  sheet.getRange(rowNum, ISCR_COL.PAGAMENTO_STATO + 1).setValue("INVIATO");
-  sheet.getRange(rowNum, ISCR_COL.PAGAMENTO_LINK_URL + 1).setValue(linkRes.url);
-  sheet.getRange(rowNum, ISCR_COL.PAGAMENTO_LINK_ID + 1).setValue(linkRes.stripeId || "");
-  sheet.getRange(rowNum, ISCR_COL.PAGAMENTO_TOTALE_CENTESIMI + 1).setValue(linkRes.totaleCents || importoCents);
+  sheet.getRange(rowNumNew, ISCR_COL.PAGAMENTO_STATO + 1).setValue("INVIATO");
+  sheet.getRange(rowNumNew, ISCR_COL.PAGAMENTO_LINK_URL + 1).setValue(linkRes.url);
+  sheet.getRange(rowNumNew, ISCR_COL.PAGAMENTO_LINK_ID + 1).setValue(linkRes.stripeId || "");
+  sheet.getRange(rowNumNew, ISCR_COL.PAGAMENTO_TOTALE_CENTESIMI + 1).setValue(linkRes.totaleCents || importoCents);
 
   return {
     success: true,
-    idIscrizione: idIscrizione,
-    checkoutUrl: linkRes.url
+    idIscrizione: idIscrizioneNew,
+    checkoutUrl: linkRes.url,
+    reused: false
   };
 }
 
@@ -1208,6 +1323,17 @@ function _eseguiInvioIscrizioneSync(idIscrizione, options) {
   var rec = _iscrizioneRowToObject(row);
   if (!rec || !rec.payloadJson) throw new Error("Dati iscrizione mancanti.");
 
+  // Gate duro: niente ASSOCIATI / email se il pagamento non è PAGATO.
+  var pag = String(rec.pagamentoStato || "").toUpperCase().trim();
+  if (pag !== "PAGATO") {
+    if (claim.claimed) {
+      try {
+        located.sheet.getRange(located.rowNum, ISCR_COL.EMAIL_CONFERMA_INVIATA + 1).setValue("");
+      } catch (eReset) {}
+    }
+    throw new Error("Pagamento non confermato: iscrizione non ancora valida.");
+  }
+
   var data = JSON.parse(rec.payloadJson);
   data.metodo_pagamento = "Stripe";
 
@@ -1235,7 +1361,9 @@ function _eseguiInvioIscrizioneSync(idIscrizione, options) {
 }
 
 /**
- * Elabora domanda di iscrizione: PDF + foglio Associati + email con allegato.
+ * Elabora domanda di iscrizione DOPO pagamento confermato:
+ * PDF + foglio Associati + email con allegato (utente + amministrazione).
+ * Non chiamare se Pagamento_Stato !== PAGATO.
  */
 function processMembershipApplication(data) {
   Logger.log("--- INIZIO PROCESSO ISCRIZIONE ---");

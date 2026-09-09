@@ -61,6 +61,7 @@ export async function POST(request: Request) {
       success: true,
       link: result.link,
       emailSent: result.emailSent,
+      emailError: result.emailError || null,
       memberId: result.memberId,
     });
   } catch (err) {
