@@ -86,14 +86,22 @@ supabase functions deploy stripe-quota-webhook --no-verify-jwt
 `verify_jwt = false` è richiesto: Stripe non invia JWT Supabase.  
 Config locale: `supabase/config.toml` → `[functions.stripe-quota-webhook] verify_jwt = false`
 
+## Prerequisito `quota_associativa`: `enrollments.member_id` obbligatorio
+
+`apply_stripe_quota_payment` (flow `quota_associativa`) **richiede** `enrollments.member_id` non null: scrive `member_annual_quotas` e promuove `band_members`. Se manca, la RPC fallisce con *«Iscrizione senza associato collegato»* e Stripe ritenta inutilmente.
+
+**Fix corretto (submit-side, preferito):** alla nuova iscrizione pubblica, creare (o collegare) il `members` **prima** di generare il Payment Link, e salvare `enrollments.member_id`. Non creare il member nel webhook da `form_payload`: rischi duplicati CF, anagrafica incompleta, e non serve a `quota_multi_pay` (già ha `member_id` sugli items).
+
+Edge: se la RPC segnala member assente, risponde con `error_code: ENROLLMENT_MEMBER_REQUIRED` (vedi `stripe-quota-webhook`).
+
 ## Comportamento
 
 1. Verifica firma webhook.
 2. Per eventi “pagato”, risolve metadata quota (Session → PaymentIntent se serve).
 3. Filtra solo `mp_flow` in `{ quota_associativa, quota_multi_pay }`.
 4. RPC:
-   - **quota_associativa**: `enrollments.payment_status = PAGATO`, upsert `member_annual_quotas`, promuove `band_members` da `pending_quota`.
-   - **quota_multi_pay**: completa `quota_payment_items`, upsert quote annuali per ogni beneficiario.
+   - **quota_associativa**: richiede `enrollment.member_id`; poi `payment_status = PAGATO`, upsert `member_annual_quotas`, promuove `band_members` da `pending_quota`.
+   - **quota_multi_pay**: completa `quota_payment_items`, upsert quote annuali per ogni beneficiario (invariato; non tocca enrollment).
 5. Idempotenza su `stripe_event_id` e `payment_intent_id`.
 6. Disattiva Payment Link (`pl_...`) dopo primo incasso.
 
