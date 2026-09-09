@@ -138,27 +138,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 $API_BASE = rtrim('${safe}', '/');
 
+function proxy_once($url, $method, $body) {
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($ch, CURLOPT_MAXREDIRS, 5);
+    // CONNECTTIMEOUT evita hang DNS/TLS (sintomo: 0 byte fino al timeout client).
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 8);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 35);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type: application/json'));
+    if ($method === 'POST') {
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+    }
+    $resp = curl_exec($ch);
+    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err = curl_error($ch);
+    curl_close($ch);
+    return array($resp, $code, $err);
+}
+
 function proxy_request($url, $method, $body) {
     if (!function_exists('curl_init')) {
         http_response_code(500);
         echo json_encode(array('success' => false, 'message' => 'cURL non disponibile sul server'));
         exit;
     }
-    $ch = curl_init($url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-    curl_setopt($ch, CURLOPT_MAXREDIRS, 5);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 120);
-    $headers = array('Content-Type: application/json');
-    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-    if ($method === 'POST') {
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+    list($resp, $code, $err) = proxy_once($url, $method, $body);
+    // Un retry su hang/connect: hosting FTP a volte non apre il socket al primo colpo.
+    if ($resp === false) {
+        usleep(250000);
+        list($resp, $code, $err) = proxy_once($url, $method, $body);
     }
-    $resp = curl_exec($ch);
-    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $err = curl_error($ch);
-    curl_close($ch);
     if ($resp === false) {
         http_response_code(502);
         echo json_encode(array('success' => false, 'message' => 'Errore proxy: ' . $err));

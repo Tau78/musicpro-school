@@ -361,7 +361,9 @@
 <script>
     var canvas = document.getElementById('signature-pad');
     var signaturePad = new SignaturePad(canvas, { backgroundColor: 'rgba(255, 255, 255, 0)' });
-    var API_URL = '/api.php';
+    // Preferisci Next diretto (CORS *): il proxy FTP /api.php a volte hangua (0 byte).
+    var API_URL = 'https://school.musicproeventi.it/api/iscrizione';
+    var API_FALLBACK_URL = '/api.php';
     var isRinnovoAssociato = false;
     var quotaGiaPagata = false;
     var PENDING_KEY = 'mp_iscrizione_pending_v1';
@@ -441,52 +443,82 @@
         }
     }
 
+    function parseApiJson(pack) {
+        var parsed;
+        try { parsed = JSON.parse(pack.text); }
+        catch (e) { throw new Error(pack.text || 'Risposta non valida dal server'); }
+        if (!pack.ok && parsed && parsed.message) {
+            var err = new Error(parsed.message);
+            err.code = parsed.code;
+            throw err;
+        }
+        return parsed;
+    }
+
+    function fetchApi(url, options, timeoutMs) {
+        var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        var timer = null;
+        if (controller) {
+            timer = setTimeout(function() { controller.abort(); }, timeoutMs || 20000);
+        }
+        var opts = Object.assign({}, options || {});
+        if (controller) opts.signal = controller.signal;
+        return fetch(url, opts)
+            .then(function(res) {
+                return res.text().then(function(text) {
+                    return { ok: res.ok, status: res.status, text: text };
+                });
+            })
+            .finally(function() {
+                if (timer) clearTimeout(timer);
+            });
+    }
+
     function gasApiGet(op, params) {
         params = params || {};
         var qs = 'op=' + encodeURIComponent(op);
         if (params.idIscrizione) qs += '&idIscrizione=' + encodeURIComponent(params.idIscrizione);
         if (params.token) qs += '&token=' + encodeURIComponent(params.token);
-        return fetch(API_URL + '?' + qs)
-            .then(function(res) { return res.text(); })
-            .then(function(text) {
-                try { return JSON.parse(text); }
-                catch (e) { throw new Error(text || 'Risposta non valida dal server'); }
+        function getOnce(base) {
+            return fetchApi(base + '?' + qs, { method: 'GET' }, 20000).then(function(pack) {
+                return parseApiJson(pack);
             });
+        }
+        return getOnce(API_URL).catch(function(err) {
+            if (API_FALLBACK_URL && API_FALLBACK_URL !== API_URL) {
+                return getOnce(API_FALLBACK_URL);
+            }
+            throw err;
+        }).catch(function(err) {
+            if (err && err.name === 'AbortError') {
+                throw new Error('Timeout: il server non risponde. Riprova tra poco.');
+            }
+            throw err;
+        });
     }
 
     function gasApiPost(payload) {
-        var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-        var timer = null;
-        if (controller) {
-            timer = setTimeout(function() { controller.abort(); }, 45000);
-        }
-        return fetch(API_URL, {
+        var body = JSON.stringify(payload);
+        var postOpts = {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-            signal: controller ? controller.signal : undefined
-        })
-            .then(function(res) { return res.text().then(function(text) { return { ok: res.ok, status: res.status, text: text }; }); })
-            .then(function(pack) {
-                var parsed;
-                try { parsed = JSON.parse(pack.text); }
-                catch (e) { throw new Error(pack.text || 'Risposta non valida dal server'); }
-                if (!pack.ok && parsed && parsed.message) {
-                    var err = new Error(parsed.message);
-                    err.code = parsed.code;
-                    throw err;
-                }
-                return parsed;
-            })
-            .catch(function(err) {
-                if (err && err.name === 'AbortError') {
-                    throw new Error('Timeout: il server non risponde. Riprova tra poco.');
-                }
-                throw err;
-            })
-            .finally(function() {
-                if (timer) clearTimeout(timer);
-            });
+            body: body
+        };
+        function postOnce(url) {
+            return fetchApi(url, postOpts, 20000).then(parseApiJson);
+        }
+        return postOnce(API_URL).catch(function(err) {
+            // Se School non risponde, prova il proxy FTP (e viceversa non serve: School è primario).
+            if (API_FALLBACK_URL && API_FALLBACK_URL !== API_URL) {
+                return postOnce(API_FALLBACK_URL);
+            }
+            throw err;
+        }).catch(function(err) {
+            if (err && err.name === 'AbortError') {
+                throw new Error('Timeout: il server non risponde. Riprova tra poco.');
+            }
+            throw err;
+        });
     }
 
     function validateAnagraficaClient(data) {
