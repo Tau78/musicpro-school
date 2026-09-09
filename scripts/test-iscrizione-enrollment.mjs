@@ -47,6 +47,7 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABAS
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const stamp = Date.now().toString().slice(-6);
+const cfDigits = stamp.slice(-3).padStart(3, "0");
 const samplePayload = {
   action: "inviaIscrizioneConPagamento",
   nome: "Test",
@@ -54,8 +55,8 @@ const samplePayload = {
   luogo_nascita: "Milano",
   prov_nascita: "MI",
   data_nascita: "1990-01-15",
-  // Formato CF italiano valido (sintassi); email unica per non collidere.
-  cf: `TSTSCR90A15F${stamp.slice(0, 3)}Z`.slice(0, 16).toUpperCase().padEnd(16, "X"),
+  // Sintassi CF italiana (16 char); unico per run via 3 cifre.
+  cf: `TSTSCR90A15F${cfDigits}Z`,
   indirizzo: "Via Test 1",
   cap: "20100",
   citta: "Milano",
