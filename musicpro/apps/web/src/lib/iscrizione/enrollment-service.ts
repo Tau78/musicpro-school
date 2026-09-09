@@ -35,6 +35,8 @@ const MAGIC_LINK_TTL_MS = 24 * 60 * 60 * 1000;
 const ENROLLMENT_DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const RESEND_TIMEOUT_MS = 8000;
 const ENROLLMENTS_STORAGE_BUCKET = "enrollments";
+/** Signed URL TTL for private enrollment PDFs (avoid 7-day expiry as primary pdf_url). */
+const ENROLLMENT_PDF_SIGNED_URL_TTL_SEC = 60 * 60 * 24 * 365;
 const TOKEN_KEY_PREFIX = "iscrizione_token:";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -241,9 +243,18 @@ export async function getStatoIscrizione(idIscrizione: string) {
   const rec = await getEnrollmentById(db, idIscrizione);
   if (!rec) return { found: false as const };
 
+  const storagePath = String(rec.pdf_storage_path || "").trim();
   const inviata =
-    !!String(rec.pdf_url || "").trim() || rec.confirmation_email_sent;
+    !!String(rec.pdf_url || "").trim() ||
+    !!storagePath ||
+    rec.confirmation_email_sent;
   const pagato = isPaidStatus(rec.payment_status);
+
+  let pdfUrl = String(rec.pdf_url || "").trim();
+  // On-demand refresh when the durable path exists but pdf_url was never stored / is empty.
+  if (!pdfUrl && storagePath) {
+    pdfUrl = (await getEnrollmentPdfUrl(storagePath, db)) || "";
+  }
 
   return {
     found: true as const,
@@ -254,7 +265,7 @@ export async function getStatoIscrizione(idIscrizione: string) {
     nome: rec.first_name,
     cognome: rec.last_name,
     importoCentesimi: rec.amount_centesimi,
-    pdfUrl: rec.pdf_url || "",
+    pdfUrl: pdfUrl || "",
     checkoutUrl: pagato ? "" : String(rec.payment_link_url || "").trim(),
   };
 }
@@ -1445,6 +1456,43 @@ async function ensureEnrollmentPdfBucket(db: Db): Promise<string | null> {
   return null;
 }
 
+async function isEnrollmentBucketPublic(db: Db): Promise<boolean> {
+  const { data: buckets } = await db.storage.listBuckets();
+  const bucket = (buckets ?? []).find(
+    (b) => b.id === ENROLLMENTS_STORAGE_BUCKET || b.name === ENROLLMENTS_STORAGE_BUCKET,
+  );
+  return Boolean(bucket?.public);
+}
+
+/**
+ * Resolve a durable download URL for an enrollment PDF storage path.
+ * Public bucket → public URL; private → signed URL (~1 year).
+ */
+export async function getEnrollmentPdfUrl(
+  storagePath: string,
+  client?: Db,
+): Promise<string | null> {
+  const path = String(storagePath || "").trim();
+  if (!path) return null;
+
+  const db = client ?? createServiceRoleClient();
+  if (await isEnrollmentBucketPublic(db)) {
+    const { data: pub } = db.storage
+      .from(ENROLLMENTS_STORAGE_BUCKET)
+      .getPublicUrl(path);
+    return pub.publicUrl || null;
+  }
+
+  const { data: signed, error } = await db.storage
+    .from(ENROLLMENTS_STORAGE_BUCKET)
+    .createSignedUrl(path, ENROLLMENT_PDF_SIGNED_URL_TTL_SEC);
+  if (error) {
+    console.warn(`[iscrizione] signed pdf url: ${error.message}`);
+    return null;
+  }
+  return signed?.signedUrl || null;
+}
+
 async function uploadEnrollmentPdf(
   db: Db,
   enrollmentId: string,
@@ -1469,17 +1517,10 @@ async function uploadEnrollmentPdf(
     return { pdfUrl: null, storagePath: null };
   }
 
-  const { data: signed } = await db.storage
-    .from(ENROLLMENTS_STORAGE_BUCKET)
-    .createSignedUrl(storagePath, 60 * 60 * 24 * 7);
-  if (signed?.signedUrl) {
-    return { pdfUrl: signed.signedUrl, storagePath };
-  }
-
-  const { data: pub } = db.storage
-    .from(ENROLLMENTS_STORAGE_BUCKET)
-    .getPublicUrl(storagePath);
-  return { pdfUrl: pub.publicUrl || null, storagePath };
+  // Always keep storagePath as source of truth; pdf_url is public (if public bucket)
+  // or a long-lived signed URL (1y) — never a 7-day signed URL.
+  const pdfUrl = await getEnrollmentPdfUrl(storagePath, db);
+  return { pdfUrl, storagePath };
 }
 
 async function promoteMemberAfterPaidEnrollment(
@@ -1594,7 +1635,9 @@ export async function getDatiIscrizionePerForm(idIscrizione: string) {
     const photoAccepted = isFormFlagTrue(data.photo_consent);
     const pagato = isPaidStatus(rec.payment_status);
     const inviata =
-      !!String(rec.pdf_url || "").trim() || rec.confirmation_email_sent;
+      !!String(rec.pdf_url || "").trim() ||
+      !!String(rec.pdf_storage_path || "").trim() ||
+      rec.confirmation_email_sent;
 
     return {
       found: true as const,
@@ -1786,6 +1829,12 @@ export async function completaInvioIscrizione(idIscrizione: string) {
       })
     : { sent: false, error: "Email socio mancante" };
 
+  const adminPdfLine = stored.pdfUrl
+    ? `PDF: ${stored.pdfUrl}`
+    : stored.storagePath
+      ? `PDF allegato (path interno: ${stored.storagePath}).`
+      : "PDF allegato (storage non disponibile).";
+
   const adminMail = await sendResendEmail({
     to: segreteriaRecipients(),
     subject: `ISCRIZIONE: ${cognome} ${nome}`,
@@ -1796,7 +1845,7 @@ export async function completaInvioIscrizione(idIscrizione: string) {
       `CF: ${formText(form.cf || rec.tax_code).toUpperCase() || "—"}`,
       `N. socio: ${member.member_number ?? "—"}`,
       `Member ID: ${member.id}`,
-      stored.pdfUrl ? `PDF: ${stored.pdfUrl}` : "PDF allegato (storage non disponibile).",
+      adminPdfLine,
     ].join("\n"),
     attachments: [attachment],
   });
@@ -1821,6 +1870,10 @@ export async function completaInvioIscrizione(idIscrizione: string) {
     .from("enrollments")
     .update({
       pdf_url: stored.pdfUrl,
+      // Always persist path when upload succeeded (source of truth for refresh).
+      ...(stored.storagePath
+        ? { pdf_storage_path: stored.storagePath }
+        : {}),
       confirmation_email_sent: true,
       confirmation_email_sent_at: nowIso,
       member_id: member.id,
@@ -1828,9 +1881,6 @@ export async function completaInvioIscrizione(idIscrizione: string) {
       last_name: cognome,
       email: socioEmail || rec.email,
       tax_code: formText(form.cf || rec.tax_code).toUpperCase() || rec.tax_code,
-      ...(stored.storagePath
-        ? { pdf_storage_path: stored.storagePath }
-        : {}),
     } as Database["public"]["Tables"]["enrollments"]["Update"])
     .eq("id", rec.id);
 
