@@ -28,7 +28,8 @@ function forward_request($url, $method, $body, $contentType) {
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
     curl_setopt($ch, CURLOPT_MAXREDIRS, 5);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 120);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 15);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 60);
     curl_setopt($ch, CURLOPT_HTTPHEADER, array($contentType));
     if ($method === 'POST') {
         curl_setopt($ch, CURLOPT_POST, true);
@@ -41,6 +42,13 @@ function forward_request($url, $method, $body, $contentType) {
     if ($resp === false) {
         http_response_code(502);
         echo json_encode(array('success' => false, 'message' => 'Errore proxy: ' . $err));
+        exit;
+    }
+    // Propaga JSON upstream (anche 4xx) così il form vede il messaggio reale.
+    $decoded = json_decode($resp, true);
+    if (is_array($decoded)) {
+        http_response_code(($code >= 100 && $code < 600) ? $code : 200);
+        echo $resp;
         exit;
     }
     if ($code >= 400) {
@@ -119,17 +127,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $payload = json_decode($body, true);
     $token = '';
+    $action = '';
     if (is_array($payload)) {
+        $action = isset($payload['action']) ? trim((string) $payload['action']) : '';
         if (!empty($payload['iscrizioneToken'])) {
             $token = trim((string) $payload['iscrizioneToken']);
         } elseif (!empty($payload['token'])) {
             $token = trim((string) $payload['token']);
         }
     }
+    // Flussi con magic link / contanti: sempre Next (mai fallback GAS → hang).
+    $supabasePostActions = array(
+        'salvaAggiornamentoAssociatoIscrizione',
+        'inviaIscrizioneConPagamento',
+        'inviaIscrizione',
+        'richiediLinkIscrizioneAssociato',
+    );
+    if ($token !== '' && in_array($action, $supabasePostActions, true)) {
+        supabase_request($API_BASE, 'POST', $body);
+    }
     if ($token !== '') {
         $sb = supabase_try_get('validateIscrizioneToken', '', $token);
         if ($sb !== null) {
             supabase_request($API_BASE, 'POST', $body);
+        }
+        if (in_array($action, $supabasePostActions, true)) {
+            http_response_code(400);
+            echo json_encode(array(
+                'success' => false,
+                'message' => 'Link non valido, scaduto o già utilizzato. Richiedi un nuovo link allo sportello.',
+            ));
+            exit;
         }
     }
     gas_request($GAS_URL, 'POST', $body);

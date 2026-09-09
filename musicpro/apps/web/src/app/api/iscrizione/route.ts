@@ -45,6 +45,17 @@ export async function POST(request: NextRequest) {
     return jsonResponse(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return jsonResponse({ success: false, message }, 500);
+    const lower = message.toLowerCase();
+    const isClient =
+      lower.includes("obbligator") ||
+      lower.includes("non valid") ||
+      lower.includes("link non") ||
+      lower.includes("scadut") ||
+      lower.includes("già utilizz") ||
+      lower.includes("firma") ||
+      lower.includes("plausibile") ||
+      lower.includes("futuro") ||
+      lower.includes("minorenn");
+    return jsonResponse({ success: false, message }, isClient ? 400 : 500);
   }
 }

@@ -287,7 +287,7 @@
 
         <div class="form-group" style="display:flex; gap:10px;">
             <div style="flex:2;"><label>Nato a (Citt&agrave;) *</label><input type="text" name="luogo_nascita" required></div>
-            <div style="flex:0.6;"><label>Prov. *</label><input type="text" name="prov_nascita" maxlength="2" style="text-transform:uppercase;" required></div>
+            <div style="flex:0.6;"><label>Prov. *</label><input type="text" name="prov_nascita" maxlength="2" minlength="2" pattern="[A-Za-z]{2}" style="text-transform:uppercase;" required></div>
             <div style="flex:1;"><label>Il (Data) *</label><input type="date" name="data_nascita" id="data_nascita" required></div>
         </div>
 
@@ -299,28 +299,28 @@
             </div>
             <div class="form-group">
                 <label>Codice Fiscale Genitore *</label>
-                <input type="text" name="tutore_cf" style="text-transform: uppercase;">
+                <input type="text" name="tutore_cf" maxlength="16" minlength="16" autocomplete="off" style="text-transform: uppercase;">
             </div>
             <div style="display:flex; gap:10px;">
-                <div style="flex:1;"><label>Telefono Genitore *</label><input type="tel" name="tutore_telefono"></div>
+                <div style="flex:1;"><label>Telefono Genitore *</label><input type="tel" name="tutore_telefono" inputmode="tel"></div>
                 <div style="flex:1;"><label>Email Genitore *</label><input type="email" name="tutore_email"></div>
             </div>
         </div>
 
         <div class="form-group">
             <label>Codice Fiscale *</label>
-            <input type="text" name="cf" required style="text-transform: uppercase;">
+            <input type="text" name="cf" required maxlength="16" minlength="16" autocomplete="off" style="text-transform: uppercase;">
         </div>
 
         <div class="section-title">Residenza e Contatti</div>
         <div class="form-group"><label>Indirizzo *</label><input type="text" name="indirizzo" required></div>
         <div class="form-group" style="display:flex; gap:10px;">
-            <div style="flex:1;"><label>CAP *</label><input type="text" name="cap" required></div>
+            <div style="flex:1;"><label>CAP *</label><input type="text" name="cap" required maxlength="5" minlength="5" pattern="[0-9]{5}" inputmode="numeric"></div>
             <div style="flex:2;"><label>Citt&agrave; *</label><input type="text" name="citta" required></div>
-            <div style="flex:0.6;"><label>Prov *</label><input type="text" name="prov" maxlength="2" style="text-transform:uppercase;" required></div>
+            <div style="flex:0.6;"><label>Prov *</label><input type="text" name="prov" maxlength="2" minlength="2" pattern="[A-Za-z]{2}" style="text-transform:uppercase;" required></div>
         </div>
         <div class="form-group"><label>Email *</label><input type="email" name="email" required></div>
-        <div class="form-group"><label>Cellulare *</label><input type="tel" name="telefono" required></div>
+        <div class="form-group"><label>Cellulare *</label><input type="tel" name="telefono" required inputmode="tel" minlength="9"></div>
         <div class="form-group"><label>Corso di interesse</label><input type="text" name="corso" placeholder="Es. Canto, Chitarra..."></div>
 
         <div class="section-title">Firma Digitale</div>
@@ -355,7 +355,7 @@
 </div>
 </div>
 
-<footer class="site-footer">v1.2.1 &middot; 2026-09-09</footer>
+<footer class="site-footer">v1.2.2 &middot; 2026-09-09</footer>
 
 <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
 <script>
@@ -366,6 +366,17 @@
     var quotaGiaPagata = false;
     var PENDING_KEY = 'mp_iscrizione_pending_v1';
     var pendingIdIscrizione = '';
+
+    (function setBirthDateMax() {
+        var el = document.getElementById('data_nascita');
+        if (!el) return;
+        var now = new Date();
+        var yyyy = now.getFullYear();
+        var mm = String(now.getMonth() + 1).padStart(2, '0');
+        var dd = String(now.getDate()).padStart(2, '0');
+        el.max = yyyy + '-' + mm + '-' + dd;
+        el.min = (yyyy - 120) + '-01-01';
+    })();
 
     function savePendingIscrizione(id, meta) {
         if (!id) return;
@@ -444,16 +455,84 @@
     }
 
     function gasApiPost(payload) {
+        var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        var timer = null;
+        if (controller) {
+            timer = setTimeout(function() { controller.abort(); }, 45000);
+        }
         return fetch(API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            body: JSON.stringify(payload),
+            signal: controller ? controller.signal : undefined
         })
-            .then(function(res) { return res.text(); })
-            .then(function(text) {
-                try { return JSON.parse(text); }
-                catch (e) { throw new Error(text || 'Risposta non valida dal server'); }
+            .then(function(res) { return res.text().then(function(text) { return { ok: res.ok, status: res.status, text: text }; }); })
+            .then(function(pack) {
+                var parsed;
+                try { parsed = JSON.parse(pack.text); }
+                catch (e) { throw new Error(pack.text || 'Risposta non valida dal server'); }
+                if (!pack.ok && parsed && parsed.message) {
+                    var err = new Error(parsed.message);
+                    err.code = parsed.code;
+                    throw err;
+                }
+                return parsed;
+            })
+            .catch(function(err) {
+                if (err && err.name === 'AbortError') {
+                    throw new Error('Timeout: il server non risponde. Riprova tra poco.');
+                }
+                throw err;
+            })
+            .finally(function() {
+                if (timer) clearTimeout(timer);
             });
+    }
+
+    function validateAnagraficaClient(data) {
+        var nome = String(data.nome || '').trim();
+        var cognome = String(data.cognome || '').trim();
+        var cf = String(data.cf || '').toUpperCase().trim();
+        var email = String(data.email || '').toLowerCase().trim();
+        var telefono = String(data.telefono || '').replace(/[\s().-]/g, '');
+        var cap = String(data.cap || '').trim();
+        var prov = String(data.prov || '').toUpperCase().trim();
+        var provNascita = String(data.prov_nascita || '').toUpperCase().trim();
+        var dataNascita = String(data.data_nascita || '').trim().substring(0, 10);
+        var luogo = String(data.luogo_nascita || '').trim();
+        var indirizzo = String(data.indirizzo || '').trim();
+        var citta = String(data.citta || '').trim();
+        var cfRe = /^[A-Z]{6}[0-9LMNPQRSTUV]{2}[A-EHLMPRST][0-9LMNPQRSTUV]{2}[A-Z][0-9LMNPQRSTUV]{3}[A-Z]$/;
+
+        if (!nome || !cognome) return 'Nome e cognome obbligatori.';
+        if (!luogo) return 'Luogo di nascita obbligatorio.';
+        if (!/^[A-Z]{2}$/.test(provNascita)) return 'Provincia di nascita: 2 lettere (es. GE).';
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dataNascita)) return 'Data di nascita non valida.';
+        var born = new Date(dataNascita + 'T12:00:00');
+        var today = new Date();
+        today.setHours(23, 59, 59, 999);
+        if (isNaN(born.getTime()) || born > today) return 'La data di nascita non può essere nel futuro.';
+        var oldest = new Date();
+        oldest.setFullYear(oldest.getFullYear() - 120);
+        if (born < oldest) return 'Data di nascita non plausibile.';
+        if (!cfRe.test(cf)) return 'Codice fiscale non valido (16 caratteri).';
+        if (!indirizzo) return 'Indirizzo obbligatorio.';
+        if (!/^\d{5}$/.test(cap)) return 'CAP non valido (5 cifre).';
+        if (!citta) return 'Città obbligatoria.';
+        if (!/^[A-Z]{2}$/.test(prov)) return 'Provincia di residenza: 2 lettere (es. GE).';
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Email non valida.';
+        var phoneDigits = telefono.replace(/^\+/, '').replace(/\D/g, '');
+        if (phoneDigits.length < 9 || phoneDigits.length > 15) return 'Cellulare non valido (almeno 9 cifre).';
+
+        var ageYears = (today.getTime() - born.getTime()) / (365.25 * 24 * 60 * 60 * 1000);
+        if (ageYears < 18) {
+            if (!String(data.tutore_nome || '').trim() || !String(data.tutore_cognome || '').trim()) {
+                return 'Per i minorenni servono nome e cognome del genitore/tutore.';
+            }
+            var tutoreCf = String(data.tutore_cf || '').toUpperCase().trim();
+            if (tutoreCf && !cfRe.test(tutoreCf)) return 'Codice fiscale del tutore non valido.';
+        }
+        return null;
     }
 
     function qp(name) {
@@ -885,15 +964,6 @@
         }
         document.getElementById('sig-error').style.display = 'none';
 
-        var btn = document.getElementById('submitBtn');
-        btn.disabled = true;
-
-        var loadingTitle = (isRinnovoAssociato && quotaGiaPagata) ? 'Salvataggio in corso...' : 'Preparazione pagamento...';
-        var loadingHtml = (isRinnovoAssociato && quotaGiaPagata)
-            ? 'Stiamo aggiornando i tuoi dati in rubrica.'
-            : 'Attendi, verrai reindirizzato a Stripe.';
-        showLoading(loadingTitle, loadingHtml);
-
         var formData = new FormData(this);
         var data = {};
         formData.forEach(function(v, k) { data[k] = v; });
@@ -907,6 +977,21 @@
         }
         if (pendingIdIscrizione) data.idIscrizione = pendingIdIscrizione;
 
+        var anagErr = validateAnagraficaClient(data);
+        if (anagErr) {
+            Swal.fire('Dati non validi', anagErr, 'warning');
+            return;
+        }
+
+        var btn = document.getElementById('submitBtn');
+        btn.disabled = true;
+
+        var loadingTitle = (isRinnovoAssociato && quotaGiaPagata) ? 'Salvataggio in corso...' : 'Preparazione pagamento...';
+        var loadingHtml = (isRinnovoAssociato && quotaGiaPagata)
+            ? 'Stiamo aggiornando i tuoi dati in rubrica.'
+            : 'Attendi, verrai reindirizzato a Stripe.';
+        showLoading(loadingTitle, loadingHtml);
+
         var action = (isRinnovoAssociato && quotaGiaPagata)
             ? 'salvaAggiornamentoAssociatoIscrizione'
             : 'inviaIscrizioneConPagamento';
@@ -915,12 +1000,19 @@
             .then(function(res) {
                 if (res && res.success && res.skipPayment) {
                     clearPendingIscrizione();
+                    activeIscrizioneToken = '';
                     Swal.fire({
                         icon: 'success',
                         title: 'Dati salvati',
                         text: res.message || 'Le modifiche sono state registrate.',
                         confirmButtonColor: '#e10600'
                     });
+                    btn.disabled = false;
+                    return;
+                }
+                if (res && res.success === false) {
+                    Swal.close();
+                    Swal.fire('Errore', res.message || 'Salvataggio non riuscito.', 'error');
                     btn.disabled = false;
                     return;
                 }
