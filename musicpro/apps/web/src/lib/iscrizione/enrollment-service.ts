@@ -11,6 +11,7 @@ import {
 
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
+import { generateEnrollmentPdf } from "./enrollment-pdf";
 import {
   createStripePaymentLinkQuotaAssociativa,
   QUOTA_ASSOCIATIVA_CENTESIMI,
@@ -31,6 +32,9 @@ type MagicTokenInfo = {
 };
 
 const MAGIC_LINK_TTL_MS = 24 * 60 * 60 * 1000;
+const ENROLLMENT_DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const RESEND_TIMEOUT_MS = 8000;
+const ENROLLMENTS_STORAGE_BUCKET = "enrollments";
 const TOKEN_KEY_PREFIX = "iscrizione_token:";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -272,6 +276,29 @@ async function markEnrollmentPaid(
     .eq("id", enrollmentId);
 }
 
+async function tryCompletaInvioAfterPaid(idIscrizione: string): Promise<{
+  inviata: boolean;
+  invioInCorso?: boolean;
+  invioError?: string;
+}> {
+  try {
+    const result = await completaInvioIscrizione(idIscrizione);
+    const already =
+      "alreadySent" in result && Boolean(result.alreadySent);
+    const queued =
+      ("queued" in result && Boolean(result.queued)) ||
+      ("inProgress" in result && Boolean(result.inProgress));
+    return {
+      inviata: Boolean(already || (result.success && !queued)),
+      invioInCorso: queued,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[sincronizzaPagamento] completaInvio:", message);
+    return { inviata: false, invioError: message };
+  }
+}
+
 export async function sincronizzaPagamento(idIscrizione: string) {
   const db = createServiceRoleClient();
   const stato = await getStatoIscrizione(idIscrizione);
@@ -281,11 +308,18 @@ export async function sincronizzaPagamento(idIscrizione: string) {
   }
 
   if (stato.pagato) {
+    const invio = stato.inviata
+      ? { inviata: true as const }
+      : await tryCompletaInvioAfterPaid(idIscrizione);
+    const updated = await getStatoIscrizione(idIscrizione);
     return {
-      ...stato,
+      ...updated,
       pagato: true,
       already: true,
       idIscrizione,
+      inviata: Boolean(updated.inviata || invio.inviata),
+      invioInCorso: invio.invioInCorso,
+      invioError: "invioError" in invio ? invio.invioError : undefined,
     };
   }
 
@@ -312,12 +346,16 @@ export async function sincronizzaPagamento(idIscrizione: string) {
 
     if (sync.pagato) {
       await markEnrollmentPaid(db, rec.id, sync.piId);
+      const invio = await tryCompletaInvioAfterPaid(idIscrizione);
       const updated = await getStatoIscrizione(idIscrizione);
       return {
         ...updated,
         pagato: true,
         synced: true,
         idIscrizione,
+        inviata: Boolean(updated.inviata || invio.inviata),
+        invioInCorso: invio.invioInCorso,
+        invioError: "invioError" in invio ? invio.invioError : undefined,
       };
     }
   } catch (err) {
@@ -816,6 +854,159 @@ async function findOrCreateCashEnrollmentMember(
   return data;
 }
 
+function memberPatchFromForm(
+  data: EnrollmentFormData,
+): Database["public"]["Tables"]["members"]["Update"] {
+  const cf = formText(data.cf).toUpperCase();
+  const patch: Database["public"]["Tables"]["members"]["Update"] = {
+    first_name: formText(data.nome),
+    last_name: formText(data.cognome),
+    birth_place: formText(data.luogo_nascita) || null,
+    birth_province: formText(data.prov_nascita).toUpperCase() || null,
+    address_street: formText(data.indirizzo) || null,
+    address_postal_code: formText(data.cap) || null,
+    address_city: formText(data.citta) || null,
+    address_province: formText(data.prov).toUpperCase() || null,
+    tax_code: cf || null,
+    phone: formText(data.telefono) || null,
+    email: formText(data.email).toLowerCase() || null,
+    manual_tutor_first_name: formText(data.tutore_nome) || null,
+    manual_tutor_last_name: formText(data.tutore_cognome) || null,
+    manual_tutor_phone: formText(data.tutore_telefono) || null,
+    manual_tutor_email: formText(data.tutore_email) || null,
+    manual_tutor_tax_code: formText(data.tutore_cf).toUpperCase() || null,
+    ...photoConsentPatch(photoConsentFromForm(data)),
+  };
+  const dataNascita = formText(data.data_nascita);
+  if (dataNascita) {
+    patch.birth_date = dataNascita.substring(0, 10);
+  }
+  return patch;
+}
+
+/**
+ * Bozza members per nuova iscrizione (senza magic link).
+ * Necessaria perché apply_stripe_quota_payment richiede member_id sull'enrollment.
+ */
+async function findOrCreateEnrollmentDraftMember(
+  db: Db,
+  data: EnrollmentFormData,
+): Promise<MemberRow> {
+  const nome = formText(data.nome);
+  const cognome = formText(data.cognome);
+  const email = formText(data.email).toLowerCase();
+  const cf = formText(data.cf).toUpperCase();
+  const draftExpires = new Date(
+    Date.now() + ENROLLMENT_DRAFT_TTL_MS,
+  ).toISOString();
+  const formPatch = memberPatchFromForm(data);
+
+  const byCf = cf ? await findMemberByCf(db, cf) : null;
+  if (byCf) {
+    const existing = byCf;
+    if (existing.is_enrollment_draft) {
+      const { data: updated, error } = await db
+        .from("members")
+        .update({
+          ...formPatch,
+          is_enrollment_draft: true,
+          draft_expires_at: draftExpires,
+          member_number: null,
+        })
+        .eq("id", existing.id)
+        .select("*")
+        .single();
+      if (error || !updated) {
+        throw new Error(
+          error?.message || "Impossibile aggiornare la bozza associato.",
+        );
+      }
+      return updated;
+    }
+
+    // Stesso CF già in anagrafe: collega senza sovrascrivere (completaInvio dopo PAGATO).
+    const soft: Database["public"]["Tables"]["members"]["Update"] = {
+      ...photoConsentPatch(photoConsentFromForm(data)),
+    };
+    if (!String(existing.first_name || "").trim() && nome) soft.first_name = nome;
+    if (!String(existing.last_name || "").trim() && cognome) {
+      soft.last_name = cognome;
+    }
+    if (!String(existing.email || "").trim() && email) soft.email = email;
+    if (!String(existing.phone || "").trim() && formText(data.telefono)) {
+      soft.phone = formText(data.telefono);
+    }
+
+    const { data: updated, error } = await db
+      .from("members")
+      .update(soft)
+      .eq("id", existing.id)
+      .select("*")
+      .single();
+    if (error || !updated) {
+      throw new Error(
+        error?.message || "Impossibile aggiornare l'associato.",
+      );
+    }
+    return updated;
+  }
+
+  // Mai collegare per sola email a un socio pieno (CF diverso): rischio quota sul member sbagliato.
+  const byEmail = email ? await findMemberByEmail(db, email) : null;
+  if (byEmail && !byEmail.is_enrollment_draft) {
+    const existingCf = String(byEmail.tax_code || "").toUpperCase().trim();
+    if (existingCf && existingCf !== cf) {
+      throw new Error(
+        "Questa email risulta già usata da un altro associato. Usa un'email diversa oppure richiedi il link personalizzato.",
+      );
+    }
+  }
+  if (byEmail?.is_enrollment_draft) {
+    const { data: updated, error } = await db
+      .from("members")
+      .update({
+        ...formPatch,
+        is_enrollment_draft: true,
+        draft_expires_at: draftExpires,
+        member_number: null,
+      })
+      .eq("id", byEmail.id)
+      .select("*")
+      .single();
+    if (error || !updated) {
+      throw new Error(
+        error?.message || "Impossibile aggiornare la bozza associato.",
+      );
+    }
+    return updated;
+  }
+
+  const { data: inserted, error } = await db
+    .from("members")
+    .insert({
+      ...formPatch,
+      first_name: nome,
+      last_name: cognome,
+      email: email || null,
+      is_enrollment_draft: true,
+      member_number: null,
+      draft_expires_at: draftExpires,
+      is_active: true,
+      gdpr_consent: isFormFlagTrue(data.privacy_accepted),
+      gdpr_consent_at: isFormFlagTrue(data.privacy_accepted)
+        ? new Date().toISOString()
+        : null,
+    })
+    .select("*")
+    .single();
+
+  if (error || !inserted) {
+    throw new Error(error?.message || "Impossibile creare la bozza associato.");
+  }
+
+  return inserted;
+}
+
 async function markCashQuotaPaid(db: Db, memberId: string): Promise<void> {
   const anno = currentFiscalYear();
   const settings = await listAnnualQuotaSettings(db);
@@ -949,8 +1140,8 @@ async function findPendingEnrollmentByCf(
 }
 
 /**
- * Bozza enrollment + Payment Link.
- * Non crea members e non invia email admin finché payment_status !== PAGATO.
+ * Bozza enrollment + Payment Link + member draft (per webhook quota).
+ * Non chiude la bozza né invia email finché payment_status !== PAGATO.
  * Riusa bozza non pagata (id o stesso CF) per ritentare senza rifare il form.
  */
 export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
@@ -968,6 +1159,10 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
   if (dup.blocked) {
     return { success: false, code: dup.code, message: dup.message };
   }
+
+  // Nuova iscrizione: crea/riusa bozza members così apply_stripe_quota_payment ha member_id.
+  const member =
+    tokenMember ?? (await findOrCreateEnrollmentDraftMember(db, data));
 
   if (tokenMember) {
     const { error: photoErr } = await db
@@ -1015,7 +1210,7 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
         phone: String(data.telefono || "").trim(),
         fiscal_year: anno,
         amount_centesimi: importoCents,
-        member_id: tokenMember?.id ?? pending.member_id,
+        member_id: member.id,
         form_payload:
           payload as Database["public"]["Tables"]["enrollments"]["Insert"]["form_payload"],
       })
@@ -1031,12 +1226,13 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
         idIscrizione,
         checkoutUrl: existingUrl,
         reused: true,
+        memberId: member.id,
       };
     }
 
     const linkResReuse = await createStripePaymentLinkQuotaAssociativa({
       idIscrizione,
-      memberId: tokenMember?.id ?? pending.member_id ?? undefined,
+      memberId: member.id,
       nome: String(data.nome || ""),
       cognome: String(data.cognome || ""),
       importoCentesimi: importoCents,
@@ -1070,6 +1266,7 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
       idIscrizione,
       checkoutUrl: linkResReuse.url,
       reused: true,
+      memberId: member.id,
     };
   }
 
@@ -1080,7 +1277,7 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
     .insert({
       id: idIscrizione,
       legacy_enrollment_id: idIscrizione,
-      member_id: tokenMember?.id ?? null,
+      member_id: member.id,
       first_name: String(data.nome || "").trim(),
       last_name: String(data.cognome || "").trim(),
       email: String(data.email || "").trim(),
@@ -1101,7 +1298,7 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
 
   const linkRes = await createStripePaymentLinkQuotaAssociativa({
     idIscrizione,
-    memberId: tokenMember?.id,
+    memberId: member.id,
     nome: String(data.nome || ""),
     cognome: String(data.cognome || ""),
     importoCentesimi: importoCents,
@@ -1134,7 +1331,287 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
     idIscrizione,
     checkoutUrl: linkRes.url,
     reused: false,
+    memberId: member.id,
   };
+}
+
+function parseEnrollmentFormPayload(
+  payload: EnrollmentRow["form_payload"],
+): EnrollmentFormData {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return {};
+  }
+  return payload as EnrollmentFormData;
+}
+
+function segreteriaRecipients(): string[] {
+  const toRaw =
+    process.env.EMAIL_SEGRETERIA?.trim() ||
+    process.env.ADMIN_EMAIL?.trim() ||
+    "musicproeventi@gmail.com";
+  return toRaw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function resendFromAddress(): string {
+  return (
+    process.env.EMAIL_FROM?.trim() ||
+    process.env.BOOKING_EMAIL_FROM?.trim() ||
+    "MusicPro School <noreply@school.musicproeventi.it>"
+  );
+}
+
+async function sendResendEmail(params: {
+  to: string[];
+  subject: string;
+  text: string;
+  html?: string;
+  attachments?: Array<{
+    filename: string;
+    content: string;
+    content_type?: string;
+  }>;
+}): Promise<{ sent: boolean; error?: string }> {
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  if (!apiKey) {
+    return { sent: false, error: "RESEND_API_KEY assente" };
+  }
+  if (!params.to.length) {
+    return { sent: false, error: "Nessun destinatario" };
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), RESEND_TIMEOUT_MS);
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        from: resendFromAddress(),
+        to: params.to,
+        subject: params.subject,
+        text: params.text,
+        html:
+          params.html ||
+          params.text
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/\r\n|\r|\n/g, "<br />"),
+        attachments: params.attachments?.length
+          ? params.attachments
+          : undefined,
+      }),
+    });
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => "");
+      return {
+        sent: false,
+        error: `Resend HTTP ${res.status}: ${errBody.slice(0, 200)}`,
+      };
+    }
+    return { sent: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { sent: false, error: message };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function ensureEnrollmentPdfBucket(db: Db): Promise<string | null> {
+  const { data: buckets, error: listError } = await db.storage.listBuckets();
+  if (listError) return listError.message;
+
+  if ((buckets ?? []).some((b) => b.id === ENROLLMENTS_STORAGE_BUCKET)) {
+    return null;
+  }
+
+  const { error } = await db.storage.createBucket(ENROLLMENTS_STORAGE_BUCKET, {
+    public: false,
+    fileSizeLimit: 10 * 1024 * 1024,
+    allowedMimeTypes: ["application/pdf"],
+  });
+  if (error && !/already exists/i.test(error.message)) {
+    return error.message;
+  }
+  return null;
+}
+
+async function uploadEnrollmentPdf(
+  db: Db,
+  enrollmentId: string,
+  filename: string,
+  bytes: Uint8Array,
+): Promise<{ pdfUrl: string | null; storagePath: string | null }> {
+  const bucketErr = await ensureEnrollmentPdfBucket(db);
+  if (bucketErr) {
+    console.warn(`[iscrizione] storage bucket: ${bucketErr}`);
+    return { pdfUrl: null, storagePath: null };
+  }
+
+  const storagePath = `${currentFiscalYear()}/${enrollmentId}/${filename}`;
+  const { error: uploadError } = await db.storage
+    .from(ENROLLMENTS_STORAGE_BUCKET)
+    .upload(storagePath, bytes, {
+      contentType: "application/pdf",
+      upsert: true,
+    });
+  if (uploadError) {
+    console.warn(`[iscrizione] upload pdf: ${uploadError.message}`);
+    return { pdfUrl: null, storagePath: null };
+  }
+
+  const { data: signed } = await db.storage
+    .from(ENROLLMENTS_STORAGE_BUCKET)
+    .createSignedUrl(storagePath, 60 * 60 * 24 * 7);
+  if (signed?.signedUrl) {
+    return { pdfUrl: signed.signedUrl, storagePath };
+  }
+
+  const { data: pub } = db.storage
+    .from(ENROLLMENTS_STORAGE_BUCKET)
+    .getPublicUrl(storagePath);
+  return { pdfUrl: pub.publicUrl || null, storagePath };
+}
+
+async function promoteMemberAfterPaidEnrollment(
+  db: Db,
+  enrollment: EnrollmentRow,
+  form: EnrollmentFormData,
+): Promise<MemberRow> {
+  let member: MemberRow | null = enrollment.member_id
+    ? await findMemberById(db, enrollment.member_id)
+    : null;
+
+  if (!member) {
+    member = await findOrCreateEnrollmentDraftMember(db, {
+      ...form,
+      nome: form.nome || enrollment.first_name,
+      cognome: form.cognome || enrollment.last_name,
+      email: form.email || enrollment.email,
+      cf: form.cf || enrollment.tax_code || "",
+      telefono: form.telefono || enrollment.phone || "",
+    });
+    await db
+      .from("enrollments")
+      .update({ member_id: member.id })
+      .eq("id", enrollment.id);
+  }
+
+  const nowIso = new Date().toISOString();
+  const patch: Database["public"]["Tables"]["members"]["Update"] = {
+    ...memberPatchFromForm({
+      ...form,
+      nome: form.nome || enrollment.first_name,
+      cognome: form.cognome || enrollment.last_name,
+      email: form.email || enrollment.email,
+      cf: form.cf || enrollment.tax_code || "",
+      telefono: form.telefono || enrollment.phone || "",
+    }),
+    is_enrollment_draft: false,
+    draft_expires_at: null,
+  };
+
+  if (member.member_number == null) {
+    patch.member_number = await getNextMemberNumber(db);
+  }
+  if (!member.enrolled_at) {
+    patch.enrolled_at = nowIso;
+  }
+  if (!member.gdpr_consent) {
+    patch.gdpr_consent = true;
+    patch.gdpr_consent_at = nowIso;
+  }
+
+  const { data: updated, error } = await db
+    .from("members")
+    .update(patch)
+    .eq("id", member.id)
+    .select("*")
+    .single();
+  if (error || !updated) {
+    throw new Error(
+      error?.message || "Impossibile aggiornare l'associato dopo il pagamento.",
+    );
+  }
+
+  // Quota: idempotente se webhook ha già scritto.
+  if (!(await hasQuotaPaidForMember(db, updated.id))) {
+    try {
+      const anno = enrollment.fiscal_year || currentFiscalYear();
+      const settings = await listAnnualQuotaSettings(db);
+      const setting = settings.find((row) => row.fiscalYear === anno);
+      const amountEur =
+        setting?.amountEur ??
+        (enrollment.amount_centesimi || QUOTA_ASSOCIATIVA_CENTESIMI) / 100;
+      const paidAt = new Date().toISOString().slice(0, 10);
+      const result = await upsertMemberAnnualQuotas(db, [
+        {
+          memberId: updated.id,
+          fiscalYear: anno,
+          paidAt,
+          amountPaidEur: amountEur,
+          amountDueEur: amountEur,
+          notes: "stripe",
+        },
+      ]);
+      if (!result.success) {
+        console.error(
+          "[completaInvioIscrizione] quota upsert:",
+          result.errorMessage,
+        );
+      }
+    } catch (quotaErr) {
+      console.error("[completaInvioIscrizione] quota upsert:", quotaErr);
+    }
+  }
+
+  return updated;
+}
+
+/** Dati form salvati prima del pagamento (ripristino pagina iscrizione). */
+export async function getDatiIscrizionePerForm(idIscrizione: string) {
+  const db = createServiceRoleClient();
+  const rec = await getEnrollmentById(db, idIscrizione);
+  if (!rec || !rec.form_payload) return { found: false as const };
+
+  try {
+    const data = parseEnrollmentFormPayload(rec.form_payload);
+    const signatureData = String(data.signatureData || "");
+    const fields = { ...data };
+    delete fields.signatureData;
+
+    const privacyAccepted =
+      isFormFlagTrue(data.privacy_accepted) || Boolean(signatureData);
+    const photoAccepted = isFormFlagTrue(data.photo_consent);
+    const pagato = isPaidStatus(rec.payment_status);
+    const inviata =
+      !!String(rec.pdf_url || "").trim() || rec.confirmation_email_sent;
+
+    return {
+      found: true as const,
+      idIscrizione: rec.legacy_enrollment_id || rec.id,
+      pagato,
+      inviata,
+      fields,
+      signatureData,
+      privacyAccepted,
+      photoAccepted,
+      checkoutUrl: pagato ? "" : String(rec.payment_link_url || "").trim(),
+      pagamentoStato: rec.payment_status,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { found: false as const, message };
+  }
 }
 
 export async function completaInvioIscrizione(idIscrizione: string) {
@@ -1148,7 +1625,7 @@ export async function completaInvioIscrizione(idIscrizione: string) {
     );
   }
 
-  if (rec.pdf_url || rec.confirmation_email_sent) {
+  if (rec.confirmation_email_sent) {
     return {
       success: true,
       alreadySent: true,
@@ -1157,16 +1634,228 @@ export async function completaInvioIscrizione(idIscrizione: string) {
     };
   }
 
-  // TODO: generazione PDF + invio email (stub — segna come accodato)
-  console.info(
-    `[iscrizione] completaInvioIscrizione stub per ${rec.id} (${rec.email})`,
+  // Claim anti-doppia email (poll paralleli): usa confirmation_email_sent_at come lock.
+  const CLAIM_STALE_MS = 2 * 60 * 1000;
+  const priorClaimAt = rec.confirmation_email_sent_at
+    ? new Date(rec.confirmation_email_sent_at).getTime()
+    : 0;
+  if (
+    priorClaimAt &&
+    Date.now() - priorClaimAt < CLAIM_STALE_MS &&
+    !rec.confirmation_email_sent
+  ) {
+    return {
+      success: true,
+      queued: true,
+      inProgress: true,
+      name: rec.first_name,
+      pdfUrl: rec.pdf_url || "",
+    };
+  }
+
+  const claimIso = new Date().toISOString();
+  const staleIso = new Date(Date.now() - CLAIM_STALE_MS).toISOString();
+
+  let claimedId: string | null = null;
+  const { data: claimFresh, error: claimFreshErr } = await db
+    .from("enrollments")
+    .update({ confirmation_email_sent_at: claimIso })
+    .eq("id", rec.id)
+    .eq("confirmation_email_sent", false)
+    .is("confirmation_email_sent_at", null)
+    .select("id")
+    .maybeSingle();
+  if (claimFreshErr) {
+    throw new Error(claimFreshErr.message || "Claim invio iscrizione fallito.");
+  }
+  if (claimFresh?.id) {
+    claimedId = claimFresh.id;
+  } else {
+    const { data: claimStale, error: claimStaleErr } = await db
+      .from("enrollments")
+      .update({ confirmation_email_sent_at: claimIso })
+      .eq("id", rec.id)
+      .eq("confirmation_email_sent", false)
+      .lt("confirmation_email_sent_at", staleIso)
+      .select("id")
+      .maybeSingle();
+    if (claimStaleErr) {
+      throw new Error(
+        claimStaleErr.message || "Claim invio iscrizione fallito.",
+      );
+    }
+    if (claimStale?.id) claimedId = claimStale.id;
+  }
+
+  if (!claimedId) {
+    const again = await getEnrollmentById(db, idIscrizione);
+    if (again?.confirmation_email_sent) {
+      return {
+        success: true,
+        alreadySent: true,
+        name: again.first_name,
+        pdfUrl: again.pdf_url || "",
+      };
+    }
+    return {
+      success: true,
+      queued: true,
+      inProgress: true,
+      name: rec.first_name,
+      pdfUrl: rec.pdf_url || "",
+    };
+  }
+
+  const form = parseEnrollmentFormPayload(rec.form_payload);
+  if (!Object.keys(form).length && !rec.email) {
+    await db
+      .from("enrollments")
+      .update({ confirmation_email_sent_at: null })
+      .eq("id", rec.id)
+      .eq("confirmation_email_sent", false);
+    throw new Error("Dati iscrizione mancanti.");
+  }
+
+  try {
+  const member = await promoteMemberAfterPaidEnrollment(db, rec, form);
+
+  const oggi = new Date().toLocaleDateString("it-IT", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "Europe/Rome",
+  });
+  const quotaEuro = (rec.amount_centesimi || QUOTA_ASSOCIATIVA_CENTESIMI) / 100;
+  const pdf = await generateEnrollmentPdf({
+    memberNumber: member.member_number,
+    nome: formText(form.nome) || rec.first_name,
+    cognome: formText(form.cognome) || rec.last_name,
+    luogoNascita: formText(form.luogo_nascita),
+    provNascita: formText(form.prov_nascita).toUpperCase(),
+    dataNascita: formText(form.data_nascita),
+    indirizzo: formText(form.indirizzo),
+    cap: formText(form.cap),
+    citta: formText(form.citta),
+    prov: formText(form.prov).toUpperCase(),
+    cf: formText(form.cf || rec.tax_code).toUpperCase(),
+    email: formText(form.email) || rec.email,
+    telefono: formText(form.telefono) || String(rec.phone || ""),
+    corso: formText(form.corso),
+    tutoreNome: formText(form.tutore_nome),
+    tutoreCognome: formText(form.tutore_cognome),
+    tutoreTelefono: formText(form.tutore_telefono),
+    tutoreEmail: formText(form.tutore_email),
+    tutoreCf: formText(form.tutore_cf).toUpperCase(),
+    quotaLabel: `EUR ${quotaEuro.toFixed(2).replace(".", ",")}`,
+    dataOggi: oggi,
+    signatureData: formText(form.signatureData) || null,
+  });
+
+  const stored = await uploadEnrollmentPdf(
+    db,
+    rec.id,
+    pdf.filename,
+    pdf.bytes,
   );
+  const pdfBase64 = Buffer.from(pdf.bytes).toString("base64");
+  const attachment = {
+    filename: pdf.filename,
+    content: pdfBase64,
+    content_type: "application/pdf" as const,
+  };
+
+  const socioEmail = (formText(form.email) || rec.email || "").toLowerCase();
+  const nome = formText(form.nome) || rec.first_name;
+  const cognome = formText(form.cognome) || rec.last_name;
+
+  const socioMail = socioEmail
+    ? await sendResendEmail({
+        to: [socioEmail],
+        subject: `Conferma Iscrizione MusicPro - ${nome} ${cognome}`,
+        text: [
+          `Ciao ${nome},`,
+          "",
+          "in allegato trovi la tua domanda di iscrizione firmata.",
+          stored.pdfUrl ? `\nCopia online:\n${stored.pdfUrl}\n` : "",
+          "Cordiali saluti,",
+          "MusicPro Eventi",
+        ]
+          .filter((line) => line !== "")
+          .join("\n"),
+        attachments: [attachment],
+      })
+    : { sent: false, error: "Email socio mancante" };
+
+  const adminMail = await sendResendEmail({
+    to: segreteriaRecipients(),
+    subject: `ISCRIZIONE: ${cognome} ${nome}`,
+    text: [
+      "Nuova iscrizione con pagamento Stripe.",
+      `Nome: ${nome} ${cognome}`,
+      `Email socio: ${socioEmail || "—"}`,
+      `CF: ${formText(form.cf || rec.tax_code).toUpperCase() || "—"}`,
+      `N. socio: ${member.member_number ?? "—"}`,
+      `Member ID: ${member.id}`,
+      stored.pdfUrl ? `PDF: ${stored.pdfUrl}` : "PDF allegato (storage non disponibile).",
+    ].join("\n"),
+    attachments: [attachment],
+  });
+
+  if (!socioMail.sent && !adminMail.sent) {
+    throw new Error(
+      socioMail.error ||
+        adminMail.error ||
+        "Invio email iscrizione fallito (socio e segreteria).",
+    );
+  }
+
+  if (!socioMail.sent) {
+    console.error("[completaInvioIscrizione] email socio:", socioMail.error);
+  }
+  if (!adminMail.sent) {
+    console.error("[completaInvioIscrizione] email admin:", adminMail.error);
+  }
+
+  const nowIso = new Date().toISOString();
+  await db
+    .from("enrollments")
+    .update({
+      pdf_url: stored.pdfUrl,
+      confirmation_email_sent: true,
+      confirmation_email_sent_at: nowIso,
+      member_id: member.id,
+      first_name: nome,
+      last_name: cognome,
+      email: socioEmail || rec.email,
+      tax_code: formText(form.cf || rec.tax_code).toUpperCase() || rec.tax_code,
+      ...(stored.storagePath
+        ? { pdf_storage_path: stored.storagePath }
+        : {}),
+    } as Database["public"]["Tables"]["enrollments"]["Update"])
+    .eq("id", rec.id);
 
   return {
     success: true,
-    queued: true,
-    name: rec.first_name,
+    alreadySent: false,
+    queued: false,
+    name: nome,
+    pdfUrl: stored.pdfUrl || "",
+    emailSocioSent: socioMail.sent,
+    emailAdminSent: adminMail.sent,
+    memberNumber: member.member_number,
   };
+  } catch (err) {
+    try {
+      await db
+        .from("enrollments")
+        .update({ confirmation_email_sent_at: null })
+        .eq("id", rec.id)
+        .eq("confirmation_email_sent", false);
+    } catch {
+      /* ignore release errors */
+    }
+    throw err;
+  }
 }
 
 export async function handleGetOp(
@@ -1180,6 +1869,7 @@ export async function handleGetOp(
       ...stato,
       ...sync,
       pagato: !!(stato.pagato || sync.pagato),
+      inviata: !!(stato.inviata || ("inviata" in sync && sync.inviata)),
     };
   }
 
@@ -1189,6 +1879,10 @@ export async function handleGetOp(
 
   if (op === "getStatoIscrizione") {
     return getStatoIscrizione(params.idIscrizione || "");
+  }
+
+  if (op === "getDatiIscrizionePerForm") {
+    return getDatiIscrizionePerForm(params.idIscrizione || "");
   }
 
   return { success: false, message: `Operazione GET non valida: ${op}` };
@@ -1316,6 +2010,12 @@ export async function handlePostAction(body: Record<string, unknown>) {
 
   if (action === "completaInvioIscrizione") {
     return completaInvioIscrizione(
+      String(body.idIscrizione || body.id || ""),
+    );
+  }
+
+  if (action === "getDatiIscrizionePerForm") {
+    return getDatiIscrizionePerForm(
       String(body.idIscrizione || body.id || ""),
     );
   }

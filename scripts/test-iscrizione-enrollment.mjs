@@ -46,7 +46,8 @@ const API_URL =
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-const stamp = Date.now().toString().slice(-8);
+const stamp = Date.now().toString().slice(-6);
+const cfDigits = stamp.slice(-3).padStart(3, "0");
 const samplePayload = {
   action: "inviaIscrizioneConPagamento",
   nome: "Test",
@@ -54,7 +55,8 @@ const samplePayload = {
   luogo_nascita: "Milano",
   prov_nascita: "MI",
   data_nascita: "1990-01-15",
-  cf: `TSTSCR${stamp}A`,
+  // Sintassi CF italiana (16 char); unico per run via 3 cifre.
+  cf: `TSTSCR90A15F${cfDigits}Z`,
   indirizzo: "Via Test 1",
   cap: "20100",
   citta: "Milano",
@@ -63,6 +65,7 @@ const samplePayload = {
   telefono: "3331234567",
   corso: "Chitarra",
   privacy_accepted: true,
+  photo_consent: true,
   signatureData:
     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
 };
@@ -98,7 +101,7 @@ async function main() {
     process.exit(0);
   }
 
-  const verifyUrl = `${SUPABASE_URL.replace(/\/$/, "")}/rest/v1/enrollments?id=eq.${body.idIscrizione}&select=id,legacy_enrollment_id,first_name,last_name,email,tax_code,payment_status,payment_link_url,form_payload,created_at&order=created_at.desc&limit=1`;
+  const verifyUrl = `${SUPABASE_URL.replace(/\/$/, "")}/rest/v1/enrollments?id=eq.${body.idIscrizione}&select=id,legacy_enrollment_id,member_id,first_name,last_name,email,tax_code,payment_status,payment_link_url,form_payload,created_at&order=created_at.desc&limit=1`;
 
   const dbRes = await fetch(verifyUrl, {
     headers: {
@@ -127,7 +130,27 @@ async function main() {
     process.exit(1);
   }
 
-  console.log("\nOK — enrollment salvato in Supabase.");
+  if (!row.member_id) {
+    console.error("Test fallito: member_id mancante (bozza members non creata).");
+    process.exit(1);
+  }
+
+  const memberUrl = `${SUPABASE_URL.replace(/\/$/, "")}/rest/v1/members?id=eq.${row.member_id}&select=id,email,tax_code,is_enrollment_draft,member_number`;
+  const memberRes = await fetch(memberUrl, {
+    headers: {
+      apikey: SERVICE_KEY,
+      Authorization: `Bearer ${SERVICE_KEY}`,
+    },
+  });
+  const members = await memberRes.json();
+  console.log("\nVerifica Supabase (members draft):");
+  console.log(JSON.stringify(members, null, 2));
+  if (!Array.isArray(members) || !members[0]?.is_enrollment_draft) {
+    console.error("Test fallito: bozza members non in stato draft.");
+    process.exit(1);
+  }
+
+  console.log("\nOK — enrollment salvato in Supabase con member_id.");
   console.log("SQL manuale:");
   console.log("  SELECT * FROM enrollments ORDER BY created_at DESC LIMIT 5;");
 }

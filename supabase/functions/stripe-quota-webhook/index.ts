@@ -115,9 +115,31 @@ Deno.serve(async (req) => {
 
   const result = (data ?? {}) as Record<string, unknown>;
   if (result.success !== true) {
+    const message = String(result.message ?? 'Applicazione pagamento quota fallita');
+    // quota_associativa writes member_annual_quotas — enrollment.member_id must
+    // already exist (create/link member at iscrizione submit). Do not invent a
+    // member here from form_payload; multi-pay is unaffected (uses item.member_id).
+    const memberRequired =
+      flow === 'quota_associativa' &&
+      /senza associato collegato/i.test(message);
+    if (memberRequired) {
+      console.error(
+        '[stripe-quota-webhook] ENROLLMENT_MEMBER_REQUIRED: create member at submit before Payment Link',
+        { enrollmentId, eventId: event.id },
+      );
+      return json({
+        success: false,
+        error_code: 'ENROLLMENT_MEMBER_REQUIRED',
+        message:
+          "Iscrizione senza member_id: creare l'associato al submit (prima del Payment Link). Non risolvibile dal webhook.",
+        flow,
+        enrollment_id: enrollmentId || null,
+        quota_payment_id: null,
+      });
+    }
     return json({
       success: false,
-      message: String(result.message ?? 'Applicazione pagamento quota fallita'),
+      message,
       flow,
       enrollment_id: enrollmentId || null,
       quota_payment_id: quotaPaymentId || null,
