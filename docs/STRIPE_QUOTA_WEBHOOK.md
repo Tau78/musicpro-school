@@ -42,6 +42,9 @@ node scripts/create-stripe-quota-webhook.mjs \
 | `STRIPE_WEBHOOK_SECRET` | Fallback se il secret dedicato non è impostato |
 | `STRIPE_SECRET_KEY` | Chiave API per retrieve PaymentIntent / disattivare Payment Link |
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Iniettati automaticamente da Supabase |
+| `SCHOOL_PUBLIC_URL` / `NEXT_PUBLIC_APP_URL` | Origine Next per trigger interno `completaInvioIscrizione` (default produzione) |
+| `ISCRIZIONE_COMPLETA_URL` | Override path completo (default: `https://school.musicproeventi.it/api/iscrizione`) |
+| `CRON_SECRET` o `ISCRIZIONE_INTERNAL_SECRET` | Bearer / `x-iscrizione-internal-secret` verso `POST /api/iscrizione` (opzionale: se assente su Edge+Vercel, la chiamata resta aperta) |
 
 ## Metadata Payment Link
 
@@ -77,7 +80,9 @@ supabase db push --linked --yes
 # 2. Segreti Edge (una tantum o dopo rotazione webhook Stripe)
 supabase secrets set \
   STRIPE_QUOTA_WEBHOOK_SECRET='whsec_...' \
-  STRIPE_SECRET_KEY='sk_...'
+  STRIPE_SECRET_KEY='sk_...' \
+  CRON_SECRET='stesso-valore-di-vercel' \
+  SCHOOL_PUBLIC_URL='https://school.musicproeventi.it'
 
 # 3. Deploy Edge Function (verify_jwt = false in config.toml)
 supabase functions deploy stripe-quota-webhook --no-verify-jwt
@@ -104,6 +109,7 @@ Edge: se la RPC segnala member assente, risponde con `error_code: ENROLLMENT_MEM
    - **quota_multi_pay**: completa `quota_payment_items`, upsert quote annuali per ogni beneficiario (invariato; non tocca enrollment).
 5. Idempotenza su `stripe_event_id` e `payment_intent_id`.
 6. Disattiva Payment Link (`pl_...`) dopo primo incasso.
+7. **quota_associativa only**: fire-and-forget `POST` a `ISCRIZIONE_COMPLETA_URL` (o `{APP_URL}/api/iscrizione`) con `{ action: "completaInvioIscrizione", idIscrizione }` e secret interno se presente. Timeout ~12s; `EdgeRuntime.waitUntil` — non attende l’email e non fallisce il webhook se l’invio fallisce (`completa_invio_triggered` nel JSON). Il poll browser resta fallback via `sincronizzaPagamento`.
 
 Risposte:
 
