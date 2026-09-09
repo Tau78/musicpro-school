@@ -285,9 +285,11 @@ async function tryCompletaInvioAfterPaid(idIscrizione: string): Promise<{
     const result = await completaInvioIscrizione(idIscrizione);
     const already =
       "alreadySent" in result && Boolean(result.alreadySent);
-    const queued = "queued" in result && Boolean(result.queued);
+    const queued =
+      ("queued" in result && Boolean(result.queued)) ||
+      ("inProgress" in result && Boolean(result.inProgress));
     return {
-      inviata: Boolean(already || result.success),
+      inviata: Boolean(already || (result.success && !queued)),
       invioInCorso: queued,
     };
   } catch (err) {
@@ -900,10 +902,8 @@ async function findOrCreateEnrollmentDraftMember(
   const formPatch = memberPatchFromForm(data);
 
   const byCf = cf ? await findMemberByCf(db, cf) : null;
-  const byEmail = email ? await findMemberByEmail(db, email) : null;
-  const existing = byCf || byEmail;
-
-  if (existing) {
+  if (byCf) {
+    const existing = byCf;
     if (existing.is_enrollment_draft) {
       const { data: updated, error } = await db
         .from("members")
@@ -924,8 +924,7 @@ async function findOrCreateEnrollmentDraftMember(
       return updated;
     }
 
-    // Associato già in anagrafe: collega l'enrollment senza sovrascrivere anagrafica
-    // (completaInvio aggiornerà dopo PAGATO). Soft-fill solo campi vuoti.
+    // Stesso CF già in anagrafe: collega senza sovrascrivere (completaInvio dopo PAGATO).
     const soft: Database["public"]["Tables"]["members"]["Update"] = {
       ...photoConsentPatch(photoConsentFromForm(data)),
     };
@@ -934,7 +933,6 @@ async function findOrCreateEnrollmentDraftMember(
       soft.last_name = cognome;
     }
     if (!String(existing.email || "").trim() && email) soft.email = email;
-    if (!String(existing.tax_code || "").trim() && cf) soft.tax_code = cf;
     if (!String(existing.phone || "").trim() && formText(data.telefono)) {
       soft.phone = formText(data.telefono);
     }
@@ -948,6 +946,36 @@ async function findOrCreateEnrollmentDraftMember(
     if (error || !updated) {
       throw new Error(
         error?.message || "Impossibile aggiornare l'associato.",
+      );
+    }
+    return updated;
+  }
+
+  // Mai collegare per sola email a un socio pieno (CF diverso): rischio quota sul member sbagliato.
+  const byEmail = email ? await findMemberByEmail(db, email) : null;
+  if (byEmail && !byEmail.is_enrollment_draft) {
+    const existingCf = String(byEmail.tax_code || "").toUpperCase().trim();
+    if (existingCf && existingCf !== cf) {
+      throw new Error(
+        "Questa email risulta già usata da un altro associato. Usa un'email diversa oppure richiedi il link personalizzato.",
+      );
+    }
+  }
+  if (byEmail?.is_enrollment_draft) {
+    const { data: updated, error } = await db
+      .from("members")
+      .update({
+        ...formPatch,
+        is_enrollment_draft: true,
+        draft_expires_at: draftExpires,
+        member_number: null,
+      })
+      .eq("id", byEmail.id)
+      .select("*")
+      .single();
+    if (error || !updated) {
+      throw new Error(
+        error?.message || "Impossibile aggiornare la bozza associato.",
       );
     }
     return updated;
@@ -1606,11 +1634,89 @@ export async function completaInvioIscrizione(idIscrizione: string) {
     };
   }
 
+  // Claim anti-doppia email (poll paralleli): usa confirmation_email_sent_at come lock.
+  const CLAIM_STALE_MS = 2 * 60 * 1000;
+  const priorClaimAt = rec.confirmation_email_sent_at
+    ? new Date(rec.confirmation_email_sent_at).getTime()
+    : 0;
+  if (
+    priorClaimAt &&
+    Date.now() - priorClaimAt < CLAIM_STALE_MS &&
+    !rec.confirmation_email_sent
+  ) {
+    return {
+      success: true,
+      queued: true,
+      inProgress: true,
+      name: rec.first_name,
+      pdfUrl: rec.pdf_url || "",
+    };
+  }
+
+  const claimIso = new Date().toISOString();
+  const staleIso = new Date(Date.now() - CLAIM_STALE_MS).toISOString();
+
+  let claimedId: string | null = null;
+  const { data: claimFresh, error: claimFreshErr } = await db
+    .from("enrollments")
+    .update({ confirmation_email_sent_at: claimIso })
+    .eq("id", rec.id)
+    .eq("confirmation_email_sent", false)
+    .is("confirmation_email_sent_at", null)
+    .select("id")
+    .maybeSingle();
+  if (claimFreshErr) {
+    throw new Error(claimFreshErr.message || "Claim invio iscrizione fallito.");
+  }
+  if (claimFresh?.id) {
+    claimedId = claimFresh.id;
+  } else {
+    const { data: claimStale, error: claimStaleErr } = await db
+      .from("enrollments")
+      .update({ confirmation_email_sent_at: claimIso })
+      .eq("id", rec.id)
+      .eq("confirmation_email_sent", false)
+      .lt("confirmation_email_sent_at", staleIso)
+      .select("id")
+      .maybeSingle();
+    if (claimStaleErr) {
+      throw new Error(
+        claimStaleErr.message || "Claim invio iscrizione fallito.",
+      );
+    }
+    if (claimStale?.id) claimedId = claimStale.id;
+  }
+
+  if (!claimedId) {
+    const again = await getEnrollmentById(db, idIscrizione);
+    if (again?.confirmation_email_sent) {
+      return {
+        success: true,
+        alreadySent: true,
+        name: again.first_name,
+        pdfUrl: again.pdf_url || "",
+      };
+    }
+    return {
+      success: true,
+      queued: true,
+      inProgress: true,
+      name: rec.first_name,
+      pdfUrl: rec.pdf_url || "",
+    };
+  }
+
   const form = parseEnrollmentFormPayload(rec.form_payload);
   if (!Object.keys(form).length && !rec.email) {
+    await db
+      .from("enrollments")
+      .update({ confirmation_email_sent_at: null })
+      .eq("id", rec.id)
+      .eq("confirmation_email_sent", false);
     throw new Error("Dati iscrizione mancanti.");
   }
 
+  try {
   const member = await promoteMemberAfterPaidEnrollment(db, rec, form);
 
   const oggi = new Date().toLocaleDateString("it-IT", {
@@ -1738,6 +1844,18 @@ export async function completaInvioIscrizione(idIscrizione: string) {
     emailAdminSent: adminMail.sent,
     memberNumber: member.member_number,
   };
+  } catch (err) {
+    try {
+      await db
+        .from("enrollments")
+        .update({ confirmation_email_sent_at: null })
+        .eq("id", rec.id)
+        .eq("confirmation_email_sent", false);
+    } catch {
+      /* ignore release errors */
+    }
+    throw err;
+  }
 }
 
 export async function handleGetOp(
