@@ -11,7 +11,9 @@ const ftp = require("basic-ftp");
 require("dotenv").config({ path: path.join(__dirname, ".env") });
 
 const ISCRIZIONE_BACKEND = (
-  process.env.ISCRIZIONE_BACKEND || "gas"
+  process.env.ISCRIZIONE_BACKEND ||
+  // Contanti/prova creano token su Supabase: senza dual il form FTP dice «Link non valido».
+  (process.env.ISCRIZIONE_SUPABASE_API_URL ? "dual" : "gas")
 ).trim().toLowerCase();
 
 const GAS_URL = (

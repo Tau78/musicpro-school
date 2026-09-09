@@ -1,7 +1,9 @@
 <?php
 /**
- * Proxy API iscrizione → Google Apps Script (generato da deploy-iscrizione.js)
- * Backend: gas (ISCRIZIONE_BACKEND=gas)
+ * Proxy API iscrizione dual: Next/Supabase poi GAS (generato da deploy-iscrizione.js)
+ * Backend: dual (ISCRIZIONE_BACKEND=dual)
+ * VAI: settare ISCRIZIONE_BACKEND=dual e ISCRIZIONE_SUPABASE_API_URL
+ * (es. https://<vercel>/api/iscrizione). Default produzione resta gas.
  */
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
@@ -14,8 +16,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 $GAS_URL = 'https://script.google.com/a/macros/www.musicproeventi.it/s/AKfycbyJAM4hGYz_k9_rDFIEJDevdcYxIRrsi4VbZdYJ9Rk9VFUYkpHYMfAPHx1_g8DEL8oZOA/exec';
+$API_BASE = rtrim('https://school.musicproeventi.it/api/iscrizione', '/');
 
-function gas_request($url, $method, $body) {
+function forward_request($url, $method, $body, $contentType) {
     if (!function_exists('curl_init')) {
         http_response_code(500);
         echo json_encode(array('success' => false, 'message' => 'cURL non disponibile sul server'));
@@ -26,7 +29,7 @@ function gas_request($url, $method, $body) {
     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
     curl_setopt($ch, CURLOPT_MAXREDIRS, 5);
     curl_setopt($ch, CURLOPT_TIMEOUT, 120);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type: text/plain;charset=utf-8'));
+    curl_setopt($ch, CURLOPT_HTTPHEADER, array($contentType));
     if ($method === 'POST') {
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
@@ -42,17 +45,62 @@ function gas_request($url, $method, $body) {
     }
     if ($code >= 400) {
         http_response_code(502);
-        echo json_encode(array('success' => false, 'message' => 'GAS HTTP ' . $code, 'body' => substr($resp, 0, 500)));
+        echo json_encode(array('success' => false, 'message' => 'Upstream HTTP ' . $code, 'body' => substr($resp, 0, 500)));
         exit;
     }
     echo $resp;
     exit;
 }
 
+function gas_request($url, $method, $body) {
+    forward_request($url, $method, $body, 'Content-Type: text/plain;charset=utf-8');
+}
+
+function supabase_request($url, $method, $body) {
+    forward_request($url, $method, $body, 'Content-Type: application/json');
+}
+
+function supabase_try_get($op, $id, $token) {
+    global $API_BASE;
+    if (!function_exists('curl_init') || $API_BASE === '') {
+        return null;
+    }
+    $qs = http_build_query(array(
+        'op' => $op,
+        'idIscrizione' => $id,
+        'token' => $token,
+    ));
+    $ch = curl_init($API_BASE . '?' . $qs);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($ch, CURLOPT_MAXREDIRS, 5);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type: application/json'));
+    $resp = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($resp === false || $code >= 400) {
+        return null;
+    }
+    $data = json_decode($resp, true);
+    if (!is_array($data) || !isset($data['found']) || $data['found'] !== true) {
+        return null;
+    }
+    return $resp;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $op = isset($_GET['op']) ? $_GET['op'] : '';
     $id = isset($_GET['idIscrizione']) ? $_GET['idIscrizione'] : '';
     $token = isset($_GET['token']) ? $_GET['token'] : '';
+    $supabaseOps = array('validateIscrizioneToken', 'getStatoIscrizione', 'sincronizzaPagamento');
+    if (in_array($op, $supabaseOps, true)) {
+        $sb = supabase_try_get($op, $id, $token);
+        if ($sb !== null) {
+            echo $sb;
+            exit;
+        }
+    }
     $qs = http_build_query(array(
         'action' => 'api',
         'op' => $op,
@@ -68,6 +116,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         http_response_code(400);
         echo json_encode(array('success' => false, 'message' => 'Body vuoto'));
         exit;
+    }
+    $payload = json_decode($body, true);
+    $token = '';
+    if (is_array($payload)) {
+        if (!empty($payload['iscrizioneToken'])) {
+            $token = trim((string) $payload['iscrizioneToken']);
+        } elseif (!empty($payload['token'])) {
+            $token = trim((string) $payload['token']);
+        }
+    }
+    if ($token !== '') {
+        $sb = supabase_try_get('validateIscrizioneToken', '', $token);
+        if ($sb !== null) {
+            supabase_request($API_BASE, 'POST', $body);
+        }
     }
     gas_request($GAS_URL, 'POST', $body);
 }

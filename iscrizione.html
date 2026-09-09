@@ -792,7 +792,12 @@
         Object.keys(fields).forEach(function(k) {
             if (k === 'rinnovo_associato') return;
             var el = document.querySelector('[name="' + k + '"]');
-            if (el && fields[k]) el.value = fields[k];
+            if (!el) return;
+            if (el.type === 'checkbox') {
+                el.checked = fields[k] === true || fields[k] === 'true' || fields[k] === 'on';
+                return;
+            }
+            if (fields[k] != null && fields[k] !== '') el.value = fields[k];
         });
         if (fields.data_nascita) {
             document.getElementById('data_nascita').dispatchEvent(new Event('change'));
@@ -811,6 +816,12 @@
         document.getElementById('rinnovo-banner').classList.remove('hidden');
         document.getElementById('gia-associato-box').classList.add('hidden');
         document.getElementById('nuovo-associato-hint').classList.add('hidden');
+        if (quotaGiaPagata) {
+            var banner = document.getElementById('rinnovo-banner');
+            if (banner) {
+                banner.innerHTML = '<strong>Quota già versata.</strong> Completa i dati mancanti, firma e salva — non ti verrà chiesto un nuovo pagamento.';
+            }
+        }
         applyQuotaGiaPagataUi();
     }
 

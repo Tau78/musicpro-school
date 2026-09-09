@@ -10,6 +10,7 @@ import {
 type ResultState = {
   link: string;
   emailSent: boolean;
+  emailError?: string | null;
 } | null;
 
 export function CashEnrollmentCard() {
@@ -39,6 +40,7 @@ export function CashEnrollmentCard() {
         message?: string;
         link?: string;
         emailSent?: boolean;
+        emailError?: string | null;
       };
 
       if (!res.ok || !data.success || !data.link) {
@@ -49,6 +51,7 @@ export function CashEnrollmentCard() {
       setResult({
         link: data.link,
         emailSent: Boolean(data.emailSent),
+        emailError: data.emailError || null,
       });
       setNome("");
       setCognome("");
@@ -140,7 +143,7 @@ export function CashEnrollmentCard() {
           <p>
             {result.emailSent
               ? "Email inviata. Puoi anche copiare il link:"
-              : "Email non inviata (controlla Resend). Copia il link e invialo a mano:"}
+              : `Email non inviata${result.emailError ? ` (${result.emailError})` : " (controlla Resend)"}. Copia il link e invialo a mano:`}
           </p>
           <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
             <code className="min-w-0 flex-1 break-all rounded bg-white/80 px-2 py-1 text-xs text-neutral-800">

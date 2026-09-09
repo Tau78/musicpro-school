@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
+  getNextMemberNumber,
   listAnnualQuotaSettings,
   upsertMemberAnnualQuotas,
   type Database,
@@ -382,7 +383,7 @@ async function sendMagicLinkEmail(
   link: string,
   nome: string,
   variant: "default" | "cash" = "default",
-): Promise<boolean> {
+): Promise<{ sent: boolean; error?: string }> {
   const apiKey = process.env.RESEND_API_KEY?.trim();
   const from =
     process.env.EMAIL_FROM?.trim() ||
@@ -424,7 +425,10 @@ async function sendMagicLinkEmail(
     console.warn(
       `[iscrizione] RESEND_API_KEY assente: magic link non inviato a ${email} (${nome}): ${link}`,
     );
-    return false;
+    return {
+      sent: false,
+      error: "RESEND_API_KEY assente su Vercel",
+    };
   }
 
   const res = await fetch("https://api.resend.com/emails", {
@@ -452,10 +456,64 @@ async function sendMagicLinkEmail(
     console.error(
       `[iscrizione] Resend ${res.status} inviando magic link a ${email}: ${errBody.slice(0, 400)}`,
     );
-    return false;
+    return {
+      sent: false,
+      error: `Resend HTTP ${res.status}`,
+    };
   }
 
-  return true;
+  return { sent: true };
+}
+
+async function notifyAdminCashEnrollmentCompleted(input: {
+  nome: string;
+  cognome: string;
+  email: string;
+  cf: string;
+  memberId: string;
+}): Promise<void> {
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  if (!apiKey) return;
+
+  const from =
+    process.env.EMAIL_FROM?.trim() ||
+    process.env.BOOKING_EMAIL_FROM?.trim() ||
+    "MusicPro School <noreply@school.musicproeventi.it>";
+  const toRaw =
+    process.env.EMAIL_SEGRETERIA?.trim() ||
+    process.env.ADMIN_EMAIL?.trim() ||
+    "musicproeventi@gmail.com";
+  const recipients = toRaw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (!recipients.length) return;
+
+  const subject = `ISCRIZIONE CONTANTI: ${input.cognome} ${input.nome}`;
+  const text = [
+    "Nuova iscrizione completata (quota già versata in sede).",
+    `Nome: ${input.nome} ${input.cognome}`,
+    `Email: ${input.email}`,
+    `CF: ${input.cf}`,
+    `Member ID: ${input.memberId}`,
+    "",
+    "Il socio ha compilato e firmato il modulo online.",
+  ].join("\n");
+
+  await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from,
+      to: recipients,
+      subject,
+      text,
+      html: text.replace(/\r\n|\r|\n/g, "<br />"),
+    }),
+  });
 }
 
 async function createAndSendMagicLink(db: Db, member: MemberRow) {
@@ -463,12 +521,12 @@ async function createAndSendMagicLink(db: Db, member: MemberRow) {
   const link = await createIscrizioneMagicLink(db, member.email);
   const fields = memberToFormFields(member);
   const tutorNome = String(member.manual_tutor_first_name || "").trim();
-  await sendMagicLinkEmail(
+  const mail = await sendMagicLinkEmail(
     member.email,
     link,
     tutorNome || String(fields.nome || "Associato"),
   );
-  return true;
+  return mail.sent;
 }
 
 export async function richiediLinkIscrizioneAssociato(identifier: string) {
@@ -714,6 +772,7 @@ export async function creaIscrizioneContantiEInvia(input: {
   success: boolean;
   link?: string;
   emailSent?: boolean;
+  emailError?: string;
   memberId?: string;
   message?: string;
 }> {
@@ -745,12 +804,13 @@ export async function creaIscrizioneContantiEInvia(input: {
   const link = iscrizioneLinkFromToken(token);
   const greeting =
     String(member.first_name || "").trim() || nome || "Associato";
-  const emailSent = await sendMagicLinkEmail(email, link, greeting, "cash");
+  const mail = await sendMagicLinkEmail(email, link, greeting, "cash");
 
   return {
     success: true,
     link,
-    emailSent,
+    emailSent: mail.sent,
+    emailError: mail.error,
     memberId: member.id,
   };
 }
@@ -1130,6 +1190,9 @@ export async function salvaAggiornamentoAssociatoIscrizione(
     draft_expires_at: null,
     ...photoConsentPatch(photoConsentFromForm(data)),
   };
+  if (member.member_number == null) {
+    patch.member_number = await getNextMemberNumber(db);
+  }
   if (!member.enrolled_at) {
     patch.enrolled_at = nowIso;
   }
@@ -1151,6 +1214,24 @@ export async function salvaAggiornamentoAssociatoIscrizione(
 
   if (token) {
     await markMagicTokenUsed(db, token);
+  }
+
+  // Avviso segreteria: iscrizione contanti completata (firma raccolta).
+  if (loaded?.info.cashQuotaPaid) {
+    try {
+      await notifyAdminCashEnrollmentCompleted({
+        nome: formText(data.nome),
+        cognome: formText(data.cognome),
+        email: formText(data.email) || member.email || "",
+        cf: formText(data.cf).toUpperCase(),
+        memberId: member.id,
+      });
+    } catch (notifyErr) {
+      console.error(
+        "[salvaAggiornamentoAssociatoIscrizione] notify admin:",
+        notifyErr,
+      );
+    }
   }
 
   return {
