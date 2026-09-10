@@ -12,6 +12,7 @@ import {
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
 import { generateEnrollmentPdf } from "./enrollment-pdf";
+import { sendEnrollmentEmail } from "./email-transport";
 import {
   createStripePaymentLinkQuotaAssociativa,
   QUOTA_ASSOCIATIVA_CENTESIMI,
@@ -441,12 +442,6 @@ async function sendMagicLinkEmail(
   nome: string,
   variant: "default" | "cash" = "default",
 ): Promise<{ sent: boolean; error?: string }> {
-  const apiKey = process.env.RESEND_API_KEY?.trim();
-  const from =
-    process.env.EMAIL_FROM?.trim() ||
-    process.env.BOOKING_EMAIL_FROM?.trim() ||
-    "MusicPro School <noreply@school.musicproeventi.it>";
-
   const subject =
     variant === "cash"
       ? "Completa l'iscrizione MusicPro (quota già versata)"
@@ -478,48 +473,18 @@ async function sendMagicLinkEmail(
           "MusicPro School",
         ].join("\n");
 
-  if (!apiKey) {
-    console.warn(
-      `[iscrizione] RESEND_API_KEY assente: magic link non inviato a ${email} (${nome}): ${link}`,
-    );
-    return {
-      sent: false,
-      error: "RESEND_API_KEY assente su Vercel",
-    };
-  }
-
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from,
-      to: [email],
-      subject,
-      text: body,
-      html: body
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/\r\n|\r|\n/g, "<br />"),
-    }),
+  const result = await sendEnrollmentEmail({
+    to: [email],
+    subject,
+    text: body,
+    timeoutMs: RESEND_TIMEOUT_MS,
   });
-
-  if (!res.ok) {
-    const errBody = await res.text().catch(() => "");
-    console.error(
-      `[iscrizione] Resend ${res.status} inviando magic link a ${email}: ${errBody.slice(0, 400)}`,
+  if (!result.sent) {
+    console.warn(
+      `[iscrizione] magic link non inviato a ${email} (${nome}): ${result.error || "errore"} — ${link}`,
     );
-    return {
-      sent: false,
-      error: `Resend HTTP ${res.status}`,
-    };
   }
-
-  return { sent: true };
+  return result;
 }
 
 async function notifyAdminCashEnrollmentCompleted(input: {
@@ -529,13 +494,6 @@ async function notifyAdminCashEnrollmentCompleted(input: {
   cf: string;
   memberId: string;
 }): Promise<void> {
-  const apiKey = process.env.RESEND_API_KEY?.trim();
-  if (!apiKey) return;
-
-  const from =
-    process.env.EMAIL_FROM?.trim() ||
-    process.env.BOOKING_EMAIL_FROM?.trim() ||
-    "MusicPro School <noreply@school.musicproeventi.it>";
   const toRaw =
     process.env.EMAIL_SEGRETERIA?.trim() ||
     process.env.ADMIN_EMAIL?.trim() ||
@@ -557,27 +515,12 @@ async function notifyAdminCashEnrollmentCompleted(input: {
     "Il socio ha compilato e firmato il modulo online.",
   ].join("\n");
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8000);
-  try {
-    await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      signal: controller.signal,
-      body: JSON.stringify({
-        from,
-        to: recipients,
-        subject,
-        text,
-        html: text.replace(/\r\n|\r|\n/g, "<br />"),
-      }),
-    });
-  } finally {
-    clearTimeout(timer);
-  }
+  await sendEnrollmentEmail({
+    to: recipients,
+    subject,
+    text,
+    timeoutMs: RESEND_TIMEOUT_MS,
+  });
 }
 
 /** Controlli anagrafici condivisi (form contanti / rinnovo / nuova iscrizione). */
@@ -1434,14 +1377,6 @@ function segreteriaRecipients(): string[] {
     .filter(Boolean);
 }
 
-function resendFromAddress(): string {
-  return (
-    process.env.EMAIL_FROM?.trim() ||
-    process.env.BOOKING_EMAIL_FROM?.trim() ||
-    "MusicPro School <noreply@school.musicproeventi.it>"
-  );
-}
-
 async function sendResendEmail(params: {
   to: string[];
   subject: string;
@@ -1453,56 +1388,10 @@ async function sendResendEmail(params: {
     content_type?: string;
   }>;
 }): Promise<{ sent: boolean; error?: string }> {
-  const apiKey = process.env.RESEND_API_KEY?.trim();
-  if (!apiKey) {
-    return { sent: false, error: "RESEND_API_KEY assente" };
-  }
-  if (!params.to.length) {
-    return { sent: false, error: "Nessun destinatario" };
-  }
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), RESEND_TIMEOUT_MS);
-  try {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      signal: controller.signal,
-      body: JSON.stringify({
-        from: resendFromAddress(),
-        to: params.to,
-        subject: params.subject,
-        text: params.text,
-        html:
-          params.html ||
-          params.text
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/\r\n|\r|\n/g, "<br />"),
-        attachments: params.attachments?.length
-          ? params.attachments
-          : undefined,
-      }),
-    });
-    if (!res.ok) {
-      const errBody = await res.text().catch(() => "");
-      return {
-        sent: false,
-        error: `Resend HTTP ${res.status}: ${errBody.slice(0, 200)}`,
-      };
-    }
-    return { sent: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return { sent: false, error: message };
-  } finally {
-    clearTimeout(timer);
-  }
+  return sendEnrollmentEmail({
+    ...params,
+    timeoutMs: RESEND_TIMEOUT_MS,
+  });
 }
 
 async function ensureEnrollmentPdfBucket(db: Db): Promise<string | null> {
