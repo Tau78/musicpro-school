@@ -75,9 +75,10 @@ function triggerCompletaInvioIscrizione(enrollmentId: string): boolean {
 
   const secret = iscrizioneInternalSecret();
   if (!secret) {
-    console.warn(
-      '[stripe-quota-webhook] completaInvio senza secret (ISCRIZIONE_INTERNAL_SECRET/CRON_SECRET): chiamata aperta',
+    console.error(
+      '[stripe-quota-webhook] completaInvio skip: secret assente (ISCRIZIONE_INTERNAL_SECRET/CRON_SECRET); poll resta fallback',
     );
+    return false;
   }
 
   const url = completaInvioUrl();
@@ -89,11 +90,9 @@ function triggerCompletaInvioIscrizione(enrollmentId: string): boolean {
     try {
       const headers: Record<string, string> = {
         'content-type': 'application/json',
+        authorization: `Bearer ${secret}`,
+        'x-iscrizione-internal-secret': secret,
       };
-      if (secret) {
-        headers.authorization = `Bearer ${secret}`;
-        headers['x-iscrizione-internal-secret'] = secret;
-      }
       const res = await fetch(url, {
         method: 'POST',
         headers,
