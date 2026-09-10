@@ -11,6 +11,8 @@ type ResultState = {
   link: string;
   emailSent: boolean;
   emailError?: string | null;
+  warning?: string | null;
+  memberName?: string | null;
 } | null;
 
 export function CashEnrollmentCard() {
@@ -41,6 +43,8 @@ export function CashEnrollmentCard() {
         link?: string;
         emailSent?: boolean;
         emailError?: string | null;
+        warning?: string | null;
+        memberName?: string | null;
       };
 
       if (!res.ok || !data.success || !data.link) {
@@ -52,6 +56,8 @@ export function CashEnrollmentCard() {
         link: data.link,
         emailSent: Boolean(data.emailSent),
         emailError: data.emailError || null,
+        warning: data.warning || null,
+        memberName: data.memberName || null,
       });
       setNome("");
       setCognome("");
@@ -140,6 +146,14 @@ export function CashEnrollmentCard() {
 
       {result ? (
         <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+          {result.memberName ? (
+            <p className="mb-1 font-medium">Link per: {result.memberName}</p>
+          ) : null}
+          {result.warning ? (
+            <p className="mb-2 rounded border border-amber-300 bg-amber-50 px-2 py-1 text-amber-950">
+              {result.warning}
+            </p>
+          ) : null}
           <p>
             {result.emailSent
               ? "Email inviata. Puoi anche copiare il link:"

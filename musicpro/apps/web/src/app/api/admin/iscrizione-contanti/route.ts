@@ -63,6 +63,8 @@ export async function POST(request: Request) {
       emailSent: result.emailSent,
       emailError: result.emailError || null,
       memberId: result.memberId,
+      memberName: result.memberName || null,
+      warning: result.warning || null,
     });
   } catch (err) {
     const message =
