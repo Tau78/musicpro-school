@@ -41,6 +41,9 @@ const ENROLLMENTS_STORAGE_BUCKET = "enrollments";
  */
 const ENROLLMENT_PDF_SIGNED_URL_TTL_SEC = 60 * 60 * 24 * 7;
 const TOKEN_KEY_PREFIX = "iscrizione_token:";
+/** Bearer per getDatiIscrizionePerForm (mitiga IDOR su UUID). TTL ≈ pending sessionStorage. */
+const FORM_ACCESS_KEY_PREFIX = "iscrizione_form_access:";
+const FORM_ACCESS_TTL_MS = ENROLLMENT_DRAFT_TTL_MS;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type EnrollmentPdfFields = {
@@ -754,6 +757,56 @@ async function markMagicTokenUsed(db: Db, token: string): Promise<void> {
     .eq("key", loaded.key);
 }
 
+/**
+ * formAccessToken: random secret legato all'enrollment in app_settings.
+ * Il client lo tiene in sessionStorage e lo passa a getDatiIscrizionePerForm;
+ * senza match → { found: false } (niente leak di fields/signature).
+ */
+async function issueFormAccessToken(
+  db: Db,
+  enrollmentId: string,
+): Promise<string> {
+  const token = randomUUID();
+  const expiresAt = new Date(Date.now() + FORM_ACCESS_TTL_MS).toISOString();
+  await db.from("app_settings").upsert({
+    key: `${FORM_ACCESS_KEY_PREFIX}${enrollmentId}`,
+    value: JSON.stringify({ token, expiresAt }),
+    description: "Access token ripristino form iscrizione post-pagamento",
+  });
+  return token;
+}
+
+async function verifyFormAccessToken(
+  db: Db,
+  enrollmentId: string,
+  token: string,
+): Promise<boolean> {
+  const tok = String(token || "").trim();
+  const id = String(enrollmentId || "").trim();
+  if (!tok || !id) return false;
+
+  const { data: setting } = await db
+    .from("app_settings")
+    .select("value")
+    .eq("key", `${FORM_ACCESS_KEY_PREFIX}${id}`)
+    .maybeSingle();
+  if (!setting?.value) return false;
+
+  try {
+    const parsed = JSON.parse(String(setting.value)) as {
+      token?: string;
+      expiresAt?: string;
+    };
+    if (!parsed.token || parsed.token !== tok) return false;
+    if (parsed.expiresAt && new Date() > new Date(parsed.expiresAt)) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function validateIscrizioneToken(token: string) {
   const tok = String(token || "").trim();
   if (!tok) return { found: false, message: "Token mancante." };
@@ -1236,12 +1289,14 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
         .from("enrollments")
         .update({ payment_status: "INVIATO" })
         .eq("id", pending.id);
+      const formAccessToken = await issueFormAccessToken(db, pending.id);
       return {
         success: true,
         idIscrizione,
         checkoutUrl: existingUrl,
         reused: true,
         memberId: member.id,
+        formAccessToken,
       };
     }
 
@@ -1276,12 +1331,14 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
       })
       .eq("id", pending.id);
 
+    const formAccessTokenReuse = await issueFormAccessToken(db, pending.id);
     return {
       success: true,
       idIscrizione,
       checkoutUrl: linkResReuse.url,
       reused: true,
       memberId: member.id,
+      formAccessToken: formAccessTokenReuse,
     };
   }
 
@@ -1341,12 +1398,14 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
     })
     .eq("id", idIscrizione);
 
+  const formAccessToken = await issueFormAccessToken(db, idIscrizione);
   return {
     success: true,
     idIscrizione,
     checkoutUrl: linkRes.url,
     reused: false,
     memberId: member.id,
+    formAccessToken,
   };
 }
 
@@ -1637,11 +1696,24 @@ async function promoteMemberAfterPaidEnrollment(
   return updated;
 }
 
-/** Dati form salvati prima del pagamento (ripristino pagina iscrizione). */
-export async function getDatiIscrizionePerForm(idIscrizione: string) {
+/**
+ * Dati form salvati prima del pagamento (ripristino pagina iscrizione).
+ * Richiede formAccessToken (emesso da inviaIscrizione*) — senza match → found:false.
+ */
+export async function getDatiIscrizionePerForm(
+  idIscrizione: string,
+  formAccessToken?: string,
+) {
   const db = createServiceRoleClient();
   const rec = await getEnrollmentById(db, idIscrizione);
   if (!rec || !rec.form_payload) return { found: false as const };
+
+  const ok = await verifyFormAccessToken(
+    db,
+    rec.id,
+    String(formAccessToken || ""),
+  );
+  if (!ok) return { found: false as const };
 
   try {
     const data = parseEnrollmentFormPayload(rec.form_payload);
@@ -1884,6 +1956,19 @@ export async function completaInvioIscrizione(idIscrizione: string) {
     console.error("[completaInvioIscrizione] email admin:", adminMail.error);
   }
 
+  // Socio aveva email ma Resend ha fallito: non marcare confirmation_email_sent
+  // (altrimenti niente retry). Admin è best-effort. Rilascia claim → poll/webhook ritentano.
+  if (socioEmail && !socioMail.sent) {
+    await db
+      .from("enrollments")
+      .update({ confirmation_email_sent_at: null })
+      .eq("id", rec.id)
+      .eq("confirmation_email_sent", false);
+    throw new Error(
+      socioMail.error || "Invio email di conferma al socio fallito.",
+    );
+  }
+
   const nowIso = new Date().toISOString();
   await db
     .from("enrollments")
@@ -1951,7 +2036,10 @@ export async function handleGetOp(
   }
 
   if (op === "getDatiIscrizionePerForm") {
-    return getDatiIscrizionePerForm(params.idIscrizione || "");
+    return getDatiIscrizionePerForm(
+      params.idIscrizione || "",
+      params.token || "",
+    );
   }
 
   return { success: false, message: `Operazione GET non valida: ${op}` };
@@ -2086,6 +2174,7 @@ export async function handlePostAction(body: Record<string, unknown>) {
   if (action === "getDatiIscrizionePerForm") {
     return getDatiIscrizionePerForm(
       String(body.idIscrizione || body.id || ""),
+      String(body.token || body.formAccessToken || ""),
     );
   }
 
