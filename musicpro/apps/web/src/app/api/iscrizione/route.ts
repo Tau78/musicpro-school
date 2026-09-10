@@ -4,10 +4,7 @@ import {
   handleGetOp,
   handlePostAction,
 } from "@/lib/iscrizione/enrollment-service";
-import {
-  iscrizioneInternalSecret,
-  isIscrizioneInternalAuthorized,
-} from "@/lib/iscrizione/internal-auth";
+import { gateCompletaInvioIscrizione } from "@/lib/iscrizione/internal-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -47,21 +44,21 @@ export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as Record<string, unknown>;
     const action = String(body.action || "inviaIscrizione").trim();
-    // completaInvioIscrizione: gate interno solo se ISCRIZIONE_INTERNAL_SECRET
-    // (o CRON_SECRET) è settato. Senza secret resta accessibile (poll/legacy).
+    // completaInvioIscrizione: in prod secret obbligatorio (503 se assente);
+    // con secret → 401 se auth fallisce; non-prod senza secret → aperto (dev).
     // Il browser preferisce GET sincronizzaPagamento / getStatoIscrizione.
-    if (
-      action === "completaInvioIscrizione" &&
-      iscrizioneInternalSecret() &&
-      !isIscrizioneInternalAuthorized(request)
-    ) {
-      return jsonResponse({ success: false, message: "Non autorizzato" }, 401);
+    if (action === "completaInvioIscrizione") {
+      const gate = gateCompletaInvioIscrizione(request);
+      if (!gate.ok) {
+        return jsonResponse({ success: false, message: gate.message }, gate.status);
+      }
     }
     const result = await handlePostAction(body);
     return jsonResponse(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const lower = message.toLowerCase();
+    const isNotFound = lower.includes("non trovat");
     const isClient =
       lower.includes("obbligator") ||
       lower.includes("non valid") ||
@@ -72,6 +69,7 @@ export async function POST(request: NextRequest) {
       lower.includes("plausibile") ||
       lower.includes("futuro") ||
       lower.includes("minorenn");
-    return jsonResponse({ success: false, message }, isClient ? 400 : 500);
+    const status = isNotFound ? 404 : isClient ? 400 : 500;
+    return jsonResponse({ success: false, message }, status);
   }
 }
