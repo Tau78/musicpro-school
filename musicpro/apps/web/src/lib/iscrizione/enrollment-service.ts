@@ -429,8 +429,9 @@ export async function createIscrizioneMagicLink(
   db: Db,
   email: string,
   ttlMs?: number,
+  memberId?: string,
 ): Promise<string> {
-  const token = await storeMagicToken(db, email, { ttlMs });
+  const token = await storeMagicToken(db, email, { ttlMs, memberId });
   return iscrizioneLinkFromToken(token);
 }
 
@@ -651,7 +652,12 @@ export function validateEnrollmentAnagrafica(data: EnrollmentFormData): string |
 
 async function createAndSendMagicLink(db: Db, member: MemberRow) {
   if (!member.email) return false;
-  const link = await createIscrizioneMagicLink(db, member.email);
+  const link = await createIscrizioneMagicLink(
+    db,
+    member.email,
+    undefined,
+    member.id,
+  );
   const fields = memberToFormFields(member);
   const tutorNome = String(member.manual_tutor_first_name || "").trim();
   const mail = await sendMagicLinkEmail(
@@ -851,54 +857,38 @@ async function findOrCreateCashEnrollmentMember(
   nome: string,
   cognome: string,
   email: string,
-): Promise<MemberRow> {
+): Promise<{ member: MemberRow; reusedEmail: boolean; previousName: string }> {
   const existing = await findMemberByEmail(db, email);
   if (existing) {
+    const previousName = [
+      String(existing.first_name || "").trim(),
+      String(existing.last_name || "").trim(),
+    ]
+      .filter(Boolean)
+      .join(" ");
+    // Sportello: nome/cognome digitati dall'admin vincono sempre sull'anagrafica
+    // legata a questa email (prima soft-patch lasciava il vecchio nome → link “bloccati”).
+    const patch: Database["public"]["Tables"]["members"]["Update"] = {
+      first_name: nome || existing.first_name,
+      last_name: cognome || existing.last_name,
+    };
     if (existing.is_enrollment_draft) {
-      const patch: Database["public"]["Tables"]["members"]["Update"] = {
-        first_name: nome || existing.first_name,
-        last_name: cognome || existing.last_name,
-        draft_expires_at: new Date(
-          Date.now() + MAGIC_LINK_TTL_MS,
-        ).toISOString(),
-      };
-      const { data, error } = await db
-        .from("members")
-        .update(patch)
-        .eq("id", existing.id)
-        .select("*")
-        .single();
-      if (error || !data) {
-        throw new Error(
-          error?.message || "Impossibile aggiornare la bozza associato.",
-        );
-      }
-      return data;
+      patch.draft_expires_at = new Date(
+        Date.now() + MAGIC_LINK_TTL_MS,
+      ).toISOString();
     }
-
-    const softPatch: Database["public"]["Tables"]["members"]["Update"] = {};
-    if (!String(existing.first_name || "").trim() && nome) {
-      softPatch.first_name = nome;
+    const { data, error } = await db
+      .from("members")
+      .update(patch)
+      .eq("id", existing.id)
+      .select("*")
+      .single();
+    if (error || !data) {
+      throw new Error(
+        error?.message || "Impossibile aggiornare l'associato per lo sportello.",
+      );
     }
-    if (!String(existing.last_name || "").trim() && cognome) {
-      softPatch.last_name = cognome;
-    }
-    if (Object.keys(softPatch).length > 0) {
-      const { data, error } = await db
-        .from("members")
-        .update(softPatch)
-        .eq("id", existing.id)
-        .select("*")
-        .single();
-      if (error || !data) {
-        throw new Error(
-          error?.message || "Impossibile aggiornare l'associato.",
-        );
-      }
-      return data;
-    }
-
-    return existing;
+    return { member: data, reusedEmail: true, previousName };
   }
 
   const { data, error } = await db
@@ -919,7 +909,7 @@ async function findOrCreateCashEnrollmentMember(
     throw new Error(error?.message || "Impossibile creare la bozza associato.");
   }
 
-  return data;
+  return { member: data, reusedEmail: false, previousName: "" };
 }
 
 function memberPatchFromForm(
@@ -1111,6 +1101,8 @@ export async function creaIscrizioneContantiEInvia(input: {
   emailError?: string;
   memberId?: string;
   message?: string;
+  warning?: string;
+  memberName?: string;
 }> {
   const nome = formText(input.nome);
   const cognome = formText(input.cognome);
@@ -1124,12 +1116,13 @@ export async function creaIscrizioneContantiEInvia(input: {
   }
 
   const db = createServiceRoleClient();
-  const member = await findOrCreateCashEnrollmentMember(
+  const created = await findOrCreateCashEnrollmentMember(
     db,
     nome,
     cognome,
     email,
   );
+  const member = created.member;
 
   await markCashQuotaPaid(db, member.id);
 
@@ -1142,12 +1135,24 @@ export async function creaIscrizioneContantiEInvia(input: {
     String(member.first_name || "").trim() || nome || "Associato";
   const mail = await sendMagicLinkEmail(email, link, greeting, "cash");
 
+  const newName = `${nome} ${cognome}`.trim();
+  let warning: string | undefined;
+  if (
+    created.reusedEmail &&
+    created.previousName &&
+    created.previousName.toLowerCase() !== newName.toLowerCase()
+  ) {
+    warning = `Questa email era già collegata a «${created.previousName}»: anagrafica aggiornata a «${newName}». Usa un'email diversa per ogni persona.`;
+  }
+
   return {
     success: true,
     link,
     emailSent: mail.sent,
     emailError: mail.error,
     memberId: member.id,
+    memberName: greeting,
+    warning,
   };
 }
 

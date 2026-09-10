@@ -988,6 +988,8 @@
                     Swal.fire('Link non valido', (res && res.message) ? res.message : 'Richiedi un nuovo link.', 'error');
                     return;
                 }
+                // Evita di mischiare una bozza pending di un altro associato.
+                clearPendingIscrizione();
                 populateFormFromToken(res);
                 history.replaceState(null, '', window.location.pathname);
             })
