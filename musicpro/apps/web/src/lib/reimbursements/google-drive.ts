@@ -286,3 +286,67 @@ export async function uploadReimbursementPdfToDrive(params: {
     };
   }
 }
+
+/**
+ * PDF iscrizione → Drive, allineato al GAS:
+ * - copia piatta in `flatFolderId` (cartella «Iscrizioni») se presente
+ * - mirror in `rootFolderId / Cognome Nome`
+ * Restituisce il link della copia primaria (flat se c'è, altrimenti mirror).
+ */
+export async function uploadEnrollmentPdfToDrive(params: {
+  rootFolderId: string;
+  flatFolderId?: string | null;
+  associateFolderName: string;
+  filename: string;
+  bytes: Uint8Array;
+}): Promise<DriveUploadResult> {
+  try {
+    const token = await getDriveAccessToken();
+    let primary: { id: string; webViewLink: string } | null = null;
+
+    const flatId = String(params.flatFolderId || "").trim();
+    if (flatId) {
+      primary = await uploadPdfFile(
+        token,
+        flatId,
+        params.filename,
+        params.bytes,
+      );
+    }
+
+    const rootId = String(params.rootFolderId || "").trim();
+    if (rootId) {
+      try {
+        const associateFolderId = await getOrCreateFolder(
+          token,
+          rootId,
+          params.associateFolderName,
+        );
+        const mirror = await uploadPdfFile(
+          token,
+          associateFolderId,
+          params.filename,
+          params.bytes,
+        );
+        if (!primary) primary = mirror;
+      } catch (mirrorErr) {
+        // La copia piatta in «Iscrizioni» basta per la segreteria; mirror best-effort.
+        console.warn(
+          "[drive] mirror iscrizione fallito:",
+          mirrorErr instanceof Error ? mirrorErr.message : mirrorErr,
+        );
+        if (!primary) throw mirrorErr;
+      }
+    }
+
+    if (!primary) {
+      return { ok: false, error: "Nessuna cartella Drive iscrizioni configurata" };
+    }
+    return { ok: true, fileId: primary.id, webViewLink: primary.webViewLink };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "Upload Drive fallito",
+    };
+  }
+}

@@ -181,7 +181,7 @@ export async function generateEnrollmentPdf(
 
   y -= 10;
   draw(
-    "Documento generato automaticamente dopo conferma pagamento Stripe.",
+    "Documento generato automaticamente dal modulo di iscrizione online.",
     { size: 9, color: muted },
   );
 
