@@ -455,6 +455,20 @@
         return parsed;
     }
 
+    /** Solo rete/timeout: non riprovate su /api.php errori applicativi (4xx/success:false già parsati). */
+    function isNetworkOrTimeoutError(err) {
+        if (!err) return false;
+        if (err.name === 'AbortError') return true;
+        if (err.name === 'TimeoutError') return true;
+        if (err.name === 'NetworkError') return true;
+        if (typeof TypeError !== 'undefined' && err instanceof TypeError) return true;
+        var msg = String(err.message || err || '');
+        if (/failed to fetch|networkerror|network request failed|load failed|fetch.*aborted|the operation was aborted|econnrefused|econnreset|enotfound|etimedout/i.test(msg)) {
+            return true;
+        }
+        return false;
+    }
+
     function fetchApi(url, options, timeoutMs) {
         var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
         var timer = null;
@@ -485,7 +499,7 @@
             });
         }
         return getOnce(API_URL).catch(function(err) {
-            if (API_FALLBACK_URL && API_FALLBACK_URL !== API_URL) {
+            if (API_FALLBACK_URL && API_FALLBACK_URL !== API_URL && isNetworkOrTimeoutError(err)) {
                 return getOnce(API_FALLBACK_URL);
             }
             throw err;
@@ -508,8 +522,8 @@
             return fetchApi(url, postOpts, 20000).then(parseApiJson);
         }
         return postOnce(API_URL).catch(function(err) {
-            // Se School non risponde, prova il proxy FTP (e viceversa non serve: School è primario).
-            if (API_FALLBACK_URL && API_FALLBACK_URL !== API_URL) {
+            // Solo rete/timeout su School → proxy FTP; errori business (4xx/message) restano lì.
+            if (API_FALLBACK_URL && API_FALLBACK_URL !== API_URL && isNetworkOrTimeoutError(err)) {
                 return postOnce(API_FALLBACK_URL);
             }
             throw err;
