@@ -11,6 +11,8 @@ import {
 
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
+import { uploadEnrollmentPdfToDrive } from "@/lib/reimbursements/google-drive";
+
 import { generateEnrollmentPdf } from "./enrollment-pdf";
 import { sendEnrollmentEmail } from "./email-transport";
 import {
@@ -41,6 +43,48 @@ const ENROLLMENTS_STORAGE_BUCKET = "enrollments";
  * Not durable truth — refreshed on each read; 7d is enough for email "Copia online".
  */
 const ENROLLMENT_PDF_SIGNED_URL_TTL_SEC = 60 * 60 * 24 * 7;
+/** Cartella piatta Drive «Iscrizioni» (legacy GAS `FOLDER_ISCRIZIONI_ID`). */
+const LEGACY_ISCRIZIONI_FLAT_FOLDER_ID = "1XCo-t2VwgOr6Pu7cWiiNcSxz4CXgPe6T";
+/** Fallback root Drive iscrizioni (Codice.js ROOT_ISCRIZIONI_FOLDER_ID). */
+const FALLBACK_ISCRIZIONI_ROOT_FOLDER_ID = "1s9IxsGHytPFHuBhJWBBaUlX_iRdNXxo5";
+
+async function getEnrollmentDriveRootFolderId(db: Db): Promise<string> {
+  const { data } = await db
+    .from("app_settings")
+    .select("value")
+    .eq("key", "root_enrollments_folder_id")
+    .maybeSingle();
+  const fromSettings = String(data?.value || "").trim();
+  return (
+    fromSettings ||
+    process.env.ISCRIZIONI_DRIVE_ROOT_FOLDER_ID?.trim() ||
+    FALLBACK_ISCRIZIONI_ROOT_FOLDER_ID
+  );
+}
+
+async function publishEnrollmentPdfToDrive(params: {
+  db: Db;
+  cognome: string;
+  nome: string;
+  filename: string;
+  bytes: Uint8Array;
+}): Promise<{ pdfUrl: string | null; error?: string }> {
+  const rootFolderId = await getEnrollmentDriveRootFolderId(params.db);
+  const associateFolderName = `${params.cognome} ${params.nome}`.trim();
+  const drive = await uploadEnrollmentPdfToDrive({
+    rootFolderId,
+    flatFolderId: LEGACY_ISCRIZIONI_FLAT_FOLDER_ID,
+    associateFolderName: associateFolderName || "Iscrizione",
+    filename: params.filename,
+    bytes: params.bytes,
+  });
+  if (!drive.ok) {
+    console.warn(`[iscrizione] drive pdf: ${drive.error}`);
+    return { pdfUrl: null, error: drive.error };
+  }
+  return { pdfUrl: drive.webViewLink };
+}
+
 const TOKEN_KEY_PREFIX = "iscrizione_token:";
 /** Bearer per getDatiIscrizionePerForm (mitiga IDOR su UUID). TTL ≈ pending sessionStorage. */
 const FORM_ACCESS_KEY_PREFIX = "iscrizione_form_access:";
@@ -487,41 +531,168 @@ async function sendMagicLinkEmail(
   return result;
 }
 
-async function notifyAdminCashEnrollmentCompleted(input: {
-  nome: string;
-  cognome: string;
-  email: string;
-  cf: string;
+async function finalizeCashEnrollmentDocuments(input: {
+  db: Db;
   memberId: string;
+  data: EnrollmentFormData;
+  cf: string;
 }): Promise<void> {
-  const toRaw =
-    process.env.EMAIL_SEGRETERIA?.trim() ||
-    process.env.ADMIN_EMAIL?.trim() ||
-    "musicproeventi@gmail.com";
-  const recipients = toRaw
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  if (!recipients.length) return;
+  const db = input.db;
+  const nome = formText(input.data.nome);
+  const cognome = formText(input.data.cognome);
+  const email = (formText(input.data.email) || "").toLowerCase();
+  const cf = input.cf;
 
-  const subject = `ISCRIZIONE CONTANTI: ${input.cognome} ${input.nome}`;
-  const text = [
-    "Nuova iscrizione completata (quota già versata in sede).",
-    `Nome: ${input.nome} ${input.cognome}`,
-    `Email: ${input.email}`,
-    `CF: ${input.cf}`,
-    `Member ID: ${input.memberId}`,
-    "",
-    "Il socio ha compilato e firmato il modulo online.",
-  ].join("\n");
+  const { data: member, error: memberErr } = await db
+    .from("members")
+    .select("*")
+    .eq("id", input.memberId)
+    .maybeSingle();
+  if (memberErr || !member) {
+    throw new Error(memberErr?.message || "Associato non trovato per PDF contanti.");
+  }
 
-  await sendEnrollmentEmail({
-    to: recipients,
-    subject,
-    text,
-    timeoutMs: RESEND_TIMEOUT_MS,
+  const anno = currentFiscalYear();
+  const nowIso = new Date().toISOString();
+  const amountCents = QUOTA_ASSOCIATIVA_CENTESIMI;
+
+  const { data: enrollment, error: insertErr } = await db
+    .from("enrollments")
+    .insert({
+      member_id: member.id,
+      first_name: nome,
+      last_name: cognome,
+      email: email || member.email || "",
+      tax_code: cf,
+      phone: formText(input.data.telefono) || member.phone || null,
+      fiscal_year: anno,
+      amount_centesimi: amountCents,
+      payment_status: "PAGATO",
+      form_payload: input.data as Database["public"]["Tables"]["enrollments"]["Insert"]["form_payload"],
+    })
+    .select("*")
+    .single();
+  if (insertErr || !enrollment) {
+    throw new Error(insertErr?.message || "Impossibile creare enrollment contanti.");
+  }
+
+  await db
+    .from("enrollments")
+    .update({ paid_at: nowIso } as Database["public"]["Tables"]["enrollments"]["Update"])
+    .eq("id", enrollment.id);
+
+  const oggi = new Date().toLocaleDateString("it-IT", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "Europe/Rome",
   });
+  const quotaEuro = amountCents / 100;
+  const pdf = await generateEnrollmentPdf({
+    memberNumber: member.member_number,
+    nome,
+    cognome,
+    luogoNascita: formText(input.data.luogo_nascita),
+    provNascita: formText(input.data.prov_nascita).toUpperCase(),
+    dataNascita: formText(input.data.data_nascita),
+    indirizzo: formText(input.data.indirizzo),
+    cap: formText(input.data.cap),
+    citta: formText(input.data.citta),
+    prov: formText(input.data.prov).toUpperCase(),
+    cf,
+    email: email || member.email || "",
+    telefono: formText(input.data.telefono) || String(member.phone || ""),
+    corso: formText(input.data.corso),
+    tutoreNome: formText(input.data.tutore_nome),
+    tutoreCognome: formText(input.data.tutore_cognome),
+    tutoreTelefono: formText(input.data.tutore_telefono),
+    tutoreEmail: formText(input.data.tutore_email),
+    tutoreCf: formText(input.data.tutore_cf).toUpperCase(),
+    quotaLabel: `EUR ${quotaEuro.toFixed(2).replace(".", ",")}`,
+    dataOggi: oggi,
+    signatureData: formText(input.data.signatureData) || null,
+  });
+
+  const stored = await uploadEnrollmentPdf(
+    db,
+    enrollment.id,
+    pdf.filename,
+    pdf.bytes,
+  );
+  const drive = await publishEnrollmentPdfToDrive({
+    db,
+    cognome,
+    nome,
+    filename: pdf.filename,
+    bytes: pdf.bytes,
+  });
+
+  const pdfUrl = drive.pdfUrl || stored.pdfUrl;
+  await db
+    .from("enrollments")
+    .update({
+      pdf_url: pdfUrl,
+      ...(stored.storagePath ? { pdf_storage_path: stored.storagePath } : {}),
+      confirmation_email_sent: true,
+      confirmation_email_sent_at: nowIso,
+    } as Database["public"]["Tables"]["enrollments"]["Update"])
+    .eq("id", enrollment.id);
+
+  const pdfBase64 = Buffer.from(pdf.bytes).toString("base64");
+  const attachment = {
+    filename: pdf.filename,
+    content: pdfBase64,
+    content_type: "application/pdf" as const,
+  };
+
+  const adminPdfLine = pdfUrl
+    ? `PDF: ${pdfUrl}`
+    : stored.storagePath
+      ? `PDF allegato (path interno: ${stored.storagePath}).`
+      : "PDF allegato (storage/Drive non disponibili).";
+
+  const adminMail = await sendResendEmail({
+    to: segreteriaRecipients(),
+    subject: `ISCRIZIONE CONTANTI: ${cognome} ${nome}`,
+    text: [
+      "Nuova iscrizione completata (quota già versata in sede).",
+      `Nome: ${nome} ${cognome}`,
+      `Email: ${email || member.email || "—"}`,
+      `CF: ${cf}`,
+      `N. socio: ${member.member_number ?? "—"}`,
+      `Member ID: ${member.id}`,
+      adminPdfLine,
+      "",
+      "Il socio ha compilato e firmato il modulo online.",
+    ].join("\n"),
+    attachments: [attachment],
+  });
+  if (!adminMail.sent) {
+    console.error("[finalizeCashEnrollmentDocuments] email admin:", adminMail.error);
+  }
+
+  if (email) {
+    const socioMail = await sendResendEmail({
+      to: [email],
+      subject: `Conferma Iscrizione MusicPro - ${nome} ${cognome}`,
+      text: [
+        `Ciao ${nome},`,
+        "",
+        "in allegato trovi la tua domanda di iscrizione firmata.",
+        pdfUrl ? `\nCopia online:\n${pdfUrl}\n` : "",
+        "Cordiali saluti,",
+        "MusicPro Eventi",
+      ]
+        .filter((line) => line !== "")
+        .join("\n"),
+      attachments: [attachment],
+    });
+    if (!socioMail.sent) {
+      console.error("[finalizeCashEnrollmentDocuments] email socio:", socioMail.error);
+    }
+  }
 }
+
 
 /** Controlli anagrafici condivisi (form contanti / rinnovo / nuova iscrizione). */
 export function validateEnrollmentAnagrafica(data: EnrollmentFormData): string | null {
@@ -1785,6 +1956,14 @@ export async function completaInvioIscrizione(idIscrizione: string) {
     pdf.filename,
     pdf.bytes,
   );
+  const drive = await publishEnrollmentPdfToDrive({
+    db,
+    cognome: formText(form.cognome) || rec.last_name,
+    nome: formText(form.nome) || rec.first_name,
+    filename: pdf.filename,
+    bytes: pdf.bytes,
+  });
+  const durablePdfUrl = drive.pdfUrl || stored.pdfUrl;
   const pdfBase64 = Buffer.from(pdf.bytes).toString("base64");
   const attachment = {
     filename: pdf.filename,
@@ -1804,7 +1983,7 @@ export async function completaInvioIscrizione(idIscrizione: string) {
           `Ciao ${nome},`,
           "",
           "in allegato trovi la tua domanda di iscrizione firmata.",
-          stored.pdfUrl ? `\nCopia online:\n${stored.pdfUrl}\n` : "",
+          durablePdfUrl ? `\nCopia online:\n${durablePdfUrl}\n` : "",
           "Cordiali saluti,",
           "MusicPro Eventi",
         ]
@@ -1814,11 +1993,11 @@ export async function completaInvioIscrizione(idIscrizione: string) {
       })
     : { sent: false, error: "Email socio mancante" };
 
-  const adminPdfLine = stored.pdfUrl
-    ? `PDF: ${stored.pdfUrl}`
+  const adminPdfLine = durablePdfUrl
+    ? `PDF: ${durablePdfUrl}`
     : stored.storagePath
       ? `PDF allegato (path interno: ${stored.storagePath}).`
-      : "PDF allegato (storage non disponibile).";
+      : "PDF allegato (storage/Drive non disponibili).";
 
   const adminMail = await sendResendEmail({
     to: segreteriaRecipients(),
@@ -1867,8 +2046,8 @@ export async function completaInvioIscrizione(idIscrizione: string) {
   await db
     .from("enrollments")
     .update({
-      // pdf_url: short-lived convenience link; pdf_storage_path is durable truth.
-      pdf_url: stored.pdfUrl,
+      // Prefer Drive webViewLink when available; pdf_storage_path remains durable in Storage.
+      pdf_url: durablePdfUrl,
       ...(stored.storagePath
         ? { pdf_storage_path: stored.storagePath }
         : {}),
@@ -1887,7 +2066,7 @@ export async function completaInvioIscrizione(idIscrizione: string) {
     alreadySent: false,
     queued: false,
     name: nome,
-    pdfUrl: stored.pdfUrl || "",
+    pdfUrl: durablePdfUrl || "",
     emailSocioSent: socioMail.sent,
     emailAdminSent: adminMail.sent,
     memberNumber: member.member_number,
@@ -2031,18 +2210,17 @@ export async function salvaAggiornamentoAssociatoIscrizione(
     await markMagicTokenUsed(db, token);
   }
 
-  // Non bloccare la risposta su Resend (era la causa del spinner infinito).
+  // Non bloccare la risposta su PDF/email (spinner infinito in passato).
   if (loaded?.info.cashQuotaPaid) {
-    void notifyAdminCashEnrollmentCompleted({
-      nome: formText(data.nome),
-      cognome: formText(data.cognome),
-      email: formText(data.email) || member.email || "",
-      cf,
+    void finalizeCashEnrollmentDocuments({
+      db,
       memberId: member.id,
-    }).catch((notifyErr) => {
+      data,
+      cf,
+    }).catch((finalizeErr) => {
       console.error(
-        "[salvaAggiornamentoAssociatoIscrizione] notify admin:",
-        notifyErr,
+        "[salvaAggiornamentoAssociatoIscrizione] finalize PDF contanti:",
+        finalizeErr,
       );
     });
   }
@@ -2054,6 +2232,51 @@ export async function salvaAggiornamentoAssociatoIscrizione(
       "Dati aggiornati con successo. La quota per quest'anno risulta già pagata.",
     nome: formText(data.nome),
   };
+}
+
+
+/** Ops: genera PDF+Drive per iscrizione contanti già salvata senza modulo (es. Lucia Oca). */
+export async function backfillCashEnrollmentPdfForMember(
+  memberId: string,
+  data?: EnrollmentFormData,
+) {
+  const db = createServiceRoleClient();
+  const { data: member, error } = await db
+    .from("members")
+    .select("*")
+    .eq("id", memberId)
+    .maybeSingle();
+  if (error || !member) {
+    throw new Error(error?.message || "Associato non trovato.");
+  }
+  const form: EnrollmentFormData = {
+    nome: member.first_name || "",
+    cognome: member.last_name || "",
+    email: member.email || "",
+    cf: member.tax_code || "",
+    telefono: member.phone || "",
+    luogo_nascita: member.birth_place || "",
+    prov_nascita: member.birth_province || "",
+    data_nascita: member.birth_date || "",
+    indirizzo: member.address_street || "",
+    cap: member.address_postal_code || "",
+    citta: member.address_city || "",
+    prov: member.address_province || "",
+    tutore_nome: member.manual_tutor_first_name || "",
+    tutore_cognome: member.manual_tutor_last_name || "",
+    tutore_telefono: member.manual_tutor_phone || "",
+    tutore_email: member.manual_tutor_email || "",
+    tutore_cf: member.manual_tutor_tax_code || "",
+    corso: "",
+    ...(data || {}),
+  };
+  await finalizeCashEnrollmentDocuments({
+    db,
+    memberId: member.id,
+    data: form,
+    cf: String(member.tax_code || "").toUpperCase(),
+  });
+  return { success: true, memberId: member.id };
 }
 
 export async function handlePostAction(body: Record<string, unknown>) {
