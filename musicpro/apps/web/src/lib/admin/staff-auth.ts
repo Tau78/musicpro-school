@@ -18,6 +18,7 @@ async function findAuthUserByEmail(
   service: ServiceClient,
   email: string,
 ): Promise<User | null> {
+  // auth.admin.getUserByEmail non esiste in @supabase/auth-js 2.112.3 (solo listUsers / getUserById).
   const target = email.trim().toLowerCase();
   let page = 1;
   const perPage = 200;
@@ -68,11 +69,12 @@ async function linkMemberUserId(
   memberId: string,
   userId: string,
 ): Promise<void> {
-  const { error } = await service
+  const { data, error } = await service
     .from("members")
     .update({ user_id: userId })
     .eq("id", memberId)
-    .is("user_id", null);
+    .is("user_id", null)
+    .select("id");
 
   if (error) {
     if (error.code === "23505") {
@@ -81,6 +83,12 @@ async function linkMemberUserId(
       );
     }
     throw new Error(error.message);
+  }
+
+  if (!data?.length) {
+    throw new Error(
+      "Collegamento account fallito: l'associato ha già un accesso collegato oppure il link non è riuscito.",
+    );
   }
 }
 
@@ -167,6 +175,12 @@ export async function removeStaffMemberPassword(
     password: randomBytes(32).toString("base64url"),
   });
   if (error) {
-    throw new Error(error.message);
+    throw new Error(
+      `Impossibile disattivare l'accesso: ${error.message}`,
+    );
   }
+
+  // auth.admin.signOut(jwt, scope) richiede il JWT della sessione, non lo userId:
+  // senza token non si possono revocare le sessioni attive via client. La password
+  // ruotata blocca nuovi login; i refresh token esistenti restano validi fino a scadenza.
 }

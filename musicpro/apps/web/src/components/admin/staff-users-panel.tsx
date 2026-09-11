@@ -63,7 +63,7 @@ export function StaffUsersPanel({
   currentStaffMemberId,
 }: StaffUsersPanelProps) {
   const router = useRouter();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   const [rows, setRows] = useState(users);
   const [query, setQuery] = useState("");
@@ -226,6 +226,7 @@ export function StaffUsersPanel({
       addDocente ? MemberRole.Docente : null,
     ].filter((role): role is ManagedRole => role != null);
 
+    const granted: ManagedRole[] = [];
     for (const role of roles) {
       const result = await setMemberHasRole(
         supabase,
@@ -235,12 +236,23 @@ export function StaffUsersPanel({
         currentStaffMemberId,
       );
       if (!result.success) {
+        for (const grantedRole of granted) {
+          await setMemberHasRole(
+            supabase,
+            selected.id,
+            grantedRole,
+            false,
+            null,
+          );
+        }
         setAdding(false);
         setError(
           result.errorMessage ?? "Impossibile assegnare i privilegi.",
         );
+        router.refresh();
         return;
       }
+      granted.push(role);
     }
 
     if (addDocente) {
@@ -292,31 +304,36 @@ export function StaffUsersPanel({
 
     setPasswordBusy(true);
     setError(null);
-    const response = await fetch("/api/admin/users/password", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(
-        dialog.mode === "remove"
-          ? { memberId: dialog.memberId, action: "remove" }
-          : { memberId: dialog.memberId, action: "set", password },
-      ),
-    });
-    const payload = (await response.json()) as {
-      success: boolean;
-      message?: string;
-    };
-    setPasswordBusy(false);
+    try {
+      const response = await fetch("/api/admin/users/password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          dialog.mode === "remove"
+            ? { memberId: dialog.memberId, action: "remove" }
+            : { memberId: dialog.memberId, action: "set", password },
+        ),
+      });
+      const payload = (await response.json()) as {
+        success: boolean;
+        message?: string;
+      };
 
-    if (!payload.success) {
-      setError(payload.message ?? "Operazione non riuscita.");
-      return;
+      if (!payload.success) {
+        setError(payload.message ?? "Operazione non riuscita.");
+        return;
+      }
+
+      setDialog(null);
+      setPassword("");
+      setConfirmPassword("");
+      setOk(payload.message ?? "Password aggiornata.");
+      router.refresh();
+    } catch {
+      setError("Impossibile aggiornare la password. Riprova.");
+    } finally {
+      setPasswordBusy(false);
     }
-
-    setDialog(null);
-    setPassword("");
-    setConfirmPassword("");
-    setOk(payload.message ?? "Password aggiornata.");
-    router.refresh();
   }
 
   return (
