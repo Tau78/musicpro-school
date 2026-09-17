@@ -296,7 +296,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   note "dry-run: npx vercel deploy --prod --yes"
   VERCEL_URL="https://${PRODUCTION_HOST}"
 else
-  VERCEL_OUT="$(npx vercel deploy --prod --yes)"
+  VERCEL_OUT="$(npx vercel deploy --prod --non-interactive)"
   printf '%s\n' "$VERCEL_OUT"
   VERCEL_URL="$(printf '%s\n' "$VERCEL_OUT" | grep -oE 'https://[a-zA-Z0-9._-]+\.vercel\.app' | tail -1)"
   if [[ -z "$VERCEL_URL" ]]; then
