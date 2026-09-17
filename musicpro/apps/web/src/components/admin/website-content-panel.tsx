@@ -510,6 +510,21 @@ function PagesFields({
           }
         />
         <Field
+          label="Titolo corso"
+          value={kids.courseTitle}
+          onChange={(courseTitle) =>
+            onChange({ ...form, pages: { ...form.pages, kids: { ...kids, courseTitle } } })
+          }
+        />
+        <Field
+          label="Testo corso (retta, orario, classe)"
+          value={kids.course}
+          multiline
+          onChange={(course) =>
+            onChange({ ...form, pages: { ...form.pages, kids: { ...kids, course } } })
+          }
+        />
+        <Field
           label="Titolo attività"
           value={kids.activitiesTitle}
           onChange={(activitiesTitle) =>
@@ -524,6 +539,76 @@ function PagesFields({
           value={kids.activities}
           onChange={(activities) =>
             onChange({ ...form, pages: { ...form.pages, kids: { ...kids, activities } } })
+          }
+        />
+        <Field
+          label="Sopratitolo docente"
+          value={kids.teacherTitle}
+          onChange={(teacherTitle) =>
+            onChange({ ...form, pages: { ...form.pages, kids: { ...kids, teacherTitle } } })
+          }
+        />
+        <Field
+          label="Nome docente"
+          value={kids.teacherName}
+          onChange={(teacherName) =>
+            onChange({ ...form, pages: { ...form.pages, kids: { ...kids, teacherName } } })
+          }
+        />
+        <Field
+          label="Ruolo docente"
+          value={kids.teacherRole}
+          onChange={(teacherRole) =>
+            onChange({ ...form, pages: { ...form.pages, kids: { ...kids, teacherRole } } })
+          }
+        />
+        <Field
+          label="Instagram docente — testo"
+          value={kids.teacherInstagramLabel}
+          onChange={(teacherInstagramLabel) =>
+            onChange({
+              ...form,
+              pages: { ...form.pages, kids: { ...kids, teacherInstagramLabel } },
+            })
+          }
+        />
+        <Field
+          label="Instagram docente — link"
+          value={kids.teacherInstagramHref}
+          onChange={(teacherInstagramHref) =>
+            onChange({
+              ...form,
+              pages: { ...form.pages, kids: { ...kids, teacherInstagramHref } },
+            })
+          }
+        />
+        <Field
+          label="Titolo curriculum"
+          value={kids.cvTitle}
+          onChange={(cvTitle) =>
+            onChange({ ...form, pages: { ...form.pages, kids: { ...kids, cvTitle } } })
+          }
+        />
+        <LinesField
+          label="Curriculum"
+          value={kids.cv}
+          onChange={(cv) =>
+            onChange({ ...form, pages: { ...form.pages, kids: { ...kids, cv } } })
+          }
+        />
+        <Field
+          label="Titolo nota pratica"
+          value={kids.noteTitle}
+          onChange={(noteTitle) =>
+            onChange({ ...form, pages: { ...form.pages, kids: { ...kids, noteTitle } } })
+          }
+        />
+        <Field
+          label="Nota pratica (sede, associati, recuperi)"
+          value={kids.note}
+          multiline
+          onChange={(note) =>
+            onChange({ ...form, pages: { ...form.pages, kids: { ...kids, note } } })
           }
         />
         <Field

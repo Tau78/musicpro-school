@@ -329,7 +329,10 @@ export function migrateV1ToV2(v1: WebsiteHubContent): WebsiteHubDocumentV2 {
             title: v1.propedeutica.title,
             paragraphs: [v1.propedeutica.p1, v1.propedeutica.p2],
             quote: v1.propedeutica.quote,
-            ctas: [{ label: v1.propedeutica.cta, href: "index.html#scrivi" }],
+            ctas: [
+              { label: v1.propedeutica.cta, href: "index.html#scrivi" },
+              { label: "Il programma", href: "kids.html" },
+            ],
             image: v1.propedeutica.image,
             imageAlt: v1.propedeutica.imageAlt,
             layout: "text-photo",
