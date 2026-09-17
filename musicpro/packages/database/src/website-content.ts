@@ -160,8 +160,19 @@ export type WebsiteHubContent = {
       quote: string;
       p1: string;
       p2: string;
+      courseTitle: string;
+      course: string;
       activitiesTitle: string;
       activities: string[];
+      teacherTitle: string;
+      teacherName: string;
+      teacherRole: string;
+      teacherInstagramLabel: string;
+      teacherInstagramHref: string;
+      cvTitle: string;
+      cv: string[];
+      noteTitle: string;
+      note: string;
       cta: string;
     };
     canto: {
@@ -385,6 +396,9 @@ export const DEFAULT_WEBSITE_HUB_CONTENT: WebsiteHubContent = {
       quote: "«La musica è un gioco da bambini.» — François Delalande",
       p1: "Imparare ad ascoltare e ascoltarsi attraverso i giochi musicali. La musica è, innanzitutto, un’esperienza: il bambino si esprime con corpo, voce e ritmo, e si abitua all’ascolto di sé e dei suoni intorno.",
       p2: "Attraverso l’integrazione di vari linguaggi espressivi (stimolazione sonora, gesto, movimento, danza, vocalità, drammatizzazione, espressione grafico-pittorica) si sviluppa il senso ritmico, l’orecchio melodico e l’intonazione, insieme ad attenzione, coordinazione e creatività.",
+      courseTitle: "Il corso",
+      course:
+        "€50 al mese: 1 ora a settimana, per 4 incontri, in una classe di massimo 4 bambini con la musicoterapeuta ed educatrice Anna Forloni.",
       activitiesTitle: "Attività",
       activities: [
         "Educazione all’ascolto: esplorazione dei suoni intorno e degli strumenti, attenzione uditiva, riconoscimento timbrico, percezione melodica.",
@@ -394,6 +408,21 @@ export const DEFAULT_WEBSITE_HUB_CONTENT: WebsiteHubContent = {
         "Applicazione tattile agli strumenti: conoscenza, esplorazione, riconoscimento.",
         "Alfabetizzazione musicale: primi elementi del codice, suoni della scala e pentagramma.",
       ],
+      teacherTitle: "La docente",
+      teacherName: "Anna Forloni",
+      teacherRole: "Musicoterapeuta ed educatrice",
+      teacherInstagramLabel: "Profilo Instagram",
+      teacherInstagramHref: "https://www.instagram.com/annina_forloni/",
+      cvTitle: "Curriculum",
+      cv: [
+        "Aprile 2020 – Novembre 2020 — Corso intensivo per la qualifica di Educatore Professionale Socio-Pedagogico. Università degli Studi, Roma.",
+        "Ottobre 2016 – Maggio 2018 — Biennio di specializzazione: Musicoterapia in Oncologia e Cure Palliative.",
+        "Ottobre 2012 – Maggio 2015 — Corso Triennale di Musicoterapia A.P.I.M. Diploma in Musicoterapia.",
+        "2009–2012 — Facoltà di Lettere e Filosofia dell’Università di Torino. Laurea Specialistica in Filosofia – Estetica Musicale.",
+        "2004–2009 — Facoltà di Lettere e Filosofia dell’Università di Torino. Laurea Triennale in Filosofia Baccalaureato.",
+      ],
+      noteTitle: "Come funziona",
+      note: "Tutte le lezioni si tengono in sede (Zona Loreto 42, Carasco) e sono dedicate ai soli associati. Durata: 1 ora su base settimanale. Giorno e ora si fissano con il docente: scrivici per un incontro gratuito e per iscriverti. La retta è mensile (4 incontri); nei mesi con 5 lunedì o martedì cerchiamo di recuperare le lezioni, quando possibile.",
       cta: "Chiedi una prova",
     },
     canto: {
