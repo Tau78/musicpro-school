@@ -93,17 +93,32 @@ export function BulkMessageModal({
         }),
       });
 
-      const data = (await resp.json()) as {
+      const raw = await resp.text();
+      let data: {
         success?: boolean;
         message?: string;
         sent?: number;
         failed?: number;
         skipped?: number;
         warnings?: string[];
-      };
+      } = {};
+      try {
+        data = raw ? (JSON.parse(raw) as typeof data) : {};
+      } catch {
+        setError(
+          `Invio fallito (${resp.status}${resp.statusText ? ` ${resp.statusText}` : ""}).`,
+        );
+        setSending(false);
+        return;
+      }
 
       if (!resp.ok || !data.success) {
-        setError(data.message ?? "Invio fallito.");
+        const serverMessage = data.message?.trim();
+        setError(
+          serverMessage && !/^bad request$/i.test(serverMessage)
+            ? serverMessage
+            : "Invio non riuscito. Se stavi scrivendo a molti associati, riprova.",
+        );
         setSending(false);
         return;
       }
