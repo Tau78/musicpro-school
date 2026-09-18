@@ -9,6 +9,9 @@ import {
 import { canManageMembers } from "@/lib/admin/roles";
 import { createClient } from "@/lib/supabase/server";
 
+export const runtime = "nodejs";
+export const maxDuration = 120;
+
 interface SendBody {
   memberIds?: string[];
   channel?: string;
@@ -72,16 +75,21 @@ export async function POST(request: Request) {
   });
 
   if (!result.success) {
+    const message = result.errorMessage ?? "Invio fallito";
+    const isValidation =
+      /destinatario|obbligatorio|canale non valido|associato trovato/i.test(
+        message,
+      );
     return NextResponse.json(
       {
         success: false,
-        message: result.errorMessage ?? "Invio fallito",
+        message,
         sent: result.sent,
         failed: result.failed,
         skipped: result.skipped,
         campaignId: result.campaignId,
       },
-      { status: 400 },
+      { status: isValidation ? 400 : 502 },
     );
   }
 

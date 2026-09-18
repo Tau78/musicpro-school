@@ -12,6 +12,41 @@ export interface PlaceholderContext {
   memberNumber: number | null;
 }
 
+/**
+ * PostgREST `.in()` is a GET query-string. Too many UUIDs → HTTP 400 "Bad Request"
+ * (URL over ~8KB). Keep chunks well under that.
+ */
+export const POSTGREST_IN_CHUNK = 50;
+const RECIPIENT_INSERT_CHUNK = 100;
+const RESEND_BATCH_CHUNK = 100;
+
+export function chunkArray<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  const n = Math.max(1, size);
+  for (let i = 0; i < items.length; i += n) {
+    chunks.push(items.slice(i, i + n));
+  }
+  return chunks;
+}
+
+export function isPlausibleEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+function publicDbError(
+  error: { message?: string; details?: string } | null | undefined,
+  fallback: string,
+): string {
+  const message = error?.message?.trim() ?? "";
+  const details = error?.details?.trim() ?? "";
+  const combined = [message, details].filter(Boolean).join(" — ");
+  if (!combined) return fallback;
+  if (/bad request/i.test(combined)) {
+    return `${fallback} Elenco destinatari troppo lungo per una sola richiesta.`;
+  }
+  return combined;
+}
+
 export interface SendBulkMessageInput {
   memberIds: string[];
   channel: MessageChannel;
@@ -144,6 +179,143 @@ async function sendEmailViaResend(params: {
   }
 
   return { ok: true };
+}
+
+type EmailBatchItem = {
+  memberId: string;
+  to: string;
+  subject: string;
+  body: string;
+};
+
+type EmailSendOutcome = { ok: true } | { ok: false; error: string; skipped?: boolean };
+
+/**
+ * Fino a 100 email per chiamata. Se il batch intero fallisce (es. un indirizzo
+ * invalido), riprova i singoli della stessa fetta.
+ */
+async function sendEmailBatchViaResend(
+  from: string,
+  items: EmailBatchItem[],
+): Promise<Map<string, EmailSendOutcome>> {
+  const outcomes = new Map<string, EmailSendOutcome>();
+  if (items.length === 0) return outcomes;
+
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  if (!apiKey) {
+    for (const item of items) {
+      outcomes.set(item.memberId, {
+        ok: false,
+        skipped: true,
+        error: "RESEND_API_KEY non configurata",
+      });
+    }
+    return outcomes;
+  }
+
+  for (const chunk of chunkArray(items, RESEND_BATCH_CHUNK)) {
+    const res = await fetch("https://api.resend.com/emails/batch", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(
+        chunk.map((item) => ({
+          from,
+          to: [item.to],
+          subject: item.subject,
+          text: item.body,
+          html: textToHtml(item.body),
+        })),
+      ),
+    });
+
+    if (res.ok) {
+      for (const item of chunk) {
+        outcomes.set(item.memberId, { ok: true });
+      }
+      continue;
+    }
+
+    for (const item of chunk) {
+      outcomes.set(
+        item.memberId,
+        await sendEmailViaResend({
+          from,
+          to: item.to,
+          subject: item.subject,
+          body: item.body,
+        }),
+      );
+    }
+  }
+
+  return outcomes;
+}
+
+async function fetchMembersForSend(
+  client: MessagingClient,
+  memberIds: string[],
+): Promise<{ members: MemberSendRow[]; errorMessage?: string }> {
+  const members: MemberSendRow[] = [];
+  for (const chunk of chunkArray(memberIds, POSTGREST_IN_CHUNK)) {
+    const { data, error } = await client
+      .from("members")
+      .select("id, first_name, last_name, member_number, email, telegram_chat_id")
+      .in("id", chunk);
+    if (error) {
+      return {
+        members: [],
+        errorMessage: publicDbError(
+          error,
+          "Impossibile caricare i destinatari.",
+        ),
+      };
+    }
+    members.push(...((data ?? []) as MemberSendRow[]));
+  }
+  return { members };
+}
+
+async function insertRecipients(
+  client: MessagingClient,
+  rows: Array<{
+    campaign_id: string;
+    member_id: string;
+    email: string | null;
+    telegram_chat_id: string | null;
+  }>,
+): Promise<{ errorMessage?: string }> {
+  for (const chunk of chunkArray(rows, RECIPIENT_INSERT_CHUNK)) {
+    const { error } = await client
+      .from("message_campaign_recipients")
+      .insert(chunk);
+    if (error) {
+      return {
+        errorMessage: publicDbError(
+          error,
+          "Impossibile salvare i destinatari della campagna.",
+        ),
+      };
+    }
+  }
+  return {};
+}
+
+async function markRecipients(
+  client: MessagingClient,
+  campaignId: string,
+  memberIds: string[],
+  patch: { sent_at?: string; error_message?: string | null },
+) {
+  for (const chunk of chunkArray(memberIds, POSTGREST_IN_CHUNK)) {
+    await client
+      .from("message_campaign_recipients")
+      .update(patch)
+      .eq("campaign_id", campaignId)
+      .in("member_id", chunk);
+  }
 }
 
 export type SendSingleEmailInput = {
@@ -320,22 +492,18 @@ export async function sendBulkMessages(
     };
   }
 
-  const { data: membersData, error: membersError } = await client
-    .from("members")
-    .select("id, first_name, last_name, member_number, email, telegram_chat_id")
-    .in("id", memberIds);
-
-  if (membersError) {
+  const loaded = await fetchMembersForSend(client, memberIds);
+  if (loaded.errorMessage) {
     return {
       success: false,
       sent: 0,
       failed: 0,
       skipped: 0,
-      errorMessage: membersError.message || "Impossibile caricare i destinatari.",
+      errorMessage: loaded.errorMessage,
     };
   }
 
-  const members = (membersData ?? []) as MemberSendRow[];
+  const members = loaded.members;
   if (members.length === 0) {
     return {
       success: false,
@@ -370,7 +538,10 @@ export async function sendBulkMessages(
       subject: subject || "(Telegram)",
       body,
       audiences: ["associati"],
-      audience_filter: { member_ids: memberIds, channel: input.channel },
+      audience_filter: {
+        channel: input.channel,
+        member_count: memberIds.length,
+      },
       status: "sending",
       created_by: input.createdBy ?? null,
     })
@@ -383,8 +554,10 @@ export async function sendBulkMessages(
       sent: 0,
       failed: 0,
       skipped: 0,
-      errorMessage:
-        campaignError?.message || "Impossibile creare la campagna messaggi.",
+      errorMessage: publicDbError(
+        campaignError,
+        "Impossibile creare la campagna messaggi.",
+      ),
     };
   }
 
@@ -397,11 +570,8 @@ export async function sendBulkMessages(
     telegram_chat_id: m.telegram_chat_id,
   }));
 
-  const { error: recipientsError } = await client
-    .from("message_campaign_recipients")
-    .insert(recipientRows);
-
-  if (recipientsError) {
+  const inserted = await insertRecipients(client, recipientRows);
+  if (inserted.errorMessage) {
     await client
       .from("message_campaigns")
       .update({ status: "cancelled" })
@@ -413,88 +583,134 @@ export async function sendBulkMessages(
       failed: 0,
       skipped: 0,
       campaignId,
-      errorMessage:
-        recipientsError.message ||
-        "Impossibile salvare i destinatari della campagna.",
+      errorMessage: inserted.errorMessage,
     };
   }
-
-  const emailFrom =
-    input.channel === "email" ? await resolveEmailFrom(client) : "";
 
   let sent = 0;
   let failed = 0;
   let skipped = 0;
 
-  for (const member of members) {
-    const ctx: PlaceholderContext = {
-      firstName: member.first_name,
-      lastName: member.last_name,
-      memberNumber: member.member_number,
-    };
-    const personalizedSubject = applyMessagePlaceholders(subject, ctx);
-    const personalizedBody = applyMessagePlaceholders(body, ctx);
+  if (input.channel === "email") {
+    const emailFrom = await resolveEmailFrom(client);
+    const skippedIds: string[] = [];
+    const toSend: EmailBatchItem[] = [];
 
-    let result: { ok: true } | { ok: false; error: string; skipped?: boolean };
-
-    if (input.channel === "email") {
-      if (!member.email?.trim()) {
+    for (const member of members) {
+      const email = member.email?.trim() ?? "";
+      if (!email || !isPlausibleEmail(email)) {
         skipped += 1;
-        await client
-          .from("message_campaign_recipients")
-          .update({ error_message: "Email mancante" })
-          .eq("campaign_id", campaignId)
-          .eq("member_id", member.id);
+        skippedIds.push(member.id);
         continue;
       }
-
-      result = await sendEmailViaResend({
-        from: emailFrom,
-        to: member.email.trim(),
-        subject: personalizedSubject,
-        body: personalizedBody,
+      const ctx: PlaceholderContext = {
+        firstName: member.first_name,
+        lastName: member.last_name,
+        memberNumber: member.member_number,
+      };
+      toSend.push({
+        memberId: member.id,
+        to: email,
+        subject: applyMessagePlaceholders(subject, ctx),
+        body: applyMessagePlaceholders(body, ctx),
       });
-    } else {
+    }
+
+    if (skippedIds.length > 0) {
+      await markRecipients(client, campaignId, skippedIds, {
+        error_message: "Email mancante o non valida",
+      });
+    }
+
+    const outcomes = await sendEmailBatchViaResend(emailFrom, toSend);
+    const sentIds: string[] = [];
+    const errorsByMessage = new Map<string, string[]>();
+
+    function recordError(memberId: string, message: string) {
+      const list = errorsByMessage.get(message) ?? [];
+      list.push(memberId);
+      errorsByMessage.set(message, list);
+    }
+
+    for (const item of toSend) {
+      const result = outcomes.get(item.memberId);
+      if (!result) {
+        failed += 1;
+        recordError(item.memberId, "Esito invio assente");
+        continue;
+      }
+      if (result.ok) {
+        sent += 1;
+        sentIds.push(item.memberId);
+      } else if (result.skipped) {
+        skipped += 1;
+        recordError(item.memberId, result.error);
+      } else {
+        failed += 1;
+        recordError(item.memberId, result.error);
+      }
+    }
+
+    if (sentIds.length > 0) {
+      await markRecipients(client, campaignId, sentIds, {
+        sent_at: new Date().toISOString(),
+        error_message: null,
+      });
+    }
+    for (const [error_message, ids] of errorsByMessage) {
+      await markRecipients(client, campaignId, ids, { error_message });
+    }
+  } else {
+    const skippedIds: string[] = [];
+    for (const member of members) {
+      const ctx: PlaceholderContext = {
+        firstName: member.first_name,
+        lastName: member.last_name,
+        memberNumber: member.member_number,
+      };
+      const personalizedBody = applyMessagePlaceholders(body, ctx);
+
       if (!member.telegram_chat_id?.trim()) {
         skipped += 1;
-        await client
-          .from("message_campaign_recipients")
-          .update({ error_message: "Telegram chat ID mancante" })
-          .eq("campaign_id", campaignId)
-          .eq("member_id", member.id);
+        skippedIds.push(member.id);
         continue;
       }
 
-      result = await sendTelegramMessage(
+      const result = await sendTelegramMessage(
         member.telegram_chat_id.trim(),
         personalizedBody,
       );
-    }
 
-    if (result.ok) {
-      sent += 1;
-      await client
-        .from("message_campaign_recipients")
-        .update({
-          sent_at: new Date().toISOString(),
-          error_message: null,
-        })
-        .eq("campaign_id", campaignId)
-        .eq("member_id", member.id);
-    } else if (result.skipped) {
-      skipped += 1;
-      await client
-        .from("message_campaign_recipients")
-        .update({ error_message: result.error })
-        .eq("campaign_id", campaignId)
-        .eq("member_id", member.id);
-    } else {
-      failed += 1;
-      await client
-        .from("message_campaign_recipients")
-        .update({ error_message: result.error })
-        .eq("campaign_id", campaignId)
-        .eq("member_id", member.id);
+      if (result.ok) {
+        sent += 1;
+        await client
+          .from("message_campaign_recipients")
+          .update({
+            sent_at: new Date().toISOString(),
+            error_message: null,
+          })
+          .eq("campaign_id", campaignId)
+          .eq("member_id", member.id);
+      } else if (result.skipped) {
+        skipped += 1;
+        await client
+          .from("message_campaign_recipients")
+          .update({ error_message: result.error })
+          .eq("campaign_id", campaignId)
+          .eq("member_id", member.id);
+      } else {
+        failed += 1;
+        await client
+          .from("message_campaign_recipients")
+          .update({ error_message: result.error })
+          .eq("campaign_id", campaignId)
+          .eq("member_id", member.id);
+      }
+    }
+    if (skippedIds.length > 0) {
+      await markRecipients(client, campaignId, skippedIds, {
+        error_message: "Telegram chat ID mancante",
+      });
     }
   }
 
