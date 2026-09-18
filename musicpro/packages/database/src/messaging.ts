@@ -47,6 +47,27 @@ function publicDbError(
   return combined;
 }
 
+export function googleSmtpEnvConfigured(): boolean {
+  return Boolean(
+    process.env.GOOGLE_SMTP_USER?.trim() &&
+      process.env.GOOGLE_SMTP_APP_PASSWORD?.trim(),
+  );
+}
+
+export function resendConfigured(): boolean {
+  return Boolean(process.env.RESEND_API_KEY?.trim());
+}
+
+export type EmailSendOutcome =
+  | { ok: true }
+  | { ok: false; error: string; skipped?: boolean };
+
+export type DeliverEmailFn = (item: {
+  to: string;
+  subject: string;
+  body: string;
+}) => Promise<EmailSendOutcome>;
+
 export interface SendBulkMessageInput {
   memberIds: string[];
   channel: MessageChannel;
@@ -55,6 +76,12 @@ export interface SendBulkMessageInput {
   templateId?: string | null;
   campaignName?: string;
   createdBy?: string | null;
+  /** Riprende una campagna già creata (invio a lotti). */
+  campaignId?: string | null;
+  /** Invio SMTP/altro se Resend manca. */
+  sendEmail?: DeliverEmailFn;
+  /** Stop e restituisci i rimanenti (default 80s). */
+  timeBudgetMs?: number;
 }
 
 export interface SendBulkMessageResult {
@@ -65,6 +92,7 @@ export interface SendBulkMessageResult {
   campaignId?: string;
   errorMessage?: string;
   warnings?: string[];
+  pendingMemberIds?: string[];
 }
 
 type MemberSendRow = {
@@ -108,7 +136,10 @@ function textToHtml(text: string): string {
 async function resolveEmailFrom(
   client: MessagingClient,
 ): Promise<string> {
-  const envFrom = process.env.EMAIL_FROM?.trim() || process.env.BOOKING_EMAIL_FROM?.trim();
+  const envFrom =
+    process.env.EMAIL_FROM?.trim() ||
+    process.env.GOOGLE_SMTP_FROM?.trim() ||
+    process.env.BOOKING_EMAIL_FROM?.trim();
   if (envFrom) return envFrom;
 
   const { data } = await client
@@ -188,32 +219,61 @@ type EmailBatchItem = {
   body: string;
 };
 
-type EmailSendOutcome = { ok: true } | { ok: false; error: string; skipped?: boolean };
-
 /**
- * Fino a 100 email per chiamata. Se il batch intero fallisce (es. un indirizzo
- * invalido), riprova i singoli della stessa fetta.
+ * Resend a lotti, altrimenti callback SMTP. Rispetta un deadline per non
+ * far scadere la funzione Vercel a metà di centinaia di invii.
  */
-async function sendEmailBatchViaResend(
+async function deliverEmails(
   from: string,
   items: EmailBatchItem[],
-): Promise<Map<string, EmailSendOutcome>> {
+  fallback: DeliverEmailFn | undefined,
+  deadlineMs: number,
+): Promise<{
+  outcomes: Map<string, EmailSendOutcome>;
+  pendingIds: string[];
+}> {
   const outcomes = new Map<string, EmailSendOutcome>();
-  if (items.length === 0) return outcomes;
+  const pendingIds: string[] = [];
+  if (items.length === 0) return { outcomes, pendingIds };
 
   const apiKey = process.env.RESEND_API_KEY?.trim();
+
   if (!apiKey) {
-    for (const item of items) {
-      outcomes.set(item.memberId, {
-        ok: false,
-        skipped: true,
-        error: "RESEND_API_KEY non configurata",
-      });
+    if (!fallback) {
+      for (const item of items) {
+        outcomes.set(item.memberId, {
+          ok: false,
+          skipped: true,
+          error: "Nessun trasporto email configurato",
+        });
+      }
+      return { outcomes, pendingIds };
     }
-    return outcomes;
+
+    for (let i = 0; i < items.length; i++) {
+      if (Date.now() >= deadlineMs) {
+        pendingIds.push(...items.slice(i).map((item) => item.memberId));
+        break;
+      }
+      const item = items[i]!;
+      outcomes.set(
+        item.memberId,
+        await fallback({
+          to: item.to,
+          subject: item.subject,
+          body: item.body,
+        }),
+      );
+    }
+    return { outcomes, pendingIds };
   }
 
   for (const chunk of chunkArray(items, RESEND_BATCH_CHUNK)) {
+    if (Date.now() >= deadlineMs) {
+      pendingIds.push(...chunk.map((item) => item.memberId));
+      continue;
+    }
+
     const res = await fetch("https://api.resend.com/emails/batch", {
       method: "POST",
       headers: {
@@ -239,6 +299,10 @@ async function sendEmailBatchViaResend(
     }
 
     for (const item of chunk) {
+      if (Date.now() >= deadlineMs) {
+        pendingIds.push(item.memberId);
+        continue;
+      }
       outcomes.set(
         item.memberId,
         await sendEmailViaResend({
@@ -251,7 +315,7 @@ async function sendEmailBatchViaResend(
     }
   }
 
-  return outcomes;
+  return { outcomes, pendingIds };
 }
 
 async function fetchMembersForSend(
@@ -515,10 +579,20 @@ export async function sendBulkMessages(
   }
 
   const warnings: string[] = [];
-  if (input.channel === "email" && !process.env.RESEND_API_KEY?.trim()) {
-    warnings.push(
-      "RESEND_API_KEY assente: le email verranno conteggiate come saltate.",
-    );
+  if (input.channel === "email") {
+    if (!resendConfigured() && !input.sendEmail) {
+      return {
+        success: false,
+        sent: 0,
+        failed: 0,
+        skipped: 0,
+        errorMessage:
+          "Nessun trasporto email. Configura GOOGLE_SMTP_USER / GOOGLE_SMTP_APP_PASSWORD (già usati per l'iscrizione) oppure RESEND_API_KEY.",
+      };
+    }
+    if (!resendConfigured() && input.sendEmail) {
+      warnings.push("Invio via SMTP Google Workspace (Resend non è configurato).");
+    }
   }
   if (input.channel === "telegram" && !process.env.TELEGRAM_BOT_TOKEN?.trim()) {
     warnings.push(
@@ -526,70 +600,77 @@ export async function sendBulkMessages(
     );
   }
 
-  const campaignName =
-    input.campaignName?.trim() ||
-    `Messaggio ${input.channel} ${new Date().toLocaleString("it-IT")}`;
+  const existingCampaignId = input.campaignId?.trim() || "";
+  let campaignId = existingCampaignId;
 
-  const { data: campaign, error: campaignError } = await client
-    .from("message_campaigns")
-    .insert({
-      template_id: input.templateId ?? null,
-      name: campaignName,
-      subject: subject || "(Telegram)",
-      body,
-      audiences: ["associati"],
-      audience_filter: {
-        channel: input.channel,
-        member_count: memberIds.length,
-      },
-      status: "sending",
-      created_by: input.createdBy ?? null,
-    })
-    .select("id")
-    .single();
+  if (!campaignId) {
+    const campaignName =
+      input.campaignName?.trim() ||
+      `Messaggio ${input.channel} ${new Date().toLocaleString("it-IT")}`;
 
-  if (campaignError || !campaign) {
-    return {
-      success: false,
-      sent: 0,
-      failed: 0,
-      skipped: 0,
-      errorMessage: publicDbError(
-        campaignError,
-        "Impossibile creare la campagna messaggi.",
-      ),
-    };
-  }
-
-  const campaignId = campaign.id;
-
-  const recipientRows = members.map((m) => ({
-    campaign_id: campaignId,
-    member_id: m.id,
-    email: m.email,
-    telegram_chat_id: m.telegram_chat_id,
-  }));
-
-  const inserted = await insertRecipients(client, recipientRows);
-  if (inserted.errorMessage) {
-    await client
+    const { data: campaign, error: campaignError } = await client
       .from("message_campaigns")
-      .update({ status: "cancelled" })
-      .eq("id", campaignId);
+      .insert({
+        template_id: input.templateId ?? null,
+        name: campaignName,
+        subject: subject || "(Telegram)",
+        body,
+        audiences: ["associati"],
+        audience_filter: {
+          channel: input.channel,
+          member_count: memberIds.length,
+        },
+        status: "sending",
+        created_by: input.createdBy ?? null,
+      })
+      .select("id")
+      .single();
 
-    return {
-      success: false,
-      sent: 0,
-      failed: 0,
-      skipped: 0,
-      campaignId,
-      errorMessage: inserted.errorMessage,
-    };
+    if (campaignError || !campaign) {
+      return {
+        success: false,
+        sent: 0,
+        failed: 0,
+        skipped: 0,
+        errorMessage: publicDbError(
+          campaignError,
+          "Impossibile creare la campagna messaggi.",
+        ),
+      };
+    }
+
+    campaignId = campaign.id;
+
+    const recipientRows = members.map((m) => ({
+      campaign_id: campaignId,
+      member_id: m.id,
+      email: m.email,
+      telegram_chat_id: m.telegram_chat_id,
+    }));
+
+    const inserted = await insertRecipients(client, recipientRows);
+    if (inserted.errorMessage) {
+      await client
+        .from("message_campaigns")
+        .update({ status: "cancelled" })
+        .eq("id", campaignId);
+
+      return {
+        success: false,
+        sent: 0,
+        failed: 0,
+        skipped: 0,
+        campaignId,
+        errorMessage: inserted.errorMessage,
+      };
+    }
   }
 
   let sent = 0;
   let failed = 0;
   let skipped = 0;
+  let pendingMemberIds: string[] = [];
+  const deadlineMs = Date.now() + Math.max(5_000, input.timeBudgetMs ?? 80_000);
 
   if (input.channel === "email") {
     const emailFrom = await resolveEmailFrom(client);
@@ -622,7 +703,14 @@ export async function sendBulkMessages(
       });
     }
 
-    const outcomes = await sendEmailBatchViaResend(emailFrom, toSend);
+    const { outcomes, pendingIds } = await deliverEmails(
+      emailFrom,
+      toSend,
+      input.sendEmail,
+      deadlineMs,
+    );
+    pendingMemberIds = pendingIds;
+    const pendingSet = new Set(pendingIds);
     const sentIds: string[] = [];
     const errorsByMessage = new Map<string, string[]>();
 
@@ -633,6 +721,7 @@ export async function sendBulkMessages(
     }
 
     for (const item of toSend) {
+      if (pendingSet.has(item.memberId)) continue;
       const result = outcomes.get(item.memberId);
       if (!result) {
         failed += 1;
@@ -662,22 +751,33 @@ export async function sendBulkMessages(
     }
   } else {
     const skippedIds: string[] = [];
-    for (const member of members) {
+    const telegramQueue = members.filter((member) => {
+      if (member.telegram_chat_id?.trim()) return true;
+      skipped += 1;
+      skippedIds.push(member.id);
+      return false;
+    });
+
+    if (skippedIds.length > 0) {
+      await markRecipients(client, campaignId, skippedIds, {
+        error_message: "Telegram chat ID mancante",
+      });
+    }
+
+    for (let i = 0; i < telegramQueue.length; i++) {
+      if (Date.now() >= deadlineMs) {
+        pendingMemberIds = telegramQueue.slice(i).map((m) => m.id);
+        break;
+      }
+      const member = telegramQueue[i]!;
       const ctx: PlaceholderContext = {
         firstName: member.first_name,
         lastName: member.last_name,
         memberNumber: member.member_number,
       };
       const personalizedBody = applyMessagePlaceholders(body, ctx);
-
-      if (!member.telegram_chat_id?.trim()) {
-        skipped += 1;
-        skippedIds.push(member.id);
-        continue;
-      }
-
       const result = await sendTelegramMessage(
-        member.telegram_chat_id.trim(),
+        member.telegram_chat_id!.trim(),
         personalizedBody,
       );
 
@@ -707,19 +807,19 @@ export async function sendBulkMessages(
           .eq("member_id", member.id);
       }
     }
-    if (skippedIds.length > 0) {
-      await markRecipients(client, campaignId, skippedIds, {
-        error_message: "Telegram chat ID mancante",
-      });
-    }
   }
 
+  const stillSending = pendingMemberIds.length > 0;
   await client
     .from("message_campaigns")
-    .update({
-      status: "sent",
-      sent_at: new Date().toISOString(),
-    })
+    .update(
+      stillSending
+        ? { status: "sending" }
+        : {
+            status: "sent",
+            sent_at: new Date().toISOString(),
+          },
+    )
     .eq("id", campaignId);
 
   return {
@@ -728,6 +828,7 @@ export async function sendBulkMessages(
     failed,
     skipped,
     campaignId,
+    pendingMemberIds: stillSending ? pendingMemberIds : undefined,
     warnings: warnings.length > 0 ? warnings : undefined,
   };
 }

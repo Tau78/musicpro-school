@@ -30,7 +30,7 @@ const nextConfig: NextConfig = {
       "musicpro/node_modules/next/dist/server/**/*",
     ],
   },
-  serverExternalPackages: ["stripe"],
+  serverExternalPackages: ["stripe", "nodemailer"],
 };
 
 export default nextConfig;

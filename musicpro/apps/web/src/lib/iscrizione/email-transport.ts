@@ -173,3 +173,20 @@ export async function sendEnrollmentEmail(params: {
     error: "Nessun trasporto email (RESEND_API_KEY o GOOGLE_SMTP_*)",
   };
 }
+
+/** Connessione SMTP riutilizzabile per invii massivi (pool). */
+export function createGoogleSmtpTransport() {
+  if (!googleSmtpConfigured()) return null;
+  return nodemailer.createTransport({
+    host: "smtp.gmail.com",
+    port: 587,
+    secure: false,
+    requireTLS: true,
+    pool: true,
+    maxConnections: 1,
+    auth: {
+      user: process.env.GOOGLE_SMTP_USER!.trim(),
+      pass: process.env.GOOGLE_SMTP_APP_PASSWORD!.trim(),
+    },
+  });
+}

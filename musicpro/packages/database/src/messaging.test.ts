@@ -4,8 +4,10 @@ import { test } from "node:test";
 import {
   applyMessagePlaceholders,
   chunkArray,
+  googleSmtpEnvConfigured,
   isPlausibleEmail,
   POSTGREST_IN_CHUNK,
+  resendConfigured,
 } from "./messaging.ts";
 
 test("chunkArray spezza gli id sotto il limite PostgREST", () => {
@@ -41,4 +43,29 @@ test("applyMessagePlaceholders sostituisce nome e numero", () => {
     }),
     "Ciao Anna Rossi n. 12",
   );
+});
+
+test("googleSmtpEnvConfigured e resendConfigured leggono env", () => {
+  const prevResend = process.env.RESEND_API_KEY;
+  const prevUser = process.env.GOOGLE_SMTP_USER;
+  const prevPass = process.env.GOOGLE_SMTP_APP_PASSWORD;
+  try {
+    delete process.env.RESEND_API_KEY;
+    delete process.env.GOOGLE_SMTP_USER;
+    delete process.env.GOOGLE_SMTP_APP_PASSWORD;
+    assert.equal(resendConfigured(), false);
+    assert.equal(googleSmtpEnvConfigured(), false);
+
+    process.env.GOOGLE_SMTP_USER = "mauro@example.com";
+    process.env.GOOGLE_SMTP_APP_PASSWORD = "xxxx";
+    assert.equal(googleSmtpEnvConfigured(), true);
+    assert.equal(resendConfigured(), false);
+  } finally {
+    if (prevResend === undefined) delete process.env.RESEND_API_KEY;
+    else process.env.RESEND_API_KEY = prevResend;
+    if (prevUser === undefined) delete process.env.GOOGLE_SMTP_USER;
+    else process.env.GOOGLE_SMTP_USER = prevUser;
+    if (prevPass === undefined) delete process.env.GOOGLE_SMTP_APP_PASSWORD;
+    else process.env.GOOGLE_SMTP_APP_PASSWORD = prevPass;
+  }
 });

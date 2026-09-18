@@ -7,6 +7,11 @@ import {
 } from "@musicpro/database";
 
 import { canManageMembers } from "@/lib/admin/roles";
+import {
+  createGoogleSmtpTransport,
+  enrollmentFromAddress,
+  googleSmtpConfigured,
+} from "@/lib/iscrizione/email-transport";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -19,6 +24,16 @@ interface SendBody {
   body?: string;
   templateId?: string | null;
   campaignName?: string;
+  campaignId?: string | null;
+}
+
+function textToHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/\r\n|\r|\n/g, "<br />");
 }
 
 export async function POST(request: Request) {
@@ -64,42 +79,84 @@ export async function POST(request: Request) {
     ? body.memberIds.filter((id): id is string => typeof id === "string")
     : [];
 
-  const result = await sendBulkMessages(supabase, {
-    memberIds,
-    channel,
-    subject: body.subject ?? "",
-    body: body.body ?? "",
-    templateId: body.templateId ?? null,
-    campaignName: body.campaignName,
-    createdBy: currentMember.id,
-  });
+  const smtp =
+    channel === "email" &&
+    !process.env.RESEND_API_KEY?.trim() &&
+    googleSmtpConfigured()
+      ? createGoogleSmtpTransport()
+      : null;
+  const from = smtp ? enrollmentFromAddress() : "";
 
-  if (!result.success) {
-    const message = result.errorMessage ?? "Invio fallito";
-    const isValidation =
-      /destinatario|obbligatorio|canale non valido|associato trovato/i.test(
-        message,
+  try {
+    const result = await sendBulkMessages(supabase, {
+      memberIds,
+      channel,
+      subject: body.subject ?? "",
+      body: body.body ?? "",
+      templateId: body.templateId ?? null,
+      campaignName: body.campaignName,
+      campaignId: body.campaignId,
+      createdBy: currentMember.id,
+      timeBudgetMs: 80_000,
+      sendEmail: smtp
+        ? async (item) => {
+            try {
+              await smtp.sendMail({
+                from,
+                to: item.to,
+                subject: item.subject,
+                text: item.body,
+                html: textToHtml(item.body),
+              });
+              return { ok: true as const };
+            } catch (err) {
+              return {
+                ok: false as const,
+                error:
+                  err instanceof Error ? err.message : "Invio SMTP fallito",
+              };
+            }
+          }
+        : undefined,
+    });
+
+    if (!result.success) {
+      const message = result.errorMessage ?? "Invio fallito";
+      const isValidation =
+        /destinatario|obbligatorio|canale non valido|associato trovato|trasporto email/i.test(
+          message,
+        );
+      return NextResponse.json(
+        {
+          success: false,
+          message,
+          sent: result.sent,
+          failed: result.failed,
+          skipped: result.skipped,
+          campaignId: result.campaignId,
+          pendingMemberIds: result.pendingMemberIds,
+        },
+        { status: isValidation ? 400 : 502 },
       );
-    return NextResponse.json(
-      {
-        success: false,
-        message,
-        sent: result.sent,
-        failed: result.failed,
-        skipped: result.skipped,
-        campaignId: result.campaignId,
-      },
-      { status: isValidation ? 400 : 502 },
-    );
-  }
+    }
 
-  return NextResponse.json({
-    success: true,
-    sent: result.sent,
-    failed: result.failed,
-    skipped: result.skipped,
-    campaignId: result.campaignId,
-    warnings: result.warnings,
-    message: `Invio completato. Inviati: ${result.sent}, falliti: ${result.failed}, saltati: ${result.skipped}.`,
-  });
+    const pending = result.pendingMemberIds?.length ?? 0;
+    const doneLabel =
+      pending > 0
+        ? `Invio in corso. Inviati: ${result.sent}, falliti: ${result.failed}, saltati: ${result.skipped}, in coda: ${pending}.`
+        : `Invio completato. Inviati: ${result.sent}, falliti: ${result.failed}, saltati: ${result.skipped}.`;
+
+    return NextResponse.json({
+      success: true,
+      sent: result.sent,
+      failed: result.failed,
+      skipped: result.skipped,
+      campaignId: result.campaignId,
+      pendingMemberIds: result.pendingMemberIds ?? [],
+      warnings: result.warnings,
+      message: doneLabel,
+    });
+  } finally {
+    smtp?.close();
+  }
 }
