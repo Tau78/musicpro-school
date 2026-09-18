@@ -80,54 +80,87 @@ export function BulkMessageModal({
     setResultMessage(null);
 
     try {
-      const resp = await fetch("/api/admin/messages/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({
-          memberIds: members.map((m) => m.id),
-          channel,
-          subject,
-          body,
-          templateId: templateId || null,
-        }),
-      });
+      let pendingIds = members.map((m) => m.id);
+      let campaignId: string | undefined;
+      let sent = 0;
+      let failed = 0;
+      let skipped = 0;
+      const warnings: string[] = [];
 
-      const raw = await resp.text();
-      let data: {
-        success?: boolean;
-        message?: string;
-        sent?: number;
-        failed?: number;
-        skipped?: number;
-        warnings?: string[];
-      } = {};
-      try {
-        data = raw ? (JSON.parse(raw) as typeof data) : {};
-      } catch {
-        setError(
-          `Invio fallito (${resp.status}${resp.statusText ? ` ${resp.statusText}` : ""}).`,
+      while (pendingIds.length > 0) {
+        setResultMessage(
+          `Invio in corso… ${sent} inviati, ${pendingIds.length} in coda`,
         );
-        setSending(false);
-        return;
-      }
+        const resp = await fetch("/api/admin/messages/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            memberIds: pendingIds,
+            campaignId,
+            channel,
+            subject,
+            body,
+            templateId: templateId || null,
+          }),
+        });
 
-      if (!resp.ok || !data.success) {
-        const serverMessage = data.message?.trim();
-        setError(
-          serverMessage && !/^bad request$/i.test(serverMessage)
-            ? serverMessage
-            : "Invio non riuscito. Se stavi scrivendo a molti associati, riprova.",
-        );
-        setSending(false);
-        return;
+        const raw = await resp.text();
+        let data: {
+          success?: boolean;
+          message?: string;
+          sent?: number;
+          failed?: number;
+          skipped?: number;
+          warnings?: string[];
+          campaignId?: string;
+          pendingMemberIds?: string[];
+        } = {};
+        try {
+          data = raw ? (JSON.parse(raw) as typeof data) : {};
+        } catch {
+          setError(
+            `Invio fallito (${resp.status}${resp.statusText ? ` ${resp.statusText}` : ""}).`,
+          );
+          setSending(false);
+          return;
+        }
+
+        if (!resp.ok || !data.success) {
+          const serverMessage = data.message?.trim();
+          setError(
+            serverMessage && !/^bad request$/i.test(serverMessage)
+              ? serverMessage
+              : "Invio non riuscito. Se stavi scrivendo a molti associati, riprova.",
+          );
+          setSending(false);
+          return;
+        }
+
+        sent += data.sent ?? 0;
+        failed += data.failed ?? 0;
+        skipped += data.skipped ?? 0;
+        if (data.warnings) warnings.push(...data.warnings);
+        campaignId = data.campaignId ?? campaignId;
+        const nextPending = data.pendingMemberIds ?? [];
+        if (
+          nextPending.length === pendingIds.length &&
+          (data.sent ?? 0) === 0 &&
+          (data.failed ?? 0) === 0 &&
+          (data.skipped ?? 0) === 0
+        ) {
+          setError("Invio interrotto: nessun progresso su questo lotto.");
+          setSending(false);
+          return;
+        }
+        pendingIds = nextPending;
       }
 
       const warningText =
-        data.warnings && data.warnings.length > 0
-          ? ` ${data.warnings.join(" ")}`
-          : "";
-      setResultMessage((data.message ?? "Invio completato.") + warningText);
+        warnings.length > 0 ? ` ${[...new Set(warnings)].join(" ")}` : "";
+      setResultMessage(
+        `Invio completato. Inviati: ${sent}, falliti: ${failed}, saltati: ${skipped}.${warningText}`,
+      );
       onSent?.();
     } catch {
       setError("Errore di rete durante l'invio.");
