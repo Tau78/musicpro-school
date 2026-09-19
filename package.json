@@ -13,6 +13,7 @@
     "smoke:documenti": "node scripts/smoke-documenti.mjs",
     "smoke:rimborsi": "node scripts/smoke-rimborsi-pdf.mjs",
     "smoke:auth-urls": "node scripts/sync-school-auth-urls.mjs --check",
+    "bounce:gmail": "node scripts/process-gmail-bounces.mjs --imap",
     "vercel:cleanup": "bash scripts/vercel-cleanup.sh"
   },
   "dependencies": {
