@@ -110,7 +110,7 @@ struct SchoolWebView: UIViewRepresentable {
         if shouldOpenOutside(url) {
           UIApplication.shared.open(url)
         } else {
-          webView?.load(URLRequest(url: url))
+          webView.load(URLRequest(url: url))
         }
       }
       return nil
