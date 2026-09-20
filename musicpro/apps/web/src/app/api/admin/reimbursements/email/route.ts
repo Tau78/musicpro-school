@@ -86,7 +86,7 @@ export async function POST(request: Request) {
     results,
     message:
       failed > 0
-        ? `${failed} email non inviate. Controlla RESEND_API_KEY e gli indirizzi dei docenti.`
+        ? `${failed} email non inviate. Controlla RESEND_API_KEY / GOOGLE_SMTP_* e gli indirizzi dei docenti.`
         : undefined,
   });
 }

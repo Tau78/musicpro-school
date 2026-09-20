@@ -152,6 +152,49 @@ export async function listReimbursements(
   return { reimbursements, totalAmountEur };
 }
 
+export type RecentReimbursementAssociate = {
+  memberId: string;
+  associateName: string;
+};
+
+/**
+ * Ultimi intestatari di notula (GAS `getRecentAssociates`: max 10 unici,
+ * ordinati per generated_at desc).
+ */
+export async function listRecentReimbursementAssociates(
+  client: ReimbursementsClient,
+  limit = 10,
+): Promise<RecentReimbursementAssociate[]> {
+  const take = Math.max(1, Math.min(limit, 20));
+  const { data, error } = await client
+    .from("reimbursements")
+    .select("member_id, generated_at")
+    .order("generated_at", { ascending: false })
+    .limit(200);
+
+  if (error) {
+    throw new Error(
+      `Impossibile caricare gli ultimi associati: ${error.message}`,
+    );
+  }
+
+  const recentIds: string[] = [];
+  const seen = new Set<string>();
+  for (const row of (data ?? []) as { member_id: string }[]) {
+    const id = row.member_id;
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    recentIds.push(id);
+    if (recentIds.length >= take) break;
+  }
+
+  const names = await loadMemberNames(client, recentIds);
+  return recentIds.map((memberId) => ({
+    memberId,
+    associateName: names.get(memberId) ?? "—",
+  }));
+}
+
 export async function getReimbursementById(
   client: ReimbursementsClient,
   id: string,
@@ -292,8 +335,16 @@ export function formatImportoPlain(amount: number): string {
 }
 
 /**
+ * GAS payment amounts use a period decimal (`€ 100.00`), also when stored
+ * historically with Italian commas (`€ 100,00`).
+ */
+export function normalizePaymentMethodEuroDecimals(method: string): string {
+  return method.replace(/€\s*(\d+),(\d{2})\b/g, "€ $1.$2");
+}
+
+/**
  * Template line: `Versati a rimborso totale in {metodo} il {data}`.
- * `payment_method` already looks like `Bonifico Bancario: € 100,00`.
+ * `payment_method` looks like `Bonifico Bancario: € 100.00` (GAS).
  */
 export function buildVersatiRimborsoLine(params: {
   paymentMethod: string | null | undefined;
@@ -302,7 +353,7 @@ export function buildVersatiRimborsoLine(params: {
 }): string {
   const method = params.paymentMethod?.trim() || "—";
   const mid = /\d/.test(method)
-    ? method
+    ? normalizePaymentMethodEuroDecimals(method)
     : `${method}: € ${formatImportoPlain(params.grossAmountEur)}`;
   return `Versati a rimborso totale in ${mid} il ${params.paymentDateLabel}`;
 }
@@ -442,13 +493,13 @@ export function formatPaymentAmountIt(amount: number): string {
 }
 
 /**
- * Builds concatenated payment_method string, e.g.
- * "Bonifico Bancario: € 50,00, Contanti: € 30,00"
+ * Builds concatenated payment_method string (GAS), e.g.
+ * "Bonifico Bancario: € 50.00, Contanti: € 30.00"
  */
 export function formatPaymentMethodString(parts: PaymentPart[]): string {
   return parts
     .filter((p) => p.method && p.amount > 0)
-    .map((p) => `${p.method}: € ${formatPaymentAmountIt(p.amount)}`)
+    .map((p) => `${p.method}: € ${formatImportoPlain(p.amount)}`)
     .join(", ");
 }
 

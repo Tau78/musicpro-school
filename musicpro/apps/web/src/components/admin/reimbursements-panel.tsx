@@ -13,11 +13,13 @@ import {
   getCurrentMember,
   getMemberReceiptsBalance,
   isExternalPdfUrl,
+  listRecentReimbursementAssociates,
   listReimbursements,
   paymentPartsMatchGross,
   updateReceiptsAmount,
   type MemberSummary,
   type PaymentPart,
+  type RecentReimbursementAssociate,
   type ReimbursementDisplay,
 } from "@musicpro/database";
 
@@ -117,6 +119,9 @@ export function ReimbursementsPanel({
   const [cards, setCards] = useState<GenerateCardState[]>([createEmptyCard()]);
   const [generating, setGenerating] = useState(false);
   const [generateMessage, setGenerateMessage] = useState<string | null>(null);
+  const [recentAssociates, setRecentAssociates] = useState<
+    RecentReimbursementAssociate[]
+  >([]);
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -182,6 +187,16 @@ export function ReimbursementsPanel({
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    if (isDocenteOnly) {
+      setRecentAssociates([]);
+      return;
+    }
+    void listRecentReimbursementAssociates(supabase, 10)
+      .then(setRecentAssociates)
+      .catch(() => setRecentAssociates([]));
+  }, [isDocenteOnly, supabase, reimbursements.length]);
 
   const updateCard = useCallback(
     (cardId: string, patch: Partial<GenerateCardState>) => {
@@ -396,7 +411,7 @@ export function ReimbursementsPanel({
       if (pdfFailed > 0 || emailFailed > 0 || flowErrors.length > 0) {
         setError(
           flowErrors[0] ??
-            "PDF o email non completati. Riprova da Genera PDF o controlla RESEND_API_KEY.",
+            "PDF o email non completati. Riprova da Genera PDF o controlla RESEND_API_KEY / GOOGLE_SMTP_*.",
         );
       }
       setCards([
@@ -445,7 +460,7 @@ export function ReimbursementsPanel({
       if ((payload.failed ?? 0) > 0 || (!res.ok && !payload.success)) {
         setError(
           payload.message ??
-            "Errore invio email. Controlla RESEND_API_KEY e gli indirizzi associati.",
+            "Errore invio email. Controlla RESEND_API_KEY / GOOGLE_SMTP_* e gli indirizzi associati.",
         );
       }
       setGenerateMessage(
@@ -731,6 +746,7 @@ export function ReimbursementsPanel({
               index={index}
               card={card}
               members={members}
+              recentAssociates={recentAssociates}
               isDocenteOnly={isDocenteOnly}
               canRemove={cards.length > 1}
               onRemove={() =>
@@ -1144,6 +1160,7 @@ function GenerateCard({
   index,
   card,
   members,
+  recentAssociates,
   isDocenteOnly,
   canRemove,
   onRemove,
@@ -1155,6 +1172,7 @@ function GenerateCard({
   index: number;
   card: GenerateCardState;
   members: MemberSummary[];
+  recentAssociates: RecentReimbursementAssociate[];
   isDocenteOnly: boolean;
   canRemove: boolean;
   onRemove: () => void;
@@ -1210,6 +1228,31 @@ function GenerateCard({
       <p className="mb-3 text-xs font-medium uppercase tracking-wide text-neutral-500">
         Scheda {index + 1}
       </p>
+
+      {!isDocenteOnly && recentAssociates.length > 0 ? (
+        <div className="mb-4">
+          <p className="mb-2 text-sm font-medium text-neutral-700">Recenti:</p>
+          <div className="flex flex-wrap gap-1.5">
+            {recentAssociates.map((assoc) => {
+              const selected = card.memberId === assoc.memberId;
+              return (
+                <button
+                  key={assoc.memberId}
+                  type="button"
+                  onClick={() => onMemberChange(assoc.memberId)}
+                  className={
+                    selected
+                      ? "rounded-full bg-[var(--brand)] px-3 py-1 text-xs font-medium text-white"
+                      : "rounded-full bg-neutral-200 px-3 py-1 text-xs text-neutral-800 hover:bg-[var(--brand)]/20"
+                  }
+                >
+                  {assoc.associateName}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {!isDocenteOnly ? (

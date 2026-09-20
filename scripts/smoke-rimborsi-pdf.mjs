@@ -135,7 +135,14 @@ function main() {
   ]);
   sourceMustInclude(
     "musicpro/apps/web/src/components/admin/reimbursements-panel.tsx",
-    ["pdfFailed", "Generazione…", "about:blank"],
+    [
+      "pdfFailed",
+      "Generazione…",
+      "about:blank",
+      "Recenti:",
+      "listRecentReimbursementAssociates",
+      "sendEmail",
+    ],
   );
   sourceMustInclude("musicpro/apps/web/src/lib/reimbursements/send.ts", [
     "persistReimbursementPdf",
@@ -149,7 +156,25 @@ function main() {
     "IL PRESIDENTE",
     "Mauro Andreoni",
     "sanitizePdfText",
+    "TimesRoman",
+    "firma-presidente.png",
   ]);
+  {
+    const firmaPath = path.join(
+      rootDir,
+      "musicpro/apps/web/src/lib/reimbursements/assets/firma-presidente.png",
+    );
+    try {
+      const bytes = readFileSync(firmaPath);
+      if (bytes.length < 1000) {
+        fail(`firma-presidente.png troppo piccola (${bytes.length} byte)`);
+      } else {
+        ok(`firma-presidente.png presente (${bytes.length} byte)`);
+      }
+    } catch {
+      fail("manca musicpro/apps/web/src/lib/reimbursements/assets/firma-presidente.png");
+    }
+  }
   sourceMustInclude(
     "musicpro/apps/web/src/components/admin/reimbursements-panel.tsx",
     ['title="Report rimborsi"', "defaultOpen={false}"],

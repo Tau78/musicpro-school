@@ -28,6 +28,7 @@ const nextConfig: NextConfig = {
     "/api/**/*": [
       "musicpro/node_modules/next/dist/compiled/**/*",
       "musicpro/node_modules/next/dist/server/**/*",
+      "musicpro/apps/web/src/lib/reimbursements/assets/**/*",
     ],
   },
   serverExternalPackages: ["stripe", "nodemailer"],
