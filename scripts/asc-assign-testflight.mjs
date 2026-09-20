@@ -128,9 +128,16 @@ async function ensureTesterInInternalGroups(groupIds) {
 async function listInternalGroups() {
   const json = await req(
     "GET",
-    `/v1/apps/${APP_ID}/betaGroups?filter[isInternalGroup]=true&limit=20`,
+    `/v1/apps/${APP_ID}/betaGroups?limit=50`,
   );
-  return json.data ?? [];
+  const rows = json.data ?? [];
+  const internal = rows.filter((g) => g.attributes?.isInternalGroup === true);
+  if (internal.length) return internal;
+  // Fallback: gruppo chiamato "Test"
+  const named = rows.filter(
+    (g) => String(g.attributes?.name || "").toLowerCase() === "test",
+  );
+  return named.length ? named : rows;
 }
 
 async function findBuild() {
