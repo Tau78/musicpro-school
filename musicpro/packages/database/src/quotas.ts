@@ -387,3 +387,61 @@ export async function upsertMemberAnnualQuotas(
 
   return { success: true, upsertedCount: data?.length ?? rows.length };
 }
+
+/**
+ * Annulla un versamento: elimina la riga così l'anno torna «non versata»
+ * (allineato a member_quota_ok, che richiede paid_at valorizzato).
+ */
+export async function clearMemberAnnualQuota(
+  client: QuotasClient,
+  memberId: string,
+  fiscalYear: number,
+): Promise<QuotaMutationResult> {
+  if (!memberId) {
+    return { success: false, errorMessage: "Associato mancante." };
+  }
+  if (!Number.isInteger(fiscalYear) || fiscalYear < 2000) {
+    return { success: false, errorMessage: "Anno fiscale non valido." };
+  }
+
+  const { error } = await client
+    .from("member_annual_quotas")
+    .delete()
+    .eq("member_id", memberId)
+    .eq("fiscal_year", fiscalYear);
+
+  if (error) {
+    return {
+      success: false,
+      errorMessage: error.message || "Impossibile annullare il versamento.",
+    };
+  }
+
+  return { success: true };
+}
+
+/** Testo sollecito quota da anagrafica / messaggi. */
+export function buildQuotaDunningMessage(params: {
+  firstName: string;
+  fiscalYear: number;
+  amountEur: number | null;
+}): { subject: string; body: string } {
+  const amount =
+    params.amountEur != null ? formatQuotaEuro(params.amountEur) : null;
+  return {
+    subject: `Sollecito quota associativa ${params.fiscalYear} — MusicPro School`,
+    body: [
+      `Ciao ${params.firstName.trim() || "associato"},`,
+      "",
+      `ti ricordiamo che la quota associativa ${params.fiscalYear} risulta ancora da saldare.`,
+      amount ? `Importo: ${amount}` : null,
+      "",
+      "Puoi saldare in segreteria (bonifico o altro).",
+      "",
+      "Grazie,",
+      "MusicPro School",
+    ]
+      .filter((line): line is string => line != null)
+      .join("\n"),
+  };
+}

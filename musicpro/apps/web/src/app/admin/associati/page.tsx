@@ -2,6 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import {
+  currentFiscalYear,
+  listMemberAnnualQuotas,
   listMemberAvailableCredits,
   listMemberIdsWithRole,
   listMembers,
@@ -28,7 +30,9 @@ export default async function AssociatiPage() {
     redirect("/admin/rimborsi");
   }
 
-  const [members, memberDetails, availableCredits, docenteIds] =
+  const fiscalYear = currentFiscalYear();
+
+  const [members, memberDetails, availableCredits, docenteIds, yearQuotas] =
     await Promise.all([
       listMembers(supabase),
       listMembersDetail(supabase),
@@ -36,12 +40,20 @@ export default async function AssociatiPage() {
         () => ({}) as Record<string, number>,
       ),
       listMemberIdsWithRole(supabase, MemberRole.Docente),
+      listMemberAnnualQuotas(supabase, { fiscalYear }),
     ]);
   const showMerge = canMergeDuplicates(member.roles);
 
   const creditBalances = Object.fromEntries(
     members.map((m) => [m.id, availableCredits[m.id] ?? 0] as const),
   );
+
+  const paidQuotaIds = new Set(
+    yearQuotas.filter((q) => Boolean(q.paidAt)).map((q) => q.memberId),
+  );
+  const unpaidQuotaMemberIds = members
+    .filter((m) => !m.isEnrollmentDraft && !paidQuotaIds.has(m.id))
+    .map((m) => m.id);
 
   return (
     <div>
@@ -74,6 +86,8 @@ export default async function AssociatiPage() {
         canAdd
         creditBalances={creditBalances}
         docenteIds={docenteIds}
+        unpaidQuotaMemberIds={unpaidQuotaMemberIds}
+        unpaidQuotaYear={fiscalYear}
         canDelete={canDeleteMembers(member.roles)}
         currentStaffMemberId={member.id}
         currentStaffRoles={member.roles}

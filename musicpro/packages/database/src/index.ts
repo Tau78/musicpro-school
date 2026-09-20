@@ -359,6 +359,8 @@ export type {
 } from "./bands";
 export {
   buildMemberQuotaHistory,
+  buildQuotaDunningMessage,
+  clearMemberAnnualQuota,
   createAnnualQuotaSetting,
   currentFiscalYear,
   deleteAnnualQuotaSetting,

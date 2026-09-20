@@ -14,6 +14,8 @@ interface MemberListProps {
   canAdd: boolean;
   creditBalances?: Record<string, number | null>;
   docenteIds?: string[];
+  unpaidQuotaMemberIds?: string[];
+  unpaidQuotaYear?: number;
   canDelete: boolean;
   currentStaffMemberId: string;
   currentStaffRoles: MemberRoleValue[];
@@ -24,6 +26,8 @@ export function MemberList({
   canAdd,
   creditBalances,
   docenteIds,
+  unpaidQuotaMemberIds,
+  unpaidQuotaYear,
   canDelete,
   currentStaffMemberId,
   currentStaffRoles,
@@ -31,6 +35,7 @@ export function MemberList({
   const [search, setSearch] = useState("");
   const [docentiOnly, setDocentiOnly] = useState(false);
   const [bozzeOnly, setBozzeOnly] = useState(false);
+  const [quotaUnpaidOnly, setQuotaUnpaidOnly] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [messageOpen, setMessageOpen] = useState(false);
   const [openMemberId, setOpenMemberId] = useState<string | null>(null);
@@ -38,6 +43,11 @@ export function MemberList({
   const docenteIdSet = useMemo(
     () => new Set(docenteIds ?? []),
     [docenteIds],
+  );
+
+  const unpaidQuotaIdSet = useMemo(
+    () => new Set(unpaidQuotaMemberIds ?? []),
+    [unpaidQuotaMemberIds],
   );
 
   const filtered = useMemo(() => {
@@ -50,13 +60,24 @@ export function MemberList({
       if (bozzeOnly && !member.isEnrollmentDraft) {
         return false;
       }
+      if (quotaUnpaidOnly && !unpaidQuotaIdSet.has(member.id)) {
+        return false;
+      }
       if (!term) return true;
       return (
         member.firstName.toLowerCase().includes(term) ||
         member.lastName.toLowerCase().includes(term)
       );
     });
-  }, [members, search, docentiOnly, bozzeOnly, docenteIdSet]);
+  }, [
+    members,
+    search,
+    docentiOnly,
+    bozzeOnly,
+    quotaUnpaidOnly,
+    docenteIdSet,
+    unpaidQuotaIdSet,
+  ]);
 
   const allFilteredSelected =
     filtered.length > 0 && filtered.every((m) => selectedIds.has(m.id));
@@ -127,6 +148,18 @@ export function MemberList({
             }
           >
             Bozze
+          </button>
+          <button
+            type="button"
+            onClick={() => setQuotaUnpaidOnly((prev) => !prev)}
+            aria-pressed={quotaUnpaidOnly}
+            className={
+              quotaUnpaidOnly
+                ? "inline-flex items-center justify-center rounded-full border border-amber-500 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-800"
+                : "inline-flex items-center justify-center rounded-full border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+            }
+          >
+            Quota {unpaidQuotaYear ?? ""} non versata
           </button>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -218,6 +251,11 @@ export function MemberList({
                 {member.isEnrollmentDraft ? (
                   <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
                     Bozza
+                  </span>
+                ) : null}
+                {unpaidQuotaIdSet.has(member.id) ? (
+                  <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                    Quota {unpaidQuotaYear ?? ""}
                   </span>
                 ) : null}
                 {docenteIdSet.has(member.id) ? (
