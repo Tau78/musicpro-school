@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import {
   currentFiscalYear,
+  listAnnualQuotaSettings,
   listMemberAnnualQuotas,
   listMemberAvailableCredits,
   listMemberIdsWithRole,
@@ -32,16 +33,23 @@ export default async function AssociatiPage() {
 
   const fiscalYear = currentFiscalYear();
 
-  const [members, memberDetails, availableCredits, docenteIds, yearQuotas] =
-    await Promise.all([
-      listMembers(supabase),
-      listMembersDetail(supabase),
-      listMemberAvailableCredits(supabase).catch(
-        () => ({}) as Record<string, number>,
-      ),
-      listMemberIdsWithRole(supabase, MemberRole.Docente),
-      listMemberAnnualQuotas(supabase, { fiscalYear }),
-    ]);
+  const [
+    members,
+    memberDetails,
+    availableCredits,
+    docenteIds,
+    yearQuotas,
+    quotaSettings,
+  ] = await Promise.all([
+    listMembers(supabase),
+    listMembersDetail(supabase),
+    listMemberAvailableCredits(supabase).catch(
+      () => ({}) as Record<string, number>,
+    ),
+    listMemberIdsWithRole(supabase, MemberRole.Docente),
+    listMemberAnnualQuotas(supabase, { fiscalYear }),
+    listAnnualQuotaSettings(supabase),
+  ]);
   const showMerge = canMergeDuplicates(member.roles);
 
   const creditBalances = Object.fromEntries(
@@ -54,6 +62,8 @@ export default async function AssociatiPage() {
   const unpaidQuotaMemberIds = members
     .filter((m) => !m.isEnrollmentDraft && !paidQuotaIds.has(m.id))
     .map((m) => m.id);
+  const unpaidQuotaAmountEur =
+    quotaSettings.find((s) => s.fiscalYear === fiscalYear)?.amountEur ?? null;
 
   return (
     <div>
@@ -88,6 +98,7 @@ export default async function AssociatiPage() {
         docenteIds={docenteIds}
         unpaidQuotaMemberIds={unpaidQuotaMemberIds}
         unpaidQuotaYear={fiscalYear}
+        unpaidQuotaAmountEur={unpaidQuotaAmountEur}
         canDelete={canDeleteMembers(member.roles)}
         currentStaffMemberId={member.id}
         currentStaffRoles={member.roles}

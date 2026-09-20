@@ -3,11 +3,17 @@
 import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 
-import type { MemberSummary } from "@musicpro/database";
+import {
+  buildQuotaDunningMessage,
+  formatQuotaEuro,
+  recordMemberQuotaDunning,
+  type MemberSummary,
+} from "@musicpro/database";
 import type { MemberRoleValue } from "@musicpro/shared";
 
 import { BulkMessageModal } from "@/components/admin/bulk-message-modal";
 import { MemberDetailDialog } from "@/components/admin/member-detail-dialog";
+import { createClient } from "@/lib/supabase/client";
 
 interface MemberListProps {
   members: MemberSummary[];
@@ -16,6 +22,7 @@ interface MemberListProps {
   docenteIds?: string[];
   unpaidQuotaMemberIds?: string[];
   unpaidQuotaYear?: number;
+  unpaidQuotaAmountEur?: number | null;
   canDelete: boolean;
   currentStaffMemberId: string;
   currentStaffRoles: MemberRoleValue[];
@@ -28,6 +35,7 @@ export function MemberList({
   docenteIds,
   unpaidQuotaMemberIds,
   unpaidQuotaYear,
+  unpaidQuotaAmountEur = null,
   canDelete,
   currentStaffMemberId,
   currentStaffRoles,
@@ -38,6 +46,10 @@ export function MemberList({
   const [quotaUnpaidOnly, setQuotaUnpaidOnly] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [messageOpen, setMessageOpen] = useState(false);
+  const [quotaDunningDraft, setQuotaDunningDraft] = useState<{
+    subject: string;
+    body: string;
+  } | null>(null);
   const [openMemberId, setOpenMemberId] = useState<string | null>(null);
 
   const docenteIdSet = useMemo(
@@ -114,6 +126,38 @@ export function MemberList({
     });
   }
 
+  function openQuotaDunningBulk() {
+    const year = unpaidQuotaYear;
+    if (year == null || unpaidQuotaIdSet.size === 0) return;
+    setQuotaUnpaidOnly(true);
+    setSelectedIds(new Set(unpaidQuotaIdSet));
+    const draft = buildQuotaDunningMessage({
+      firstName: "{{nome}}",
+      fiscalYear: year,
+      amountEur: unpaidQuotaAmountEur,
+    });
+    setQuotaDunningDraft(draft);
+    setMessageOpen(true);
+  }
+
+  async function handleMessagesSent() {
+    const year = unpaidQuotaYear;
+    if (quotaDunningDraft && year != null && selectedIds.size > 0) {
+      const supabase = createClient();
+      await Promise.all(
+        [...selectedIds].map((memberId) =>
+          recordMemberQuotaDunning(supabase, {
+            memberId,
+            fiscalYear: year,
+            amountDueEur: unpaidQuotaAmountEur,
+          }).catch(() => ({ success: false })),
+        ),
+      );
+    }
+    setSelectedIds(new Set());
+    setQuotaDunningDraft(null);
+  }
+
   return (
     <div>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -163,10 +207,26 @@ export function MemberList({
           </button>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {unpaidQuotaIdSet.size > 0 && unpaidQuotaYear != null ? (
+            <button
+              type="button"
+              onClick={openQuotaDunningBulk}
+              className="inline-flex items-center justify-center rounded-lg border border-amber-400 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100"
+            >
+              Sollecita non versati ({unpaidQuotaIdSet.size}
+              {unpaidQuotaAmountEur != null
+                ? ` · ${formatQuotaEuro(unpaidQuotaAmountEur)}`
+                : ""}
+              )
+            </button>
+          ) : null}
           {selectedIds.size > 0 ? (
             <button
               type="button"
-              onClick={() => setMessageOpen(true)}
+              onClick={() => {
+                setQuotaDunningDraft(null);
+                setMessageOpen(true);
+              }}
               className="inline-flex items-center justify-center rounded-lg border border-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand)] hover:bg-[var(--brand)]/5"
             >
               Invia messaggio ({selectedIds.size})
@@ -285,8 +345,20 @@ export function MemberList({
       <BulkMessageModal
         open={messageOpen}
         members={selectedMembers}
-        onClose={() => setMessageOpen(false)}
-        onSent={() => setSelectedIds(new Set())}
+        initialSubject={quotaDunningDraft?.subject}
+        initialBody={quotaDunningDraft?.body}
+        campaignName={
+          quotaDunningDraft && unpaidQuotaYear != null
+            ? `Sollecito quota ${unpaidQuotaYear}`
+            : undefined
+        }
+        onClose={() => {
+          setMessageOpen(false);
+          setQuotaDunningDraft(null);
+        }}
+        onSent={() => {
+          void handleMessagesSent();
+        }}
       />
 
       {openMember ? (

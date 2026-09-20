@@ -16,6 +16,10 @@ interface BulkMessageModalProps {
   members: MemberSummary[];
   onClose: () => void;
   onSent?: () => void;
+  initialSubject?: string;
+  initialBody?: string;
+  initialChannel?: MessageChannel;
+  campaignName?: string;
 }
 
 export function BulkMessageModal({
@@ -23,12 +27,16 @@ export function BulkMessageModal({
   members,
   onClose,
   onSent,
+  initialSubject = "",
+  initialBody = "",
+  initialChannel = "email",
+  campaignName,
 }: BulkMessageModalProps) {
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [templateId, setTemplateId] = useState("");
-  const [channel, setChannel] = useState<MessageChannel>("email");
-  const [subject, setSubject] = useState("");
-  const [body, setBody] = useState("");
+  const [channel, setChannel] = useState<MessageChannel>(initialChannel);
+  const [subject, setSubject] = useState(initialSubject);
+  const [body, setBody] = useState(initialBody);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resultMessage, setResultMessage] = useState<string | null>(null);
@@ -36,9 +44,14 @@ export function BulkMessageModal({
   useEffect(() => {
     if (!open) return;
 
-    let cancelled = false;
+    setSubject(initialSubject);
+    setBody(initialBody);
+    setChannel(initialChannel);
+    setTemplateId("");
     setError(null);
     setResultMessage(null);
+
+    let cancelled = false;
 
     void (async () => {
       try {
@@ -58,7 +71,7 @@ export function BulkMessageModal({
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, initialSubject, initialBody, initialChannel]);
 
   if (!open) return null;
 
@@ -102,6 +115,7 @@ export function BulkMessageModal({
             subject,
             body,
             templateId: templateId || null,
+            campaignName: campaignName || undefined,
           }),
         });
 

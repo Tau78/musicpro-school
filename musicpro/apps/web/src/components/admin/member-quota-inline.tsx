@@ -10,8 +10,10 @@ import {
   buildMemberQuotaHistory,
   buildQuotaDunningMessage,
   clearMemberAnnualQuota,
+  formatQuotaDateItalian,
   formatQuotaEuro,
   listMemberAnnualQuotas,
+  recordMemberQuotaDunning,
   upsertMemberAnnualQuotas,
 } from "@musicpro/database";
 
@@ -60,9 +62,10 @@ export function MemberQuotaInline({
   const [draftDates, setDraftDates] = useState(() =>
     draftsFromQuotas(initialQuotas),
   );
+  const [paymentLinks, setPaymentLinks] = useState<Record<number, string>>({});
   const [busyYear, setBusyYear] = useState<number | null>(null);
   const [busyAction, setBusyAction] = useState<
-    "save" | "clear" | "dunning" | null
+    "save" | "clear" | "dunning" | "link" | null
   >(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -95,6 +98,33 @@ export function MemberQuotaInline({
     setQuotas(refreshed);
     setDraftDates(draftsFromQuotas(refreshed));
     router.refresh();
+  }
+
+  async function createPaymentLink(
+    fiscalYear: number,
+    opts?: { silent?: boolean },
+  ): Promise<string | null> {
+    const resp = await fetch("/api/admin/quota-payment-link", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ memberId, fiscalYear }),
+    });
+    const raw = await resp.text();
+    let data: { success?: boolean; url?: string; message?: string } = {};
+    try {
+      data = raw ? (JSON.parse(raw) as typeof data) : {};
+    } catch {
+      /* ignore */
+    }
+    if (!resp.ok || !data.success || !data.url) {
+      if (!opts?.silent) {
+        setError(data.message ?? "Impossibile creare il link di pagamento.");
+      }
+      return null;
+    }
+    setPaymentLinks((prev) => ({ ...prev, [fiscalYear]: data.url! }));
+    return data.url;
   }
 
   async function saveYear(fiscalYear: number) {
@@ -193,16 +223,32 @@ export function MemberQuotaInline({
     }
   }
 
+  async function linkYear(fiscalYear: number) {
+    setBusyYear(fiscalYear);
+    setBusyAction("link");
+    setError(null);
+    setSuccess(null);
+    try {
+      const url = await createPaymentLink(fiscalYear);
+      if (url) {
+        setSuccess(`Link pagamento ${fiscalYear} creato. Copia o includilo nel sollecito.`);
+        try {
+          await navigator.clipboard.writeText(url);
+          setSuccess(`Link pagamento ${fiscalYear} creato e copiato negli appunti.`);
+        } catch {
+          /* clipboard optional */
+        }
+      }
+    } finally {
+      setBusyYear(null);
+      setBusyAction(null);
+    }
+  }
+
   async function sollecitoYear(
     fiscalYear: number,
     amountEur: number | null,
   ) {
-    const message = buildQuotaDunningMessage({
-      firstName: memberFirstName,
-      fiscalYear,
-      amountEur,
-    });
-
     if (!memberEmail?.trim()) {
       setError("Manca l'email dell'associato: impossibile inviare il sollecito.");
       setSuccess(null);
@@ -215,6 +261,18 @@ export function MemberQuotaInline({
     setSuccess(null);
 
     try {
+      let paymentUrl: string | null = paymentLinks[fiscalYear] ?? null;
+      if (!paymentUrl) {
+        paymentUrl = await createPaymentLink(fiscalYear, { silent: true });
+      }
+
+      const message = buildQuotaDunningMessage({
+        firstName: memberFirstName,
+        fiscalYear,
+        amountEur,
+        paymentUrl,
+      });
+
       const resp = await fetch("/api/admin/messages/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -258,7 +316,17 @@ export function MemberQuotaInline({
         return;
       }
 
-      setSuccess(`Sollecito ${fiscalYear} inviato.`);
+      await recordMemberQuotaDunning(supabase, {
+        memberId,
+        fiscalYear,
+        amountDueEur: amountEur,
+      });
+      await refreshQuotas();
+      setSuccess(
+        paymentUrl
+          ? `Sollecito ${fiscalYear} inviato con link di pagamento.`
+          : `Sollecito ${fiscalYear} inviato.`,
+      );
     } catch (e) {
       setError(
         e instanceof Error ? e.message : "Impossibile inviare il sollecito.",
@@ -269,11 +337,15 @@ export function MemberQuotaInline({
     }
   }
 
-  function mailtoHref(fiscalYear: number, amountEur: number | null): string {
+  function mailtoHref(
+    fiscalYear: number,
+    amountEur: number | null,
+  ): string {
     const message = buildQuotaDunningMessage({
       firstName: memberFirstName,
       fiscalYear,
       amountEur,
+      paymentUrl: paymentLinks[fiscalYear] ?? null,
     });
     const to = memberEmail?.trim() ?? "";
     return `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(message.subject)}&body=${encodeURIComponent(message.body)}`;
@@ -303,99 +375,130 @@ export function MemberQuotaInline({
           const versata = row.status === "versata";
           const draft = draftDates[row.fiscalYear] ?? "";
           const busy = busyYear === row.fiscalYear;
+          const link = paymentLinks[row.fiscalYear];
           return (
-            <li
-              key={row.fiscalYear}
-              className="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-center sm:gap-3"
-            >
-              <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm">
-                <span className="font-medium text-neutral-900">
-                  {row.fiscalYear}
-                </span>
-                <span
-                  className={versata ? "text-green-700" : "text-amber-700"}
-                >
-                  {versata ? "versata" : "non versata"}
-                </span>
-                {row.amountEur != null ? (
-                  <span className="text-neutral-500">
-                    ({formatQuotaEuro(row.amountEur)})
+            <li key={row.fiscalYear} className="space-y-2 px-3 py-2.5">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm">
+                  <span className="font-medium text-neutral-900">
+                    {row.fiscalYear}
                   </span>
-                ) : null}
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <input
-                  type="date"
-                  value={draft}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setDraftDates((prev) => ({
-                      ...prev,
-                      [row.fiscalYear]: value,
-                    }));
-                    setError(null);
-                    setSuccess(null);
-                  }}
-                  disabled={busy}
-                  aria-label={`Data versamento ${row.fiscalYear}`}
-                  className="rounded-md border border-neutral-300 px-2 py-1.5 text-sm text-neutral-800 disabled:opacity-50"
-                />
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void saveYear(row.fiscalYear)}
-                  className="shrink-0 rounded-md bg-[var(--brand)] px-3 py-1.5 text-xs font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
-                >
-                  {busy && busyAction === "save"
-                    ? "…"
-                    : versata
-                      ? "Aggiorna"
-                      : "Registra"}
-                </button>
-                {versata ? (
+                  <span
+                    className={versata ? "text-green-700" : "text-amber-700"}
+                  >
+                    {versata ? "versata" : "non versata"}
+                  </span>
+                  {row.amountEur != null ? (
+                    <span className="text-neutral-500">
+                      ({formatQuotaEuro(row.amountEur)})
+                    </span>
+                  ) : null}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="date"
+                    value={draft}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setDraftDates((prev) => ({
+                        ...prev,
+                        [row.fiscalYear]: value,
+                      }));
+                      setError(null);
+                      setSuccess(null);
+                    }}
+                    disabled={busy}
+                    aria-label={`Data versamento ${row.fiscalYear}`}
+                    className="rounded-md border border-neutral-300 px-2 py-1.5 text-sm text-neutral-800 disabled:opacity-50"
+                  />
                   <button
                     type="button"
                     disabled={busy}
-                    onClick={() => void clearYear(row.fiscalYear)}
-                    className="shrink-0 rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+                    onClick={() => void saveYear(row.fiscalYear)}
+                    className="shrink-0 rounded-md bg-[var(--brand)] px-3 py-1.5 text-xs font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
                   >
-                    {busy && busyAction === "clear" ? "…" : "Annulla"}
+                    {busy && busyAction === "save"
+                      ? "…"
+                      : versata
+                        ? "Aggiorna"
+                        : "Registra"}
                   </button>
-                ) : (
-                  <>
+                  {versata ? (
                     <button
                       type="button"
-                      disabled={busy || !memberEmail?.trim()}
-                      onClick={() =>
-                        void sollecitoYear(row.fiscalYear, row.amountEur)
-                      }
-                      title={
-                        memberEmail?.trim()
-                          ? "Invia sollecito via email"
-                          : "Manca l'email dell'associato"
-                      }
-                      className="shrink-0 rounded-md border border-amber-400 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+                      disabled={busy}
+                      onClick={() => void clearYear(row.fiscalYear)}
+                      className="shrink-0 rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
                     >
-                      {busy && busyAction === "dunning" ? "…" : "Sollecita"}
+                      {busy && busyAction === "clear" ? "…" : "Annulla"}
                     </button>
-                    {memberEmail?.trim() ? (
-                      <a
-                        href={mailtoHref(row.fiscalYear, row.amountEur)}
-                        className="shrink-0 text-xs font-medium text-[var(--brand)] hover:underline"
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void linkYear(row.fiscalYear)}
+                        className="shrink-0 rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
                       >
-                        Apri email
-                      </a>
-                    ) : null}
-                  </>
-                )}
+                        {busy && busyAction === "link" ? "…" : "Link paga"}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy || !memberEmail?.trim()}
+                        onClick={() =>
+                          void sollecitoYear(row.fiscalYear, row.amountEur)
+                        }
+                        title={
+                          memberEmail?.trim()
+                            ? "Invia sollecito via email (con link se disponibile)"
+                            : "Manca l'email dell'associato"
+                        }
+                        className="shrink-0 rounded-md border border-amber-400 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+                      >
+                        {busy && busyAction === "dunning" ? "…" : "Sollecita"}
+                      </button>
+                      {memberEmail?.trim() ? (
+                        <a
+                          href={mailtoHref(row.fiscalYear, row.amountEur)}
+                          className="shrink-0 text-xs font-medium text-[var(--brand)] hover:underline"
+                        >
+                          Apri email
+                        </a>
+                      ) : null}
+                    </>
+                  )}
+                </div>
               </div>
+              {!versata && row.dunningCount > 0 ? (
+                <p className="text-xs text-neutral-500">
+                  Ultimo sollecito
+                  {row.lastDunningAt
+                    ? ` il ${formatQuotaDateItalian(row.lastDunningAt)}`
+                    : ""}
+                  {" · "}
+                  {row.dunningCount} inviat{row.dunningCount === 1 ? "o" : "i"}
+                </p>
+              ) : null}
+              {link ? (
+                <p className="truncate text-xs text-neutral-500">
+                  Link:{" "}
+                  <a
+                    href={link}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-medium text-[var(--brand)] hover:underline"
+                  >
+                    {link}
+                  </a>
+                </p>
+              ) : null}
             </li>
           );
         })}
       </ul>
       <p className="text-xs text-neutral-500">
-        Senza data, Registra usa oggi. Annulla rimuove il versamento. Sollecita
-        invia l&apos;email dall&apos;app; «Apri email» apre il client locale.
+        «Link paga» genera un checkout Stripe. Sollecita lo include nell&apos;email
+        e aggiorna lo storico solleciti.
       </p>
     </div>
   );

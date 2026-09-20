@@ -368,6 +368,7 @@ export {
   formatQuotaEuro,
   listAnnualQuotaSettings,
   listMemberAnnualQuotas,
+  recordMemberQuotaDunning,
   updateAnnualQuotaSetting,
   upsertMemberAnnualQuotas,
 } from "./quotas";

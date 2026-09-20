@@ -516,6 +516,8 @@ export interface Database {
           amount_paid_eur: number | null;
           amount_due_eur: number | null;
           notes: string | null;
+          last_dunning_at: string | null;
+          dunning_count: number;
           created_at: string;
           updated_at: string;
         };
@@ -527,6 +529,8 @@ export interface Database {
           amount_paid_eur?: number | null;
           amount_due_eur?: number | null;
           notes?: string | null;
+          last_dunning_at?: string | null;
+          dunning_count?: number;
         };
         Update: Partial<
           Database["public"]["Tables"]["member_annual_quotas"]["Insert"]
