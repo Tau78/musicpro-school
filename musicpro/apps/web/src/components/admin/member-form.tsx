@@ -9,11 +9,8 @@ import {
   type MemberAnnualQuota,
   type MemberDetail,
   type MemberInput,
-  buildMemberQuotaHistory,
   createMember,
   deleteMember,
-  formatQuotaDateItalian,
-  formatQuotaEuro,
   setMemberHasRole,
   updateMember,
   upsertTeacherProfile,
@@ -24,6 +21,7 @@ import {
   type MemberRoleValue,
 } from "@musicpro/shared";
 
+import { MemberQuotaInline } from "@/components/admin/member-quota-inline";
 import { createClient } from "@/lib/supabase/client";
 
 interface MemberFormProps {
@@ -142,14 +140,6 @@ export function MemberForm({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-
-  const quotaHistory = isEdit
-    ? buildMemberQuotaHistory({
-        quotas,
-        enrolledAt: form.enrolledAt ?? member?.enrolledAt ?? null,
-        settings: quotaSettings,
-      })
-    : [];
 
   function updateField<K extends keyof MemberInput>(
     key: K,
@@ -566,45 +556,13 @@ export function MemberForm({
           </label>
         </div>
 
-        {isEdit ? (
-          <div className="space-y-2 border-t border-neutral-100 pt-4">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-medium text-neutral-800">
-                Quote annuali
-              </p>
-              <Link
-                href="/admin/quote"
-                className="text-xs font-medium text-[var(--brand)] hover:underline"
-              >
-                Gestisci in Quote
-              </Link>
-            </div>
-            <ul className="space-y-1 text-sm text-neutral-700">
-              {quotaHistory.map((row) => {
-                const versata = row.status === "versata";
-                return (
-                  <li
-                    key={row.fiscalYear}
-                    className="flex flex-wrap gap-x-2"
-                  >
-                    <span className="font-medium">{row.fiscalYear}</span>
-                    {versata && row.paidAt ? (
-                      <span className="text-green-700">
-                        Versata il {formatQuotaDateItalian(row.paidAt)}
-                      </span>
-                    ) : (
-                      <span className="text-amber-700">non versata</span>
-                    )}
-                    {row.amountEur != null ? (
-                      <span className="text-neutral-500">
-                        ({formatQuotaEuro(row.amountEur)})
-                      </span>
-                    ) : null}
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
+        {isEdit && member ? (
+          <MemberQuotaInline
+            memberId={member.id}
+            quotas={quotas}
+            quotaSettings={quotaSettings}
+            enrolledAt={form.enrolledAt ?? member.enrolledAt ?? null}
+          />
         ) : null}
       </fieldset>
 
