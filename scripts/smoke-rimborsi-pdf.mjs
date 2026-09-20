@@ -142,6 +142,9 @@ function main() {
       "Recenti",
       "listRecentReimbursementAssociates",
       "sendEmail",
+      "printPdf",
+      "Stampa",
+      "triggerPdfPrint",
     ],
   );
   sourceMustInclude("musicpro/apps/web/src/lib/reimbursements/send.ts", [

@@ -507,26 +507,129 @@ export function ReimbursementsPanel({
     return null;
   }
 
+  type PdfPayload = {
+    pdfUrl?: string | null;
+    pdfBase64?: string;
+    success?: boolean;
+    message?: string;
+  };
+
+  async function fetchReimbursementPdf(
+    id: string,
+    method: "GET" | "POST",
+  ): Promise<{ ok: boolean; payload: PdfPayload }> {
+    const res = await fetch(
+      `/api/admin/reimbursements/${encodeURIComponent(id)}/pdf`,
+      { method },
+    );
+    const payload = (await res.json().catch(() => ({}))) as PdfPayload;
+    return { ok: res.ok, payload };
+  }
+
+  /** Preferisce blob/storage (stampabile); evita Drive viewer. */
+  async function resolvePrintablePdfUrl(
+    item: ReimbursementDisplay,
+  ): Promise<{ url: string | null; message?: string; refreshed?: boolean }> {
+    if (item.pdfStoragePath || (item.pdfUrl && !isExternalPdfUrl(item.pdfUrl))) {
+      const { payload } = await fetchReimbursementPdf(item.id, "GET");
+      if (payload.pdfBase64) {
+        return { url: pdfUrlFromPayload({ pdfBase64: payload.pdfBase64 }) };
+      }
+      const url = pdfUrlFromPayload(payload);
+      if (url && !isExternalPdfUrl(url)) return { url };
+    }
+
+    const generated = await fetchReimbursementPdf(item.id, "POST");
+    if (generated.payload.pdfBase64) {
+      return {
+        url: pdfUrlFromPayload({ pdfBase64: generated.payload.pdfBase64 }),
+        refreshed: true,
+      };
+    }
+    const url = pdfUrlFromPayload(generated.payload);
+    if (url && !isExternalPdfUrl(url)) {
+      return { url, refreshed: true };
+    }
+    return {
+      url: null,
+      message:
+        generated.payload.message ??
+        "Impossibile preparare il PDF per la stampa.",
+      refreshed: true,
+    };
+  }
+
+  function triggerPdfPrint(url: string): boolean {
+    const iframe = document.createElement("iframe");
+    iframe.setAttribute("aria-hidden", "true");
+    iframe.setAttribute("title", "Stampa notula");
+    Object.assign(iframe.style, {
+      position: "fixed",
+      right: "0",
+      bottom: "0",
+      width: "0",
+      height: "0",
+      border: "0",
+    });
+    iframe.src = url;
+    document.body.appendChild(iframe);
+
+    let printed = false;
+    const cleanup = () => {
+      window.setTimeout(() => {
+        try {
+          iframe.remove();
+        } catch {
+          /* ignore */
+        }
+        if (url.startsWith("blob:")) {
+          try {
+            URL.revokeObjectURL(url);
+          } catch {
+            /* ignore */
+          }
+        }
+      }, 60_000);
+    };
+
+    const doPrint = () => {
+      if (printed) return true;
+      printed = true;
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+        cleanup();
+        return true;
+      } catch {
+        cleanup();
+        return openInPreview(null, url);
+      }
+    };
+
+    iframe.onload = () => {
+      window.setTimeout(() => {
+        if (!doPrint()) {
+          setError(
+            "Il browser ha bloccato la stampa. Consenti i popup o apri Visualizza PDF.",
+          );
+        }
+      }, 400);
+    };
+
+    // Fallback se onload non scatta (alcuni viewer PDF)
+    window.setTimeout(() => {
+      if (!printed && document.body.contains(iframe)) {
+        doPrint();
+      }
+    }, 1500);
+
+    return true;
+  }
+
   async function openPdf(item: ReimbursementDisplay) {
     setError(null);
     setPdfBusyId(item.id);
     const preview = window.open("about:blank", "_blank");
-
-    type PdfPayload = {
-      pdfUrl?: string | null;
-      pdfBase64?: string;
-      success?: boolean;
-      message?: string;
-    };
-
-    const fetchPdf = async (method: "GET" | "POST") => {
-      const res = await fetch(
-        `/api/admin/reimbursements/${encodeURIComponent(item.id)}/pdf`,
-        { method },
-      );
-      const payload = (await res.json().catch(() => ({}))) as PdfPayload;
-      return { ok: res.ok, payload };
-    };
 
     try {
       if (item.pdfUrl && isExternalPdfUrl(item.pdfUrl)) {
@@ -538,10 +641,10 @@ export function ReimbursementsPanel({
 
       let { payload } =
         item.pdfStoragePath || item.pdfUrl
-          ? await fetchPdf("GET")
+          ? await fetchReimbursementPdf(item.id, "GET")
           : { payload: { success: false } as PdfPayload };
       if (!payload.pdfUrl && !payload.pdfBase64) {
-        const generated = await fetchPdf("POST");
+        const generated = await fetchReimbursementPdf(item.id, "POST");
         payload = generated.payload;
         void loadData();
         if (!generated.ok && !payload.pdfBase64 && !payload.pdfUrl) {
@@ -577,6 +680,41 @@ export function ReimbursementsPanel({
       preview?.close();
       setError(
         err instanceof Error ? err.message : "Errore durante l'apertura del PDF.",
+      );
+    } finally {
+      setPdfBusyId(null);
+    }
+  }
+
+  async function printPdf(item: ReimbursementDisplay) {
+    setError(null);
+    setPdfBusyId(item.id);
+    try {
+      const resolved = await resolvePrintablePdfUrl(item);
+      if (resolved.refreshed) void loadData();
+      if (!resolved.url) {
+        setError(resolved.message ?? "PDF non disponibile per la stampa.");
+        // Fallback: HTML stampabile
+        openPrintableNotula(
+          generateReimbursementHtml({
+            progressive: item.progressive,
+            fiscalYear: item.fiscalYear,
+            associateName: item.associateName,
+            grossAmountEur: item.grossAmountEur,
+            paymentMethod: item.paymentMethod,
+            paymentDate: item.paymentDate,
+            receiptsAmountEur: item.receiptsAmountEur,
+            receiptsNote: item.receiptsNotes,
+            generatedAt: item.generatedAt,
+            signedAt: item.signedAt,
+          }),
+        );
+        return;
+      }
+      triggerPdfPrint(resolved.url);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Errore durante la stampa del PDF.",
       );
     } finally {
       setPdfBusyId(null);
@@ -1003,18 +1141,28 @@ export function ReimbursementsPanel({
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      <button
-                        type="button"
-                        disabled={pdfBusyId === item.id}
-                        onClick={() => void openPdf(item)}
-                        className="text-[var(--brand)] hover:underline disabled:opacity-50"
-                      >
-                        {pdfBusyId === item.id
-                          ? "Generazione…"
-                          : item.pdfUrl || item.pdfStoragePath
-                            ? "Visualizza PDF"
-                            : "Genera PDF"}
-                      </button>
+                      <div className="flex flex-col items-start gap-1 sm:flex-row sm:gap-3">
+                        <button
+                          type="button"
+                          disabled={pdfBusyId === item.id}
+                          onClick={() => void openPdf(item)}
+                          className="text-[var(--brand)] hover:underline disabled:opacity-50"
+                        >
+                          {pdfBusyId === item.id
+                            ? "Generazione…"
+                            : item.pdfUrl || item.pdfStoragePath
+                              ? "Visualizza PDF"
+                              : "Genera PDF"}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={pdfBusyId === item.id}
+                          onClick={() => void printPdf(item)}
+                          className="text-[var(--brand)] hover:underline disabled:opacity-50"
+                        >
+                          Stampa
+                        </button>
+                      </div>
                     </td>
                     {canDelete ? (
                       <td className="px-4 py-3">
