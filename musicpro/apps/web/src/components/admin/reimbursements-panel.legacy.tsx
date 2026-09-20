@@ -1,5 +1,13 @@
 "use client";
 
+/**
+ * BACKUP UI — Genera rimborsi (pre-remake 2026-09-20).
+ *
+ * Non importato dall'app. Per ripristinare:
+ *   cp musicpro/apps/web/src/components/admin/reimbursements-panel.legacy.tsx \
+ *      musicpro/apps/web/src/components/admin/reimbursements-panel.tsx
+ */
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
@@ -714,14 +722,15 @@ export function ReimbursementsPanel({
         </p>
       ) : null}
 
-      <section className="rounded-2xl border border-neutral-200/80 bg-white p-6 shadow-sm sm:p-8">
-        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
+      <section className="rounded-xl border border-neutral-200 bg-white p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-xl font-semibold tracking-tight text-[var(--brand)]">
+            <h2 className="text-lg font-semibold text-[var(--brand)]">
               Genera rimborsi
             </h2>
             <p className="mt-1 text-sm text-neutral-500">
-              Compila la notula. I pagamenti devono sommare l&apos;importo lordo.
+              Una o più notule. I pagamenti parziali devono sommare l&apos;importo
+              lordo.
             </p>
           </div>
           <button
@@ -732,13 +741,13 @@ export function ReimbursementsPanel({
                 createEmptyCard(isDocenteOnly ? (currentMemberId ?? "") : ""),
               ])
             }
-            className="text-sm font-medium text-[var(--brand)] underline-offset-2 hover:underline"
+            className="rounded-lg border border-neutral-300 px-3 py-2 text-sm hover:bg-neutral-50"
           >
             + Aggiungi scheda
           </button>
         </div>
 
-        <div className="mt-6 space-y-5">
+        <div className="mt-4 space-y-4">
           {cards.map((card, index) => (
             <GenerateCard
               key={card.id}
@@ -748,7 +757,6 @@ export function ReimbursementsPanel({
               recentAssociates={recentAssociates}
               isDocenteOnly={isDocenteOnly}
               canRemove={cards.length > 1}
-              showCardLabel={cards.length > 1}
               onRemove={() =>
                 setCards((prev) => prev.filter((c) => c.id !== card.id))
               }
@@ -786,18 +794,16 @@ export function ReimbursementsPanel({
           ))}
         </div>
 
-        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+        <div className="mt-4">
           <button
             type="button"
             disabled={generating}
             onClick={() => void handleGenerate()}
-            className="w-full rounded-xl bg-[var(--brand)] px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-[var(--brand)]/90 disabled:opacity-50 sm:w-auto"
+            className="rounded-lg bg-[var(--brand)] px-6 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
           >
             {generating
               ? "Generazione…"
-              : cards.length > 1
-                ? `Genera ${cards.length} notule`
-                : "Genera"}
+              : `Genera ${cards.length}`}
           </button>
         </div>
       </section>
@@ -1165,7 +1171,6 @@ function GenerateCard({
   recentAssociates,
   isDocenteOnly,
   canRemove,
-  showCardLabel,
   onRemove,
   onChange,
   onMemberChange,
@@ -1178,7 +1183,6 @@ function GenerateCard({
   recentAssociates: RecentReimbursementAssociate[];
   isDocenteOnly: boolean;
   canRemove: boolean;
-  showCardLabel: boolean;
   onRemove: () => void;
   onChange: (patch: Partial<GenerateCardState>) => void;
   onMemberChange: (memberId: string) => void;
@@ -1217,259 +1221,238 @@ function GenerateCard({
   }
 
   return (
-    <div
-      className={
-        showCardLabel
-          ? "relative rounded-xl border border-neutral-200 bg-neutral-50/40 p-4 sm:p-5"
-          : "relative"
-      }
-    >
+    <div className="relative rounded-lg border border-neutral-200 bg-neutral-50/50 p-4">
       {canRemove ? (
         <button
           type="button"
           onClick={onRemove}
-          className="absolute right-3 top-3 z-10 text-neutral-400 hover:text-red-600"
+          className="absolute right-3 top-3 text-neutral-400 hover:text-red-600"
           title="Rimuovi scheda"
         >
           ✕
         </button>
       ) : null}
 
-      {showCardLabel ? (
-        <p className="mb-3 text-xs font-medium text-neutral-500">
-          Notula {index + 1}
+      <p className="mb-3 text-xs font-medium uppercase tracking-wide text-neutral-500">
+        Scheda {index + 1}
+      </p>
+
+      {!isDocenteOnly && recentAssociates.length > 0 ? (
+        <div className="mb-4">
+          <p className="mb-2 text-sm font-medium text-neutral-700">Recenti:</p>
+          <div className="flex flex-wrap gap-1.5">
+            {recentAssociates.map((assoc) => {
+              const selected = card.memberId === assoc.memberId;
+              return (
+                <button
+                  key={assoc.memberId}
+                  type="button"
+                  onClick={() => onMemberChange(assoc.memberId)}
+                  className={
+                    selected
+                      ? "rounded-full bg-[var(--brand)] px-3 py-1 text-xs font-medium text-white"
+                      : "rounded-full bg-neutral-200 px-3 py-1 text-xs text-neutral-800 hover:bg-[var(--brand)]/20"
+                  }
+                >
+                  {assoc.associateName}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {!isDocenteOnly ? (
+          <Field label="Associato *">
+            <select
+              required
+              value={card.memberId}
+              onChange={(e) => onMemberChange(e.target.value)}
+              className={selectClass}
+            >
+              <option value="">Seleziona…</option>
+              {members.map((member) => (
+                <option key={member.id} value={member.id}>
+                  {member.lastName} {member.firstName}
+                </option>
+              ))}
+            </select>
+          </Field>
+        ) : null}
+
+        <Field label="Importo lordo (€) *">
+          <input
+            required
+            type="text"
+            inputMode="decimal"
+            value={card.amount}
+            onChange={(e) => onChange({ amount: e.target.value })}
+            onBlur={onGrossBlur}
+            placeholder="0,00"
+            className={inputClass}
+          />
+        </Field>
+
+        <Field label="Importo ricevute (€)">
+          <input
+            type="text"
+            inputMode="decimal"
+            value={card.receiptsAmount}
+            onChange={(e) => onChange({ receiptsAmount: e.target.value })}
+            placeholder="Uguale al lordo"
+            className={inputClass}
+          />
+        </Field>
+
+        <Field label="Data pagamento *">
+          <input
+            type="date"
+            required
+            value={card.paymentDate}
+            onChange={(e) => onChange({ paymentDate: e.target.value })}
+            className={inputClass}
+          />
+        </Field>
+      </div>
+
+      {card.balanceLoading ? (
+        <p className="mt-3 text-xs text-neutral-500">Calcolo saldo ricevute…</p>
+      ) : null}
+
+      {showSurplus ? (
+        <label className="mt-3 flex items-start gap-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900">
+          <input
+            type="checkbox"
+            checked={card.useSurplus}
+            onChange={(e) => onToggleSurplus(e.target.checked)}
+            className="mt-0.5"
+          />
+          <span>
+            Disponibili{" "}
+            <strong>{formatEuro(balance!)}</strong> di scontrini precedenti.
+            Usali ora.
+          </span>
+        </label>
+      ) : null}
+
+      {showDebt ? (
+        <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          Attenzione: mancano{" "}
+          <strong className="text-red-700">
+            {formatEuro(Math.abs(balance!))}
+          </strong>{" "}
+          di ricevute da rimborsi passati.
         </p>
       ) : null}
 
-      <div className="space-y-5">
-        {/* Chi */}
-        <div className="space-y-3">
-          {!isDocenteOnly && recentAssociates.length > 0 ? (
-            <div>
-              <p className="mb-1.5 text-sm font-medium text-neutral-700">
-                Recenti
-              </p>
-              <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]">
-                {recentAssociates.map((assoc) => {
-                  const selected = card.memberId === assoc.memberId;
-                  return (
-                    <button
-                      key={assoc.memberId}
-                      type="button"
-                      onClick={() => onMemberChange(assoc.memberId)}
-                      className={
-                        selected
-                          ? "shrink-0 rounded-full bg-[var(--brand)] px-3 py-1.5 text-xs font-medium text-white"
-                          : "shrink-0 rounded-full bg-neutral-100 px-3 py-1.5 text-xs text-neutral-700 ring-1 ring-neutral-200 hover:bg-neutral-200/70"
+      <div className="mt-4">
+        <p className="mb-2 text-sm font-medium text-neutral-700">
+          Dettagli pagamento
+        </p>
+        <div className="space-y-2">
+          {card.paymentLines.map((line, lineIndex) => (
+            <div key={line.id} className="flex flex-wrap items-end gap-2">
+              <label className="min-w-[180px] flex-1 text-sm">
+                <span className="mb-1 block text-neutral-600">Metodo</span>
+                <select
+                  value={line.method}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value === "__custom__") {
+                      const custom = window.prompt("Nuovo metodo di pagamento:");
+                      if (custom?.trim()) {
+                        updateLine(line.id, { method: custom.trim() });
                       }
-                    >
-                      {assoc.associateName}
-                    </button>
-                  );
-                })}
+                      return;
+                    }
+                    updateLine(line.id, { method: value });
+                  }}
+                  className={selectClass}
+                >
+                  {DEFAULT_PAYMENT_METHODS.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                  {!DEFAULT_PAYMENT_METHODS.includes(
+                    line.method as (typeof DEFAULT_PAYMENT_METHODS)[number],
+                  ) ? (
+                    <option value={line.method}>{line.method}</option>
+                  ) : null}
+                  <option value="__custom__">Aggiungi altro…</option>
+                </select>
+              </label>
+              <label className="w-32 text-sm">
+                <span className="mb-1 block text-neutral-600">Importo</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={line.amount}
+                  onChange={(e) =>
+                    updateLine(line.id, { amount: e.target.value })
+                  }
+                  placeholder="0,00"
+                  className={inputClass}
+                />
+              </label>
+              <div className="flex gap-1 pb-0.5">
+                {lineIndex === card.paymentLines.length - 1 ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onChange({
+                        paymentLines: [
+                          ...card.paymentLines,
+                          {
+                            id: newId(),
+                            method: DEFAULT_PAYMENT_METHODS[0],
+                            amount: "",
+                          },
+                        ],
+                      })
+                    }
+                    className="rounded border border-neutral-300 px-2 py-2 text-sm hover:bg-white"
+                    title="Aggiungi riga"
+                  >
+                    +
+                  </button>
+                ) : null}
+                {card.paymentLines.length > 1 ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onChange({
+                        paymentLines: card.paymentLines.filter(
+                          (l) => l.id !== line.id,
+                        ),
+                      })
+                    }
+                    className="rounded border border-red-200 px-2 py-2 text-sm text-red-600 hover:bg-red-50"
+                    title="Rimuovi riga"
+                  >
+                    −
+                  </button>
+                ) : null}
               </div>
             </div>
-          ) : null}
-
-          {!isDocenteOnly ? (
-            <Field label="Associato *">
-              <select
-                required
-                value={card.memberId}
-                onChange={(e) => onMemberChange(e.target.value)}
-                className={selectClass}
-              >
-                <option value="">Seleziona…</option>
-                {members.map((member) => (
-                  <option key={member.id} value={member.id}>
-                    {member.lastName} {member.firstName}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          ) : null}
+          ))}
         </div>
-
-        {/* Quanto + Quando */}
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Field label="Importo lordo (€) *">
-            <input
-              required
-              type="text"
-              inputMode="decimal"
-              value={card.amount}
-              onChange={(e) => onChange({ amount: e.target.value })}
-              onBlur={onGrossBlur}
-              placeholder="0,00"
-              className={inputClass}
-            />
-          </Field>
-
-          <Field label="Importo ricevute (€)">
-            <input
-              type="text"
-              inputMode="decimal"
-              value={card.receiptsAmount}
-              onChange={(e) => onChange({ receiptsAmount: e.target.value })}
-              placeholder="Uguale al lordo"
-              className={inputClass}
-            />
-          </Field>
-
-          <Field label="Data pagamento *">
-            <input
-              type="date"
-              required
-              value={card.paymentDate}
-              onChange={(e) => onChange({ paymentDate: e.target.value })}
-              className={inputClass}
-            />
-          </Field>
-        </div>
-
-        {card.balanceLoading ? (
-          <p className="text-xs text-neutral-500">Calcolo saldo ricevute…</p>
-        ) : null}
-
-        {showSurplus ? (
-          <label className="flex items-start gap-2.5 rounded-lg border border-sky-200/80 bg-sky-50 px-3 py-2 text-sm text-sky-950">
-            <input
-              type="checkbox"
-              checked={card.useSurplus}
-              onChange={(e) => onToggleSurplus(e.target.checked)}
-              className="mt-0.5"
-            />
-            <span>
-              Usa{" "}
-              <strong>{formatEuro(balance!)}</strong> di scontrini precedenti
-            </span>
-          </label>
-        ) : null}
-
-        {showDebt ? (
-          <p className="rounded-lg border border-amber-200/80 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-            Mancano{" "}
-            <strong className="text-red-700">
-              {formatEuro(Math.abs(balance!))}
-            </strong>{" "}
-            di ricevute da rimborsi passati
+        {showMismatch ? (
+          <p className="mt-2 text-right text-sm font-medium text-red-600">
+            La somma dei parziali non corrisponde al totale.
           </p>
         ) : null}
-
-        {/* Come */}
-        <div>
-          <p className="mb-2 text-sm font-medium text-neutral-700">Pagamento</p>
-          <div className="space-y-2">
-            {card.paymentLines.map((line, lineIndex) => (
-              <div
-                key={line.id}
-                className="flex flex-wrap items-end gap-2 rounded-lg bg-neutral-50 px-2 py-2 ring-1 ring-neutral-200/80 sm:px-3"
-              >
-                <label className="min-w-[160px] flex-1 text-sm">
-                  <span className="mb-1 block text-neutral-500">Metodo</span>
-                  <select
-                    value={line.method}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      if (value === "__custom__") {
-                        const custom = window.prompt(
-                          "Nuovo metodo di pagamento:",
-                        );
-                        if (custom?.trim()) {
-                          updateLine(line.id, { method: custom.trim() });
-                        }
-                        return;
-                      }
-                      updateLine(line.id, { method: value });
-                    }}
-                    className={selectClass}
-                  >
-                    {DEFAULT_PAYMENT_METHODS.map((m) => (
-                      <option key={m} value={m}>
-                        {m}
-                      </option>
-                    ))}
-                    {!DEFAULT_PAYMENT_METHODS.includes(
-                      line.method as (typeof DEFAULT_PAYMENT_METHODS)[number],
-                    ) ? (
-                      <option value={line.method}>{line.method}</option>
-                    ) : null}
-                    <option value="__custom__">Aggiungi altro…</option>
-                  </select>
-                </label>
-                <label className="w-28 text-sm sm:w-32">
-                  <span className="mb-1 block text-neutral-500">Importo</span>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={line.amount}
-                    onChange={(e) =>
-                      updateLine(line.id, { amount: e.target.value })
-                    }
-                    placeholder="0,00"
-                    className={inputClass}
-                  />
-                </label>
-                <div className="flex gap-1 pb-0.5">
-                  {lineIndex === card.paymentLines.length - 1 ? (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        onChange({
-                          paymentLines: [
-                            ...card.paymentLines,
-                            {
-                              id: newId(),
-                              method: DEFAULT_PAYMENT_METHODS[0],
-                              amount: "",
-                            },
-                          ],
-                        })
-                      }
-                      className="rounded-md px-2.5 py-2 text-sm font-medium text-neutral-600 hover:bg-white hover:text-[var(--brand)]"
-                      title="Aggiungi riga"
-                    >
-                      +
-                    </button>
-                  ) : null}
-                  {card.paymentLines.length > 1 ? (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        onChange({
-                          paymentLines: card.paymentLines.filter(
-                            (l) => l.id !== line.id,
-                          ),
-                        })
-                      }
-                      className="rounded-md px-2.5 py-2 text-sm text-red-600 hover:bg-red-50"
-                      title="Rimuovi riga"
-                    >
-                      −
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-            ))}
-          </div>
-          {showMismatch ? (
-            <p className="mt-2 text-sm font-medium text-red-600">
-              La somma dei parziali non corrisponde al totale.
-            </p>
-          ) : null}
-        </div>
-
-        {/* Invia */}
-        <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl bg-neutral-50 px-3 py-2.5 ring-1 ring-neutral-200/80">
-          <span className="text-sm text-neutral-800">Invia email notula</span>
-          <input
-            type="checkbox"
-            checked={card.sendEmail}
-            onChange={(e) => onChange({ sendEmail: e.target.checked })}
-            className="h-4 w-4 accent-[var(--brand)]"
-          />
-        </label>
       </div>
+
+      <label className="mt-4 flex items-center gap-2 text-sm text-neutral-700">
+        <input
+          type="checkbox"
+          checked={card.sendEmail}
+          onChange={(e) => onChange({ sendEmail: e.target.checked })}
+        />
+        Invia email notula
+      </label>
     </div>
   );
 }
@@ -1495,7 +1478,7 @@ function StatusBadge({
 }
 
 const inputClass =
-  "w-full rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm text-neutral-900 shadow-sm placeholder:text-neutral-400 focus:border-[var(--brand)] focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/20";
+  "w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)]";
 
 const selectClass = inputClass;
 
@@ -1508,7 +1491,7 @@ function Field({
 }) {
   return (
     <label className="block min-w-[140px] flex-1 text-sm">
-      <span className="mb-1.5 block font-medium text-neutral-700">{label}</span>
+      <span className="mb-1 block text-neutral-600">{label}</span>
       {children}
     </label>
   );

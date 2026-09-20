@@ -60,7 +60,7 @@ function mainContracts() {
       "/api/admin/reimbursements/${encodeURIComponent(id)}/email",
       "Invia email notula",
       "listRecentReimbursementAssociates",
-      "Recenti:",
+      "Recenti",
       "recentAssociates",
     ],
   );

@@ -139,7 +139,7 @@ function main() {
       "pdfFailed",
       "Generazione…",
       "about:blank",
-      "Recenti:",
+      "Recenti",
       "listRecentReimbursementAssociates",
       "sendEmail",
     ],
