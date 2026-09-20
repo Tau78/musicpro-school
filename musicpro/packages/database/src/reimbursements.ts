@@ -292,8 +292,16 @@ export function formatImportoPlain(amount: number): string {
 }
 
 /**
+ * GAS payment amounts use a period decimal (`€ 100.00`), also when stored
+ * historically with Italian commas (`€ 100,00`).
+ */
+export function normalizePaymentMethodEuroDecimals(method: string): string {
+  return method.replace(/€\s*(\d+),(\d{2})\b/g, "€ $1.$2");
+}
+
+/**
  * Template line: `Versati a rimborso totale in {metodo} il {data}`.
- * `payment_method` already looks like `Bonifico Bancario: € 100,00`.
+ * `payment_method` looks like `Bonifico Bancario: € 100.00` (GAS).
  */
 export function buildVersatiRimborsoLine(params: {
   paymentMethod: string | null | undefined;
@@ -302,7 +310,7 @@ export function buildVersatiRimborsoLine(params: {
 }): string {
   const method = params.paymentMethod?.trim() || "—";
   const mid = /\d/.test(method)
-    ? method
+    ? normalizePaymentMethodEuroDecimals(method)
     : `${method}: € ${formatImportoPlain(params.grossAmountEur)}`;
   return `Versati a rimborso totale in ${mid} il ${params.paymentDateLabel}`;
 }
@@ -442,13 +450,13 @@ export function formatPaymentAmountIt(amount: number): string {
 }
 
 /**
- * Builds concatenated payment_method string, e.g.
- * "Bonifico Bancario: € 50,00, Contanti: € 30,00"
+ * Builds concatenated payment_method string (GAS), e.g.
+ * "Bonifico Bancario: € 50.00, Contanti: € 30.00"
  */
 export function formatPaymentMethodString(parts: PaymentPart[]): string {
   return parts
     .filter((p) => p.method && p.amount > 0)
-    .map((p) => `${p.method}: € ${formatPaymentAmountIt(p.amount)}`)
+    .map((p) => `${p.method}: € ${formatImportoPlain(p.amount)}`)
     .join(", ");
 }
 

@@ -150,16 +150,6 @@ export async function POST(_request: Request, context: RouteContext) {
   if ("error" in auth && auth.error) return auth.error;
   const { supabase, reimbursement } = auth;
 
-  if (isExternalPdfUrl(reimbursement.pdfUrl) && reimbursement.pdfStoragePath) {
-    return NextResponse.json({
-      success: true,
-      id,
-      pdfUrl: reimbursement.pdfUrl,
-      pdfStoragePath: reimbursement.pdfStoragePath,
-      source: "drive",
-    });
-  }
-
   try {
     const persisted = await persistReimbursementPdf(supabase, reimbursement);
     return NextResponse.json(

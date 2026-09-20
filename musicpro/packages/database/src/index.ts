@@ -402,6 +402,7 @@ export {
   getReimbursementById,
   isExternalPdfUrl,
   listReimbursements,
+  normalizePaymentMethodEuroDecimals,
   paymentPartsMatchGross,
   signReimbursement,
   sumPaymentParts,
