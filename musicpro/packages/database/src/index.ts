@@ -358,6 +358,7 @@ export type {
   QuotaPaymentItemStatus,
 } from "./bands";
 export {
+  buildMemberQuotaHistory,
   createAnnualQuotaSetting,
   currentFiscalYear,
   deleteAnnualQuotaSetting,
@@ -379,6 +380,7 @@ export type {
   BulkQuotaUpsertResult,
   MemberAnnualQuota,
   MemberAnnualQuotaInput,
+  MemberQuotaYearStatus,
   QuotaMutationResult,
 } from "./quotas";
 export {

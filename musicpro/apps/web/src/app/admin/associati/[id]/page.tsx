@@ -7,6 +7,7 @@ import {
   getMemberCreditBalance,
   getMemberRoles,
   getTeacherProfile,
+  listAnnualQuotaSettings,
   listLessonSubjects,
   listMemberAnnualQuotas,
   listMemberCreditTransactions,
@@ -53,6 +54,7 @@ export default async function AssociatoDetailPage({ params }: PageProps) {
     creditBalance,
     creditTransactions,
     quotas,
+    quotaSettings,
     roles,
     teacherProfile,
     teacherSubjects,
@@ -63,6 +65,7 @@ export default async function AssociatoDetailPage({ params }: PageProps) {
     getMemberCreditBalance(supabase, id),
     listMemberCreditTransactions(supabase, id),
     listMemberAnnualQuotas(supabase, { memberId: id }),
+    listAnnualQuotaSettings(supabase),
     getMemberRoles(supabase, id),
     getTeacherProfile(supabase, id),
     listTeacherSubjects(supabase, id),
@@ -120,6 +123,7 @@ export default async function AssociatoDetailPage({ params }: PageProps) {
         member={member}
         canDelete={canDeleteMembers(currentMember.roles)}
         quotas={quotas}
+        quotaSettings={quotaSettings}
       />
 
       {hasDocenteRole ? (

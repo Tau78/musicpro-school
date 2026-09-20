@@ -144,6 +144,74 @@ export function formatQuotaDateItalian(isoDate: string): string {
   }).format(new Date(isoDate));
 }
 
+export type MemberQuotaYearStatus = {
+  fiscalYear: number;
+  /** ISO date if versata */
+  paidAt: string | null;
+  amountEur: number | null;
+  status: "versata" | "non_versata";
+};
+
+function yearFromIso(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const y = Number(String(iso).slice(0, 4));
+  return Number.isInteger(y) && y >= 2000 ? y : null;
+}
+
+/**
+ * Storico quote per anagrafica: ogni anno da iscrizione (o prima quota)
+ * fino all'anno fiscale corrente, con data versamento o «non versata».
+ */
+export function buildMemberQuotaHistory(params: {
+  quotas: MemberAnnualQuota[];
+  enrolledAt?: string | null;
+  settings?: AnnualQuotaSetting[];
+  throughYear?: number;
+}): MemberQuotaYearStatus[] {
+  const through = params.throughYear ?? currentFiscalYear();
+  const byYear = new Map<number, MemberAnnualQuota>();
+  for (const q of params.quotas) {
+    byYear.set(q.fiscalYear, q);
+  }
+
+  const settingByYear = new Map<number, number>();
+  for (const s of params.settings ?? []) {
+    settingByYear.set(s.fiscalYear, s.amountEur);
+  }
+
+  const enrolledYear = yearFromIso(params.enrolledAt);
+  const quotaYears = params.quotas.map((q) => q.fiscalYear);
+  const settingYears = [...settingByYear.keys()].filter((y) => y <= through);
+
+  let start =
+    enrolledYear ??
+    (quotaYears.length
+      ? Math.min(...quotaYears)
+      : settingYears.length
+        ? Math.min(...settingYears)
+        : through);
+
+  if (start > through) start = through;
+
+  const rows: MemberQuotaYearStatus[] = [];
+  for (let year = through; year >= start; year--) {
+    const quota = byYear.get(year);
+    const paidAt = quota?.paidAt ?? null;
+    const amount =
+      quota?.amountPaidEur ??
+      quota?.amountDueEur ??
+      settingByYear.get(year) ??
+      null;
+    rows.push({
+      fiscalYear: year,
+      paidAt,
+      amountEur: amount,
+      status: paidAt ? "versata" : "non_versata",
+    });
+  }
+  return rows;
+}
+
 export async function listAnnualQuotaSettings(
   client: QuotasClient,
 ): Promise<AnnualQuotaSetting[]> {
