@@ -1,4 +1,8 @@
-const DEFAULT_FROM = "MusicPro School <noreply@school.musicproeventi.it>";
+/**
+ * Email notula rimborsi: Resend se presente, altrimenti SMTP Google
+ * (stesso trasporto delle iscrizioni).
+ */
+import { sendEnrollmentEmail } from "@/lib/iscrizione/email-transport";
 
 export interface ResendAttachment {
   filename: string;
@@ -13,55 +17,33 @@ export async function sendReimbursementEmailViaResend(params: {
   text: string;
   attachments?: ResendAttachment[];
 }): Promise<
-  | { ok: true; sent: true }
+  | { ok: true; sent: true; via?: "resend" | "smtp" }
   | { ok: true; skipped: true; reason: string }
   | { ok: false; error: string }
 > {
-  const apiKey = process.env.RESEND_API_KEY?.trim();
-  if (!apiKey) {
+  const result = await sendEnrollmentEmail({
+    to: [params.to],
+    subject: params.subject,
+    html: params.html,
+    text: params.text,
+    attachments: params.attachments?.map((a) => ({
+      filename: a.filename,
+      content: a.content,
+      content_type: a.content_type,
+    })),
+    timeoutMs: 20_000,
+  });
+
+  if (!result.sent) {
     return {
       ok: false,
       error:
-        "RESEND_API_KEY assente: l'email della notula non è stata inviata.",
+        result.error ||
+        "Nessun trasporto email (RESEND_API_KEY o GOOGLE_SMTP_*)",
     };
   }
 
-  const from =
-    process.env.REIMBURSEMENT_EMAIL_FROM?.trim() ||
-    process.env.BOOKING_EMAIL_FROM?.trim() ||
-    DEFAULT_FROM;
-
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from,
-      to: [params.to],
-      subject: params.subject,
-      html: params.html,
-      text: params.text,
-      attachments: params.attachments?.length
-        ? params.attachments.map((a) => ({
-            filename: a.filename,
-            content: a.content,
-            content_type: a.content_type,
-          }))
-        : undefined,
-    }),
-  });
-
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    return {
-      ok: false,
-      error: `Resend ${res.status}: ${body.slice(0, 500)}`,
-    };
-  }
-
-  return { ok: true, sent: true };
+  return { ok: true, sent: true, via: result.via };
 }
 
 export function buildNotulaEmailContent(params: {

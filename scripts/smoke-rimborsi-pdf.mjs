@@ -135,7 +135,14 @@ function main() {
   ]);
   sourceMustInclude(
     "musicpro/apps/web/src/components/admin/reimbursements-panel.tsx",
-    ["pdfFailed", "Generazione…", "about:blank"],
+    [
+      "pdfFailed",
+      "Generazione…",
+      "about:blank",
+      "Recenti:",
+      "listRecentReimbursementAssociates",
+      "sendEmail",
+    ],
   );
   sourceMustInclude("musicpro/apps/web/src/lib/reimbursements/send.ts", [
     "persistReimbursementPdf",

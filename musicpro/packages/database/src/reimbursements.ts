@@ -152,6 +152,49 @@ export async function listReimbursements(
   return { reimbursements, totalAmountEur };
 }
 
+export type RecentReimbursementAssociate = {
+  memberId: string;
+  associateName: string;
+};
+
+/**
+ * Ultimi intestatari di notula (GAS `getRecentAssociates`: max 10 unici,
+ * ordinati per generated_at desc).
+ */
+export async function listRecentReimbursementAssociates(
+  client: ReimbursementsClient,
+  limit = 10,
+): Promise<RecentReimbursementAssociate[]> {
+  const take = Math.max(1, Math.min(limit, 20));
+  const { data, error } = await client
+    .from("reimbursements")
+    .select("member_id, generated_at")
+    .order("generated_at", { ascending: false })
+    .limit(200);
+
+  if (error) {
+    throw new Error(
+      `Impossibile caricare gli ultimi associati: ${error.message}`,
+    );
+  }
+
+  const recentIds: string[] = [];
+  const seen = new Set<string>();
+  for (const row of (data ?? []) as { member_id: string }[]) {
+    const id = row.member_id;
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    recentIds.push(id);
+    if (recentIds.length >= take) break;
+  }
+
+  const names = await loadMemberNames(client, recentIds);
+  return recentIds.map((memberId) => ({
+    memberId,
+    associateName: names.get(memberId) ?? "—",
+  }));
+}
+
 export async function getReimbursementById(
   client: ReimbursementsClient,
   id: string,
