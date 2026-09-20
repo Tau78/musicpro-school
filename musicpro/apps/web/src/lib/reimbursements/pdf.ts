@@ -1,7 +1,3 @@
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 
 import {
@@ -11,6 +7,8 @@ import {
   formatReimbursementDateItalian,
   reimbursementPdfFilename,
 } from "@musicpro/database";
+
+import { PRESIDENT_SIGNATURE_PNG_BASE64 } from "./assets/firma-presidente-base64";
 
 export interface NotulaPdfInput {
   progressive: string;
@@ -160,41 +158,23 @@ function drawPdfText(
   return cursor - x;
 }
 
-function resolvePresidentSignaturePath(): string | null {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const candidates = [
-    join(here, "assets", "firma-presidente.png"),
-    join(process.cwd(), "src/lib/reimbursements/assets/firma-presidente.png"),
-    join(
-      process.cwd(),
-      "apps/web/src/lib/reimbursements/assets/firma-presidente.png",
-    ),
-    join(
-      process.cwd(),
-      "musicpro/apps/web/src/lib/reimbursements/assets/firma-presidente.png",
-    ),
-  ];
-  for (const candidate of candidates) {
-    try {
-      readFileSync(candidate);
-      return candidate;
-    } catch {
-      /* try next */
-    }
-  }
-  return null;
-}
-
 function loadPresidentSignaturePng(): Uint8Array | null {
-  const path = resolvePresidentSignaturePath();
-  if (!path) return null;
-  return new Uint8Array(readFileSync(path));
+  const b64 = PRESIDENT_SIGNATURE_PNG_BASE64?.trim();
+  if (!b64) return null;
+  if (typeof Buffer !== "undefined") {
+    return new Uint8Array(Buffer.from(b64, "base64"));
+  }
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
 }
 
 function presidentSignatureDataUrl(): string | null {
-  const bytes = loadPresidentSignaturePng();
-  if (!bytes) return null;
-  const b64 = Buffer.from(bytes).toString("base64");
+  const b64 = PRESIDENT_SIGNATURE_PNG_BASE64?.trim();
+  if (!b64) return null;
   return `data:image/png;base64,${b64}`;
 }
 

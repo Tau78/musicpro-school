@@ -157,22 +157,24 @@ function main() {
     "Mauro Andreoni",
     "sanitizePdfText",
     "TimesRoman",
-    "firma-presidente.png",
+    "firma-presidente-base64",
   ]);
   {
     const firmaPath = path.join(
       rootDir,
-      "musicpro/apps/web/src/lib/reimbursements/assets/firma-presidente.png",
+      "musicpro/apps/web/src/lib/reimbursements/assets/firma-presidente-base64.ts",
     );
     try {
-      const bytes = readFileSync(firmaPath);
-      if (bytes.length < 1000) {
-        fail(`firma-presidente.png troppo piccola (${bytes.length} byte)`);
+      const src = readFileSync(firmaPath, "utf8");
+      if (src.length < 1000) {
+        fail(`firma-presidente-base64.ts troppo piccola (${src.length} char)`);
       } else {
-        ok(`firma-presidente.png presente (${bytes.length} byte)`);
+        ok(`firma-presidente-base64.ts presente (${src.length} char)`);
       }
     } catch {
-      fail("manca musicpro/apps/web/src/lib/reimbursements/assets/firma-presidente.png");
+      fail(
+        "manca musicpro/apps/web/src/lib/reimbursements/assets/firma-presidente-base64.ts",
+      );
     }
   }
   sourceMustInclude(
