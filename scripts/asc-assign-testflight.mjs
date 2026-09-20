@@ -154,16 +154,20 @@ async function findBuild() {
 }
 
 async function waitForBuild() {
-  const deadline = Date.now() + 12 * 60 * 1000;
+  const deadline = Date.now() + 20 * 60 * 1000;
   while (Date.now() < deadline) {
     const build = await findBuild();
     if (build && (!WANT || build.attributes?.version === String(WANT))) {
       const state = build.attributes?.processingState;
-      if (state === "VALID" || state === "PROCESSING" || !state) {
-        return build;
+      console.log(
+        `Build ${build.attributes?.version} state=${state || "?"} id=${build.id}`,
+      );
+      if (state === "VALID") return build;
+      if (state === "FAILED" || state === "INVALID") {
+        throw new Error(`Build non valida: ${state}`);
       }
     }
-    await new Promise((r) => setTimeout(r, 15000));
+    await new Promise((r) => setTimeout(r, 20000));
   }
   return null;
 }
@@ -181,6 +185,14 @@ console.log(
 
 await ensureTesterInInternalGroups(groupIds);
 
+const allAccess = groups.filter((g) => g.attributes?.hasAccessToAllBuilds === true);
+if (allAccess.length) {
+  console.log(
+    "Gruppi con accesso a tutte le build (nessun assign esplicito):",
+    allAccess.map((g) => g.attributes?.name).join(", "),
+  );
+}
+
 const build = await waitForBuild();
 if (!build) {
   console.error(`Nessuna build ${WANT || "recente"} su App Store Connect.`);
@@ -188,14 +200,25 @@ if (!build) {
 }
 
 const version = build.attributes?.version;
-for (const groupId of groupIds) {
+const needAssign = groups.filter((g) => g.attributes?.hasAccessToAllBuilds !== true);
+if (!needAssign.length) {
+  console.log(
+    `Build ${version} già disponibile ai tester interni (IN_BETA_TESTING). Tester ${TESTER_EMAIL} ok.`,
+  );
+  console.log("Tira giù per aggiornare in TestFlight (Installa, non Aggiorna).");
+  process.exit(0);
+}
+
+for (const group of needAssign) {
   try {
-    await req("POST", `/v1/betaGroups/${groupId}/relationships/builds`, {
+    await req("POST", `/v1/betaGroups/${group.id}/relationships/builds`, {
       data: [{ type: "builds", id: build.id }],
     });
-    console.log(`TestFlight gruppo ${groupId} → build ${version} (${build.id}).`);
+    console.log(
+      `TestFlight gruppo ${group.attributes?.name} → build ${version} (${build.id}).`,
+    );
   } catch (err) {
-    console.warn(String(err.message || err).slice(0, 200));
+    console.warn(String(err.message || err).slice(0, 400));
   }
 }
 console.log("Tira giù per aggiornare in TestFlight (Installa, non Aggiorna).");
