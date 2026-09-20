@@ -5,11 +5,12 @@ import Link from "next/link";
 import { useState } from "react";
 
 import {
+  type AnnualQuotaSetting,
   type MemberAnnualQuota,
   type MemberDetail,
   type MemberInput,
+  buildMemberQuotaHistory,
   createMember,
-  currentFiscalYear,
   deleteMember,
   formatQuotaDateItalian,
   formatQuotaEuro,
@@ -30,6 +31,7 @@ interface MemberFormProps {
   defaultMemberNumber?: number;
   canDelete?: boolean;
   quotas?: MemberAnnualQuota[];
+  quotaSettings?: AnnualQuotaSetting[];
   currentStaffMemberId?: string;
   currentStaffRoles?: MemberRoleValue[];
   initialIsDocente?: boolean;
@@ -118,6 +120,7 @@ export function MemberForm({
   defaultMemberNumber,
   canDelete = false,
   quotas = [],
+  quotaSettings = [],
   currentStaffMemberId,
   currentStaffRoles = [],
   initialIsDocente = false,
@@ -139,6 +142,14 @@ export function MemberForm({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  const quotaHistory = isEdit
+    ? buildMemberQuotaHistory({
+        quotas,
+        enrolledAt: form.enrolledAt ?? member?.enrolledAt ?? null,
+        settings: quotaSettings,
+      })
+    : [];
 
   function updateField<K extends keyof MemberInput>(
     key: K,
@@ -568,40 +579,31 @@ export function MemberForm({
                 Gestisci in Quote
               </Link>
             </div>
-            {quotas.length === 0 ? (
-              <p className="text-sm text-neutral-500">
-                Nessuna quota registrata. Anno corrente ({currentFiscalYear()}):
-                non pagata.
-              </p>
-            ) : (
-              <ul className="space-y-1 text-sm text-neutral-700">
-                {quotas.map((quota) => {
-                  const paid = Boolean(quota.paidAt);
-                  const amount =
-                    quota.amountPaidEur ?? quota.amountDueEur ?? null;
-                  return (
-                    <li key={quota.id} className="flex flex-wrap gap-x-2">
-                      <span className="font-medium">{quota.fiscalYear}</span>
-                      <span
-                        className={paid ? "text-green-700" : "text-amber-700"}
-                      >
-                        {paid ? "Pagata" : "Non pagata"}
+            <ul className="space-y-1 text-sm text-neutral-700">
+              {quotaHistory.map((row) => {
+                const versata = row.status === "versata";
+                return (
+                  <li
+                    key={row.fiscalYear}
+                    className="flex flex-wrap gap-x-2"
+                  >
+                    <span className="font-medium">{row.fiscalYear}</span>
+                    {versata && row.paidAt ? (
+                      <span className="text-green-700">
+                        Versata il {formatQuotaDateItalian(row.paidAt)}
                       </span>
-                      {paid && quota.paidAt ? (
-                        <span className="text-neutral-500">
-                          il {formatQuotaDateItalian(quota.paidAt)}
-                        </span>
-                      ) : null}
-                      {amount != null ? (
-                        <span className="text-neutral-500">
-                          ({formatQuotaEuro(amount)})
-                        </span>
-                      ) : null}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
+                    ) : (
+                      <span className="text-amber-700">non versata</span>
+                    )}
+                    {row.amountEur != null ? (
+                      <span className="text-neutral-500">
+                        ({formatQuotaEuro(row.amountEur)})
+                      </span>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
           </div>
         ) : null}
       </fieldset>

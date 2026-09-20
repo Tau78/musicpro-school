@@ -7,8 +7,10 @@ import {
   getMemberById,
   getMemberCreditBalance,
   getMemberRoles,
+  listAnnualQuotaSettings,
   listMemberAnnualQuotas,
   listMemberCreditTransactions,
+  type AnnualQuotaSetting,
   type CreditTransaction,
   type MemberAnnualQuota,
   type MemberCreditBalance,
@@ -34,6 +36,7 @@ interface MemberDetailDialogProps {
 type DialogData = {
   member: MemberDetail;
   quotas: MemberAnnualQuota[];
+  quotaSettings: AnnualQuotaSetting[];
   roles: MemberRoleValue[];
   creditBalance: MemberCreditBalance;
   creditTransactions: CreditTransaction[];
@@ -78,20 +81,22 @@ export function MemberDetailDialog({
 
     void (async () => {
       try {
-        const [member, quotas, roles, credits] = await Promise.all([
-          getMemberById(supabase, memberId),
-          listMemberAnnualQuotas(supabase, { memberId }),
-          getMemberRoles(supabase, memberId),
-          Promise.all([
-            getMemberCreditBalance(supabase, memberId),
-            listMemberCreditTransactions(supabase, memberId),
-          ]).catch(
-            (): [MemberCreditBalance, CreditTransaction[]] => [
-              { available: 0, held: 0, total: 0 },
-              [],
-            ],
-          ),
-        ]);
+        const [member, quotas, quotaSettings, roles, credits] =
+          await Promise.all([
+            getMemberById(supabase, memberId),
+            listMemberAnnualQuotas(supabase, { memberId }),
+            listAnnualQuotaSettings(supabase),
+            getMemberRoles(supabase, memberId),
+            Promise.all([
+              getMemberCreditBalance(supabase, memberId),
+              listMemberCreditTransactions(supabase, memberId),
+            ]).catch(
+              (): [MemberCreditBalance, CreditTransaction[]] => [
+                { available: 0, held: 0, total: 0 },
+                [],
+              ],
+            ),
+          ]);
 
         if (cancelled) return;
 
@@ -104,6 +109,7 @@ export function MemberDetailDialog({
         setData({
           member,
           quotas,
+          quotaSettings,
           roles,
           creditBalance: credits[0],
           creditTransactions: credits[1],
@@ -244,6 +250,7 @@ export function MemberDetailDialog({
                 member={data.member}
                 canDelete={canDelete}
                 quotas={data.quotas}
+                quotaSettings={data.quotaSettings}
                 onCancel={() => setView("quick")}
                 onDeleted={onClose}
               />
