@@ -12,7 +12,8 @@ export type DriveUploadResult =
   | { ok: true; fileId: string; webViewLink: string }
   | { ok: false; error: string };
 
-const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive";
+const DRIVE_SCOPE =
+  "https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/documents";
 const FOLDER_MIME = "application/vnd.google-apps.folder";
 
 function loadServiceAccount(): GoogleServiceAccount | null {
@@ -89,6 +90,11 @@ async function getDriveAccessToken(): Promise<string> {
     throw new Error(detail || `Token Google Drive fallito (${res.status})`);
   }
   return data.access_token;
+}
+
+/** Access token Drive+Docs (service account / domain-wide). */
+export async function getGoogleDriveAccessToken(): Promise<string> {
+  return getDriveAccessToken();
 }
 
 function escapeDriveQuery(value: string): string {
