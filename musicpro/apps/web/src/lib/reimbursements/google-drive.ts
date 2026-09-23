@@ -305,6 +305,8 @@ export async function uploadEnrollmentPdfToDrive(params: {
   associateFolderName: string;
   filename: string;
   bytes: Uint8Array;
+  /** Nomi vecchi/duplicati da eliminare definitivamente nella cartella piatta dopo l'upload. */
+  trashAliases?: string[];
 }): Promise<DriveUploadResult> {
   try {
     const token = await getDriveAccessToken();
@@ -318,6 +320,21 @@ export async function uploadEnrollmentPdfToDrive(params: {
         params.filename,
         params.bytes,
       );
+      // Elimina i duplicati storici (es. «Iscrizione - Cognome Nome.pdf») in modo
+      // permanente: il cestino su Drive mobile resta visibile e confonde.
+      for (const alias of params.trashAliases ?? []) {
+        const name = String(alias || "").trim();
+        if (!name || name === params.filename) continue;
+        const existing = await findChild(token, flatId, name);
+        if (!existing) continue;
+        await fetch(
+          `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(existing.id)}?supportsAllDrives=true`,
+          {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        ).catch(() => undefined);
+      }
     }
 
     const rootId = String(params.rootFolderId || "").trim();

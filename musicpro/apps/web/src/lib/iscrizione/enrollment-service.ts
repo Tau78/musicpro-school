@@ -14,6 +14,9 @@ import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { uploadEnrollmentPdfToDrive } from "@/lib/reimbursements/google-drive";
 
 import { generateEnrollmentPdf } from "./enrollment-pdf";
+import {
+  enrollmentPdfDriveAliases,
+} from "./enrollment-pdf";
 import { sendEnrollmentEmail } from "./email-transport";
 import {
   createStripePaymentLinkQuotaAssociativa,
@@ -77,6 +80,7 @@ async function publishEnrollmentPdfToDrive(params: {
     associateFolderName: associateFolderName || "Iscrizione",
     filename: params.filename,
     bytes: params.bytes,
+    trashAliases: enrollmentPdfDriveAliases(params.cognome, params.nome),
   });
   if (!drive.ok) {
     console.warn(`[iscrizione] drive pdf: ${drive.error}`);

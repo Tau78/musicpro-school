@@ -71,7 +71,28 @@ function decodeSignaturePng(signatureData: string): Buffer | null {
 }
 
 function legacyFilename(cognome: string, nome: string): string {
-  return `Iscrizione - ${cognome || "Socio"} ${nome || ""}`.trim() + ".pdf";
+  // Stesso schema dei PDF già in Drive «Iscrizioni» (Iscrizione-Cognome-Nome.pdf),
+  // così il backfill sovrascrive il file che si apre dalla lista, senza duplicati.
+  const safe = `${cognome || "Socio"}-${nome || "Iscrizione"}`
+    .replace(/\s+/g, "-")
+    .replace(/[^\w\-À-ÿ]+/gi, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+  return `Iscrizione-${safe}.pdf`;
+}
+
+/** Nomi storici possibili nella cartella piatta (da eliminare dopo overwrite). */
+export function enrollmentPdfDriveAliases(
+  cognome: string,
+  nome: string,
+): string[] {
+  const c = String(cognome || "").trim();
+  const n = String(nome || "").trim();
+  return [
+    `Iscrizione - ${c} ${n}.pdf`,
+    `Iscrizione - ${c} ${n} .pdf`,
+    `Iscrizione_${c}_${n}.pdf`,
+  ].filter((name, i, arr) => arr.indexOf(name) === i);
 }
 
 function quotaForTemplate(quotaLabel: string): string {
