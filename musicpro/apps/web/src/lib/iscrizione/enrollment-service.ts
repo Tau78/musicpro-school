@@ -2235,6 +2235,161 @@ export async function salvaAggiornamentoAssociatoIscrizione(
 }
 
 
+/** Ops: rigenera PDF+Drive per un'iscrizione già pagata (senza reinviare email). */
+export async function regenerateEnrollmentPdfDocuments(
+  idIscrizione: string,
+): Promise<{
+  success: boolean;
+  enrollmentId: string;
+  name: string;
+  pdfUrl: string | null;
+  storagePath: string | null;
+  driveError?: string;
+}> {
+  const db = createServiceRoleClient();
+  const rec = await getEnrollmentById(db, idIscrizione);
+  if (!rec) throw new Error("Iscrizione non trovata.");
+  if (!isPaidStatus(rec.payment_status)) {
+    throw new Error("Iscrizione non pagata: impossibile rigenerare il PDF.");
+  }
+
+  const form = parseEnrollmentFormPayload(rec.form_payload);
+  const member = await promoteMemberAfterPaidEnrollment(db, rec, form);
+
+  const oggi = new Date().toLocaleDateString("it-IT", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "Europe/Rome",
+  });
+  const quotaEuro = (rec.amount_centesimi || QUOTA_ASSOCIATIVA_CENTESIMI) / 100;
+  const nome = formText(form.nome) || rec.first_name;
+  const cognome = formText(form.cognome) || rec.last_name;
+
+  const pdf = await generateEnrollmentPdf({
+    memberNumber: member.member_number,
+    nome,
+    cognome,
+    luogoNascita: formText(form.luogo_nascita),
+    provNascita: formText(form.prov_nascita).toUpperCase(),
+    dataNascita: formText(form.data_nascita),
+    indirizzo: formText(form.indirizzo),
+    cap: formText(form.cap),
+    citta: formText(form.citta),
+    prov: formText(form.prov).toUpperCase(),
+    cf: formText(form.cf || rec.tax_code).toUpperCase(),
+    email: formText(form.email) || rec.email,
+    telefono: formText(form.telefono) || String(rec.phone || ""),
+    corso: formText(form.corso),
+    tutoreNome: formText(form.tutore_nome),
+    tutoreCognome: formText(form.tutore_cognome),
+    tutoreTelefono: formText(form.tutore_telefono),
+    tutoreEmail: formText(form.tutore_email),
+    tutoreCf: formText(form.tutore_cf).toUpperCase(),
+    quotaLabel: `EUR ${quotaEuro.toFixed(2).replace(".", ",")}`,
+    dataOggi: oggi,
+    signatureData: formText(form.signatureData) || null,
+  });
+
+  const stored = await uploadEnrollmentPdf(
+    db,
+    rec.id,
+    pdf.filename,
+    pdf.bytes,
+  );
+  const drive = await publishEnrollmentPdfToDrive({
+    db,
+    cognome,
+    nome,
+    filename: pdf.filename,
+    bytes: pdf.bytes,
+  });
+
+  const pdfUrl = drive.pdfUrl || stored.pdfUrl;
+  await db
+    .from("enrollments")
+    .update({
+      pdf_url: pdfUrl,
+      ...(stored.storagePath ? { pdf_storage_path: stored.storagePath } : {}),
+    } as Database["public"]["Tables"]["enrollments"]["Update"])
+    .eq("id", rec.id);
+
+  return {
+    success: true,
+    enrollmentId: rec.id,
+    name: `${cognome} ${nome}`.trim(),
+    pdfUrl,
+    storagePath: stored.storagePath,
+    driveError: drive.error,
+  };
+}
+
+/**
+ * Ops: rigenera i PDF delle ultime N iscrizioni pagate (layout legacy).
+ * Default: 20. Nessuna email.
+ */
+export async function backfillRecentEnrollmentPdfs(options?: {
+  limit?: number;
+  dryRun?: boolean;
+}): Promise<{
+  success: boolean;
+  total: number;
+  ok: number;
+  failed: Array<{ id: string; name: string; error: string }>;
+  results: Array<{ id: string; name: string; pdfUrl: string | null }>;
+}> {
+  const db = createServiceRoleClient();
+  const limit = Math.min(Math.max(options?.limit ?? 20, 1), 200);
+  const dryRun = Boolean(options?.dryRun);
+
+  const { data, error } = await db
+    .from("enrollments")
+    .select("id, first_name, last_name, payment_status, paid_at, created_at")
+    .eq("payment_status", "PAGATO")
+    .order("paid_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    throw new Error(error.message || "Impossibile elencare le iscrizioni.");
+  }
+
+  const rows = data ?? [];
+  const failed: Array<{ id: string; name: string; error: string }> = [];
+  const results: Array<{ id: string; name: string; pdfUrl: string | null }> =
+    [];
+
+  for (const row of rows) {
+    const name = `${row.last_name || ""} ${row.first_name || ""}`.trim();
+    if (dryRun) {
+      results.push({ id: row.id, name, pdfUrl: null });
+      continue;
+    }
+    try {
+      const out = await regenerateEnrollmentPdfDocuments(row.id);
+      results.push({
+        id: out.enrollmentId,
+        name: out.name,
+        pdfUrl: out.pdfUrl,
+      });
+    } catch (err) {
+      failed.push({
+        id: row.id,
+        name,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  return {
+    success: failed.length === 0,
+    total: rows.length,
+    ok: results.length,
+    failed,
+    results,
+  };
+}
+
 /** Ops: genera PDF+Drive per iscrizione contanti già salvata senza modulo (es. Lucia Oca). */
 export async function backfillCashEnrollmentPdfForMember(
   memberId: string,
