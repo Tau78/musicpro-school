@@ -11,6 +11,7 @@ import {
   bookingStatusLabel,
   cancelBooking,
   canCancelBooking,
+  canModifyBooking,
   formatBookingDateTime,
   formatCreditsCount,
   formatEuro,
@@ -21,6 +22,7 @@ import {
 } from "@musicpro/database";
 import { mapUserFacingError } from "@musicpro/shared";
 
+import { BookingModifyPanel } from "@/components/prenotazioni/booking-modify-panel";
 import { createClient } from "@/lib/supabase/client";
 import { requestBookingCalendarSync } from "@/lib/calendar/sync-booking";
 
@@ -216,9 +218,9 @@ function MiePrenotazioniContent() {
 
       <div className="mx-auto max-w-3xl px-6 py-8">
         <p className="text-sm text-neutral-600">
-          Dopo il login vedi qui tutte le tue prenotazioni — nessuna email
-          obbligatoria. Per modificare un orario, annulla (se consentito) e
-          riprenota oppure contatta la segreteria.
+          Dopo il login vedi qui tutte le tue prenotazioni. Puoi spostare l&apos;orario
+          online fino a {cancelSettings.modifyMinHours} ore prima dell&apos;inizio,
+          oppure annullare entro {cancelSettings.cancelMinHours} ore.
         </p>
 
         <div className="mt-6 flex gap-2">
@@ -292,6 +294,7 @@ function MiePrenotazioniContent() {
         <ul className="mt-6 space-y-4">
           {bookings.map((booking) => {
             const cancellable = canCancelBooking(booking.start_at, cancelSettings);
+            const modifiable = canModifyBooking(booking, cancelSettings);
 
             return (
               <li
@@ -332,29 +335,53 @@ function MiePrenotazioniContent() {
                     </div>
                   )}
 
-                {tab === "upcoming" &&
-                  booking.status !== "cancelled" && (
-                    <div className="mt-4">
-                      {cancellable ? (
-                        <button
-                          type="button"
-                          disabled={cancellingId === booking.id}
-                          onClick={() => void handleCancel(booking.id)}
-                          className="text-sm font-medium text-red-700 underline disabled:opacity-50"
-                        >
-                          {cancellingId === booking.id
-                            ? "Annullamento…"
-                            : "Annulla prenotazione"}
-                        </button>
-                      ) : (
-                        <p className="text-xs text-neutral-500">
-                          Annullamento non disponibile online (meno di{" "}
-                          {cancelSettings.cancelMinHours} ore). Contatta la
-                          segreteria.
-                        </p>
-                      )}
-                    </div>
-                  )}
+                {tab === "upcoming" && booking.status !== "cancelled" && (
+                  <div className="mt-4 space-y-2">
+                    {modifiable ? (
+                      <BookingModifyPanel
+                        booking={booking}
+                        settings={cancelSettings}
+                        onSuccess={(msg) => {
+                          setMessage(msg);
+                          setError(null);
+                          void loadBookings();
+                        }}
+                        onError={(msg) => {
+                          setError(msg);
+                          setMessage(null);
+                        }}
+                        onCalendarSync={(bookingId) => {
+                          void requestBookingCalendarSync(bookingId);
+                        }}
+                      />
+                    ) : (
+                      <p className="text-xs text-neutral-500">
+                        Spostamento non disponibile online (meno di{" "}
+                        {cancelSettings.modifyMinHours} ore). Contatta la
+                        segreteria.
+                      </p>
+                    )}
+
+                    {cancellable ? (
+                      <button
+                        type="button"
+                        disabled={cancellingId === booking.id}
+                        onClick={() => void handleCancel(booking.id)}
+                        className="block text-sm font-medium text-red-700 underline disabled:opacity-50"
+                      >
+                        {cancellingId === booking.id
+                          ? "Annullamento…"
+                          : "Annulla prenotazione"}
+                      </button>
+                    ) : (
+                      <p className="text-xs text-neutral-500">
+                        Annullamento non disponibile online (meno di{" "}
+                        {cancelSettings.cancelMinHours} ore). Contatta la
+                        segreteria.
+                      </p>
+                    )}
+                  </div>
+                )}
               </li>
             );
           })}

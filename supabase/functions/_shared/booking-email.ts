@@ -344,154 +344,73 @@ export async function hasRecentSentEmail(
   return Boolean(data);
 }
 
-export async function sendViaResend(params: {
-  to: string;
-  subject: string;
-  html: string;
-  text: string;
-}): Promise<{ ok: true } | { ok: false; error: string }> {
-  const apiKey = Deno.env.get('RESEND_API_KEY')?.trim();
-  if (!apiKey) {
-    return { ok: false, error: 'RESEND_API_KEY non configurata' };
+async function internalBookingEmailSecret(): Promise<string | null> {
+  return (
+    Deno.env.get('ISCRIZIONE_INTERNAL_SECRET')?.trim() ||
+    Deno.env.get('CRON_SECRET')?.trim() ||
+    null
+  );
+}
+
+/** Invio via Vercel (Google SMTP / Resend fallback) — Resend non usato di default. */
+export async function deliverBookingEmailViaApp(params: {
+  bookingId: string;
+  template: BookingEmailTemplate;
+  force?: boolean;
+  paymentUrl?: string | null;
+}): Promise<{ ok: true; payload: Record<string, unknown> } | { ok: false; error: string }> {
+  const secret = await internalBookingEmailSecret();
+  if (!secret) {
+    return { ok: false, error: 'Secret interno mancante (ISCRIZIONE_INTERNAL_SECRET / CRON_SECRET)' };
   }
 
-  const res = await fetch('https://api.resend.com/emails', {
+  const base = publicSchoolUrl(edgeUrlEnvFromDeno());
+  const res = await fetch(`${base}/api/internal/bookings/send-email`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
+      'x-iscrizione-internal-secret': secret,
     },
     body: JSON.stringify({
-      from: fromAddress(),
-      to: [params.to],
-      subject: params.subject,
-      html: params.html,
-      text: params.text,
+      booking_id: params.bookingId,
+      template: params.template,
+      force: params.force === true,
+      payment_url: params.paymentUrl?.trim() || undefined,
     }),
   });
 
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
+  const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok || payload.success === false) {
     return {
       ok: false,
-      error: `Resend ${res.status}: ${body.slice(0, 500)}`,
+      error: String(payload.message ?? `HTTP ${res.status}`),
     };
   }
 
-  return { ok: true };
+  return { ok: true, payload };
 }
 
 export async function processBookingEmail(
-  client: SupabaseClient,
+  _client: SupabaseClient,
   bookingId: string,
   template: BookingEmailTemplate,
   force = false,
   paymentUrl?: string | null,
 ): Promise<Record<string, unknown>> {
-  const booking = await loadBookingForEmail(client, bookingId);
-  if (!booking) {
-    return { success: false, message: 'Prenotazione non trovata', booking_id: bookingId };
-  }
-
-  if (booking.status === 'cancelled') {
-    return {
-      success: false,
-      message: 'Prenotazione annullata — email non inviata',
-      booking_id: bookingId,
-    };
-  }
-
-  const cancelPolicyHours = await getCancelPolicyHours(client);
-  const creditBalance = await getMemberCreditAvailable(client, booking.member_id);
-
-  let content: BookingEmailContent;
-  try {
-    content = buildBookingEmailContent(booking, template, {
-      cancelPolicyHours,
-      creditBalance,
-      paymentUrl,
-    });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    await logBookingEmail(client, {
-      bookingId,
-      recipientEmail: booking.members?.email ?? 'unknown',
-      subject: template === 'modified' ? 'Modifica prenotazione' : 'Conferma prenotazione',
-      status: 'failed',
-      error: msg,
-    });
-    return { success: false, message: msg, booking_id: bookingId };
-  }
-
-  if (!force) {
-    const alreadySent = await hasRecentSentEmail(client, bookingId, content.subject);
-    if (alreadySent) {
-      await logBookingEmail(client, {
-        bookingId,
-        recipientEmail: content.recipientEmail,
-        subject: content.subject,
-        status: 'skipped',
-        error: 'Email già inviata in precedenza (usa force per reinviare)',
-      });
-      return {
-        success: true,
-        skipped: true,
-        message: 'Email già inviata — skipped',
-        booking_id: bookingId,
-      };
-    }
-  }
-
-  const resendResult = await sendViaResend({
-    to: content.recipientEmail,
-    subject: content.subject,
-    html: content.html,
-    text: content.text,
-  });
-
-  if (!resendResult.ok) {
-    const isDevSkip = resendResult.error.includes('RESEND_API_KEY non configurata');
-
-    await logBookingEmail(client, {
-      bookingId,
-      recipientEmail: content.recipientEmail,
-      subject: content.subject,
-      status: isDevSkip ? 'skipped' : 'failed',
-      error: resendResult.error,
-    });
-
-    if (isDevSkip) {
-      return {
-        success: true,
-        skipped: true,
-        dev_mode: true,
-        message: 'RESEND_API_KEY assente — email registrata come skipped (dev mode)',
-        booking_id: bookingId,
-        subject: content.subject,
-        recipient: content.recipientEmail,
-      };
-    }
-
-    return {
-      success: false,
-      message: resendResult.error,
-      booking_id: bookingId,
-    };
-  }
-
-  await logBookingEmail(client, {
+  const delivery = await deliverBookingEmailViaApp({
     bookingId,
-    recipientEmail: content.recipientEmail,
-    subject: content.subject,
-    status: 'sent',
+    template,
+    force,
+    paymentUrl,
   });
 
-  return {
-    success: true,
-    sent: true,
-    message: 'Email inviata',
-    booking_id: bookingId,
-    subject: content.subject,
-    recipient: content.recipientEmail,
-  };
+  if (!delivery.ok) {
+    return {
+      success: false,
+      message: delivery.error,
+      booking_id: bookingId,
+    };
+  }
+
+  return delivery.payload;
 }

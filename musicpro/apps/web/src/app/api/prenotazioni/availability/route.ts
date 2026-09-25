@@ -50,6 +50,7 @@ export async function GET(request: Request) {
   const roomId = searchParams.get("roomId")?.trim();
   const date = searchParams.get("date")?.trim();
   const durationParam = searchParams.get("duration");
+  const excludeBookingId = searchParams.get("excludeBookingId")?.trim() || null;
 
   if (!roomId || !date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return NextResponse.json(
@@ -151,16 +152,20 @@ export async function GET(request: Request) {
     specials,
   );
 
+  const activeBookings = (bookings ?? []).filter(
+    (booking) => !excludeBookingId || booking.id !== excludeBookingId,
+  ) as Array<{
+    id: string;
+    start_at: string;
+    end_at: string;
+    status: import("@musicpro/database").BookingStatus;
+  }>;
+
   const availability = buildRoomAvailability(
     room,
     date,
     durationMinutes,
-    (bookings ?? []) as Array<{
-      id: string;
-      start_at: string;
-      end_at: string;
-      status: import("@musicpro/database").BookingStatus;
-    }>,
+    activeBookings,
     settings,
     calendarBusy,
     openingWindows,

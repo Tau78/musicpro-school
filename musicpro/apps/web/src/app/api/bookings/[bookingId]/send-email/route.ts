@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 
 import { getCurrentMemberWithRoles } from "@musicpro/database";
 
+import { processBookingEmail } from "@/lib/booking/process-booking-email";
 import { createClient } from "@/lib/supabase/server";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 type RouteContext = {
   params: Promise<{ bookingId: string }>;
@@ -65,34 +69,18 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ success: false, message: "Non autorizzato" }, { status: 403 });
   }
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !serviceKey) {
-    return NextResponse.json(
-      { success: false, message: "Config Supabase mancante" },
-      { status: 500 },
-    );
+  try {
+    const result = await processBookingEmail({
+      bookingId,
+      template,
+      force,
+      paymentUrl,
+    });
+    const status = result.success === false ? 500 : 200;
+    return NextResponse.json(result, { status });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[bookings/send-email]", message);
+    return NextResponse.json({ success: false, message }, { status: 500 });
   }
-
-  const edgeRes = await fetch(
-    `${supabaseUrl.replace(/\/$/, "")}/functions/v1/send-booking-email`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${serviceKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        booking_id: bookingId,
-        template,
-        force,
-        payment_url: paymentUrl,
-      }),
-    },
-  );
-
-  const payload = (await edgeRes.json().catch(() => ({}))) as Record<string, unknown>;
-
-  return NextResponse.json(payload, { status: edgeRes.status });
 }
