@@ -1949,6 +1949,15 @@ export interface Database {
         };
         Returns: Json;
       };
+      modify_booking_safe: {
+        Args: {
+          p_booking_id: string;
+          p_start_at: string;
+          p_end_at: string;
+          p_duration_minutes?: number | null;
+        };
+        Returns: Json;
+      };
       review_booking_safe: {
         Args: {
           p_booking_id: string;

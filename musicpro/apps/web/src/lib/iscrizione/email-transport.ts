@@ -142,12 +142,19 @@ export async function sendEnrollmentEmail(params: {
   html?: string;
   attachments?: EnrollmentAttachment[];
   timeoutMs?: number;
+  /** Prenotazioni sale: solo Google SMTP (Resend è post-V1). */
+  preferGoogleSmtp?: boolean;
 }): Promise<{ sent: boolean; error?: string; via?: "resend" | "smtp" }> {
   if (!params.to.length) {
     return { sent: false, error: "Nessun destinatario" };
   }
 
   const timeoutMs = params.timeoutMs ?? 8000;
+  if (params.preferGoogleSmtp && googleSmtpConfigured()) {
+    const smtp = await sendViaGoogleSmtp(params);
+    return smtp.sent ? { ...smtp, via: "smtp" } : smtp;
+  }
+
   if (process.env.RESEND_API_KEY?.trim()) {
     const resend = await sendViaResend({ ...params, timeoutMs });
     if (resend.sent) return { ...resend, via: "resend" };

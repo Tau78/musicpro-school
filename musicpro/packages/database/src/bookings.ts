@@ -50,6 +50,9 @@ export type BookingErrorCode =
   | "NOT_FOUND"
   | "ALREADY_CANCELLED"
   | "CANCEL_TOO_LATE"
+  | "MODIFY_TOO_LATE"
+  | "PAID_PRICE_CHANGE"
+  | "INSUFFICIENT_CREDITS"
   | "INVALID_ACTION"
   | "INVALID_STATUS"
   | "BAND_REQUIRED"
@@ -225,6 +228,17 @@ export interface ReviewBookingResult {
   errorMessage?: string;
 }
 
+export interface ModifyBookingResult {
+  success: boolean;
+  bookingId?: string;
+  startAt?: string;
+  endAt?: string;
+  durationMinutes?: number;
+  totalPriceEur?: number;
+  errorCode?: BookingErrorCode;
+  errorMessage?: string;
+}
+
 export type AdminBookingFilter =
   | "pending_approval"
   | "upcoming"
@@ -267,6 +281,17 @@ interface ReviewBookingSafeResponse {
   error_message?: string;
 }
 
+interface ModifyBookingSafeResponse {
+  success: boolean;
+  booking_id?: string;
+  start_at?: string;
+  end_at?: string;
+  duration_minutes?: number;
+  total_price_eur?: number;
+  error_code?: BookingErrorCode;
+  error_message?: string;
+}
+
 const BOOKING_ERROR_MESSAGES_IT: Record<BookingErrorCode, string> = {
   NOT_AUTHENTICATED: "Devi effettuare l'accesso per prenotare.",
   MEMBER_MISMATCH: "Puoi prenotare solo per il tuo account.",
@@ -282,6 +307,11 @@ const BOOKING_ERROR_MESSAGES_IT: Record<BookingErrorCode, string> = {
   ALREADY_CANCELLED: "Prenotazione già annullata.",
   CANCEL_TOO_LATE:
     "Annullamento non consentito: contatta la segreteria.",
+  MODIFY_TOO_LATE:
+    "Spostamento non consentito online: contatta la segreteria.",
+  PAID_PRICE_CHANGE:
+    "La modifica cambierebbe l'importo già pagato. Annulla e riprenota, oppure contatta la segreteria.",
+  INSUFFICIENT_CREDITS: "Saldo crediti insufficiente per questa modifica.",
   INVALID_ACTION: "Azione non valida.",
   INVALID_STATUS: "Stato prenotazione non valido per questa operazione.",
   BAND_REQUIRED: "Seleziona una band per questa prenotazione.",
@@ -501,7 +531,7 @@ export async function getBookingSettings(
       10,
     ),
     modifyMinHours: parseInt(
-      map.get("booking_modify_min_hours") ?? "6",
+      map.get("booking_modify_min_hours") ?? "12",
       10,
     ),
     bandRequired: ["true", "1", "yes", "on"].includes(bandRequiredRaw),
@@ -529,6 +559,15 @@ export function canCancelBooking(
 ): boolean {
   const leadHours = (new Date(startAt).getTime() - Date.now()) / 3_600_000;
   return leadHours >= settings.cancelMinHours;
+}
+
+export function canModifyBooking(
+  booking: Pick<Booking, "status" | "start_at">,
+  settings: BookingSettings,
+): boolean {
+  if (booking.status === "cancelled") return false;
+  const leadHours = (new Date(booking.start_at).getTime() - Date.now()) / 3_600_000;
+  return leadHours >= settings.modifyMinHours;
 }
 
 const DAY_NAMES_IT = [
@@ -755,6 +794,8 @@ export type FetchRoomAvailabilityOptions = {
   apiBaseUrl?: string;
   /** Token Supabase per Authorization Bearer (mobile). */
   accessToken?: string;
+  /** Esclude una prenotazione dal calcolo busy (spostamento stesso slot). */
+  excludeBookingId?: string;
 };
 
 /** Disponibilità con merge prenotazioni DB + eventi Google Calendar (via API web). */
@@ -767,6 +808,9 @@ export async function fetchRoomAvailability(
   const params = new URLSearchParams({ roomId, date });
   if (durationMinutes != null) {
     params.set("duration", String(durationMinutes));
+  }
+  if (options?.excludeBookingId) {
+    params.set("excludeBookingId", options.excludeBookingId);
   }
 
   const apiBase = options?.apiBaseUrl?.replace(/\/$/, "") ?? "";
@@ -1208,6 +1252,53 @@ export async function cancelBooking(
     penaltyApplied: result.penalty_applied,
     penaltySkipped: result.penalty_skipped,
     stripeRefund: result.stripe_refund,
+  };
+}
+
+export async function modifyBooking(
+  client: BookingsClient,
+  bookingId: string,
+  params: {
+    startAt: string;
+    endAt: string;
+    durationMinutes?: number;
+  },
+): Promise<ModifyBookingResult> {
+  const { data, error } = await client.rpc("modify_booking_safe", {
+    p_booking_id: bookingId,
+    p_start_at: params.startAt,
+    p_end_at: params.endAt,
+    p_duration_minutes: params.durationMinutes ?? null,
+  });
+
+  if (error) {
+    return {
+      success: false,
+      errorMessage: error.message,
+    };
+  }
+
+  const result = data as ModifyBookingSafeResponse | null;
+
+  if (!result?.success) {
+    const code = result?.error_code ?? "UNKNOWN";
+    return {
+      success: false,
+      errorCode: code,
+      errorMessage:
+        result?.error_message ??
+        BOOKING_ERROR_MESSAGES_IT[code] ??
+        BOOKING_ERROR_MESSAGES_IT.UNKNOWN,
+    };
+  }
+
+  return {
+    success: true,
+    bookingId: result.booking_id,
+    startAt: result.start_at,
+    endAt: result.end_at,
+    durationMinutes: result.duration_minutes,
+    totalPriceEur: result.total_price_eur,
   };
 }
 

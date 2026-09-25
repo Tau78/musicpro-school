@@ -12,7 +12,8 @@ export type DriveUploadResult =
   | { ok: true; fileId: string; webViewLink: string }
   | { ok: false; error: string };
 
-const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive";
+const DRIVE_SCOPE =
+  "https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/documents";
 const FOLDER_MIME = "application/vnd.google-apps.folder";
 
 function loadServiceAccount(): GoogleServiceAccount | null {
@@ -89,6 +90,11 @@ async function getDriveAccessToken(): Promise<string> {
     throw new Error(detail || `Token Google Drive fallito (${res.status})`);
   }
   return data.access_token;
+}
+
+/** Access token Drive+Docs (service account / domain-wide). */
+export async function getGoogleDriveAccessToken(): Promise<string> {
+  return getDriveAccessToken();
 }
 
 function escapeDriveQuery(value: string): string {
@@ -299,6 +305,8 @@ export async function uploadEnrollmentPdfToDrive(params: {
   associateFolderName: string;
   filename: string;
   bytes: Uint8Array;
+  /** Nomi vecchi/duplicati da eliminare definitivamente nella cartella piatta dopo l'upload. */
+  trashAliases?: string[];
 }): Promise<DriveUploadResult> {
   try {
     const token = await getDriveAccessToken();
@@ -312,6 +320,21 @@ export async function uploadEnrollmentPdfToDrive(params: {
         params.filename,
         params.bytes,
       );
+      // Elimina i duplicati storici (es. «Iscrizione - Cognome Nome.pdf») in modo
+      // permanente: il cestino su Drive mobile resta visibile e confonde.
+      for (const alias of params.trashAliases ?? []) {
+        const name = String(alias || "").trim();
+        if (!name || name === params.filename) continue;
+        const existing = await findChild(token, flatId, name);
+        if (!existing) continue;
+        await fetch(
+          `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(existing.id)}?supportsAllDrives=true`,
+          {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        ).catch(() => undefined);
+      }
     }
 
     const rootId = String(params.rootFolderId || "").trim();
