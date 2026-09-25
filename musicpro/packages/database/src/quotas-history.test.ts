@@ -16,6 +16,8 @@ function quota(
     amountPaidEur: partial.amountPaidEur ?? null,
     amountDueEur: partial.amountDueEur ?? 15,
     notes: null,
+    lastDunningAt: null,
+    dunningCount: 0,
     createdAt: "2020-01-01T00:00:00.000Z",
     updatedAt: "2020-01-01T00:00:00.000Z",
     ...partial,

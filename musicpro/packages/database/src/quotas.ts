@@ -25,6 +25,8 @@ export interface MemberAnnualQuota {
   amountPaidEur: number | null;
   amountDueEur: number | null;
   notes: string | null;
+  lastDunningAt: string | null;
+  dunningCount: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -66,6 +68,8 @@ type QuotaRow = {
   amount_paid_eur: number | null;
   amount_due_eur: number | null;
   notes: string | null;
+  last_dunning_at: string | null;
+  dunning_count: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -74,7 +78,7 @@ const SETTING_COLUMNS =
   "id, fiscal_year, amount_eur, created_at, updated_at";
 
 const QUOTA_COLUMNS =
-  "id, member_id, fiscal_year, paid_at, amount_paid_eur, amount_due_eur, notes, created_at, updated_at";
+  "id, member_id, fiscal_year, paid_at, amount_paid_eur, amount_due_eur, notes, last_dunning_at, dunning_count, created_at, updated_at";
 
 function mapSetting(row: SettingRow): AnnualQuotaSetting {
   return {
@@ -97,6 +101,8 @@ function mapQuota(row: QuotaRow): MemberAnnualQuota {
     amountDueEur:
       row.amount_due_eur == null ? null : Number(row.amount_due_eur),
     notes: row.notes,
+    lastDunningAt: row.last_dunning_at,
+    dunningCount: row.dunning_count ?? 0,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -150,6 +156,8 @@ export type MemberQuotaYearStatus = {
   paidAt: string | null;
   amountEur: number | null;
   status: "versata" | "non_versata";
+  lastDunningAt: string | null;
+  dunningCount: number;
 };
 
 function yearFromIso(iso: string | null | undefined): number | null {
@@ -207,6 +215,8 @@ export function buildMemberQuotaHistory(params: {
       paidAt,
       amountEur: amount,
       status: paidAt ? "versata" : "non_versata",
+      lastDunningAt: quota?.lastDunningAt ?? null,
+      dunningCount: quota?.dunningCount ?? 0,
     });
   }
   return rows;
@@ -386,4 +396,133 @@ export async function upsertMemberAnnualQuotas(
   }
 
   return { success: true, upsertedCount: data?.length ?? rows.length };
+}
+
+/**
+ * Annulla un versamento: elimina la riga così l'anno torna «non versata»
+ * (allineato a member_quota_ok, che richiede paid_at valorizzato).
+ */
+export async function clearMemberAnnualQuota(
+  client: QuotasClient,
+  memberId: string,
+  fiscalYear: number,
+): Promise<QuotaMutationResult> {
+  if (!memberId) {
+    return { success: false, errorMessage: "Associato mancante." };
+  }
+  if (!Number.isInteger(fiscalYear) || fiscalYear < 2000) {
+    return { success: false, errorMessage: "Anno fiscale non valido." };
+  }
+
+  const { error } = await client
+    .from("member_annual_quotas")
+    .delete()
+    .eq("member_id", memberId)
+    .eq("fiscal_year", fiscalYear);
+
+  if (error) {
+    return {
+      success: false,
+      errorMessage: error.message || "Impossibile annullare il versamento.",
+    };
+  }
+
+  return { success: true };
+}
+
+/** Testo sollecito quota da anagrafica / messaggi. */
+export function buildQuotaDunningMessage(params: {
+  firstName: string;
+  fiscalYear: number;
+  amountEur: number | null;
+  paymentUrl?: string | null;
+}): { subject: string; body: string } {
+  const amount =
+    params.amountEur != null ? formatQuotaEuro(params.amountEur) : null;
+  const paymentUrl = params.paymentUrl?.trim() || null;
+  return {
+    subject: `Sollecito quota associativa ${params.fiscalYear} — MusicPro School`,
+    body: [
+      `Ciao ${params.firstName.trim() || "associato"},`,
+      "",
+      `ti ricordiamo che la quota associativa ${params.fiscalYear} risulta ancora da saldare.`,
+      amount ? `Importo: ${amount}` : null,
+      "",
+      paymentUrl
+        ? `Puoi pagare online qui:\n${paymentUrl}`
+        : "Puoi saldare in segreteria (bonifico o altro).",
+      paymentUrl ? "" : null,
+      paymentUrl ? "In alternativa, puoi saldare anche in segreteria." : null,
+      "",
+      "Grazie,",
+      "MusicPro School",
+    ]
+      .filter((line): line is string => line != null)
+      .join("\n"),
+  };
+}
+
+/**
+ * Registra un sollecito: crea riga unpaid se manca e incrementa il contatore.
+ */
+export async function recordMemberQuotaDunning(
+  client: QuotasClient,
+  params: {
+    memberId: string;
+    fiscalYear: number;
+    amountDueEur?: number | null;
+  },
+): Promise<QuotaMutationResult> {
+  const { memberId, fiscalYear } = params;
+  if (!memberId) {
+    return { success: false, errorMessage: "Associato mancante." };
+  }
+  if (!Number.isInteger(fiscalYear) || fiscalYear < 2000) {
+    return { success: false, errorMessage: "Anno fiscale non valido." };
+  }
+
+  const existing = (
+    await listMemberAnnualQuotas(client, { memberId, fiscalYear })
+  )[0];
+  const now = new Date().toISOString();
+
+  if (existing) {
+    const { error } = await client
+      .from("member_annual_quotas")
+      .update({
+        last_dunning_at: now,
+        dunning_count: (existing.dunningCount ?? 0) + 1,
+      })
+      .eq("id", existing.id);
+
+    if (error) {
+      return {
+        success: false,
+        errorMessage: error.message || "Impossibile aggiornare il sollecito.",
+      };
+    }
+    return { success: true, id: existing.id };
+  }
+
+  const { data, error } = await client
+    .from("member_annual_quotas")
+    .insert({
+      member_id: memberId,
+      fiscal_year: fiscalYear,
+      paid_at: null,
+      amount_due_eur: params.amountDueEur ?? null,
+      last_dunning_at: now,
+      dunning_count: 1,
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    return {
+      success: false,
+      errorMessage: error.message || "Impossibile registrare il sollecito.",
+    };
+  }
+
+  return { success: true, id: data.id };
 }

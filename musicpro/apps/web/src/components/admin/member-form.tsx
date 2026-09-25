@@ -558,6 +558,8 @@ export function MemberForm({
         {isEdit && member ? (
           <MemberQuotaInline
             memberId={member.id}
+            memberFirstName={form.firstName || member.firstName}
+            memberEmail={form.email ?? member.email}
             quotas={quotas}
             quotaSettings={quotaSettings}
             enrolledAt={form.enrolledAt ?? member.enrolledAt ?? null}

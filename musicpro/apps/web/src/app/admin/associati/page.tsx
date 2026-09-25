@@ -2,6 +2,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import {
+  currentFiscalYear,
+  listAnnualQuotaSettings,
+  listMemberAnnualQuotas,
   listMemberAvailableCredits,
   listMemberIdsWithRole,
   listMembers,
@@ -28,20 +31,39 @@ export default async function AssociatiPage() {
     redirect("/admin/rimborsi");
   }
 
-  const [members, memberDetails, availableCredits, docenteIds] =
-    await Promise.all([
-      listMembers(supabase),
-      listMembersDetail(supabase),
-      listMemberAvailableCredits(supabase).catch(
-        () => ({}) as Record<string, number>,
-      ),
-      listMemberIdsWithRole(supabase, MemberRole.Docente),
-    ]);
+  const fiscalYear = currentFiscalYear();
+
+  const [
+    members,
+    memberDetails,
+    availableCredits,
+    docenteIds,
+    yearQuotas,
+    quotaSettings,
+  ] = await Promise.all([
+    listMembers(supabase),
+    listMembersDetail(supabase),
+    listMemberAvailableCredits(supabase).catch(
+      () => ({}) as Record<string, number>,
+    ),
+    listMemberIdsWithRole(supabase, MemberRole.Docente),
+    listMemberAnnualQuotas(supabase, { fiscalYear }),
+    listAnnualQuotaSettings(supabase),
+  ]);
   const showMerge = canMergeDuplicates(member.roles);
 
   const creditBalances = Object.fromEntries(
     members.map((m) => [m.id, availableCredits[m.id] ?? 0] as const),
   );
+
+  const paidQuotaIds = new Set(
+    yearQuotas.filter((q) => Boolean(q.paidAt)).map((q) => q.memberId),
+  );
+  const unpaidQuotaMemberIds = members
+    .filter((m) => !m.isEnrollmentDraft && !paidQuotaIds.has(m.id))
+    .map((m) => m.id);
+  const unpaidQuotaAmountEur =
+    quotaSettings.find((s) => s.fiscalYear === fiscalYear)?.amountEur ?? null;
 
   return (
     <div>
@@ -74,6 +96,9 @@ export default async function AssociatiPage() {
         canAdd
         creditBalances={creditBalances}
         docenteIds={docenteIds}
+        unpaidQuotaMemberIds={unpaidQuotaMemberIds}
+        unpaidQuotaYear={fiscalYear}
+        unpaidQuotaAmountEur={unpaidQuotaAmountEur}
         canDelete={canDeleteMembers(member.roles)}
         currentStaffMemberId={member.id}
         currentStaffRoles={member.roles}

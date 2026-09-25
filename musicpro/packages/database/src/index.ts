@@ -361,6 +361,8 @@ export type {
 } from "./bands";
 export {
   buildMemberQuotaHistory,
+  buildQuotaDunningMessage,
+  clearMemberAnnualQuota,
   createAnnualQuotaSetting,
   currentFiscalYear,
   deleteAnnualQuotaSetting,
@@ -368,6 +370,7 @@ export {
   formatQuotaEuro,
   listAnnualQuotaSettings,
   listMemberAnnualQuotas,
+  recordMemberQuotaDunning,
   updateAnnualQuotaSetting,
   upsertMemberAnnualQuotas,
 } from "./quotas";
