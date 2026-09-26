@@ -36,12 +36,24 @@ export function authPublicOrigin(
   return SCHOOL_PRODUCTION_ORIGIN;
 }
 
+/** Solo path relativi interni (anti open-redirect da query email). */
+export function safeAuthNextPath(
+  value: string | null | undefined,
+  fallback = "/dashboard",
+): string {
+  const trimmed = (value ?? "").trim();
+  if (!trimmed.startsWith("/") || trimmed.startsWith("//")) {
+    return fallback;
+  }
+  return trimmed;
+}
+
 export function authCallbackUrl(redirectTo: string): string {
   const origin = authPublicOrigin(
     process.env,
     typeof window !== "undefined" ? window.location.origin : undefined,
   );
-  const safeRedirect = redirectTo.startsWith("/") ? redirectTo : "/dashboard";
+  const safeRedirect = safeAuthNextPath(redirectTo, "/dashboard");
   const params = new URLSearchParams({ redirect: safeRedirect });
   return `${origin}/auth/callback?${params.toString()}`;
 }

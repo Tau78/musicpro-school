@@ -15,6 +15,7 @@
     "smoke:rimborsi": "node scripts/smoke-rimborsi-pdf.mjs",
     "smoke:rimborsi-email": "node scripts/smoke-rimborsi-email.mjs",
     "smoke:auth-urls": "node scripts/sync-school-auth-urls.mjs --check",
+    "smoke:auth-emails": "node scripts/sync-school-auth-emails.mjs --check",
     "smoke:prenotazioni": "node scripts/smoke-phase2.mjs && node scripts/smoke-phase3.mjs && node scripts/smoke-calendar-booking.mjs && node scripts/smoke-credit-shop.mjs",
     "smoke:booking-email": "node scripts/smoke-booking-email.mjs",
     "test:e2e:prenotazioni": "npm run test:e2e -w @musicpro/web",

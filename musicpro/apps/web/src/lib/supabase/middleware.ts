@@ -9,6 +9,7 @@ const PUBLIC_PATHS = [
   "/forgot-password",
   "/reset-password",
   "/auth/callback",
+  "/auth/confirm",
   "/prenotazioni",
 ];
 const AUTH_PATHS = ["/login", "/signup"];
