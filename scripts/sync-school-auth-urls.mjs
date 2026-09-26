@@ -18,6 +18,7 @@ const ALLOW_LIST = [
   "https://school.musicproeventi.it",
   "https://school.musicproeventi.it/**",
   "https://school.musicproeventi.it/auth/callback",
+  "https://school.musicproeventi.it/auth/confirm",
   "http://localhost:3000/**",
   "http://127.0.0.1:3000/**",
   "musicpro://**",

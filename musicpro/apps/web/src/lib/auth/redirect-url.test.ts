@@ -6,6 +6,7 @@ import {
   authCallbackUrl,
   authPublicOrigin,
   isLocalDevOrigin,
+  safeAuthNextPath,
 } from "./redirect-url.ts";
 
 test("isLocalDevOrigin riconosce localhost e 127.0.0.1", () => {
@@ -56,4 +57,11 @@ test("authCallbackUrl punta sempre al callback school, mai a localhost", () => {
       process.env.SCHOOL_PUBLIC_URL = previous;
     }
   }
+});
+
+test("safeAuthNextPath blocca open-redirect", () => {
+  assert.equal(safeAuthNextPath("/reset-password"), "/reset-password");
+  assert.equal(safeAuthNextPath("https://evil.example"), "/dashboard");
+  assert.equal(safeAuthNextPath("//evil.example"), "/dashboard");
+  assert.equal(safeAuthNextPath(null, "/reset-password"), "/reset-password");
 });
