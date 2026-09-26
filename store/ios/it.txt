@@ -2,7 +2,7 @@ name: MusicPro School
 subtitle: Scuola e sale prova
 promotional_text: Area personale, prenotazioni sale e lezioni per associati e docenti MusicPro Eventi. Accesso riservato all’anagrafica della scuola.
 keywords: scuola,musica,lezioni,prenotazioni,sale prova,docenti,associati,musicpro,calendario,presenze
-whats_new: Prima versione TestFlight: area personale, prenotazioni, lezioni docenti, nuova prova.
+whats_new: Aggiornamento 1.1: guscio nativo, area personale, prenotazioni sale, lezioni docenti.
 
 description: |
   MusicPro School è l’app per associati e docenti di MusicPro Eventi: area personale, prenotazioni delle sale prova e gestione delle lezioni.

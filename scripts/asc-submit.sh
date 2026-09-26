@@ -299,7 +299,43 @@ else:
     print()
     print("Build già collegata, skip attach.")
 
-# Prefer modern reviewSubmissions flow; fall back to legacy appStoreVersionSubmissions.
+# Dopo un reject, la versione resta sulla submission UNRESOLVED_ISSUES:
+# una submission nuova prende 409 ITEM_PART_OF_ANOTHER_SUBMISSION.
+# Cancella envelope bloccati (UNRESOLVED_ISSUES / READY_FOR_REVIEW vuoti) prima.
+print()
+print("Pulisco reviewSubmission bloccate (UNRESOLVED_ISSUES / READY_FOR_REVIEW)…")
+cancel_states = {"UNRESOLVED_ISSUES", "READY_FOR_REVIEW"}
+if not open_subs.get("_http_error"):
+    for s in open_subs.get("data") or []:
+        stt = (s.get("attributes") or {}).get("state")
+        if stt not in cancel_states:
+            continue
+        sid = s["id"]
+        print(f"  cancel {sid} ({stt})")
+        canceled, ccode = api(
+            "PATCH",
+            f"/v1/reviewSubmissions/{sid}",
+            {
+                "data": {
+                    "type": "reviewSubmissions",
+                    "id": sid,
+                    "attributes": {"canceled": True},
+                }
+            },
+            raise_http=False,
+        )
+        if canceled.get("_http_error"):
+            print(f"  (skip cancel HTTP {ccode})")
+        else:
+            # attendi uscita da CANCELING
+            for _ in range(20):
+                time.sleep(2)
+                cur, _ = api("GET", f"/v1/reviewSubmissions/{sid}", raise_http=False)
+                cst = ((cur.get("data") or {}).get("attributes") or {}).get("state")
+                if cst not in ("CANCELING", "READY_FOR_REVIEW", "UNRESOLVED_ISSUES"):
+                    print(f"  → {cst}")
+                    break
+
 print()
 print("Creo reviewSubmission…")
 create_body = {
@@ -316,37 +352,10 @@ submission_id = None
 if created.get("_http_error"):
     print(f"POST /v1/reviewSubmissions → {code}")
     print(created.get("body", ""))
-    if not open_subs.get("_http_error"):
-        for s in open_subs.get("data") or []:
-            stt = (s.get("attributes") or {}).get("state")
-            # Envelope ancora aprabile (non ancora in coda Apple)
-            if stt in ("READY_FOR_REVIEW", "UNRESOLVED_ISSUES"):
-                submission_id = s["id"]
-                print("Riuso reviewSubmission esistente:", submission_id, stt)
-                break
-    if not submission_id:
-        print("Fallback legacy POST /v1/appStoreVersionSubmissions …")
-        legacy, lcode = api(
-            "POST",
-            "/v1/appStoreVersionSubmissions",
-            {
-                "data": {
-                    "type": "appStoreVersionSubmissions",
-                    "relationships": {
-                        "appStoreVersion": {
-                            "data": {"type": "appStoreVersions", "id": version_id}
-                        }
-                    },
-                }
-            },
-            raise_http=False,
-        )
-        print(f"legacy → {lcode}")
-        print(json.dumps(legacy, indent=2)[:4000] if isinstance(legacy, dict) else legacy)
-        if legacy.get("_http_error"):
-            raise SystemExit("Submit fallito (reviewSubmissions + legacy). Vedi errori ASC sopra.")
-        print("OK legacy appStoreVersionSubmissions")
-        sys.exit(0)
+    raise SystemExit(
+        "Submit fallito: impossibile creare reviewSubmission "
+        "(cancella a mano in ASC → App Review se resta UNRESOLVED_ISSUES)."
+    )
 else:
     submission_id = created["data"]["id"]
     print(
