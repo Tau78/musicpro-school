@@ -257,11 +257,11 @@ otp_expiry = 3600
 # Uncomment to customize email template
 [auth.email.template.recovery]
 subject = "Reimposta la password — MusicPro School"
-content_path = "./templates/recovery.html"
+content_path = "./supabase/templates/recovery.html"
 
 [auth.email.template.magic_link]
 subject = "Link di accesso — MusicPro School"
-content_path = "./templates/magic_link.html"
+content_path = "./supabase/templates/magic_link.html"
 
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]
