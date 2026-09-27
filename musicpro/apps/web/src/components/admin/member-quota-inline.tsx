@@ -497,7 +497,7 @@ export function MemberQuotaInline({
         })}
       </ul>
       <p className="text-xs text-neutral-500">
-        «Link paga» genera un checkout Stripe. Sollecita lo include nell&apos;email
+        «Link paga» genera un checkout online. Sollecita lo include nell&apos;email
         e aggiorna lo storico solleciti.
       </p>
     </div>

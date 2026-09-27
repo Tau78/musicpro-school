@@ -10,6 +10,7 @@ import {
   type LessonScheduleActor,
 } from "@musicpro/database";
 
+import { CollapsibleSection } from "@/components/admin/collapsible-section";
 import { PlaceLessonForm } from "@/components/lezioni/place-lesson-form";
 import { createClient } from "@/lib/supabase/server";
 
@@ -31,6 +32,7 @@ export async function UnplacedLessonsBlock({
   lessons: lessonsProp,
   courseId,
   titularMemberId,
+  defaultOpen = false,
 }: {
   actor: LessonScheduleActor;
   rooms: { id: string; name: string }[];
@@ -38,6 +40,8 @@ export async function UnplacedLessonsBlock({
   lessons?: Lesson[];
   courseId?: string;
   titularMemberId?: string;
+  /** Se false (default), la sezione parte collassata. */
+  defaultOpen?: boolean;
 }) {
   const supabase = await createClient();
   const today = todayInRome();
@@ -72,11 +76,13 @@ export async function UnplacedLessonsBlock({
 
   const slotStepMinutes = settings?.slotGranularityMinutes ?? 15;
 
+  const title =
+    lessons.length === 1
+      ? "Da mettere in calendario (1)"
+      : `Da mettere in calendario (${lessons.length})`;
+
   return (
-    <section className="space-y-2 rounded-lg border border-neutral-200 bg-white px-3 py-2">
-      <h3 className="text-sm font-semibold text-[var(--brand)]">
-        Da mettere in calendario
-      </h3>
+    <CollapsibleSection title={title} defaultOpen={defaultOpen}>
       <ul className="space-y-3">
         {lessons.map((lesson) => {
           const detail = detailsById.get(lesson.courseId);
@@ -125,6 +131,6 @@ export async function UnplacedLessonsBlock({
           );
         })}
       </ul>
-    </section>
+    </CollapsibleSection>
   );
 }

@@ -1,5 +1,7 @@
 # Webhook Stripe — SHOP crediti (Supabase Edge)
 
+> **Obsoleto (2026-09-27).** I pagamenti nuovi usano Classic XPay: vedi [`NEXI_MIGRATION.md`](./NEXI_MIGRATION.md). Questa pagina resta come storico.
+
 Endpoint HTTP nativo con verifica firma `Stripe-Signature`. Sostituisce il webhook Next.js su Vercel (`/api/stripe/webhook`) per il flusso `shop_credit_package`.
 
 ## Componenti

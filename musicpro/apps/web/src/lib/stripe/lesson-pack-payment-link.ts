@@ -1,9 +1,5 @@
-import {
-  getStripeConfig,
-  type StripeConfig,
-} from "@/lib/iscrizione/stripe-config";
-import { QUOTA_ASSOCIATIVA_CENTESIMI } from "@/lib/iscrizione/stripe-payment-link";
-import { eurosToCents } from "@/lib/stripe/room-payment-link";
+import { QUOTA_ASSOCIATIVA_CENTESIMI, eurosToCents } from "@/lib/nexi/cod-trans";
+import { mintNexiPayment } from "@/lib/nexi/mint-payment";
 import {
   authPublicOrigin,
   isLocalDevOrigin,
@@ -15,6 +11,7 @@ export interface LessonPackPaymentLinkResult {
   success: boolean;
   url?: string;
   stripeId?: string;
+  paymentId?: string;
   totaleCents?: number;
   message?: string;
 }
@@ -25,18 +22,9 @@ function usablePublicUrl(value: string): string {
   return trimmed;
 }
 
-function buildLessonPackReturnUrl(
-  cfgReturnBase: string,
-  optsReturnUrl?: string,
-): string {
+function buildLessonPackReturnUrl(optsReturnUrl?: string): string {
   const explicit = usablePublicUrl(optsReturnUrl || "");
   if (explicit) return explicit;
-
-  const envReturn = usablePublicUrl(
-    process.env.STRIPE_RETURN_URL || cfgReturnBase || "",
-  );
-  if (envReturn) return envReturn;
-
   return `${authPublicOrigin(process.env)}/admin/lezioni/rette?pagato=1`;
 }
 
@@ -49,6 +37,7 @@ export async function createLessonPackPaymentLink(opts: {
   includeQuota: boolean;
   quotaAmountCents?: number;
   returnUrl?: string;
+  email?: string | null;
   idempotencyKey?: string;
 }): Promise<LessonPackPaymentLinkResult> {
   const paymentId = String(opts.paymentId || "").trim();
@@ -81,93 +70,28 @@ export async function createLessonPackPaymentLink(opts: {
   }
 
   const totaleCents = packCents + quotaCents;
-  const importoDisplay = (totaleCents / 100).toFixed(2);
   const studentName = String(opts.studentName || "").trim();
-  const anno = new Date().getFullYear();
+  const nameParts = studentName.split(/\s+/);
+  const description = opts.includeQuota
+    ? "Pacchetto lezioni + quota associativa"
+    : "Pacchetto lezioni";
 
-  let cfg: StripeConfig;
-  try {
-    cfg = getStripeConfig();
-  } catch (err) {
-    return {
-      success: false,
-      message: err instanceof Error ? err.message : "Configurazione Stripe mancante.",
-    };
-  }
-
-  const returnUrl = buildLessonPackReturnUrl(cfg.returnBase, opts.returnUrl);
-
-  const body = new URLSearchParams({
-    "line_items[0][price_data][currency]": cfg.currency,
-    "line_items[0][price_data][unit_amount]": String(packCents),
-    "line_items[0][price_data][product_data][name]": "Pacchetto 4 lezioni",
-    "line_items[0][quantity]": "1",
-    "after_completion[type]": "redirect",
-    "after_completion[redirect][url]": returnUrl,
-    "metadata[mp_flow]": LESSON_PACK_FLOW,
-    "metadata[mp_payment_id]": paymentId,
-    "metadata[mp_enrollment_id]": enrollmentId,
-    "metadata[mp_member_id]": memberId,
-    "metadata[mp_totale]": importoDisplay,
-    "metadata[mp_ambiente]": cfg.mode,
-    "payment_intent_data[metadata][mp_flow]": LESSON_PACK_FLOW,
-    "payment_intent_data[metadata][mp_payment_id]": paymentId,
-    "payment_intent_data[metadata][mp_enrollment_id]": enrollmentId,
-    "payment_intent_data[metadata][mp_member_id]": memberId,
+  return mintNexiPayment({
+    flow: "lesson_pack",
+    amountCents: totaleCents,
+    returnUrl: buildLessonPackReturnUrl(opts.returnUrl),
+    description,
+    firstName: nameParts[0] || "",
+    lastName: nameParts.slice(1).join(" ") || "",
+    email: opts.email,
+    memberId,
+    lessonPackPaymentId: paymentId,
+    metadata: {
+      mp_flow: LESSON_PACK_FLOW,
+      mp_payment_id: paymentId,
+      mp_enrollment_id: enrollmentId,
+      mp_member_id: memberId,
+      include_quota: opts.includeQuota,
+    },
   });
-
-  if (opts.includeQuota) {
-    body.set("line_items[1][price_data][currency]", cfg.currency);
-    body.set("line_items[1][price_data][unit_amount]", String(quotaCents));
-    body.set(
-      "line_items[1][price_data][product_data][name]",
-      `Quota associativa ${anno}`,
-    );
-    body.set("line_items[1][quantity]", "1");
-  }
-
-  if (studentName) {
-    body.set("metadata[mp_nome]", studentName);
-  }
-
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${cfg.secret}`,
-    "Content-Type": "application/x-www-form-urlencoded",
-  };
-
-  if (opts.idempotencyKey) {
-    const ik = String(opts.idempotencyKey)
-      .trim()
-      .replace(/[^a-zA-Z0-9_-]/g, "")
-      .substring(0, 240);
-    if (ik) headers["Idempotency-Key"] = ik;
-  }
-
-  const resp = await fetch("https://api.stripe.com/v1/payment_links", {
-    method: "POST",
-    headers,
-    body,
-  });
-
-  const raw = await resp.text();
-  let data: { url?: string; id?: string; error?: { message?: string } } = {};
-  try {
-    data = JSON.parse(raw) as typeof data;
-  } catch {
-    /* ignore */
-  }
-
-  if (resp.ok && data.url) {
-    return {
-      success: true,
-      url: String(data.url),
-      stripeId: String(data.id || ""),
-      totaleCents,
-    };
-  }
-
-  const msg = data.error?.message || `Errore Stripe HTTP ${resp.status}`;
-  return { success: false, message: msg };
 }
-
-export type { StripeConfig };

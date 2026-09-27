@@ -8,12 +8,8 @@ enum SchoolConfig {
   /// Host consentiti nel WebView (resto → Safari / app esterne).
   static let allowedHosts: Set<String> = [
     panelHost,
-    "checkout.stripe.com",
-    "js.stripe.com",
-    "hooks.stripe.com",
-    "m.stripe.com",
-    "m.stripe.network",
-    "api.stripe.com",
+    "ecommerce.nexi.it",
+    "int-ecommerce.nexi.it",
   ]
 
   static func isAllowedHost(_ host: String) -> Bool {
@@ -21,7 +17,7 @@ enum SchoolConfig {
     if allowedHosts.contains(h) { return true }
     if h.hasSuffix(".\(panelHost)") { return true }
     if h.hasSuffix(".supabase.co") { return true }
-    if h.hasSuffix(".stripe.com") { return true }
+    if h.hasSuffix(".nexi.it") { return true }
     return false
   }
 }

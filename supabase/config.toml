@@ -427,16 +427,13 @@ s3_secret_key = "env(S3_SECRET_KEY)"
 # JSON string passed through to pg-delta SQL formatting.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
 
-[functions.stripe-room-webhook]
+[functions.nexi-xpay-pay]
 verify_jwt = false
 
-[functions.stripe-credit-shop-webhook]
+[functions.nexi-xpay-notify]
 verify_jwt = false
 
-[functions.stripe-quota-webhook]
-verify_jwt = false
-
-[functions.stripe-lesson-pack-webhook]
+[functions.nexi-xpay-return]
 verify_jwt = false
 
 [functions.booking-calendar-sync]

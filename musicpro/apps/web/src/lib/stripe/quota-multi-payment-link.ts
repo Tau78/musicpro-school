@@ -1,13 +1,11 @@
-import {
-  getStripeConfig,
-  type StripeConfig,
-} from "@/lib/iscrizione/stripe-config";
-import { eurosToCents } from "@/lib/stripe/room-payment-link";
+import { eurosToCents } from "@/lib/nexi/cod-trans";
+import { mintNexiPayment } from "@/lib/nexi/mint-payment";
 
 export interface QuotaMultiPaymentLinkResult {
   success: boolean;
   url?: string;
   stripeId?: string;
+  paymentId?: string;
   totaleCents?: number;
   message?: string;
 }
@@ -32,16 +30,15 @@ export async function createStripePaymentLinkQuotaMultiPay(opts: {
   returnBaseUrl?: string;
   bandId?: string;
   idempotencyKey?: string;
+  email?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
 }): Promise<QuotaMultiPaymentLinkResult> {
-  const cfg = getStripeConfig();
   const quotaPaymentId = String(opts.quotaPaymentId || "").trim();
   const paidByMemberId = String(opts.paidByMemberId || "").trim();
 
   if (!quotaPaymentId) {
     return { success: false, message: "ID pagamento quota mancante." };
-  }
-  if (!paidByMemberId) {
-    return { success: false, message: "ID associato pagante mancante." };
   }
 
   const importoCents = eurosToCents(opts.totalAmountEur);
@@ -49,69 +46,26 @@ export async function createStripePaymentLinkQuotaMultiPay(opts: {
     return { success: false, message: "Importo quota non valido." };
   }
 
-  const importoDisplay = (importoCents / 100).toFixed(2);
-  const memberCount = Math.max(1, opts.memberCount);
-  const returnBase = (opts.returnBaseUrl || cfg.returnBase).trim();
+  const returnBase = (
+    opts.returnBaseUrl || "https://school.musicproeventi.it/dashboard"
+  ).trim();
   const returnUrl = buildQuotaMultiPayReturnUrl(returnBase, opts.bandId);
-  const memberIdsCsv = opts.memberIds.join(",");
+  const count = opts.memberCount || opts.memberIds.length;
 
-  const body = new URLSearchParams({
-    "line_items[0][price_data][currency]": cfg.currency,
-    "line_items[0][price_data][unit_amount]": String(importoCents),
-    "line_items[0][price_data][product_data][name]": `Quota associativa ${opts.fiscalYear} x ${memberCount} membri`,
-    "line_items[0][quantity]": "1",
-    "after_completion[type]": "redirect",
-    "after_completion[redirect][url]": returnUrl,
-    "metadata[mp_flow]": "quota_multi_pay",
-    "metadata[mp_quota_payment_id]": quotaPaymentId,
-    "metadata[mp_paid_by_member_id]": paidByMemberId,
-    "metadata[mp_member_ids]": memberIdsCsv,
-    "metadata[mp_totale]": importoDisplay,
-    "metadata[mp_ambiente]": cfg.mode,
-    "payment_intent_data[metadata][mp_flow]": "quota_multi_pay",
-    "payment_intent_data[metadata][mp_quota_payment_id]": quotaPaymentId,
-    "payment_intent_data[metadata][mp_paid_by_member_id]": paidByMemberId,
-    "payment_intent_data[metadata][mp_member_ids]": memberIdsCsv,
+  return mintNexiPayment({
+    flow: "quota_multi_pay",
+    amountCents: importoCents,
+    returnUrl,
+    description: `Quote associative ${opts.fiscalYear} (${count})`,
+    email: opts.email,
+    firstName: opts.firstName,
+    lastName: opts.lastName,
+    quotaPaymentId,
+    memberId: paidByMemberId || null,
+    metadata: {
+      mp_flow: "quota_multi_pay",
+      mp_quota_payment_id: quotaPaymentId,
+      mp_member_ids: opts.memberIds,
+    },
   });
-
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${cfg.secret}`,
-    "Content-Type": "application/x-www-form-urlencoded",
-  };
-
-  if (opts.idempotencyKey) {
-    const ik = String(opts.idempotencyKey)
-      .trim()
-      .replace(/[^a-zA-Z0-9_-]/g, "")
-      .substring(0, 240);
-    if (ik) headers["Idempotency-Key"] = ik;
-  }
-
-  const resp = await fetch("https://api.stripe.com/v1/payment_links", {
-    method: "POST",
-    headers,
-    body,
-  });
-
-  const raw = await resp.text();
-  let data: { url?: string; id?: string; error?: { message?: string } } = {};
-  try {
-    data = JSON.parse(raw) as typeof data;
-  } catch {
-    /* ignore */
-  }
-
-  if (resp.ok && data.url) {
-    return {
-      success: true,
-      url: String(data.url),
-      stripeId: String(data.id || ""),
-      totaleCents: importoCents,
-    };
-  }
-
-  const msg = data.error?.message || `Errore Stripe HTTP ${resp.status}`;
-  return { success: false, message: msg };
 }
-
-export type { StripeConfig };

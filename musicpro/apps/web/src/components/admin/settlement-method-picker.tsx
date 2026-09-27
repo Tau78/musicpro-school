@@ -33,8 +33,9 @@ export function SettlementMethodPicker({
             <span className="font-medium">
               {originalPaymentMethod === "credits"
                 ? "Crediti"
-                : originalPaymentMethod === "stripe"
-                  ? "Carta (Stripe)"
+                : originalPaymentMethod === "stripe" ||
+                    originalPaymentMethod === "nexi"
+                  ? "Carta"
                   : originalPaymentMethod}
             </span>
             .

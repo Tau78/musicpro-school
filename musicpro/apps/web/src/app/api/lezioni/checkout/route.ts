@@ -10,9 +10,8 @@ import {
 
 import { canManageMembers } from "@/lib/admin/roles";
 import { authPublicOrigin, isLocalDevOrigin } from "@/lib/auth/redirect-url";
-import { QUOTA_ASSOCIATIVA_CENTESIMI } from "@/lib/iscrizione/stripe-payment-link";
+import { QUOTA_ASSOCIATIVA_CENTESIMI, eurosToCents } from "@/lib/nexi/cod-trans";
 import { createLessonPackPaymentLink } from "@/lib/stripe/lesson-pack-payment-link";
-import { eurosToCents } from "@/lib/stripe/room-payment-link";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -212,7 +211,7 @@ export async function POST(request: NextRequest) {
         family_key: familyKey,
         member_id: student.id,
         amount_eur: amountEur,
-        method: "stripe",
+        method: "nexi",
         status: "pending",
         include_quota: includeQuota,
         created_by: actor.id,

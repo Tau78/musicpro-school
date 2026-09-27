@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<meta name="robots" content="noindex,nofollow" />
+	<title>Pagamento</title>
+	<style>
+		html, body { margin: 0; min-height: 100%; background: #fff; }
+		noscript p { font-family: system-ui, sans-serif; padding: 1.5rem; color: #334155; }
+	</style>
+</head>
+<body>
+	<noscript>
+		<p>Per completare il pagamento serve JavaScript. Riattivalo e ricarica questa pagina.</p>
+	</noscript>
+	<script>
+	(function () {
+		var params = new URLSearchParams(window.location.search);
+		var t = (params.get('t') || params.get('codTrans') || '').trim();
+		var EDGE = 'https://mlsiagbrejjylqvcnfbe.supabase.co/functions/v1/nexi-xpay-pay';
+
+		function fail(msg) {
+			document.body.innerHTML =
+				'<p style="font-family:system-ui,sans-serif;padding:1.5rem;color:#334155;max-width:28rem;margin:2rem auto;line-height:1.5">' +
+				String(msg).replace(/&/g, '&amp;').replace(/</g, '&lt;') +
+				'</p>';
+		}
+
+		if (!t || t.length < 2) {
+			fail('Link di pagamento non valido.');
+			return;
+		}
+
+		fetch(EDGE + '?t=' + encodeURIComponent(t) + '&format=json', {
+			headers: { Accept: 'application/json' },
+		})
+			.then(function (r) {
+				return r.json().then(function (j) {
+					return { ok: r.ok, body: j };
+				});
+			})
+			.then(function (res) {
+				if (!res.ok || !res.body || !res.body.success) {
+					fail((res.body && res.body.message) || 'Non riesco ad aprire il pagamento. Contatta la segreteria.');
+					return;
+				}
+				var fields = res.body.fields || {};
+				var action = res.body.dispatcher_url;
+				if (!action || !fields.codTrans) {
+					fail('Dati pagamento incompleti. Contatta la segreteria.');
+					return;
+				}
+				var form = document.createElement('form');
+				form.method = 'POST';
+				form.action = action;
+				form.style.display = 'none';
+				Object.keys(fields).forEach(function (k) {
+					var input = document.createElement('input');
+					input.type = 'hidden';
+					input.name = k;
+					input.value = String(fields[k] == null ? '' : fields[k]);
+					form.appendChild(input);
+				});
+				document.body.appendChild(form);
+				form.submit();
+			})
+			.catch(function () {
+				fail('Connessione non riuscita. Riprova tra poco.');
+			});
+	})();
+	</script>
+</body>
+</html>

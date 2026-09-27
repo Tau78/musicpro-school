@@ -23,7 +23,6 @@ import {
   QUOTA_ASSOCIATIVA_CENTESIMI,
   syncStripePaymentForEnrollment,
 } from "./stripe-payment-link";
-import { getStripeConfig } from "./stripe-config";
 
 type Db = SupabaseClient<Database>;
 type EnrollmentRow = Database["public"]["Tables"]["enrollments"]["Row"];
@@ -404,9 +403,8 @@ export async function sincronizzaPagamento(idIscrizione: string) {
   }
 
   try {
-    const cfg = getStripeConfig();
     const sync = await syncStripePaymentForEnrollment(
-      cfg,
+      null,
       rec.legacy_enrollment_id || rec.id,
       plId,
     );
@@ -1372,7 +1370,7 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
   const cf = String(data.cf || "").toUpperCase().trim();
   const payload = {
     ...data,
-    metodo_pagamento: "Stripe",
+    metodo_pagamento: "Nexi",
   };
 
   const resumeId = String(data.idIscrizione || data.id || "").trim();
@@ -1430,6 +1428,7 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
       cognome: String(data.cognome || ""),
       importoCentesimi: importoCents,
       annoSocietario: anno,
+      email: String(data.email || "").trim(),
       idempotencyKey: `iscrizione_retry_${idIscrizione}_${Date.now()}`,
     });
 
@@ -1440,7 +1439,7 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
         .eq("id", pending.id);
       throw new Error(
         linkResReuse.message ||
-          "Impossibile creare il link di pagamento Stripe.",
+          "Impossibile creare il link di pagamento.",
       );
     }
 
@@ -1498,6 +1497,7 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
     cognome: String(data.cognome || ""),
     importoCentesimi: importoCents,
     annoSocietario: anno,
+    email: String(data.email || "").trim(),
     idempotencyKey: `iscrizione_${idIscrizione}`,
   });
 
@@ -1507,7 +1507,7 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
       .update({ payment_status: "ERRORE" })
       .eq("id", idIscrizione);
     throw new Error(
-      linkRes.message || "Impossibile creare il link di pagamento Stripe.",
+      linkRes.message || "Impossibile creare il link di pagamento.",
     );
   }
 
@@ -1748,7 +1748,7 @@ async function promoteMemberAfterPaidEnrollment(
           paidAt,
           amountPaidEur: amountEur,
           amountDueEur: amountEur,
-          notes: "stripe",
+          notes: "nexi",
         },
       ]);
       if (!result.success) {
@@ -2007,7 +2007,7 @@ export async function completaInvioIscrizione(idIscrizione: string) {
     to: segreteriaRecipients(),
     subject: `ISCRIZIONE: ${cognome} ${nome}`,
     text: [
-      "Nuova iscrizione con pagamento Stripe.",
+      "Nuova iscrizione con pagamento online.",
       `Nome: ${nome} ${cognome}`,
       `Email socio: ${socioEmail || "—"}`,
       `CF: ${formText(form.cf || rec.tax_code).toUpperCase() || "—"}`,

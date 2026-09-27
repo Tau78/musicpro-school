@@ -1500,6 +1500,7 @@ export async function adjustEnrollmentCredits(
 
 export type LessonPackPaymentMethod =
   | "stripe"
+  | "nexi"
   | "bonifico"
   | "contanti"
   | "altro";

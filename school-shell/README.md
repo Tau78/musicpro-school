@@ -31,6 +31,6 @@ Non è Submit for Review.
 
 ## Note
 
-- Host consentiti nel WebView: `school.musicproeventi.it`, `*.supabase.co`, Stripe.
+- Host consentiti nel WebView: `school.musicproeventi.it`, `*.supabase.co`, `*.nexi.it`.
 - `tel:` / `mailto:` / WhatsApp si aprono fuori dall’app.
 - La vecchia app Expo in `musicpro/apps/mobile` non è più il path di ship; resta in repo per riferimento.
