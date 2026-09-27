@@ -2,7 +2,7 @@ name: MusicPro School
 subtitle: Lessons & practice rooms
 promotional_text: Personal area, room bookings and lessons for MusicPro Eventi members and teachers. School roster access only.
 keywords: school,music,lessons,booking,practice room,teacher,member,musicpro,calendar,attendance
-whats_new: First TestFlight release: personal area, bookings, teacher lessons, new practice session.
+whats_new: 1.1 update: native shell, personal area, room bookings, teacher lessons.
 
 description: |
   MusicPro School is the app for MusicPro Eventi members and teachers: personal area, practice-room bookings, and lesson tools.

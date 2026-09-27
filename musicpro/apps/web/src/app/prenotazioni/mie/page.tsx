@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   type BookingWithRoom,
@@ -55,7 +55,7 @@ function buildCancelSuccessMessage(result: CancelBookingResult): string {
 }
 
 function MiePrenotazioniContent() {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -148,6 +148,8 @@ function MiePrenotazioniContent() {
   }, [router, searchParams]);
 
   async function handlePay(bookingId: string) {
+    if (payingId) return;
+
     setPayingId(bookingId);
     setMessage(null);
     setError(null);

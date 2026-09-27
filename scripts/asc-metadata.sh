@@ -221,21 +221,38 @@ if info:
         patch("appInfoLocalizations", row["id"], attrs)
         print("OK app info", loc, "privacy URL")
 
-# demoAccountPassword intenzionalmente omesso: non va nel repo; compilare in ASC UI.
+# Demo login MUST match a working Supabase user (appstore.review@…).
+# Password: ASC_DEMO_PASSWORD env, else keep the password already on ASC (never from git).
+DEMO_EMAIL = "appstore.review@musicproeventi.it"
 review_attrs = {
     "contactFirstName": "Mauro",
     "contactLastName": "Andreoni",
     "contactPhone": "+393716752550",
     "contactEmail": "andreoni.mauro@gmail.com",
     "demoAccountRequired": True,
-    "demoAccountName": "andreoni.mauro@gmail.com",
+    "demoAccountName": DEMO_EMAIL,
     "notes": notes,
 }
+demo_password = os.environ.get("ASC_DEMO_PASSWORD", "").strip()
 detail = api("GET", f"/v1/appStoreVersions/{version_id}/appStoreReviewDetail")
 if detail.get("data"):
+    existing_pwd = (detail["data"].get("attributes") or {}).get("demoAccountPassword") or ""
+    if demo_password:
+        review_attrs["demoAccountPassword"] = demo_password
+    elif existing_pwd:
+        review_attrs["demoAccountPassword"] = existing_pwd
     patch("appStoreReviewDetails", detail["data"]["id"], review_attrs)
-    print("OK review notes (demoAccountRequired=true, password omessa)")
+    print(
+        "OK review notes (demoAccountRequired=true, demo=",
+        DEMO_EMAIL,
+        ", password=",
+        "set" if review_attrs.get("demoAccountPassword") else "MISSING — set in ASC UI",
+        ")",
+        sep="",
+    )
 else:
+    if demo_password:
+        review_attrs["demoAccountPassword"] = demo_password
     api("POST", "/v1/appStoreReviewDetails", {
         "data": {
             "type": "appStoreReviewDetails",
@@ -245,7 +262,14 @@ else:
             },
         }
     })
-    print("OK review notes (create; demoAccountRequired=true, password omessa)")
+    print(
+        "OK review notes (create; demo=",
+        DEMO_EMAIL,
+        ", password=",
+        "set" if demo_password else "MISSING — set in ASC UI",
+        ")",
+        sep="",
+    )
 
 print()
 print("=== Metadati caricati. NON è Submit for Review. ===")

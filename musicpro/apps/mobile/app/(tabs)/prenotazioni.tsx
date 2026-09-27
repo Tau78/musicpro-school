@@ -28,7 +28,9 @@ import {
   todayInRome,
 } from "@musicpro/database";
 
+import { AssociateGradientBg } from "@/components/associate-gradient-bg";
 import { addRomeDays } from "@/lib/lezioni-dates";
+import { roomVisualFromName, theme } from "@/lib/theme";
 import { createClient } from "../../lib/supabase";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -216,79 +218,81 @@ export default function PrenotazioniScreen() {
       setError("Seleziona uno slot disponibile.");
       return;
     }
+    if (submitting) return;
 
     setSubmitting(true);
     setMessage(null);
     setError(null);
 
-    const result: CreateBookingResult = await createBooking(supabase, {
-      roomId: selectedRoomId,
-      memberId,
-      startAt: selectedSlot.startAt,
-      endAt: selectedSlot.endAt,
-    });
-
-    if (!result.success) {
-      setSubmitting(false);
-      setError(result.errorMessage ?? "Prenotazione non riuscita.");
-      return;
-    }
-
-    const needsCardPayment =
-      result.requiresPayment &&
-      result.bookingId &&
-      (result.status === "pending" || result.status === "pending_approval");
-
-    if (needsCardPayment) {
-      const apiBaseUrl = process.env.EXPO_PUBLIC_WEB_URL?.trim();
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      const payment = await requestRoomBookingPaymentUrl(result.bookingId, {
-        apiBaseUrl,
-        accessToken: session?.access_token,
+    try {
+      const result: CreateBookingResult = await createBooking(supabase, {
+        roomId: selectedRoomId,
+        memberId,
+        startAt: selectedSlot.startAt,
+        endAt: selectedSlot.endAt,
       });
 
-      setSubmitting(false);
-
-      if (payment.success && payment.url) {
-        await Linking.openURL(payment.url);
+      if (!result.success) {
+        setError(result.errorMessage ?? "Prenotazione non riuscita.");
         return;
       }
 
-      setError(
-        payment.message ??
-          "Impossibile avviare il pagamento. Riprova o contatta la segreteria.",
+      const needsCardPayment =
+        result.requiresPayment &&
+        result.bookingId &&
+        (result.status === "pending" || result.status === "pending_approval");
+
+      if (needsCardPayment) {
+        const apiBaseUrl = process.env.EXPO_PUBLIC_WEB_URL?.trim();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        const payment = await requestRoomBookingPaymentUrl(result.bookingId!, {
+          apiBaseUrl,
+          accessToken: session?.access_token,
+        });
+
+        if (payment.success && payment.url) {
+          await Linking.openURL(payment.url);
+          return;
+        }
+
+        setError(
+          payment.message ??
+            "Impossibile avviare il pagamento. Riprova o contatta la segreteria.",
+        );
+        setSelectedSlot(null);
+        await loadAvailability();
+        return;
+      }
+
+      if (result.requiresPayment) {
+        setError("Completa il pagamento per confermare la prenotazione.");
+        setSelectedSlot(null);
+        await loadAvailability();
+        return;
+      }
+
+      setMessage(
+        result.status === "pending_approval"
+          ? "Richiesta inviata: in attesa di approvazione."
+          : "Prenotazione confermata!",
       );
       setSelectedSlot(null);
       await loadAvailability();
-      return;
+    } finally {
+      setSubmitting(false);
     }
-
-    setSubmitting(false);
-
-    if (result.requiresPayment) {
-      setError("Completa il pagamento per confermare la prenotazione.");
-      setSelectedSlot(null);
-      await loadAvailability();
-      return;
-    }
-
-    setMessage(
-      result.status === "pending_approval"
-        ? "Richiesta inviata: in attesa di approvazione."
-        : "Prenotazione confermata!",
-    );
-    setSelectedSlot(null);
-    await loadAvailability();
   }
 
   return (
+    <AssociateGradientBg>
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <Text style={styles.eyebrow}>PRENOTA SALA</Text>
       <Text style={styles.title}>Prenota una sala</Text>
       <Text style={styles.description}>
-        Scegli sala, durata e data, poi seleziona uno slot.
+        Scegli sala, orario e durata
       </Text>
 
       {loading && <ActivityIndicator style={styles.loader} color="#1e3a5f" />}
@@ -313,14 +317,11 @@ export default function PrenotazioniScreen() {
 
       {rooms.length > 0 && (
         <>
-          <Text style={styles.sectionLabel}>Sala</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.chipPicker}
-          >
+          <Text style={styles.sectionLabel}>Tipologia di sala</Text>
+          <View style={styles.roomGrid}>
             {rooms.map((room) => {
               const active = room.id === selectedRoomId;
+              const visual = roomVisualFromName(room.name);
               return (
                 <Pressable
                   key={room.id}
@@ -329,17 +330,26 @@ export default function PrenotazioniScreen() {
                     setDurationMinutes(room.default_duration_minutes);
                     setSelectedSlot(null);
                   }}
-                  style={[styles.chip, active && styles.chipActive]}
+                  style={[
+                    styles.roomCard,
+                    active && { borderColor: visual.color, borderWidth: 2 },
+                  ]}
                 >
-                  <Text
-                    style={[styles.chipText, active && styles.chipTextActive]}
+                  <View
+                    style={[styles.roomIcon, { backgroundColor: visual.color }]}
                   >
-                    {room.name}
+                    <Text style={styles.roomEmoji}>{visual.emoji}</Text>
+                  </View>
+                  <Text style={styles.roomName}>
+                    {room.name.replace(/^Sala\s+/i, "")}
                   </Text>
+                  {visual.tag ? (
+                    <Text style={styles.roomTag}>{visual.tag}</Text>
+                  ) : null}
                 </Pressable>
               );
             })}
-          </ScrollView>
+          </View>
 
           {selectedRoom?.description && (
             <Text style={styles.hint}>{selectedRoom.description}</Text>
@@ -482,22 +492,30 @@ export default function PrenotazioniScreen() {
         </>
       )}
     </ScrollView>
+    </AssociateGradientBg>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fafafa",
+    backgroundColor: "transparent",
   },
   content: {
     padding: 24,
     paddingBottom: 40,
   },
+  eyebrow: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 1,
+    color: theme.accent,
+  },
   title: {
-    fontSize: 22,
+    marginTop: 4,
+    fontSize: 26,
     fontWeight: "600",
-    color: "#1e3a5f",
+    color: theme.brand,
   },
   description: {
     marginTop: 8,
@@ -513,7 +531,46 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     fontSize: 14,
     fontWeight: "600",
-    color: "#1e3a5f",
+    color: theme.brand,
+  },
+  roomGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  roomCard: {
+    width: "31%",
+    minWidth: 96,
+    alignItems: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: theme.glassBorder,
+    backgroundColor: theme.glass,
+  },
+  roomIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  roomEmoji: {
+    fontSize: 18,
+  },
+  roomName: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: theme.brand,
+    textAlign: "center",
+  },
+  roomTag: {
+    marginTop: 4,
+    fontSize: 9,
+    color: "#666",
+    textAlign: "center",
   },
   chipPicker: {
     flexGrow: 0,
@@ -524,12 +581,12 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: "#d4d4d4",
-    backgroundColor: "#fff",
+    borderColor: theme.glassBorder,
+    backgroundColor: theme.glass,
   },
   chipActive: {
-    borderColor: "#1e3a5f",
-    backgroundColor: "#1e3a5f",
+    borderColor: theme.brand,
+    backgroundColor: theme.brand,
   },
   chipText: {
     fontSize: 14,
@@ -573,8 +630,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#e5e5e5",
-    backgroundColor: "#fff",
+    borderColor: theme.glassBorder,
+    backgroundColor: theme.glass,
   },
   dateLabel: {
     fontSize: 14,
@@ -591,8 +648,8 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#e5e5e5",
-    backgroundColor: "#fff",
+    borderColor: theme.glassBorder,
+    backgroundColor: theme.glass,
   },
   slotLabel: {
     fontSize: 15,
@@ -611,10 +668,10 @@ const styles = StyleSheet.create({
   confirmCard: {
     marginTop: 24,
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#e5e5e5",
-    backgroundColor: "#fff",
+    borderColor: theme.glassBorder,
+    backgroundColor: theme.glass,
   },
   confirmTitle: {
     fontSize: 17,
@@ -662,8 +719,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     minHeight: 48,
-    borderRadius: 10,
-    backgroundColor: "#1e3a5f",
+    borderRadius: 12,
+    backgroundColor: theme.brand,
     paddingHorizontal: 16,
     paddingVertical: 12,
   },

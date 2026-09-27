@@ -379,6 +379,14 @@ else
     FAIL_SMOKE=1
   fi
 
+  # Dopo Vercel: /auth/confirm è live → passa ai template TokenHash (niente PKCE).
+  if node "$ROOT/scripts/sync-school-auth-emails.mjs"; then
+    ok "auth email templates → TokenHash /auth/confirm"
+  else
+    warn "auth email templates non aggiornati"
+    FAIL_SMOKE=1
+  fi
+
   [[ "$FAIL_SMOKE" -eq 0 ]] || die "Smoke HTTP fallito: produzione non allineata"
 fi
 

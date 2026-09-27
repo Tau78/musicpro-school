@@ -36,12 +36,60 @@ export function authPublicOrigin(
   return SCHOOL_PRODUCTION_ORIGIN;
 }
 
+function isAllowedSchoolOrigin(origin: string): boolean {
+  return (
+    origin === SCHOOL_PRODUCTION_ORIGIN ||
+    origin === "https://school.musicproeventi.it"
+  );
+}
+
+/** Solo path relativi interni o URL same-origin School (anti open-redirect). */
+export function safeAuthNextPath(
+  value: string | null | undefined,
+  fallback = "/dashboard",
+): string {
+  const trimmed = (value ?? "").trim();
+  if (!trimmed) return fallback;
+
+  if (trimmed.startsWith("/") && !trimmed.startsWith("//")) {
+    return trimmed;
+  }
+
+  try {
+    const url = new URL(trimmed);
+    if (!isAllowedSchoolOrigin(url.origin)) {
+      return fallback;
+    }
+    if (url.pathname === "/auth/callback" || url.pathname === "/auth/confirm") {
+      const nested =
+        url.searchParams.get("redirect") || url.searchParams.get("next");
+      return safeAuthNextPath(nested, fallback);
+    }
+    const path = `${url.pathname}${url.search}` || "/";
+    return safeAuthNextPath(path, fallback);
+  } catch {
+    return fallback;
+  }
+}
+
 export function authCallbackUrl(redirectTo: string): string {
   const origin = authPublicOrigin(
     process.env,
     typeof window !== "undefined" ? window.location.origin : undefined,
   );
-  const safeRedirect = redirectTo.startsWith("/") ? redirectTo : "/dashboard";
+  const safeRedirect = safeAuthNextPath(redirectTo, "/dashboard");
   const params = new URLSearchParams({ redirect: safeRedirect });
   return `${origin}/auth/callback?${params.toString()}`;
+}
+
+/**
+ * RedirectTo per email OTP/magic link: URL same-origin senza query annidate
+ * (così `next={{ .RedirectTo }}` nel template non si spezza su `?`/`&`).
+ */
+export function authEmailRedirectTo(redirectTo: string): string {
+  const origin = authPublicOrigin(
+    process.env,
+    typeof window !== "undefined" ? window.location.origin : undefined,
+  );
+  return `${origin}${safeAuthNextPath(redirectTo, "/dashboard")}`;
 }

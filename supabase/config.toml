@@ -164,6 +164,7 @@ site_url = "https://school.musicproeventi.it"
 additional_redirect_urls = [
   "https://school.musicproeventi.it/**",
   "https://school.musicproeventi.it/auth/callback",
+  "https://school.musicproeventi.it/auth/confirm",
   "http://localhost:3000/**",
   "http://127.0.0.1:3000/**",
   "musicpro://**",
@@ -254,9 +255,13 @@ otp_expiry = 3600
 # sender_name = "Admin"
 
 # Uncomment to customize email template
-# [auth.email.template.invite]
-# subject = "You have been invited"
-# content_path = "./supabase/templates/invite.html"
+[auth.email.template.recovery]
+subject = "Reimposta la password — MusicPro School"
+content_path = "./templates/recovery.html"
+
+[auth.email.template.magic_link]
+subject = "Link di accesso — MusicPro School"
+content_path = "./templates/magic_link.html"
 
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]

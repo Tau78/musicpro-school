@@ -15,6 +15,8 @@ import {
 } from "@musicpro/database";
 import { APP_NAME, MemberRole } from "@musicpro/shared";
 
+import { AssociatePageShell } from "@/components/associate/associate-page-shell";
+import { MemberHome } from "@/components/associate/member-home";
 import { SettingsGearLink } from "@/components/dashboard/settings-gear-link";
 import { mergeCalendarEvents } from "@/components/lezioni/calendar-bookings";
 import { LessonsCalendarPage } from "@/components/lezioni/lessons-calendar-page";
@@ -162,6 +164,39 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     ? mergeCalendarEvents(lessonEvents, lessonBookings, lessonExternals)
     : lessonEvents;
 
+  const associateLessons = !showOperational
+    ? await listLessonsInRange(supabase, {
+        from: today,
+        to: addDaysIso(today, 90),
+        studentMemberId: member.id,
+      })
+    : [];
+  const nextAssociateLesson = associateLessons[0] ?? null;
+
+  if (!showOperational) {
+    return (
+      <AssociatePageShell actions={<SettingsGearLink />}>
+        {paymentComplete ? (
+          <div className="mb-6">
+            <BookingPaymentReturnNotice bookingId={paymentBookingId} />
+          </div>
+        ) : null}
+        <MemberHome
+          firstName={member.firstName}
+          nextLesson={
+            nextAssociateLesson?.startsAt
+              ? {
+                  subjectName: nextAssociateLesson.subjectName,
+                  startsAt: nextAssociateLesson.startsAt,
+                  teacherLabel: `${nextAssociateLesson.titularFirstName} ${nextAssociateLesson.titularLastName}`.trim(),
+                }
+              : null
+          }
+        />
+      </AssociatePageShell>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-[var(--background)]">
       <header className="border-b border-neutral-200 bg-white">
@@ -201,9 +236,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
           <BookingPaymentReturnNotice bookingId={paymentBookingId} />
         ) : null}
 
-        {!showOperational ? (
-          <MemberQuickLinks />
-        ) : (
+        {
           <>
             <section className="space-y-3">
               <div className="flex flex-wrap items-end justify-between gap-3">
@@ -339,10 +372,17 @@ export default async function DashboardPage({ searchParams }: PageProps) {
               </section>
             ) : null}
           </>
-        )}
+        }
       </div>
     </main>
   );
+}
+
+function addDaysIso(date: string, days: number): string {
+  const [year, month, day] = date.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days))
+    .toISOString()
+    .slice(0, 10);
 }
 
 function MemberSalaLinks() {
@@ -366,44 +406,3 @@ function MemberSalaLinks() {
   );
 }
 
-function MemberQuickLinks() {
-  return (
-    <div className="space-y-6">
-      <section className="rounded-xl border border-neutral-200 bg-white p-6">
-        <h2 className="text-lg font-medium text-[var(--brand)]">Sala prove</h2>
-        <p className="mt-2 text-sm text-neutral-600">
-          Prenota una sala, consulta le tue prenotazioni o annulla entro i
-          termini previsti.
-        </p>
-        <div className="mt-4 flex flex-wrap gap-3">
-          <Link
-            href="/prenotazioni"
-            className="inline-flex rounded-lg bg-[var(--brand)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90"
-          >
-            Prenota una sala
-          </Link>
-          <Link
-            href="/prenotazioni/mie"
-            className="inline-flex rounded-lg border border-neutral-300 px-5 py-2.5 text-sm font-medium text-neutral-800 hover:bg-neutral-50"
-          >
-            Le mie prenotazioni
-          </Link>
-        </div>
-      </section>
-
-      <section className="rounded-xl border border-neutral-200 bg-white p-6">
-        <h2 className="text-lg font-medium text-[var(--brand)]">Account</h2>
-        <p className="mt-2 text-sm text-neutral-600">
-          Profilo, ruoli, band, shop e uscita sono nell&apos;ingranaggio
-          Impostazioni.
-        </p>
-        <Link
-          href="/dashboard/impostazioni"
-          className="mt-4 inline-flex rounded-lg border border-neutral-300 px-5 py-2.5 text-sm font-medium text-neutral-800 hover:bg-neutral-50"
-        >
-          Apri impostazioni
-        </Link>
-      </section>
-    </div>
-  );
-}

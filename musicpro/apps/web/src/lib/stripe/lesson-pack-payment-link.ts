@@ -114,7 +114,6 @@ export async function createLessonPackPaymentLink(opts: {
     "payment_intent_data[metadata][mp_payment_id]": paymentId,
     "payment_intent_data[metadata][mp_enrollment_id]": enrollmentId,
     "payment_intent_data[metadata][mp_member_id]": memberId,
-    client_reference_id: paymentId,
   });
 
   if (opts.includeQuota) {

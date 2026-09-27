@@ -27,7 +27,9 @@ import {
   mapPasswordUpdateError,
 } from "@musicpro/shared";
 
+import { AssociateGradientBg } from "@/components/associate-gradient-bg";
 import { useAuth } from "@/contexts/AuthContext";
+import { theme } from "@/lib/theme";
 import { createClient } from "@/lib/supabase";
 
 const PRIVACY_URL = "https://www.musicproeventi.it/privacy";
@@ -373,7 +375,12 @@ export default function ImpostazioniScreen() {
     );
   }
 
+  const initials =
+    `${form.firstName.trim().charAt(0)}${form.lastName.trim().charAt(0)}`.toUpperCase() ||
+    "?";
+
   return (
+    <AssociateGradientBg>
     <KeyboardAvoidingView
       style={styles.flex}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -384,10 +391,22 @@ export default function ImpostazioniScreen() {
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.title}>Impostazioni</Text>
-        <Text style={styles.description}>
-          Privacy, profilo e accesso a {APP_NAME}.
-        </Text>
+        <Text style={styles.eyebrow}>{APP_NAME}</Text>
+        <Text style={styles.title}>La mia scheda</Text>
+
+        <View style={styles.profileHero}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{initials}</Text>
+          </View>
+          <View style={styles.profileMeta}>
+            <Text style={styles.profileName}>
+              {form.firstName} {form.lastName}
+            </Text>
+            {member?.memberNumber ? (
+              <Text style={styles.memberBadge}>N. {member.memberNumber}</Text>
+            ) : null}
+          </View>
+        </View>
 
         {loadError ? <Text style={styles.errorBanner}>{loadError}</Text> : null}
 
@@ -668,13 +687,14 @@ export default function ImpostazioniScreen() {
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
+    </AssociateGradientBg>
   );
 }
 
 const styles = StyleSheet.create({
   flex: {
     flex: 1,
-    backgroundColor: "#fafafa",
+    backgroundColor: "transparent",
   },
   content: {
     padding: 24,
@@ -692,17 +712,56 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#666",
   },
+  eyebrow: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+    color: theme.accent,
+  },
   title: {
-    fontSize: 22,
+    marginTop: 4,
+    fontSize: 26,
     fontWeight: "600",
     color: NAVY,
   },
-  description: {
-    marginTop: 8,
+  profileHero: {
+    marginTop: 20,
     marginBottom: 8,
-    fontSize: 15,
-    color: "#444",
-    lineHeight: 22,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  avatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "rgba(30, 58, 95, 0.1)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarText: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: NAVY,
+  },
+  profileMeta: {
+    flex: 1,
+    gap: 6,
+  },
+  profileName: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: NAVY,
+  },
+  memberBadge: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: "rgba(201, 162, 39, 0.2)",
+    fontSize: 12,
+    fontWeight: "600",
+    color: NAVY,
   },
   sectionHeader: {
     marginTop: 24,
@@ -717,11 +776,11 @@ const styles = StyleSheet.create({
     color: DANGER,
   },
   card: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
+    backgroundColor: theme.glass,
+    borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: "#e5e5e5",
+    borderColor: theme.glassBorder,
   },
   dangerCard: {
     borderColor: "#e8c9c9",

@@ -4,6 +4,7 @@ import {
   type BookingEmailTemplate,
   processBookingEmail,
 } from '../_shared/booking-email.ts';
+import { syncBookingToGoogleCalendar } from '../_shared/booking-calendar-sync.ts';
 import { isServiceRoleRequest } from '../_shared/edge-auth.ts';
 
 const corsHeaders = {
@@ -64,13 +65,31 @@ Deno.serve(async (req) => {
   const paymentUrl = body.payment_url?.trim() || null;
 
   try {
+    const service = serviceClient();
     const result = await processBookingEmail(
-      serviceClient(),
+      service,
       bookingId,
       template,
       force,
       paymentUrl,
     );
+
+    // Safety net: confirm email paths (UI, scripts, webhooks) often forget
+    // calendar sync. Upsert is idempotent; skip/non-confirmed is a no-op.
+    if (result.success !== false && template === 'confirm') {
+      try {
+        const cal = await syncBookingToGoogleCalendar(service, bookingId, 'upsert');
+        if (!cal.success) {
+          console.error('[send-booking-email] calendar-sync', cal.message);
+        }
+      } catch (calErr) {
+        console.error(
+          '[send-booking-email] calendar-sync',
+          calErr instanceof Error ? calErr.message : String(calErr),
+        );
+      }
+    }
+
     const status = result.success === false ? 500 : 200;
     return json(result, status);
   } catch (e) {

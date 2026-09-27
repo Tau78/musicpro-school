@@ -93,6 +93,27 @@ Più «Mostra password», così il reviewer digita il demo a mano.
 
 ---
 
+## MusicPro School — 2026-09 — Guideline 2.1, demo login sbagliato + submission bloccata
+
+**Cosa ha detto Apple:** versione **REJECTED** / submission `UNRESOLVED_ISSUES` (messaggio Resolution Center non esposto via API).
+
+**Causa vera in ASC:**
+1. **Sign-In Required** aveva email `andreoni.mauro@gmail.com` mentre le Notes dicevano `appstore.review@musicproeventi.it`. La password demo faceva login solo su `appstore.review@…` → reviewer fallisce l’accesso (2.1).
+2. `asc-metadata.sh` scriveva il demo email sbagliato.
+3. Notes promettevano uno screen recording **non allegato**.
+4. Categoria ASC assente (`primaryCategory` null) → «Version is not ready».
+5. Dopo il reject, la versione restava attaccata alla submission `UNRESOLVED_ISSUES` → 409 `ITEM_PART_OF_ANOTHER_SUBMISSION` su una submission nuova.
+
+**Fix:** allineare demo a `appstore.review@musicproeventi.it` + password nei campi Sign-In Required; Notes senza video finto; Education + Lifestyle; PATCH `canceled: true` sulla submission bloccata; poi nuova reviewSubmission + build 3 (1.1.0). Stato: **WAITING_FOR_REVIEW**.
+
+**Regola:**
+- Demo email ASC = stesso utente che fa `signInWithPassword` OK (verificare prima del Submit).
+- Notes e Sign-In Required devono coincidere; password mai in git.
+- Non inventare allegati video.
+- Prima di un nuovo Submit dopo reject: cancellare submission `UNRESOLVED_ISSUES` / stale `READY_FOR_REVIEW` con `canceled: true`, poi create/attach/submit.
+
+---
+
 ## MusicPro Eventi — Listing, Privacy, dati veri
 
 - **Listing pubblica** = solo il ruolo utente (giocatore). Staff / host solo in Review Notes.

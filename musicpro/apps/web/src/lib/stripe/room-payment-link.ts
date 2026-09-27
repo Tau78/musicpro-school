@@ -54,7 +54,6 @@ export async function createStripePaymentLinkRoomBooking(opts: {
     "payment_intent_data[metadata][mp_id_prenotazione]": bookingId,
     "metadata[mp_totale]": importoDisplay,
     "metadata[mp_ambiente]": cfg.mode,
-    client_reference_id: bookingId,
   });
 
   if (memberName) {

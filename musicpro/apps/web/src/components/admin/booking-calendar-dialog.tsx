@@ -237,13 +237,17 @@ export function BookingCalendarDialog({
             );
             return;
           }
-        } else if (sendConfirmEmail) {
+        } else {
+          // Sync calendar on confirmed even if confirm-email is unchecked
+          // (email alone must never be the only side-effect path).
           if (result.status === "confirmed") {
             void requestBookingCalendarSync(result.bookingId);
           }
-          void requestBookingConfirmationEmail(result.bookingId, {
-            template: "confirm",
-          });
+          if (sendConfirmEmail) {
+            void requestBookingConfirmationEmail(result.bookingId, {
+              template: "confirm",
+            });
+          }
         }
         onSaved();
         onClose();
