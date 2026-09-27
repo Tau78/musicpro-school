@@ -138,7 +138,7 @@ export function MemberRolesPanel({
       if (!hasProfile) {
         const profileResult = await upsertTeacherProfile(supabase, memberId, {
           canCreateCourses: false,
-          canReschedule: false,
+          canReschedule: true,
           canCloseCourses: false,
           paymentVisibility: "hidden",
         });

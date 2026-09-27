@@ -18,6 +18,7 @@ import {
 } from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
 
+import { CollapsibleSection } from "@/components/admin/collapsible-section";
 import { CashAdvanceActions } from "@/components/lezioni/cash-advance-actions";
 import { ChangeRequestActions } from "@/components/lezioni/change-request-actions";
 import { CloseRequestActions } from "@/components/lezioni/close-request-actions";
@@ -288,15 +289,24 @@ export default async function AdminLezioniCodaPage() {
         )}
       </section>
 
-      <section className="space-y-4">
-        <h3 className="text-lg font-semibold text-[var(--brand)]">
-          Da mettere in calendario
-        </h3>
-        {unplaced.length === 0 ? (
+      {unplaced.length === 0 ? (
+        <section className="space-y-4">
+          <h3 className="text-lg font-semibold text-[var(--brand)]">
+            Da mettere in calendario
+          </h3>
           <p className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 px-4 py-4 text-sm text-neutral-600">
             Nessuna lezione da mettere in calendario.
           </p>
-        ) : (
+        </section>
+      ) : (
+        <CollapsibleSection
+          title={
+            unplaced.length === 1
+              ? "Da mettere in calendario (1)"
+              : `Da mettere in calendario (${unplaced.length})`
+          }
+          defaultOpen={false}
+        >
           <ul className="space-y-3">
             {unplaced.map((lesson) => {
               const detail = detailsById.get(lesson.courseId);
@@ -354,8 +364,8 @@ export default async function AdminLezioniCodaPage() {
               );
             })}
           </ul>
-        )}
-      </section>
+        </CollapsibleSection>
+      )}
 
       <section className="space-y-4">
         <h3 className="text-lg font-semibold text-[var(--brand)]">

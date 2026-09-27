@@ -156,7 +156,7 @@ export default function PrenotazioniPage() {
     }
   }, [stepIndex, wizardSteps.length]);
 
-  // Back da Stripe (bfcache / history): sblocca i CTA lasciati su «Reindirizzamento…».
+  // Back da pagamento (bfcache / history): sblocca i CTA lasciati su «Reindirizzamento…».
   useEffect(() => {
     function unlockPaymentButtons() {
       setSubmitting(false);

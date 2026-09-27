@@ -74,7 +74,7 @@ test.describe("Prenotazione — account test", () => {
 
     await expect(payStripe).toBeVisible({ timeout: 10_000 });
     await Promise.all([
-      page.waitForURL(/stripe\.com|checkout\.stripe\.com/i, { timeout: 30_000 }),
+      page.waitForURL(/paga-nexi\.html|nexi\.it|int-ecommerce/i, { timeout: 30_000 }),
       payStripe.click(),
     ]);
   });

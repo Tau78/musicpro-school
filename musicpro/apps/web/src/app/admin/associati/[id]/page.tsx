@@ -6,6 +6,7 @@ import {
   getMemberById,
   getMemberCreditBalance,
   getMemberRoles,
+  getTeacherDefaultTutorId,
   getTeacherProfile,
   listAnnualQuotaSettings,
   listLessonSubjects,
@@ -16,6 +17,7 @@ import {
   listTeacherPayRates,
   listTeacherSubjects,
   listTeacherTimeOff,
+  listTeacherTutorChoices,
 } from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
 
@@ -76,13 +78,16 @@ export default async function AssociatoDetailPage({ params }: PageProps) {
 
   const hasDocenteRole = roles.includes(MemberRole.Docente);
 
-  const [availabilitySlots, timeOff, lessonSettings] = hasDocenteRole
-    ? await Promise.all([
-        listTeacherAvailability(supabase, id),
-        listTeacherTimeOff(supabase, id),
-        getLessonSchoolSettings(supabase),
-      ])
-    : [[], [], null];
+  const [availabilitySlots, timeOff, lessonSettings, tutorChoices, initialTutorId] =
+    hasDocenteRole
+      ? await Promise.all([
+          listTeacherAvailability(supabase, id),
+          listTeacherTimeOff(supabase, id),
+          getLessonSchoolSettings(supabase),
+          listTeacherTutorChoices(supabase),
+          getTeacherDefaultTutorId(supabase, id),
+        ])
+      : [[], [], null, [], null];
 
   return (
     <div>
@@ -134,6 +139,8 @@ export default async function AssociatoDetailPage({ params }: PageProps) {
           initialRates={teacherRates}
           subjects={subjects}
           payRateTypes={payRateTypes}
+          tutorChoices={tutorChoices}
+          initialTutorId={initialTutorId}
           hasDocenteRole={hasDocenteRole}
           currentStaffMemberId={currentMember.id}
         />

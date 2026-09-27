@@ -2,9 +2,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { BookingStripeRefundPlan, Database } from "@musicpro/database";
 
-import { getStripeConfig } from "@/lib/iscrizione/stripe-config";
-import { createStripeClient } from "@/lib/stripe/webhook";
-
 type ServiceClient = SupabaseClient<Database>;
 
 type RefundRow = {
@@ -16,7 +13,7 @@ type RefundRow = {
   reason: string;
 };
 
-async function insertStripeRefundReceipt(row: RefundRow): Promise<boolean> {
+async function insertRefundReceipt(row: RefundRow): Promise<boolean> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "");
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   if (!supabaseUrl || !serviceKey) return false;
@@ -38,6 +35,10 @@ async function insertStripeRefundReceipt(row: RefundRow): Promise<boolean> {
   return restResp.ok;
 }
 
+/**
+ * V1 Nexi: registra il rimborso in locale.
+ * Il movimento carta va eseguito dal back office Nexi (Classic XPay non ha refund API nel mint).
+ */
 export async function executeStripeRoomBookingRefund(
   service: ServiceClient,
   plan: BookingStripeRefundPlan,
@@ -54,41 +55,32 @@ export async function executeStripeRoomBookingRefund(
     return { success: false, message: "Piano rimborso carta non valido." };
   }
 
-  try {
-    const cfg = getStripeConfig();
-    const stripe = createStripeClient(cfg.secret);
+  const row: RefundRow = {
+    booking_id: bookingId,
+    payment_intent_id: paymentIntentId,
+    stripe_refund_id: `nexi-manual:${paymentIntentId}`.slice(0, 64),
+    amount_cents: amountCents,
+    penalty_cents: plan.penalty_cents ?? 0,
+    reason: "booking_cancel",
+  };
 
-    const refund = await stripe.refunds.create({
-      payment_intent: paymentIntentId,
-      amount: amountCents,
-    });
-
-    const row: RefundRow = {
-      booking_id: bookingId,
-      payment_intent_id: paymentIntentId,
-      stripe_refund_id: refund.id,
-      amount_cents: amountCents,
-      penalty_cents: plan.penalty_cents ?? 0,
-      reason: "booking_cancel",
+  const inserted = await insertRefundReceipt(row);
+  if (!inserted) {
+    return {
+      success: false,
+      message:
+        "Prenotazione annullata. Registra il rimborso carta dal back office Nexi.",
     };
-
-    const inserted = await insertStripeRefundReceipt(row);
-    if (!inserted) {
-      return {
-        success: false,
-        message: "Rimborso Stripe eseguito ma registrazione non riuscita.",
-      };
-    }
-
-    await service
-      .from("bookings")
-      .update({ payment_status: "refunded" })
-      .eq("id", bookingId);
-
-    return { success: true };
-  } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "Rimborso carta non riuscito.";
-    return { success: false, message };
   }
+
+  await service
+    .from("bookings")
+    .update({ payment_status: "refunded" })
+    .eq("id", bookingId);
+
+  return {
+    success: true,
+    message:
+      "Rimborso registrato in scuola. Completa il movimento carta dal back office Nexi.",
+  };
 }

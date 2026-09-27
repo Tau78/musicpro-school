@@ -18,7 +18,7 @@ interface Body {
 }
 
 /**
- * Crea un link Stripe di pagamento quota per un associato (staff only).
+ * Crea un link di pagamento quota (Nexi) per un associato (staff only).
  * Estende create_quota_payment_checkout (admin/segreteria autorizzati via migration 071).
  */
 export async function POST(request: NextRequest) {
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          message: linkRes.message ?? "Impossibile creare il link Stripe.",
+          message: linkRes.message ?? "Impossibile creare il link di pagamento.",
         },
         { status: 400 },
       );

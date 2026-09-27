@@ -8,9 +8,11 @@ import {
   type PayRateUnit,
   type TeacherProfile,
   createPayRateType,
+  saveTeacherDefaultTutor,
   setTeacherPayRate,
   setTeacherSubjects,
   upsertTeacherProfile,
+  type TeacherTutorChoice,
 } from "@musicpro/database";
 
 import { createClient } from "@/lib/supabase/client";
@@ -29,6 +31,8 @@ export interface TeacherDidacticPanelProps {
   initialRates: { payRateTypeId: string; amountEur: number }[];
   subjects: { id: string; name: string }[];
   payRateTypes: PayRateTypeOption[];
+  tutorChoices: TeacherTutorChoice[];
+  initialTutorId: string | null;
   /** Kept for the current parent page; unused — parent will gate render. */
   hasDocenteRole?: boolean;
   currentStaffMemberId?: string;
@@ -42,7 +46,7 @@ const PAYMENT_VISIBILITY_LABELS: Record<PaymentVisibility, string> = {
 
 const DEFAULT_FLAGS = {
   canCreateCourses: false,
-  canReschedule: false,
+  canReschedule: true,
   canCloseCourses: false,
   paymentVisibility: "hidden" as PaymentVisibility,
 };
@@ -70,6 +74,8 @@ export function TeacherDidacticPanel({
   initialRates,
   subjects,
   payRateTypes,
+  tutorChoices,
+  initialTutorId,
 }: TeacherDidacticPanelProps) {
   const router = useRouter();
   const supabase = createClient();
@@ -91,6 +97,7 @@ export function TeacherDidacticPanel({
   const [paymentVisibility, setPaymentVisibility] = useState<PaymentVisibility>(
     initialProfile?.paymentVisibility ?? DEFAULT_FLAGS.paymentVisibility,
   );
+  const [tutorId, setTutorId] = useState(initialTutorId ?? "");
 
   const [addingVoice, setAddingVoice] = useState(false);
   const [newVoiceLabel, setNewVoiceLabel] = useState("");
@@ -193,6 +200,17 @@ export function TeacherDidacticPanel({
       setError(
         profileResult.errorMessage ?? "Impossibile salvare il profilo docente.",
       );
+      return;
+    }
+
+    const tutorResult = await saveTeacherDefaultTutor(
+      supabase,
+      memberId,
+      tutorId || null,
+    );
+    if (!tutorResult.success) {
+      setSaving(false);
+      setError(tutorResult.errorMessage ?? "Impossibile salvare il tutore.");
       return;
     }
 
@@ -382,6 +400,23 @@ export function TeacherDidacticPanel({
             Permessi
           </legend>
           <div className="grid gap-3 sm:grid-cols-2">
+            <label className="flex flex-wrap items-center gap-2 text-sm sm:col-span-2">
+              <span className="text-neutral-600">Tutore</span>
+              <select
+                value={tutorId}
+                onChange={(e) => setTutorId(e.target.value)}
+                className="min-w-0 flex-1 rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)]"
+              >
+                <option value="">Nessuno</option>
+                {tutorChoices
+                  .filter((choice) => choice.id !== memberId)
+                  .map((choice) => (
+                    <option key={choice.id} value={choice.id}>
+                      {choice.label}
+                    </option>
+                  ))}
+              </select>
+            </label>
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"

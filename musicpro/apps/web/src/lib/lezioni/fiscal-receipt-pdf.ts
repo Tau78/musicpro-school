@@ -27,7 +27,7 @@ function formatIssuedOn(value: string): string {
 }
 
 function methodLabel(method: string): string {
-  if (method === "stripe") return "Carta / Stripe";
+  if (method === "stripe" || method === "nexi") return "Carta";
   if (method === "bonifico") return "Bonifico";
   if (method === "contanti") return "Contanti";
   if (method === "altro") return "Altro";

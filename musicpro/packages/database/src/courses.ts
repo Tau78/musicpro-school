@@ -974,6 +974,16 @@ export async function createCourse(
     return fail(teacherError.message || "Impossibile assegnare il titolare.");
   }
 
+  const { error: tutorError } = await client.rpc(
+    "assign_default_tutor_on_course",
+    { p_course_id: courseId },
+  );
+  if (tutorError) {
+    warnings.push(
+      tutorError.message || "Corso creato, ma il tutore non è stato assegnato.",
+    );
+  }
+
   const { data: insertedEnrollments, error: enrollmentError } = await client
     .from("course_enrollments")
     .insert(

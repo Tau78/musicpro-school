@@ -8,7 +8,7 @@
 #   ./scripts/vai.sh --dry-run
 #   npm run vai
 #
-# Non fa: clasp/GAS (deprecato), import Sheets, creazione webhook Stripe.
+# Non fa: clasp/GAS (deprecato), import Sheets.
 
 set -euo pipefail
 
@@ -24,14 +24,13 @@ PRODUCTION_HOST="school.musicproeventi.it"
 ISCRIZIONE_HOST="iscrizione.musicproeventi.it"
 PROJECT_REF="mlsiagbrejjylqvcnfbe"
 EDGE_FUNCTIONS=(
-  stripe-room-webhook
-  stripe-credit-shop-webhook
-  stripe-quota-webhook
+  nexi-xpay-pay
+  nexi-xpay-notify
+  nexi-xpay-return
   booking-calendar-sync
   calendar-availability
   send-booking-email
   external-calendar-sync
-  stripe-lesson-pack-webhook
 )
 
 STAMP="$(date +%Y%m%d-%H%M)"
@@ -344,33 +343,27 @@ else
   check "https://${PRODUCTION_HOST}/admin" "200"
   check "https://${ISCRIZIONE_HOST}/" "200"
 
+  check "https://${PRODUCTION_HOST}/paga-nexi.html" "200"
+
   EDGE_CODE="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 \
-    -X POST "https://${PROJECT_REF}.supabase.co/functions/v1/stripe-room-webhook" \
-    -H 'Content-Type: application/json' \
-    -d '{}' || echo 000)"
+    -X POST "https://${PROJECT_REF}.supabase.co/functions/v1/nexi-xpay-notify" \
+    -H 'Content-Type: application/x-www-form-urlencoded' \
+    -d 'esito=OK' || echo 000)"
   if [[ "$EDGE_CODE" == "400" || "$EDGE_CODE" == "401" ]]; then
-    ok "edge stripe-room-webhook HTTP $EDGE_CODE (viva)"
+    ok "edge nexi-xpay-notify HTTP $EDGE_CODE (viva)"
   else
-    warn "edge stripe-room-webhook HTTP $EDGE_CODE (atteso 400/401)"
+    warn "edge nexi-xpay-notify HTTP $EDGE_CODE (atteso 400/401)"
     FAIL_SMOKE=1
   fi
 
-  edge_smoke_post() {
-    local fn="$1"
-    local code
-    code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 \
-      -X POST "https://${PROJECT_REF}.supabase.co/functions/v1/${fn}" \
-      -H 'Content-Type: application/json' \
-      -d '{}' || echo 000)"
-    if [[ "$code" == "400" ]]; then
-      ok "edge ${fn} HTTP $code (viva)"
-    else
-      warn "edge ${fn} HTTP $code (atteso 400)"
-      FAIL_SMOKE=1
-    fi
-  }
-  edge_smoke_post stripe-credit-shop-webhook
-  edge_smoke_post stripe-quota-webhook
+  PAY_CODE="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 \
+    "https://${PROJECT_REF}.supabase.co/functions/v1/nexi-xpay-pay" || echo 000)"
+  if [[ "$PAY_CODE" == "400" || "$PAY_CODE" == "200" ]]; then
+    ok "edge nexi-xpay-pay HTTP $PAY_CODE (viva)"
+  else
+    warn "edge nexi-xpay-pay HTTP $PAY_CODE (atteso 400/200)"
+    FAIL_SMOKE=1
+  fi
 
   if node "$ROOT/scripts/sync-school-auth-urls.mjs" --check; then
     ok "auth reset/magic link → $PRODUCTION_HOST"

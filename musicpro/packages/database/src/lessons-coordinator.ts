@@ -250,3 +250,132 @@ export async function endCourseCoordinator(
   }
   return ok(current.id);
 }
+
+export type TeacherTutorChoice = {
+  id: string;
+  label: string;
+};
+
+function tutorEuroLabel(amount: number): string {
+  const text = Number.isInteger(amount)
+    ? String(amount)
+    : amount.toFixed(2).replace(".", ",");
+  return `${text} €/ora`;
+}
+
+export async function getTeacherDefaultTutorId(
+  client: CoordClient,
+  memberId: string,
+): Promise<string | null> {
+  const { data, error } = await client
+    .from("teacher_default_tutors")
+    .select("tutor_member_id")
+    .eq("member_id", memberId)
+    .maybeSingle();
+  if (error) {
+    throw new Error(error.message || "Impossibile caricare il tutore.");
+  }
+  return data?.tutor_member_id ?? null;
+}
+
+export async function listTeacherTutorChoices(
+  client: CoordClient,
+): Promise<TeacherTutorChoice[]> {
+  const { data: roles, error: rolesError } = await client
+    .from("member_roles")
+    .select("member_id")
+    .eq("role", "docente")
+    .is("revoked_at", null);
+  if (rolesError) {
+    throw new Error(rolesError.message || "Impossibile caricare i docenti.");
+  }
+  const ids = [...new Set((roles ?? []).map((row) => row.member_id))];
+  if (ids.length === 0) return [];
+
+  const [{ data: members, error: membersError }, { data: type, error: typeError }] =
+    await Promise.all([
+      client
+        .from("members")
+        .select("id, first_name, last_name")
+        .in("id", ids)
+        .order("last_name", { ascending: true })
+        .order("first_name", { ascending: true }),
+      client
+        .from("pay_rate_types")
+        .select("id")
+        .eq("slug", "coordinamento")
+        .maybeSingle(),
+    ]);
+  if (membersError) {
+    throw new Error(membersError.message || "Impossibile caricare i docenti.");
+  }
+  if (typeError) {
+    throw new Error(typeError.message || "Impossibile caricare la voce Coordinamento.");
+  }
+
+  const rateByMember = new Map<string, number>();
+  if (type?.id) {
+    const { data: rates, error: ratesError } = await client
+      .from("teacher_pay_rates")
+      .select("member_id, amount_eur")
+      .eq("pay_rate_type_id", type.id)
+      .in("member_id", ids);
+    if (ratesError) {
+      throw new Error(ratesError.message || "Impossibile caricare le tariffe tutore.");
+    }
+    for (const rate of rates ?? []) {
+      rateByMember.set(rate.member_id, Number(rate.amount_eur));
+    }
+  }
+
+  return (members ?? []).map((member) => {
+    const name = `${member.last_name} ${member.first_name}`.trim();
+    const amount = rateByMember.get(member.id);
+    return {
+      id: member.id,
+      label:
+        amount != null && Number.isFinite(amount)
+          ? `${name} · ${tutorEuroLabel(amount)}`
+          : name,
+    };
+  });
+}
+
+export async function saveTeacherDefaultTutor(
+  client: CoordClient,
+  memberId: string,
+  tutorMemberId: string | null,
+): Promise<CourseMutationResult> {
+  if (tutorMemberId && tutorMemberId === memberId) {
+    return fail("Il tutore non può essere il docente stesso.");
+  }
+
+  if (!tutorMemberId) {
+    const { error } = await client
+      .from("teacher_default_tutors")
+      .delete()
+      .eq("member_id", memberId);
+    if (error) {
+      return fail(error.message || "Impossibile togliere il tutore.");
+    }
+  } else {
+    const { error } = await client.from("teacher_default_tutors").upsert(
+      {
+        member_id: memberId,
+        tutor_member_id: tutorMemberId,
+      },
+      { onConflict: "member_id" },
+    );
+    if (error) {
+      return fail(error.message || "Impossibile salvare il tutore.");
+    }
+  }
+
+  const { error: syncError } = await client.rpc("sync_teacher_default_tutor", {
+    p_member_id: memberId,
+  });
+  if (syncError) {
+    return fail(syncError.message || "Tutore salvato, ma i corsi non sono stati aggiornati.");
+  }
+  return ok(memberId);
+}

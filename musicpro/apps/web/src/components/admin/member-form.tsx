@@ -201,7 +201,7 @@ export function MemberForm({
         if (rolesToGrant.includes(MemberRole.Docente)) {
           const profileResult = await upsertTeacherProfile(supabase, result.id, {
             canCreateCourses: false,
-            canReschedule: false,
+            canReschedule: true,
             canCloseCourses: false,
             paymentVisibility: "hidden",
           });

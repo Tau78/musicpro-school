@@ -87,6 +87,8 @@ export async function POST(request: NextRequest) {
       cognome: member.last_name,
       importoCentesimi: importoCentesimi,
       annoSocietario: fiscalYear,
+      returnBaseUrl: returnBase,
+      email: member.email ?? user.email,
       idempotencyKey: `onboarding_quota_${member.id}_${fiscalYear}`,
     });
 
