@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import {
   getCurrentMemberWithRoles,
   getMemberById,
+  getMemberCreditBalance,
+  listMyBands,
   listReimbursements,
 } from "@musicpro/database";
 import {
@@ -12,6 +14,8 @@ import {
   MemberRole,
 } from "@musicpro/shared";
 
+import { AssociatePageShell } from "@/components/associate/associate-page-shell";
+import { MemberProfileHero } from "@/components/associate/member-profile-hero";
 import { ChangePasswordForm } from "@/components/auth/change-password-form";
 import { DeleteAccountButton } from "@/components/auth/delete-account-button";
 import { PasskeySettings } from "@/components/auth/passkey-settings";
@@ -32,55 +36,64 @@ export default async function DashboardImpostazioniPage() {
     redirect("/login?error=member_not_linked");
   }
 
-  const [profile, myReimbursements] = await Promise.all([
+  const [profile, myReimbursements, myBands, creditBalance] = await Promise.all([
     getMemberById(supabase, member.id),
     listReimbursements(supabase, { memberId: member.id }),
+    listMyBands(supabase).catch(() => []),
+    getMemberCreditBalance(supabase, member.id).catch(() => null),
   ]);
 
   const showAdminLink = canAccessAdmin(member.roles);
   const detail = profile ?? null;
 
+  const primaryBand = myBands[0]?.name ?? null;
+  const roomCredits =
+    creditBalance && creditBalance.available > 0
+      ? creditBalance.available
+      : null;
+
   return (
-    <main className="min-h-screen">
-      <header className="border-b border-neutral-200 bg-white">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-          <div>
-            <p className="text-sm font-medium text-[var(--brand-accent)]">
-              {APP_NAME}
-            </p>
-            <h1 className="text-xl font-semibold text-[var(--brand)]">
-              Impostazioni
-            </h1>
-          </div>
-          <div className="flex items-center gap-3">
+    <AssociatePageShell
+      actions={
+        <div className="flex items-center gap-3">
+          <Link
+            href="/dashboard"
+            className="text-sm font-medium text-[var(--brand)] hover:underline"
+          >
+            Home
+          </Link>
+          {showAdminLink ? (
             <Link
-              href="/dashboard"
+              href="/admin"
               className="text-sm text-neutral-600 hover:text-[var(--brand)]"
             >
-              Dashboard
+              Admin
             </Link>
-            {member.roles.includes(MemberRole.Docente) ? (
-              <Link
-                href="/lezioni"
-                className="text-sm text-neutral-600 hover:text-[var(--brand)]"
-              >
-                Lezioni
-              </Link>
-            ) : null}
-            {showAdminLink ? (
-              <Link
-                href="/admin"
-                className="text-sm text-neutral-600 hover:text-[var(--brand)]"
-              >
-                Admin
-              </Link>
-            ) : null}
-          </div>
+          ) : null}
         </div>
-      </header>
+      }
+    >
+      <div className="space-y-8">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-[var(--brand-accent)]">
+            {APP_NAME}
+          </p>
+          <h1 className="font-display mt-1 text-2xl font-semibold text-[var(--brand)]">
+            La mia scheda
+          </h1>
+        </div>
 
-      <div className="mx-auto max-w-5xl space-y-8 px-6 py-8">
-        <section className="rounded-xl border border-neutral-200 bg-white p-6">
+        <MemberProfileHero
+          firstName={detail?.firstName ?? member.firstName}
+          lastName={detail?.lastName ?? member.lastName}
+          memberNumber={member.memberNumber}
+          email={member.email}
+          phone={detail?.phone ?? null}
+          bandName={primaryBand}
+          roomCreditsHours={roomCredits}
+        />
+
+        <section id="dati-personali" className="glass-card p-6">
           <h2 className="text-lg font-medium text-[var(--brand)]">Profilo</h2>
           <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
             <div>
@@ -161,7 +174,7 @@ export default async function DashboardImpostazioniPage() {
           <DeleteAccountButton />
         </section>
 
-        <section>
+        <section className="glass-card p-6">
           <h2 className="text-lg font-medium text-[var(--brand)]">I tuoi ruoli</h2>
           {member.roles.length > 0 ? (
             <ul className="mt-4 flex flex-wrap gap-2">
@@ -181,7 +194,7 @@ export default async function DashboardImpostazioniPage() {
           )}
         </section>
 
-        <section className="rounded-xl border border-neutral-200 bg-white p-6">
+        <section className="glass-card p-6">
           <h2 className="text-lg font-medium text-[var(--brand)]">
             Le mie notule
           </h2>
@@ -191,7 +204,7 @@ export default async function DashboardImpostazioniPage() {
           <MyReimbursements initialRows={myReimbursements.reimbursements} />
         </section>
 
-        <section className="rounded-xl border border-neutral-200 bg-white p-6">
+        <section className="glass-card p-6">
           <h2 className="text-lg font-medium text-[var(--brand)]">
             Le mie band
           </h2>
@@ -207,7 +220,7 @@ export default async function DashboardImpostazioniPage() {
           </Link>
         </section>
 
-        <section className="rounded-xl border border-neutral-200 bg-white p-6">
+        <section className="glass-card p-6">
           <h2 className="text-lg font-medium text-[var(--brand)]">
             Shop crediti
           </h2>
@@ -222,7 +235,7 @@ export default async function DashboardImpostazioniPage() {
           </Link>
         </section>
 
-        <section className="rounded-xl border border-neutral-200 bg-white p-6">
+        <section className="glass-card p-6">
           <h2 className="text-lg font-medium text-[var(--brand)]">Account</h2>
           <p className="mt-2 text-sm text-neutral-600">
             Esci dall&apos;area riservata di {APP_NAME} o cambia utente: la
@@ -237,6 +250,6 @@ export default async function DashboardImpostazioniPage() {
           </div>
         </section>
       </div>
-    </main>
+    </AssociatePageShell>
   );
 }

@@ -94,6 +94,10 @@ function assertTemplateShape(name, html) {
     fail(`${name}: non usare ConfirmationURL (PKCE / prefetch)`);
     return false;
   }
+  if (name === "magic_link" && !html.includes("{{ .RedirectTo }}")) {
+    fail(`${name}: manca {{ .RedirectTo }} (next post-login)`);
+    return false;
+  }
   // Niente URL grezzi lunghi sotto il bottone
   if (/supabase\.co\/auth\/v1\/verify/i.test(html)) {
     fail(`${name}: non includere URL verify grezzi`);

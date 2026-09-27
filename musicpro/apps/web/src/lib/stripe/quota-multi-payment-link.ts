@@ -72,7 +72,6 @@ export async function createStripePaymentLinkQuotaMultiPay(opts: {
     "payment_intent_data[metadata][mp_quota_payment_id]": quotaPaymentId,
     "payment_intent_data[metadata][mp_paid_by_member_id]": paidByMemberId,
     "payment_intent_data[metadata][mp_member_ids]": memberIdsCsv,
-    client_reference_id: quotaPaymentId,
   });
 
   const headers: Record<string, string> = {

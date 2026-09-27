@@ -5,6 +5,7 @@ import { Pressable, Text } from "react-native";
 import { APP_NAME, MemberRole } from "@musicpro/shared";
 
 import { useAuth } from "@/contexts/AuthContext";
+import { theme } from "@/lib/theme";
 
 function GearButton() {
   return (
@@ -13,7 +14,7 @@ function GearButton() {
         accessibilityLabel="Impostazioni"
         style={{ marginRight: 16, padding: 4 }}
       >
-        <Ionicons name="settings-outline" size={22} color="#fff" />
+        <Ionicons name="settings-outline" size={22} color={theme.brand} />
       </Pressable>
     </Link>
   );
@@ -29,10 +30,18 @@ export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        headerStyle: { backgroundColor: "#1e3a5f" },
-        headerTintColor: "#fff",
-        tabBarActiveTintColor: "#1e3a5f",
+        headerStyle: {
+          backgroundColor: "rgba(255, 255, 255, 0.72)",
+        },
+        headerTintColor: theme.brand,
+        headerShadowVisible: false,
+        tabBarActiveTintColor: theme.brand,
         tabBarInactiveTintColor: "#999",
+        tabBarStyle: {
+          backgroundColor: "rgba(255, 255, 255, 0.92)",
+          borderTopColor: "rgba(255, 255, 255, 0.85)",
+        },
+        sceneStyle: { backgroundColor: theme.gradientBottom },
         headerRight: () => <GearButton />,
       }}
     >
@@ -58,7 +67,7 @@ export default function TabsLayout() {
             <>
               <Link href="/mie-prenotazioni" asChild>
                 <Pressable style={{ marginRight: 12 }}>
-                  <Text style={{ color: "#fff", fontSize: 14, fontWeight: "500" }}>
+                  <Text style={{ color: theme.brand, fontSize: 14, fontWeight: "500" }}>
                     Le mie
                   </Text>
                 </Pressable>

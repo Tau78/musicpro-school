@@ -29,6 +29,7 @@ import {
 } from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
 
+import { AssociateGradientBg } from "@/components/associate-gradient-bg";
 import {
   TimeGridAddBar,
   TimeGridWeek,
@@ -41,6 +42,7 @@ import {
   addRomeDays,
   startOfWeekMonday,
 } from "@/lib/lezioni-dates";
+import { theme } from "@/lib/theme";
 import { createClient } from "@/lib/supabase";
 
 const MONTHS_IT = [
@@ -116,6 +118,7 @@ export default function DashboardScreen() {
   const manageSala = canManageSala(roles);
   const isStaff =
     manageSala || roles.includes(MemberRole.Admin);
+  const isSimpleAssociate = !isDocente && !manageSala;
   const today = todayInRome();
 
   const [salaWeekStart, setSalaWeekStart] = useState(() =>
@@ -138,6 +141,7 @@ export default function DashboardScreen() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [nextLesson, setNextLesson] = useState<CalendarLesson | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [createDate, setCreateDate] = useState<string | undefined>();
   const [createOra, setCreateOra] = useState<string | undefined>();
@@ -165,7 +169,8 @@ export default function DashboardScreen() {
         const salaTo = addRomeDays(salaWeekStart, 7);
         const lezioniTo = addRomeDays(lezioniWeekStart, 7);
 
-        const [bookingRows, lessonRows, profile] = await Promise.all([
+        const [bookingRows, lessonRows, profile, studentLessons] =
+          await Promise.all([
           manageSala
             ? listBookingsInRange(supabase, {
                 from: salaWeekStart,
@@ -188,10 +193,18 @@ export default function DashboardScreen() {
           isDocente
             ? getTeacherProfile(supabase, member.id)
             : Promise.resolve(null),
+          isSimpleAssociate
+            ? listLessonsInRange(supabase, {
+                from: today,
+                to: addRomeDays(today, 90),
+                studentMemberId: member.id,
+              })
+            : Promise.resolve([] as CalendarLesson[]),
         ]);
 
         setBookings(bookingRows);
         setLessons(lessonRows);
+        setNextLesson(studentLessons[0] ?? null);
         setCanReschedule(Boolean(profile?.canReschedule) || isStaff);
         setSelectedBooking((current) =>
           current
@@ -216,12 +229,14 @@ export default function DashboardScreen() {
     },
     [
       isDocente,
+      isSimpleAssociate,
       isStaff,
       lezioniWeekStart,
       manageSala,
       member?.id,
       salaWeekStart,
       supabase,
+      today,
     ],
   );
 
@@ -418,8 +433,23 @@ export default function DashboardScreen() {
     }
   }
 
+  function formatNextLessonWhen(startsAt: string): string {
+    const date = new Date(startsAt);
+    const weekday = new Intl.DateTimeFormat("it-IT", {
+      weekday: "short",
+      timeZone: "Europe/Rome",
+    }).format(date);
+    const time = new Intl.DateTimeFormat("it-IT", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "Europe/Rome",
+    }).format(date);
+    return `${weekday} ${time}`;
+  }
+
   return (
     <>
+    <AssociateGradientBg>
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
@@ -445,6 +475,60 @@ export default function DashboardScreen() {
         </View>
       ) : null}
 
+      {isSimpleAssociate ? (
+        <View style={styles.homeSection}>
+          <Text style={styles.homeGreeting}>
+            Ciao, {member?.firstName ?? "associato"} 👋
+          </Text>
+          <Text style={styles.homeSubtitle}>
+            Benvenuto nella tua area personale
+          </Text>
+
+          <View style={styles.heroCard}>
+            <Text style={styles.heroEyebrow}>PROSSIMA LEZIONE</Text>
+            {nextLesson?.startsAt ? (
+              <>
+                <Text style={styles.heroTitle}>{nextLesson.subjectName}</Text>
+                <Text style={styles.heroMeta}>
+                  {formatNextLessonWhen(nextLesson.startsAt)} · Docente{" "}
+                  {`${nextLesson.titularFirstName} ${nextLesson.titularLastName}`.trim()}
+                </Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.heroTitle}>Nessuna lezione in programma</Text>
+                <Text style={styles.heroMeta}>
+                  Quando la segreteria fissa un corso, lo vedrai qui.
+                </Text>
+              </>
+            )}
+          </View>
+
+          <View style={styles.actionRow}>
+            <Pressable
+              style={styles.actionCard}
+              onPress={() => router.push("/(tabs)/prenotazioni")}
+            >
+              <Text style={styles.actionEmoji}>📅</Text>
+              <Text style={styles.actionTitle}>Prenota sala</Text>
+              <Text style={styles.actionHint}>Scegli sala e orario</Text>
+            </Pressable>
+            <Pressable
+              style={styles.actionCard}
+              onPress={() => router.push("/impostazioni")}
+            >
+              <Text style={styles.actionEmoji}>📋</Text>
+              <Text style={styles.actionTitle}>La mia scheda</Text>
+              <Text style={styles.actionHint}>Profilo e crediti</Text>
+            </Pressable>
+          </View>
+
+          <Text style={styles.tagline}>
+            La tua passione, il nostro palcoscenico
+          </Text>
+        </View>
+      ) : (
+      <>
       <View style={[styles.section, styles.sectionFirst]}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Prenotazioni</Text>
@@ -620,7 +704,10 @@ export default function DashboardScreen() {
           />
         </View>
       ) : null}
+      </>
+      )}
     </ScrollView>
+    </AssociateGradientBg>
 
     {member?.id ? (
       <CreateLessonSheet
@@ -640,8 +727,76 @@ export default function DashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fafafa" },
+  container: { flex: 1, backgroundColor: "transparent" },
   content: { padding: 20, paddingBottom: 48 },
+  homeSection: { gap: 16 },
+  homeGreeting: {
+    fontSize: 28,
+    fontWeight: "600",
+    color: theme.brand,
+  },
+  homeSubtitle: {
+    marginTop: -8,
+    fontSize: 14,
+    color: "#666",
+  },
+  heroCard: {
+    marginTop: 8,
+    padding: 18,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: theme.glassBorder,
+    backgroundColor: theme.glass,
+  },
+  heroEyebrow: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+    color: theme.accent,
+  },
+  heroTitle: {
+    marginTop: 8,
+    fontSize: 20,
+    fontWeight: "600",
+    color: theme.brand,
+  },
+  heroMeta: {
+    marginTop: 6,
+    fontSize: 14,
+    color: "#666",
+    lineHeight: 20,
+  },
+  actionRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  actionCard: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: theme.glassBorder,
+    backgroundColor: theme.glass,
+  },
+  actionEmoji: { fontSize: 22 },
+  actionTitle: {
+    marginTop: 8,
+    fontSize: 15,
+    fontWeight: "600",
+    color: theme.brand,
+  },
+  actionHint: {
+    marginTop: 4,
+    fontSize: 12,
+    color: "#666",
+  },
+  tagline: {
+    marginTop: 8,
+    textAlign: "center",
+    fontSize: 13,
+    fontStyle: "italic",
+    color: "#888",
+  },
   loader: { marginTop: 8 },
   section: { marginTop: 28 },
   sectionFirst: { marginTop: 0 },

@@ -60,7 +60,6 @@ export async function createStripePaymentLinkCreditShop(opts: {
     "payment_intent_data[metadata][mp_member_id]": memberId,
     "metadata[mp_totale]": importoDisplay,
     "metadata[mp_ambiente]": cfg.mode,
-    client_reference_id: `${memberId}:${packageId}`,
   });
 
   if (memberName) {

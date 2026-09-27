@@ -22,7 +22,7 @@ export function SiteHeader({
   actions,
 }: SiteHeaderProps) {
   return (
-    <header className="border-b border-neutral-200/80 bg-white/90 backdrop-blur-sm">
+    <header className="associate-glass-header">
       <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4 px-6 py-4">
         <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
           <BrandLogo size="sm" />

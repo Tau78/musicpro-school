@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   type BookingWithRoom,
@@ -32,7 +32,10 @@ export function BookingModifyPanel({
   onError,
   onCalendarSync,
 }: BookingModifyPanelProps) {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
+  const loadRequestId = useRef(0);
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
   const durationMinutes = booking.duration_minutes ?? 120;
 
   const [open, setOpen] = useState(false);
@@ -52,6 +55,7 @@ export function BookingModifyPanel({
   const loadSlots = useCallback(async () => {
     if (!booking.room_id || !selectedDate) return;
 
+    const requestId = ++loadRequestId.current;
     setLoadingSlots(true);
     setSelectedSlot(null);
 
@@ -62,9 +66,11 @@ export function BookingModifyPanel({
         durationMinutes,
         { excludeBookingId: booking.id },
       );
+      if (requestId !== loadRequestId.current) return;
       setSlots(availability.slots);
     } catch (err) {
-      onError(
+      if (requestId !== loadRequestId.current) return;
+      onErrorRef.current(
         mapUserFacingError(
           err instanceof Error ? err.message : "",
           "Impossibile caricare gli slot disponibili.",
@@ -72,9 +78,11 @@ export function BookingModifyPanel({
       );
       setSlots([]);
     } finally {
-      setLoadingSlots(false);
+      if (requestId === loadRequestId.current) {
+        setLoadingSlots(false);
+      }
     }
-  }, [booking.id, booking.room_id, durationMinutes, onError, selectedDate]);
+  }, [booking.id, booking.room_id, durationMinutes, selectedDate]);
 
   useEffect(() => {
     if (!open) return;
@@ -91,25 +99,28 @@ export function BookingModifyPanel({
       onError("Seleziona un nuovo orario.");
       return;
     }
+    if (submitting) return;
 
     setSubmitting(true);
 
-    const result = await modifyBooking(supabase, booking.id, {
-      startAt: selectedSlot.startAt,
-      endAt: selectedSlot.endAt,
-      durationMinutes,
-    });
+    try {
+      const result = await modifyBooking(supabase, booking.id, {
+        startAt: selectedSlot.startAt,
+        endAt: selectedSlot.endAt,
+        durationMinutes,
+      });
 
-    setSubmitting(false);
+      if (!result.success) {
+        onError(result.errorMessage ?? "Spostamento non riuscito.");
+        return;
+      }
 
-    if (!result.success) {
-      onError(result.errorMessage ?? "Spostamento non riuscito.");
-      return;
+      handleClose();
+      onCalendarSync(booking.id);
+      onSuccess("Prenotazione spostata al nuovo orario.");
+    } finally {
+      setSubmitting(false);
     }
-
-    handleClose();
-    onCalendarSync(booking.id);
-    onSuccess("Prenotazione spostata al nuovo orario.");
   }
 
   if (!open) {

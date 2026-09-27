@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   buildRoomAvailability,
@@ -43,6 +43,7 @@ import {
   SessionTypeStep,
   type SessionType,
 } from "@/components/prenotazioni/session-type-step";
+import { RoomPickerGrid } from "@/components/prenotazioni/room-picker-grid";
 import { PrenotazioniWelcomeHero } from "@/components/prenotazioni/welcome-hero";
 import { createClient } from "@/lib/supabase/client";
 import { requestBookingConfirmationEmail } from "@/lib/booking/send-confirmation-email";
@@ -51,7 +52,8 @@ import { requestBookingCalendarSync } from "@/lib/calendar/sync-booking";
 type WizardStepKey = "session" | "band" | "room" | "slot" | "confirm";
 
 export default function PrenotazioniPage() {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
+  const loadRequestId = useRef(0);
 
   const [stepIndex, setStepIndex] = useState(0);
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -148,6 +150,24 @@ export default function PrenotazioniPage() {
 
   const currentStepKey = wizardSteps[stepIndex]?.key ?? "room";
 
+  useEffect(() => {
+    if (stepIndex >= wizardSteps.length) {
+      setStepIndex(Math.max(0, wizardSteps.length - 1));
+    }
+  }, [stepIndex, wizardSteps.length]);
+
+  // Back da Stripe (bfcache / history): sblocca i CTA lasciati su «Reindirizzamento…».
+  useEffect(() => {
+    function unlockPaymentButtons() {
+      setSubmitting(false);
+      setPayingWithCredits(false);
+    }
+    window.addEventListener("pageshow", unlockPaymentButtons);
+    return () => {
+      window.removeEventListener("pageshow", unlockPaymentButtons);
+    };
+  }, []);
+
   const selectedBand = useMemo(
     () => bookableBands.find((band) => band.id === selectedBandId) ?? null,
     [bookableBands, selectedBandId],
@@ -163,14 +183,18 @@ export default function PrenotazioniPage() {
       return;
     }
 
+    const requestId = ++loadRequestId.current;
+
     try {
       const availability = await fetchRoomAvailability(
         selectedRoomId,
         selectedDate,
         durationMinutes,
       );
+      if (requestId !== loadRequestId.current) return;
       setSlots(availability.slots);
     } catch (err) {
+      if (requestId !== loadRequestId.current) return;
       setError(
         mapUserFacingError(
           err instanceof Error ? err.message : "",
@@ -178,7 +202,7 @@ export default function PrenotazioniPage() {
         ),
       );
     }
-  }, [currentStepKey, durationMinutes, selectedDate, selectedRoomId, supabase]);
+  }, [currentStepKey, durationMinutes, selectedDate, selectedRoomId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -345,7 +369,7 @@ export default function PrenotazioniPage() {
   async function finalizeBooking(
     result: CreateBookingResult,
     paidWithCredits: boolean,
-  ) {
+  ): Promise<"redirect" | "done"> {
     const needsCardPayment =
       !paidWithCredits &&
       result.requiresPayment &&
@@ -356,7 +380,7 @@ export default function PrenotazioniPage() {
       const payment = await requestRoomBookingPaymentUrl(result.bookingId!);
       if (payment.success && payment.url) {
         window.location.href = payment.url;
-        return;
+        return "redirect";
       }
       setError(
         mapUserFacingError(
@@ -364,12 +388,12 @@ export default function PrenotazioniPage() {
           "Impossibile avviare il pagamento. Riprova o contatta la segreteria.",
         ),
       );
-      return;
+      return "done";
     }
 
     if (result.requiresPayment && !paidWithCredits) {
       setError("Completa il pagamento per confermare la prenotazione.");
-      return;
+      return "done";
     }
 
     let successMessage = "Prenotazione registrata.";
@@ -409,8 +433,10 @@ export default function PrenotazioniPage() {
 
     if (paidWithCredits) {
       window.location.assign("/dashboard");
-      return;
+      return "redirect";
     }
+
+    return "done";
   }
 
   async function handleConfirm(payWithCredits = false) {
@@ -418,6 +444,8 @@ export default function PrenotazioniPage() {
       setError("Seleziona uno slot disponibile.");
       return;
     }
+
+    if (submitting || payingWithCredits) return;
 
     if (payWithCredits && !canPayWithCredits) {
       setError(
@@ -441,70 +469,73 @@ export default function PrenotazioniPage() {
         ? true
         : proviDaSolo && slotAllowsProviDaSolo;
 
-    const result: CreateBookingResult = await createBooking(supabase, {
-      roomId: selectedRoomId,
-      memberId,
-      startAt: selectedSlot.startAt,
-      endAt: selectedSlot.endAt,
-      proviDaSolo: isProviBooking,
-      bandId:
-        showBandFlow && sessionType === "band" && selectedBandId
-          ? selectedBandId
-          : undefined,
-    });
+    let outcome: "redirect" | "done" = "done";
 
-    if (!result.success) {
-      setSubmitting(false);
-      setPayingWithCredits(false);
-      setError(result.errorMessage ?? "Prenotazione non riuscita.");
-      return;
-    }
+    try {
+      const result: CreateBookingResult = await createBooking(supabase, {
+        roomId: selectedRoomId,
+        memberId,
+        startAt: selectedSlot.startAt,
+        endAt: selectedSlot.endAt,
+        proviDaSolo: isProviBooking,
+        bandId:
+          showBandFlow && sessionType === "band" && selectedBandId
+            ? selectedBandId
+            : undefined,
+      });
 
-    if (payWithCredits && result.bookingId) {
-      const creditPayment = await requestBookingCreditsPayment(
-        result.bookingId,
-        creditCost,
-      );
+      if (!result.success) {
+        setError(result.errorMessage ?? "Prenotazione non riuscita.");
+        return;
+      }
 
-      setSubmitting(false);
-      setPayingWithCredits(false);
+      if (payWithCredits && result.bookingId) {
+        const creditPayment = await requestBookingCreditsPayment(
+          result.bookingId,
+          creditCost,
+        );
 
-      if (!creditPayment.success) {
-        setError(
-          mapUserFacingError(
-            creditPayment.message ?? "",
-            "Prenotazione registrata ma il pagamento con crediti non è riuscito. Puoi riprovare da «Le mie prenotazioni».",
-          ),
+        if (!creditPayment.success) {
+          setError(
+            mapUserFacingError(
+              creditPayment.message ?? "",
+              "Prenotazione registrata ma il pagamento con crediti non è riuscito. Puoi riprovare da «Le mie prenotazioni».",
+            ),
+          );
+          return;
+        }
+
+        const afterCreditsStatus: BookingStatus =
+          creditPayment.status === "pending_approval" ||
+          creditPayment.status === "confirmed" ||
+          creditPayment.status === "pending"
+            ? creditPayment.status
+            : creditPayment.action === "hold" || result.status === "pending_approval"
+              ? "pending_approval"
+              : "confirmed";
+
+        outcome = await finalizeBooking(
+          {
+            ...result,
+            status: afterCreditsStatus,
+            requiresPayment: false,
+          },
+          true,
         );
         return;
       }
 
-      const afterCreditsStatus: BookingStatus =
-        creditPayment.status === "pending_approval" ||
-        creditPayment.status === "confirmed" ||
-        creditPayment.status === "pending"
-          ? creditPayment.status
-          : creditPayment.action === "hold" || result.status === "pending_approval"
-            ? "pending_approval"
-            : "confirmed";
-
-      await finalizeBooking(
-        {
-          ...result,
-          status: afterCreditsStatus,
-          requiresPayment: false,
-        },
-        true,
-      );
-      return;
+      outcome = await finalizeBooking(result, false);
+    } finally {
+      if (outcome !== "redirect") {
+        setSubmitting(false);
+        setPayingWithCredits(false);
+      }
     }
-
-    setSubmitting(false);
-    await finalizeBooking(result, false);
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-[var(--brand)]/5 via-[var(--background)] to-[var(--background)]">
+    <main className="associate-gradient-page min-h-screen">
       <SiteHeader
         eyebrow="Sale prova"
         title="Prenota una sala"
@@ -693,55 +724,56 @@ export default function PrenotazioniPage() {
         )}
 
         {rooms.length > 0 && currentStepKey === "room" && (
-          <section className="mt-8 space-y-6 rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
+          <section className="glass-card mt-8 space-y-6 p-6">
             <div>
-              <label
-                htmlFor="room"
-                className="block text-sm font-medium text-[var(--brand)]"
-              >
-                Sala
-              </label>
-              <select
-                id="room"
-                value={selectedRoomId}
-                onChange={(e) => setSelectedRoomId(e.target.value)}
-                className="mt-2 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm"
-              >
-                {rooms.map((room) => (
-                  <option key={room.id} value={room.id}>
-                    {room.name} — {formatEuro(room.hourly_rate_eur)}/h
-                  </option>
-                ))}
-              </select>
+              <h2 className="font-display text-lg font-semibold text-[var(--brand)]">
+                Tipologia di sala
+              </h2>
+              <p className="mt-1 text-sm text-neutral-600">
+                Scegli sala, orario e durata
+              </p>
+              <div className="mt-4">
+                <RoomPickerGrid
+                  rooms={rooms}
+                  selectedRoomId={selectedRoomId}
+                  onSelectRoom={(roomId) => {
+                    setSelectedRoomId(roomId);
+                    const room = rooms.find((r) => r.id === roomId);
+                    if (room) setDurationMinutes(room.default_duration_minutes);
+                  }}
+                />
+              </div>
               {selectedRoom?.description && (
-                <p className="mt-2 text-sm text-neutral-500">
+                <p className="mt-3 text-sm text-neutral-500">
                   {selectedRoom.description}
                 </p>
               )}
             </div>
 
             <div>
-              <label
-                htmlFor="duration"
-                className="block text-sm font-medium text-[var(--brand)]"
-              >
-                Durata
-              </label>
-              <select
-                id="duration"
-                value={durationMinutes}
-                onChange={(e) => setDurationMinutes(Number(e.target.value))}
-                className="mt-2 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm"
-              >
-                {durationOptions.map((minutes) => (
-                  <option key={minutes} value={minutes}>
-                    {formatDurationLabel(minutes)}
-                    {selectedRoom
-                      ? ` — ${formatEuro(calculateBookingPrice(selectedRoom, minutes))}`
-                      : ""}
-                  </option>
-                ))}
-              </select>
+              <p className="text-sm font-medium text-[var(--brand)]">Durata</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {durationOptions.map((minutes) => {
+                  const active = minutes === durationMinutes;
+                  return (
+                    <button
+                      key={minutes}
+                      type="button"
+                      onClick={() => setDurationMinutes(minutes)}
+                      className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                        active
+                          ? "bg-[var(--brand)] text-white"
+                          : "border border-neutral-200 bg-white/80 text-neutral-700 hover:border-[var(--brand)]/30"
+                      }`}
+                    >
+                      {formatDurationLabel(minutes)}
+                      {selectedRoom
+                        ? ` · ${formatEuro(calculateBookingPrice(selectedRoom, minutes))}`
+                        : ""}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <button
@@ -764,7 +796,7 @@ export default function PrenotazioniPage() {
         )}
 
         {rooms.length > 0 && currentStepKey === "slot" && (
-          <section className="mt-8 space-y-6 rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
+          <section className="glass-card mt-8 space-y-6 p-6">
             <div>
               <label
                 htmlFor="date"

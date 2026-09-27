@@ -8,7 +8,7 @@ import { ensureMemberLinked } from "@musicpro/database";
 import { mapAuthError, mapLoginQueryError } from "@musicpro/shared";
 
 import { passkeyErrorMessage } from "@/lib/auth/passkey-errors";
-import { authCallbackUrl } from "@/lib/auth/redirect-url";
+import { authEmailRedirectTo } from "@/lib/auth/redirect-url";
 import { createClient } from "@/lib/supabase/client";
 
 type AuthMode = "password" | "magic" | "passkey";
@@ -126,7 +126,7 @@ export function AuthSignInPanel({
     const { error: otpError } = await supabase.auth.signInWithOtp({
       email: email.trim(),
       options: {
-        emailRedirectTo: authCallbackUrl(redirectTo),
+        emailRedirectTo: authEmailRedirectTo(redirectTo),
         shouldCreateUser: false,
       },
     });
