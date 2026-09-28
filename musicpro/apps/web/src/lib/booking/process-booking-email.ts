@@ -19,6 +19,8 @@ type BookingRow = {
   payment_status: string | null;
   payment_method: string | null;
   provi_da_solo: boolean;
+  microphone_count: number | null;
+  notes: string | null;
   band_id: string | null;
   member_snapshot: Array<{
     member_id: string;
@@ -141,6 +143,8 @@ async function loadBookingForEmail(bookingId: string): Promise<BookingRow | null
       payment_status,
       payment_method,
       provi_da_solo,
+      microphone_count,
+      notes,
       band_id,
       member_snapshot,
       rooms ( name, slug ),
@@ -245,10 +249,15 @@ function buildBookingEmailContent(
     ["Sala", roomName],
     ["Durata", duration],
     ["Provi da solo?", proviLabel],
+    ["Microfoni", String(booking.microphone_count ?? 0)],
   ];
 
   if (booking.band_id && booking.bands?.name) {
     rows.push(["Band", booking.bands.name]);
+  }
+
+  if (booking.notes?.trim()) {
+    rows.push(["Note", booking.notes.trim()]);
   }
 
   rows.push(["Prezzo", price]);

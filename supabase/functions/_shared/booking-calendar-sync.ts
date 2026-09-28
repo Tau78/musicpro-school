@@ -19,6 +19,8 @@ type BookingRow = {
   duration_minutes: number | null;
   payment_status: string | null;
   notes: string | null;
+  provi_da_solo: boolean | null;
+  microphone_count: number | null;
   google_calendar_event_id: string | null;
   created_at: string;
   paid_at: string | null;
@@ -141,6 +143,8 @@ function buildEventDescription(
     `Stato: ${statusLabel(booking.status)}`,
     `ID: ${booking.id}`,
     `Creata il: ${formatDateTimeRome(booking.created_at)}`,
+    `Provi da solo: ${booking.provi_da_solo ? 'Sì' : 'No'}`,
+    `Microfoni: ${booking.microphone_count ?? 0}`,
     booking.notes?.trim() ? `Note utente: ${booking.notes.trim()}` : null,
     '',
     '🔗 LINK',
@@ -189,6 +193,8 @@ async function loadBooking(service: SupabaseClient, bookingId: string): Promise<
       duration_minutes,
       payment_status,
       notes,
+      provi_da_solo,
+      microphone_count,
       google_calendar_event_id,
       created_at,
       paid_at,
