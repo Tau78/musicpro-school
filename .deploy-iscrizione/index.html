@@ -426,7 +426,7 @@
             if (!raw) return null;
             var obj = JSON.parse(raw);
             if (!obj || !obj.idIscrizione) return null;
-            // Scade dopo 7 giorni: bozza ancora utile per ritentare.
+            // Scade dopo 7 giorni: bozza Stripe ancora utile per ritentare.
             if (obj.savedAt && (Date.now() - obj.savedAt) > 7 * 24 * 60 * 60 * 1000) {
                 sessionStorage.removeItem(PENDING_KEY);
                 return null;
@@ -713,7 +713,7 @@
                 Swal.fire('Attenzione', 'Bozza non trovata. Compila di nuovo il modulo.', 'warning');
                 return;
             }
-            showLoading('Preparazione pagamento...', 'Recupero del link di pagamento.');
+            showLoading('Preparazione pagamento...', 'Recupero del link Stripe.');
             gasApiGet('getStatoIscrizione', { idIscrizione: id })
                 .then(function(st) {
                     if (st && st.pagato) {
@@ -853,7 +853,7 @@
         document.getElementById('main-form').style.display = 'none';
         var nome = qp('nome') || '';
         savePendingIscrizione(id, { nome: nome, cognome: qp('cognome') || '' });
-        showLoading('Verifica pagamento...', 'Stiamo confermando il pagamento.');
+        showLoading('Verifica pagamento...', 'Stiamo confermando il pagamento con Stripe.');
         pollERinvia(id, nome, 0);
     }
 
@@ -1064,7 +1064,7 @@
         var loadingTitle = (isRinnovoAssociato && quotaGiaPagata) ? 'Salvataggio in corso...' : 'Preparazione pagamento...';
         var loadingHtml = (isRinnovoAssociato && quotaGiaPagata)
             ? 'Stiamo aggiornando i tuoi dati in rubrica.'
-            : 'Attendi, verrai reindirizzato al pagamento.';
+            : 'Attendi, verrai reindirizzato a Stripe.';
         showLoading(loadingTitle, loadingHtml);
 
         var action = (isRinnovoAssociato && quotaGiaPagata)
@@ -1092,7 +1092,7 @@
                     return;
                 }
                 if (res && res.success && res.checkoutUrl) {
-                    Swal.update({ title: 'Reindirizzamento al pagamento...', html: 'Non chiudere questa finestra.' });
+                    Swal.update({ title: 'Reindirizzamento a Stripe...', html: 'Non chiudere questa finestra.' });
                     goToCheckout(res.checkoutUrl, res.idIscrizione, {
                         nome: data.nome || '',
                         cognome: data.cognome || '',
