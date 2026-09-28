@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
   getNextMemberNumber,
+  grantMemberRole,
   listAnnualQuotaSettings,
   upsertMemberAnnualQuotas,
   type Database,
@@ -1731,6 +1732,14 @@ async function promoteMemberAfterPaidEnrollment(
     );
   }
 
+  const roleResult = await grantMemberRole(db, updated.id, "associato", null);
+  if (!roleResult.success) {
+    console.error(
+      "[completaInvioIscrizione] grant associato:",
+      roleResult.errorMessage,
+    );
+  }
+
   // Quota: idempotente se webhook ha già scritto.
   if (!(await hasQuotaPaidForMember(db, updated.id))) {
     try {
@@ -2207,6 +2216,14 @@ export async function salvaAggiornamentoAssociatoIscrizione(
   if (error) {
     throw new Error(
       error.message || "Impossibile aggiornare i dati dell'associato.",
+    );
+  }
+
+  const roleResult = await grantMemberRole(db, member.id, "associato", null);
+  if (!roleResult.success) {
+    console.error(
+      "[rinnovo/completa anagrafica] grant associato:",
+      roleResult.errorMessage,
     );
   }
 
