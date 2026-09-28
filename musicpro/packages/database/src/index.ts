@@ -623,10 +623,13 @@ export {
   assignCourseCoordinator,
   endCourseCoordinator,
   getActiveCourseCoordinator,
+  getTeacherDefaultTutorId,
   isActiveCourseCoordinator,
   listCoordinatedCourses,
+  listTeacherTutorChoices,
+  saveTeacherDefaultTutor,
 } from "./lessons-coordinator";
-export type { CourseCoordinator } from "./lessons-coordinator";
+export type { CourseCoordinator, TeacherTutorChoice } from "./lessons-coordinator";
 export {
   closeCourse,
   dismissCourseCloseRequest,
