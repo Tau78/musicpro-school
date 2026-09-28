@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { grantMemberRole } from "./member-roles";
 import type { Database } from "./types/database";
 
 type MembersClient = SupabaseClient<Database>;
@@ -304,9 +305,23 @@ export async function createMember(
     };
   }
 
+  const id = (data as { id: string }).id;
+
+  // createMember è usato dall'admin: ogni anagrafica è un associato.
+  const roleResult = await grantMemberRole(client, id, "associato", null);
+  if (!roleResult.success) {
+    return {
+      success: false,
+      id,
+      errorMessage:
+        roleResult.errorMessage ??
+        "Anagrafica creata, ma ruolo associato non assegnato.",
+    };
+  }
+
   return {
     success: true,
-    id: (data as { id: string }).id,
+    id,
   };
 }
 
