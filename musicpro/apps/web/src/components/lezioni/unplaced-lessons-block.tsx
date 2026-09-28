@@ -83,7 +83,7 @@ export async function UnplacedLessonsBlock({
 
   return (
     <CollapsibleSection title={title} defaultOpen={defaultOpen}>
-      <ul className="space-y-3">
+      <ul className="space-y-2">
         {lessons.map((lesson) => {
           const detail = detailsById.get(lesson.courseId);
           const online = detail?.courseKind === "online";
@@ -92,9 +92,9 @@ export async function UnplacedLessonsBlock({
           return (
             <li
               key={lesson.id}
-              className="space-y-2 rounded-lg border border-neutral-100 p-3"
+              className="space-y-1.5 rounded-lg border border-neutral-100 p-2 sm:space-y-2 sm:p-3"
             >
-              <div className="flex flex-wrap items-center gap-2 text-sm">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs sm:text-sm">
                 <Link
                   href={`${courseDetailBaseHref}/${lesson.courseId}`}
                   className="font-medium text-[var(--brand)] hover:underline"
@@ -103,16 +103,16 @@ export async function UnplacedLessonsBlock({
                 </Link>
                 <span className="text-neutral-500">#{lesson.sequenceNumber}</span>
                 {isRecovery ? (
-                  <span className="rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800">
+                  <span className="rounded-full bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-800 sm:px-2 sm:text-xs">
                     Da recuperare
                   </span>
                 ) : (
-                  <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">
+                  <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 sm:px-2 sm:text-xs">
                     Da piazzare
                   </span>
                 )}
                 {lesson.originalStartsAt ? (
-                  <span className="text-neutral-500">
+                  <span className="w-full text-[11px] text-neutral-500 sm:w-auto sm:text-xs">
                     Originale: {formatDateTimeIt(lesson.originalStartsAt)}
                   </span>
                 ) : null}

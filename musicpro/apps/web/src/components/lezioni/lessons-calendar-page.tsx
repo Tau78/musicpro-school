@@ -472,84 +472,86 @@ export function LessonsCalendarPage({
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-1">
       {isStaff ? (
-        <div className="flex flex-wrap items-center gap-2">
-          {!bookingsOnly ? (
-            <div
-              className="inline-flex rounded-md bg-neutral-100 p-0.5"
-              role="group"
-              aria-label="Filtro calendario"
-            >
-              <ModePill
-                active={mode === "docente"}
-                onClick={() => pushQuery({ modo: "docente" })}
+        <div className="rounded-lg border border-neutral-200 bg-white px-2 py-1.5 sm:flex sm:flex-wrap sm:items-center sm:gap-2 sm:border-0 sm:bg-transparent sm:p-0">
+          <div className="flex min-w-0 items-center gap-1.5 sm:contents">
+            {!bookingsOnly ? (
+              <div
+                className="inline-flex shrink-0 rounded-md bg-neutral-100 p-0.5"
+                role="group"
+                aria-label="Filtro calendario"
               >
-                Docente
-              </ModePill>
-              <ModePill
-                active={mode === "sala"}
-                onClick={() => pushQuery({ modo: "sala" })}
+                <ModePill
+                  active={mode === "docente"}
+                  onClick={() => pushQuery({ modo: "docente" })}
+                >
+                  Docente
+                </ModePill>
+                <ModePill
+                  active={mode === "sala"}
+                  onClick={() => pushQuery({ modo: "sala" })}
+                >
+                  Sala
+                </ModePill>
+              </div>
+            ) : null}
+
+            {bookingsOnly || mode === "sala" ? (
+              <select
+                aria-label="Sala"
+                value={roomId}
+                onChange={(event) =>
+                  pushQuery({ sala: event.target.value || null })
+                }
+                className="h-7 min-w-0 flex-1 rounded-md border border-neutral-300 bg-white px-2 text-xs focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)] sm:min-w-[10rem] sm:flex-none"
               >
-                Sala
-              </ModePill>
-            </div>
-          ) : null}
+                <option value="">Tutte le sale</option>
+                {rooms.map((room) => (
+                  <option key={room.id} value={room.id}>
+                    {room.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <select
+                aria-label="Docente"
+                value={teacherId}
+                onChange={(event) =>
+                  pushQuery({ docente: event.target.value || null })
+                }
+                className="h-7 min-w-0 flex-1 rounded-md border border-neutral-300 bg-white px-2 text-xs focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)] sm:min-w-[10rem] sm:flex-none"
+              >
+                <option value="">Tutti i docenti</option>
+                {teachers.map((teacher) => (
+                  <option key={teacher.id} value={teacher.id}>
+                    {teacher.label}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
 
-          {bookingsOnly || mode === "sala" ? (
-            <select
-              aria-label="Sala"
-              value={roomId}
-              onChange={(event) =>
-                pushQuery({ sala: event.target.value || null })
-              }
-              className="h-7 min-w-[10rem] rounded-md border border-neutral-300 bg-white px-2 text-xs focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)]"
-            >
-              <option value="">Tutte le sale</option>
-              {rooms.map((room) => (
-                <option key={room.id} value={room.id}>
-                  {room.name}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <select
-              aria-label="Docente"
-              value={teacherId}
-              onChange={(event) =>
-                pushQuery({ docente: event.target.value || null })
-              }
-              className="h-7 min-w-[10rem] rounded-md border border-neutral-300 bg-white px-2 text-xs focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)]"
-            >
-              <option value="">Tutti i docenti</option>
-              {teachers.map((teacher) => (
-                <option key={teacher.id} value={teacher.id}>
-                  {teacher.label}
-                </option>
-              ))}
-            </select>
-          )}
-
-          <span className="ml-1 inline-flex items-center gap-3 text-[11px] text-neutral-500">
+          <span className="mt-1 flex items-center gap-2.5 text-[10px] text-neutral-500 sm:mt-0 sm:gap-3 sm:text-[11px]">
             {bookingsOnly ? (
               <>
                 <span className="inline-flex items-center gap-1">
-                  <span className="h-2 w-2 rounded-sm bg-emerald-400" />
+                  <span className="h-1.5 w-1.5 rounded-sm bg-emerald-400" />
                   Prenotazioni
                 </span>
                 <span className="inline-flex items-center gap-1">
-                  <span className="h-2 w-2 rounded-sm bg-neutral-300" />
-                  Calendario esterno
+                  <span className="h-1.5 w-1.5 rounded-sm bg-neutral-300" />
+                  Esterno
                 </span>
               </>
             ) : (
               <>
                 <span className="inline-flex items-center gap-1">
-                  <span className="h-2 w-2 rounded-sm bg-amber-300" />
+                  <span className="h-1.5 w-1.5 rounded-sm bg-amber-300" />
                   Lezioni
                 </span>
                 <span className="inline-flex items-center gap-1">
-                  <span className="h-2 w-2 rounded-sm bg-emerald-400" />
+                  <span className="h-1.5 w-1.5 rounded-sm bg-emerald-400" />
                   Sale
                 </span>
               </>

@@ -35,7 +35,7 @@ export type BookingPaymentStatus =
   | "not_required"
   | "refunded";
 
-export type BookingPaymentMethod = "stripe" | "nexi" | "credits";
+export type BookingPaymentMethod = "stripe" | "credits";
 
 export type BookingErrorCode =
   | "NOT_AUTHENTICATED"
@@ -1555,8 +1555,7 @@ export function bookingPaymentMethodLabel(
 
   switch (method) {
     case "stripe":
-    case "nexi":
-      return "Carta";
+      return "Carta (Stripe)";
     case "credits":
       return "Crediti";
     default:

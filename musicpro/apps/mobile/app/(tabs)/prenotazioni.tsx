@@ -30,11 +30,24 @@ import {
 
 import { AssociateGradientBg } from "@/components/associate-gradient-bg";
 import { addRomeDays } from "@/lib/lezioni-dates";
-import { roomVisualFromName, theme } from "@/lib/theme";
+import {
+  roomCapacityLabel,
+  roomVisualFromName,
+  theme,
+} from "@/lib/theme";
 import { createClient } from "../../lib/supabase";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^\d{2}:\d{2}$/;
+
+type BookingStep = "room" | "duration" | "slot" | "confirm";
+
+const WIZARD_STEPS: { key: BookingStep; label: string }[] = [
+  { key: "room", label: "Sala" },
+  { key: "duration", label: "Durata" },
+  { key: "slot", label: "Data e orario" },
+  { key: "confirm", label: "Conferma" },
+];
 
 export default function PrenotazioniScreen() {
   // Stable client: a new client every render recreates loadAvailability and
@@ -65,6 +78,10 @@ export default function PrenotazioniScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [stepIndex, setStepIndex] = useState(0);
+
+  const currentStep = WIZARD_STEPS[stepIndex]?.key ?? "room";
+  const confirmStepIndex = WIZARD_STEPS.findIndex((step) => step.key === "confirm");
 
   const selectedRoom = useMemo(
     () => rooms.find((r) => r.id === selectedRoomId) ?? null,
@@ -176,9 +193,14 @@ export default function PrenotazioniScreen() {
   }, [prefDate]);
 
   useEffect(() => {
-    setSelectedSlot(null);
+    if (currentStep !== "slot" && currentStep !== "confirm") return;
     void loadAvailability();
-  }, [loadAvailability]);
+  }, [currentStep, loadAvailability]);
+
+  useEffect(() => {
+    if (currentStep !== "slot") return;
+    setSelectedSlot(null);
+  }, [currentStep, selectedDate, durationMinutes, selectedRoomId]);
 
   useEffect(() => {
     if (!prefOra || slots.length === 0) return;
@@ -192,8 +214,11 @@ export default function PrenotazioniScreen() {
       }).format(new Date(slot.startAt));
       return label === prefOra;
     });
-    if (match) setSelectedSlot(match);
-  }, [prefOra, slots]);
+    if (match) {
+      setSelectedSlot(match);
+      if (confirmStepIndex >= 0) setStepIndex(confirmStepIndex);
+    }
+  }, [confirmStepIndex, prefOra, slots]);
 
   useEffect(() => {
     if (!selectedRoomId) return;
@@ -280,10 +305,23 @@ export default function PrenotazioniScreen() {
           : "Prenotazione confermata!",
       );
       setSelectedSlot(null);
+      setStepIndex(0);
       await loadAvailability();
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function goToStep(nextIndex: number) {
+    setStepIndex(Math.max(0, Math.min(nextIndex, WIZARD_STEPS.length - 1)));
+  }
+
+  function handleTabPress(index: number) {
+    if (index > stepIndex) return;
+    if (WIZARD_STEPS[index]?.key !== "confirm") {
+      setSelectedSlot(null);
+    }
+    goToStep(index);
   }
 
   return (
@@ -291,9 +329,6 @@ export default function PrenotazioniScreen() {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.eyebrow}>PRENOTA SALA</Text>
       <Text style={styles.title}>Prenota una sala</Text>
-      <Text style={styles.description}>
-        Scegli sala, orario e durata
-      </Text>
 
       {loading && <ActivityIndicator style={styles.loader} color="#1e3a5f" />}
 
@@ -317,161 +352,169 @@ export default function PrenotazioniScreen() {
 
       {rooms.length > 0 && (
         <>
-          <Text style={styles.sectionLabel}>Tipologia di sala</Text>
-          <View style={styles.roomGrid}>
-            {rooms.map((room) => {
-              const active = room.id === selectedRoomId;
-              const visual = roomVisualFromName(room.name);
-              return (
-                <Pressable
-                  key={room.id}
-                  onPress={() => {
-                    setSelectedRoomId(room.id);
-                    setDurationMinutes(room.default_duration_minutes);
-                    setSelectedSlot(null);
-                  }}
-                  style={[
-                    styles.roomCard,
-                    active && { borderColor: visual.color, borderWidth: 2 },
-                  ]}
-                >
-                  <View
-                    style={[styles.roomIcon, { backgroundColor: visual.color }]}
-                  >
-                    <Text style={styles.roomEmoji}>{visual.emoji}</Text>
-                  </View>
-                  <Text style={styles.roomName}>
-                    {room.name.replace(/^Sala\s+/i, "")}
-                  </Text>
-                  {visual.tag ? (
-                    <Text style={styles.roomTag}>{visual.tag}</Text>
-                  ) : null}
-                </Pressable>
-              );
-            })}
-          </View>
-
-          {selectedRoom?.description && (
-            <Text style={styles.hint}>{selectedRoom.description}</Text>
-          )}
-
-          <Text style={styles.sectionLabel}>Durata</Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            style={styles.chipPicker}
+            style={styles.tabBar}
+            contentContainerStyle={styles.tabBarContent}
           >
-            {durationOptions.map((minutes) => {
-              const active = minutes === durationMinutes;
+            {WIZARD_STEPS.map(({ key, label }, index) => {
+              const active = stepIndex === index;
+              const enabled = index <= stepIndex;
               return (
                 <Pressable
-                  key={minutes}
-                  onPress={() => {
-                    setDurationMinutes(minutes);
-                    setSelectedSlot(null);
-                  }}
-                  style={[styles.chip, active && styles.chipActive]}
+                  key={key}
+                  disabled={!enabled}
+                  onPress={() => handleTabPress(index)}
+                  style={[
+                    styles.tabPill,
+                    active && styles.tabPillActive,
+                    !enabled && styles.tabPillDisabled,
+                  ]}
                 >
                   <Text
-                    style={[styles.chipText, active && styles.chipTextActive]}
+                    style={[
+                      styles.tabPillText,
+                      active && styles.tabPillTextActive,
+                    ]}
                   >
-                    {formatDurationLabel(minutes)}
-                    {selectedRoom
-                      ? ` · ${formatEuro(calculateBookingPrice(selectedRoom, minutes))}`
-                      : ""}
+                    {label}
                   </Text>
                 </Pressable>
               );
             })}
           </ScrollView>
 
-          <Text style={styles.sectionLabel}>Data</Text>
-          <View style={styles.dateRow}>
-            <Pressable
-              onPress={() => shiftDate(-1)}
-              disabled={selectedDate <= todayInRome()}
-              style={[
-                styles.dateNavButton,
-                selectedDate <= todayInRome() && styles.dateNavButtonDisabled,
-              ]}
-            >
-              <Text style={styles.dateNavButtonText}>‹</Text>
-            </Pressable>
-            <View style={styles.dateCenter}>
-              <Text style={styles.dateLabel}>{formatDateItalian(selectedDate)}</Text>
+          {currentStep === "room" && (
+            <View style={styles.stepBody}>
+              <View style={styles.roomGrid}>
+                {rooms.map((room) => {
+                  const active = room.id === selectedRoomId;
+                  const visual = roomVisualFromName(room.name);
+                  const capacity = roomCapacityLabel(room.name, room.capacity);
+                  return (
+                    <Pressable
+                      key={room.id}
+                      onPress={() => {
+                        setSelectedRoomId(room.id);
+                        setDurationMinutes(room.default_duration_minutes);
+                        setSelectedSlot(null);
+                      }}
+                      style={[
+                        styles.roomCard,
+                        active && { borderColor: visual.color, borderWidth: 2 },
+                      ]}
+                    >
+                      <View
+                        style={[styles.roomIcon, { backgroundColor: visual.color }]}
+                      >
+                        <Text style={styles.roomEmoji}>{visual.emoji}</Text>
+                      </View>
+                      <Text style={styles.roomName}>
+                        {room.name.replace(/^Sala\s+/i, "")}
+                      </Text>
+                      {capacity ? (
+                        <Text style={styles.roomTag}>{capacity}</Text>
+                      ) : null}
+                    </Pressable>
+                  );
+                })}
+              </View>
+              {selectedRoom?.description ? (
+                <Text style={styles.hint}>{selectedRoom.description}</Text>
+              ) : null}
+              <Pressable
+                onPress={() => goToStep(stepIndex + 1)}
+                style={styles.primaryButton}
+              >
+                <Text style={styles.primaryButtonText}>Continua</Text>
+              </Pressable>
             </View>
-            <Pressable onPress={() => shiftDate(1)} style={styles.dateNavButton}>
-              <Text style={styles.dateNavButtonText}>›</Text>
-            </Pressable>
-          </View>
+          )}
 
-          {selectedSlot ? (
-            <View style={styles.confirmCard}>
-              <Text style={styles.confirmTitle}>Conferma prenotazione</Text>
-              <View style={styles.confirmRow}>
-                <Text style={styles.confirmKey}>Sala</Text>
-                <Text style={styles.confirmValue}>{selectedRoom?.name}</Text>
-              </View>
-              <View style={styles.confirmRow}>
-                <Text style={styles.confirmKey}>Quando</Text>
-                <Text style={styles.confirmValue}>{selectedSlot.label}</Text>
-              </View>
-              <View style={styles.confirmRow}>
-                <Text style={styles.confirmKey}>Durata</Text>
-                <Text style={styles.confirmValue}>
-                  {formatDurationLabel(durationMinutes)}
-                </Text>
-              </View>
-              <View style={[styles.confirmRow, styles.confirmTotalRow]}>
-                <Text style={styles.confirmKey}>Totale</Text>
-                <Text style={styles.confirmTotal}>
-                  {previewPrice != null ? formatEuro(previewPrice) : "—"}
-                </Text>
-              </View>
-              {selectedSlot.leadTimeCategory === "approval" && (
-                <Text style={styles.approvalHint}>
-                  Questa fascia richiede approvazione admin.
-                </Text>
-              )}
-              <View style={styles.confirmActions}>
+          {currentStep === "duration" && (
+            <View style={styles.stepBody}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.chipPicker}
+              >
+                {durationOptions.map((minutes) => {
+                  const active = minutes === durationMinutes;
+                  return (
+                    <Pressable
+                      key={minutes}
+                      onPress={() => {
+                        setDurationMinutes(minutes);
+                        setSelectedSlot(null);
+                      }}
+                      style={[styles.chip, active && styles.chipActive]}
+                    >
+                      <Text
+                        style={[styles.chipText, active && styles.chipTextActive]}
+                      >
+                        {formatDurationLabel(minutes)}
+                        {selectedRoom
+                          ? ` · ${formatEuro(calculateBookingPrice(selectedRoom, minutes))}`
+                          : ""}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+              <View style={styles.stepActions}>
                 <Pressable
-                  disabled={submitting}
-                  onPress={() => void handleConfirm()}
-                  style={[styles.primaryButton, submitting && styles.buttonDisabled]}
+                  onPress={() => goToStep(stepIndex + 1)}
+                  style={styles.primaryButton}
                 >
-                  {submitting ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <Text style={styles.primaryButtonText}>Conferma prenotazione</Text>
-                  )}
+                  <Text style={styles.primaryButtonText}>Continua</Text>
                 </Pressable>
-                <Pressable
-                  disabled={submitting}
-                  onPress={() => setSelectedSlot(null)}
-                  style={styles.secondaryButton}
-                >
-                  <Text style={styles.secondaryButtonText}>Indietro</Text>
+                <Pressable onPress={() => goToStep(stepIndex - 1)}>
+                  <Text style={styles.linkButton}>Indietro</Text>
                 </Pressable>
               </View>
             </View>
-          ) : (
-            <>
-              <Text style={styles.sectionLabel}>
-                Slot disponibili ({formatDurationLabel(durationMinutes)})
-              </Text>
+          )}
+
+          {currentStep === "slot" && (
+            <View style={styles.stepBody}>
+              <View style={styles.dateRow}>
+                <Pressable
+                  onPress={() => shiftDate(-1)}
+                  disabled={selectedDate <= todayInRome()}
+                  style={[
+                    styles.dateNavButton,
+                    selectedDate <= todayInRome() && styles.dateNavButtonDisabled,
+                  ]}
+                >
+                  <Text style={styles.dateNavButtonText}>‹</Text>
+                </Pressable>
+                <View style={styles.dateCenter}>
+                  <Text style={styles.dateLabel}>
+                    {formatDateItalian(selectedDate)}
+                  </Text>
+                </View>
+                <Pressable onPress={() => shiftDate(1)} style={styles.dateNavButton}>
+                  <Text style={styles.dateNavButtonText}>›</Text>
+                </Pressable>
+              </View>
+
               {loadingSlots && (
-                <ActivityIndicator style={styles.loader} color="#1e3a5f" />
+                <ActivityIndicator style={styles.loaderInline} color="#1e3a5f" />
               )}
               {!loadingSlots && bookableSlots.length === 0 && (
                 <Text style={styles.emptyHint}>
-                  Nessuno slot prenotabile per questa data e durata.
+                  Nessuno slot per questa data e durata.
                 </Text>
               )}
               {!loadingSlots &&
                 bookableSlots.map((slot) => (
                   <Pressable
                     key={slot.startAt}
-                    onPress={() => setSelectedSlot(slot)}
+                    onPress={() => {
+                      setSelectedSlot(slot);
+                      goToStep(confirmStepIndex);
+                    }}
                     style={styles.slotRow}
                   >
                     <View>
@@ -487,7 +530,65 @@ export default function PrenotazioniScreen() {
                     <Text style={styles.slotChevron}>›</Text>
                   </Pressable>
                 ))}
-            </>
+
+              <Pressable onPress={() => goToStep(stepIndex - 1)}>
+                <Text style={styles.linkButton}>Indietro</Text>
+              </Pressable>
+            </View>
+          )}
+
+          {currentStep === "confirm" && selectedSlot && (
+            <View style={styles.stepBody}>
+              <View style={styles.confirmCard}>
+                <View style={styles.confirmRow}>
+                  <Text style={styles.confirmKey}>Sala</Text>
+                  <Text style={styles.confirmValue}>{selectedRoom?.name}</Text>
+                </View>
+                <View style={styles.confirmRow}>
+                  <Text style={styles.confirmKey}>Quando</Text>
+                  <Text style={styles.confirmValue}>{selectedSlot.label}</Text>
+                </View>
+                <View style={styles.confirmRow}>
+                  <Text style={styles.confirmKey}>Durata</Text>
+                  <Text style={styles.confirmValue}>
+                    {formatDurationLabel(durationMinutes)}
+                  </Text>
+                </View>
+                <View style={[styles.confirmRow, styles.confirmTotalRow]}>
+                  <Text style={styles.confirmKey}>Totale</Text>
+                  <Text style={styles.confirmTotal}>
+                    {previewPrice != null ? formatEuro(previewPrice) : "—"}
+                  </Text>
+                </View>
+                {selectedSlot.leadTimeCategory === "approval" && (
+                  <Text style={styles.approvalHint}>
+                    Questa fascia richiede approvazione admin.
+                  </Text>
+                )}
+                <View style={styles.confirmActions}>
+                  <Pressable
+                    disabled={submitting}
+                    onPress={() => void handleConfirm()}
+                    style={[styles.primaryButton, submitting && styles.buttonDisabled]}
+                  >
+                    {submitting ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <Text style={styles.primaryButtonText}>Conferma</Text>
+                    )}
+                  </Pressable>
+                  <Pressable
+                    disabled={submitting}
+                    onPress={() => {
+                      setSelectedSlot(null);
+                      goToStep(stepIndex - 1);
+                    }}
+                  >
+                    <Text style={styles.linkButton}>Indietro</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
           )}
         </>
       )}
@@ -502,36 +603,68 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   content: {
-    padding: 24,
-    paddingBottom: 40,
+    padding: 16,
+    paddingBottom: 32,
   },
   eyebrow: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "700",
     letterSpacing: 1,
     color: theme.accent,
   },
   title: {
-    marginTop: 4,
-    fontSize: 26,
+    marginTop: 2,
+    fontSize: 22,
     fontWeight: "600",
     color: theme.brand,
-  },
-  description: {
-    marginTop: 8,
-    fontSize: 15,
-    color: "#444",
-    lineHeight: 22,
   },
   loader: {
-    marginTop: 24,
+    marginTop: 16,
   },
-  sectionLabel: {
-    marginTop: 24,
-    marginBottom: 8,
-    fontSize: 14,
+  loaderInline: {
+    marginVertical: 8,
+  },
+  tabBar: {
+    marginTop: 12,
+    flexGrow: 0,
+  },
+  tabBarContent: {
+    flexDirection: "row",
+    gap: 6,
+    paddingRight: 4,
+  },
+  tabPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "#eee",
+  },
+  tabPillActive: {
+    backgroundColor: theme.brand,
+  },
+  tabPillDisabled: {
+    opacity: 0.55,
+  },
+  tabPillText: {
+    fontSize: 12,
     fontWeight: "600",
-    color: theme.brand,
+    color: "#666",
+  },
+  tabPillTextActive: {
+    color: "#fff",
+  },
+  stepBody: {
+    marginTop: 12,
+    gap: 10,
+  },
+  stepActions: {
+    gap: 8,
+  },
+  linkButton: {
+    fontSize: 14,
+    color: "#666",
+    textDecorationLine: "underline",
+    paddingVertical: 4,
   },
   roomGrid: {
     flexDirection: "row",
@@ -542,20 +675,20 @@ const styles = StyleSheet.create({
     width: "31%",
     minWidth: 96,
     alignItems: "center",
-    paddingVertical: 14,
-    paddingHorizontal: 6,
-    borderRadius: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: theme.glassBorder,
     backgroundColor: theme.glass,
   },
   roomIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 34,
+    height: 34,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 8,
+    marginBottom: 6,
   },
   roomEmoji: {
     fontSize: 18,

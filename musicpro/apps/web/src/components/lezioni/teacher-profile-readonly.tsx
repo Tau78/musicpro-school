@@ -67,7 +67,7 @@ export function TeacherProfileReadonly({
         <h3 className="text-base font-semibold text-[var(--brand)]">Permessi</h3>
         <dl className="grid gap-3 text-sm sm:grid-cols-2">
           <Row label="Puoi creare corsi" value={yesNo(canCreateCourses)} />
-          <Row label="Puoi spostare e annullare lezioni" value={yesNo(canReschedule)} />
+          <Row label="Puoi spostare lezioni" value={yesNo(canReschedule)} />
           <Row label="Puoi chiudere corsi" value={yesNo(canCloseCourses)} />
           <Row
             label="Visibilità pagamenti"

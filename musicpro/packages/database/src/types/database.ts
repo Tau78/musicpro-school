@@ -346,7 +346,7 @@ export interface Database {
           notes: string | null;
           cancelled_at: string | null;
           cancelled_by: string | null;
-          payment_method: "stripe" | "nexi" | "credits" | null;
+          payment_method: "stripe" | "credits" | null;
           credits_held: number;
           credits_used: number | null;
           google_calendar_event_id: string | null;
@@ -387,7 +387,7 @@ export interface Database {
           provi_da_solo?: boolean;
           band_id?: string | null;
           member_snapshot?: Json | null;
-          payment_method?: "stripe" | "nexi" | "credits" | null;
+          payment_method?: "stripe" | "credits" | null;
           credits_held?: number;
           credits_used?: number | null;
           google_calendar_event_id?: string | null;
@@ -1078,22 +1078,6 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["teacher_profiles"]["Insert"]>;
         Relationships: [];
       };
-      teacher_default_tutors: {
-        Row: {
-          member_id: string;
-          tutor_member_id: string;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          member_id: string;
-          tutor_member_id: string;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: Partial<Database["public"]["Tables"]["teacher_default_tutors"]["Insert"]>;
-        Relationships: [];
-      };
       teacher_pay_rates: {
         Row: {
           id: string;
@@ -1407,7 +1391,7 @@ export interface Database {
           family_key: string;
           member_id: string;
           amount_eur: number;
-          method: "stripe" | "nexi" | "bonifico" | "contanti" | "altro";
+          method: "stripe" | "bonifico" | "contanti" | "altro";
           status: "pending" | "completed" | "failed";
           paid_on: string | null;
           note: string | null;
@@ -1426,7 +1410,7 @@ export interface Database {
           family_key: string;
           member_id: string;
           amount_eur: number;
-          method: "stripe" | "nexi" | "bonifico" | "contanti" | "altro";
+          method: "stripe" | "bonifico" | "contanti" | "altro";
           status?: "pending" | "completed" | "failed";
           paid_on?: string | null;
           note?: string | null;
@@ -1897,94 +1881,6 @@ export interface Database {
         >;
         Relationships: [];
       };
-      nexi_payment_orders: {
-        Row: {
-          id: string;
-          flow:
-            | "quota_associativa"
-            | "quota_multi_pay"
-            | "room_booking"
-            | "shop_credit_package"
-            | "lesson_pack";
-          provider_payment_id: string;
-          amount_cents: number;
-          status: "pending" | "paid" | "cancelled" | "expired";
-          payment_link_url: string | null;
-          return_url: string | null;
-          email: string | null;
-          first_name: string | null;
-          last_name: string | null;
-          description: string | null;
-          enrollment_id: string | null;
-          quota_payment_id: string | null;
-          booking_id: string | null;
-          member_id: string | null;
-          package_id: string | null;
-          lesson_pack_payment_id: string | null;
-          metadata: Json;
-          expires_at: string | null;
-          paid_at: string | null;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          flow:
-            | "quota_associativa"
-            | "quota_multi_pay"
-            | "room_booking"
-            | "shop_credit_package"
-            | "lesson_pack";
-          provider_payment_id: string;
-          amount_cents: number;
-          status?: "pending" | "paid" | "cancelled" | "expired";
-          payment_link_url?: string | null;
-          return_url?: string | null;
-          email?: string | null;
-          first_name?: string | null;
-          last_name?: string | null;
-          description?: string | null;
-          enrollment_id?: string | null;
-          quota_payment_id?: string | null;
-          booking_id?: string | null;
-          member_id?: string | null;
-          package_id?: string | null;
-          lesson_pack_payment_id?: string | null;
-          metadata?: Json;
-          expires_at?: string | null;
-          paid_at?: string | null;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: Partial<
-          Database["public"]["Tables"]["nexi_payment_orders"]["Insert"]
-        >;
-        Relationships: [];
-      };
-      nexi_payment_receipts: {
-        Row: {
-          cod_trans: string;
-          order_id: string;
-          flow: string;
-          esito: string | null;
-          importo: number | null;
-          cod_aut: string | null;
-          applied_at: string;
-        };
-        Insert: {
-          cod_trans: string;
-          order_id: string;
-          flow: string;
-          esito?: string | null;
-          importo?: number | null;
-          cod_aut?: string | null;
-          applied_at?: string;
-        };
-        Update: Partial<
-          Database["public"]["Tables"]["nexi_payment_receipts"]["Insert"]
-        >;
-        Relationships: [];
-      };
       course_lifecycle_events: {
         Row: {
           id: string;
@@ -2219,15 +2115,6 @@ export interface Database {
         };
         Returns: Json;
       };
-      apply_nexi_payment: {
-        Args: {
-          p_cod_trans: string;
-          p_cod_aut?: string | null;
-          p_esito?: string | null;
-          p_amount_cents?: number | null;
-        };
-        Returns: Json;
-      };
       apply_stripe_quota_payment: {
         Args: {
           p_stripe_event_id: string;
@@ -2256,18 +2143,6 @@ export interface Database {
           p_booking_id: string;
         };
         Returns: Json;
-      };
-      assign_default_tutor_on_course: {
-        Args: {
-          p_course_id: string;
-        };
-        Returns: undefined;
-      };
-      sync_teacher_default_tutor: {
-        Args: {
-          p_member_id: string;
-        };
-        Returns: undefined;
       };
     };
     Enums: {

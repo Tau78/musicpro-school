@@ -214,6 +214,10 @@ export function LessonsCalendar({
     view === "week"
       ? weekRangeLabel(weekDates[0]!, weekDates[weekDates.length - 1]!)
       : monthTitle(anchorDate);
+  const dateLabelShort =
+    view === "week"
+      ? weekRangeLabelShort(weekDates[0]!, weekDates[weekDates.length - 1]!)
+      : dateLabel;
 
   const [pending, setPending] = useState<PendingMove | null>(null);
   const [hover, setHover] = useState<HoverSlot | null>(null);
@@ -307,10 +311,11 @@ export function LessonsCalendar({
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-1">
       <LessonsCalendarToolbar
         view={view}
         dateLabel={dateLabel}
+        dateLabelShort={dateLabelShort}
         hoursLabel={hoursLabel}
         onPrev={goPrev}
         onNext={goNext}
@@ -1345,6 +1350,24 @@ function weekRangeLabel(start: string, end: string): string {
   if (startYear === endYear) {
     return `${startDay} ${startMonth} ${startYear} – ${endDay} ${endMonth} ${endYear}`;
   }
+  return `${startDay} ${startMonth} ${startYear} – ${endDay} ${endMonth} ${endYear}`;
+}
+
+/** Range compatto per toolbar mobile (es. «21–26 set 2026»). */
+function weekRangeLabelShort(start: string, end: string): string {
+  const startDay = Number(start.slice(8, 10));
+  const endDay = Number(end.slice(8, 10));
+  const startMonth = MONTHS_SHORT[Number(start.slice(5, 7)) - 1]!.toLowerCase();
+  const endMonth = MONTHS_SHORT[Number(end.slice(5, 7)) - 1]!.toLowerCase();
+  const year = end.slice(0, 4);
+  if (start.slice(0, 7) === end.slice(0, 7)) {
+    return `${startDay}–${endDay} ${endMonth} ${year}`;
+  }
+  if (start.slice(0, 4) === end.slice(0, 4)) {
+    return `${startDay} ${startMonth} – ${endDay} ${endMonth} ${year}`;
+  }
+  const startYear = start.slice(0, 4);
+  const endYear = end.slice(0, 4);
   return `${startDay} ${startMonth} ${startYear} – ${endDay} ${endMonth} ${endYear}`;
 }
 

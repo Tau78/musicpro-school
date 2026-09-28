@@ -49,7 +49,13 @@ import { createClient } from "@/lib/supabase/client";
 import { requestBookingConfirmationEmail } from "@/lib/booking/send-confirmation-email";
 import { requestBookingCalendarSync } from "@/lib/calendar/sync-booking";
 
-type WizardStepKey = "session" | "band" | "room" | "slot" | "confirm";
+type WizardStepKey =
+  | "session"
+  | "band"
+  | "room"
+  | "duration"
+  | "slot"
+  | "confirm";
 
 export default function PrenotazioniPage() {
   const supabase = useMemo(() => createClient(), []);
@@ -142,7 +148,8 @@ export default function PrenotazioniPage() {
         steps.push({ key: "band", label: "Band" });
       }
     }
-    steps.push({ key: "room", label: "Sala e durata" });
+    steps.push({ key: "room", label: "Sala" });
+    steps.push({ key: "duration", label: "Durata" });
     steps.push({ key: "slot", label: "Data e orario" });
     steps.push({ key: "confirm", label: "Conferma" });
     return steps;
@@ -156,7 +163,7 @@ export default function PrenotazioniPage() {
     }
   }, [stepIndex, wizardSteps.length]);
 
-  // Back da pagamento (bfcache / history): sblocca i CTA lasciati su «Reindirizzamento…».
+  // Back da Stripe (bfcache / history): sblocca i CTA lasciati su «Reindirizzamento…».
   useEffect(() => {
     function unlockPaymentButtons() {
       setSubmitting(false);
@@ -179,7 +186,13 @@ export default function PrenotazioniPage() {
   );
 
   const loadAvailability = useCallback(async () => {
-    if (!selectedRoomId || currentStepKey === "session" || currentStepKey === "band" || currentStepKey === "room") {
+    if (
+      !selectedRoomId ||
+      currentStepKey === "session" ||
+      currentStepKey === "band" ||
+      currentStepKey === "room" ||
+      currentStepKey === "duration"
+    ) {
       return;
     }
 
@@ -309,7 +322,13 @@ export default function PrenotazioniPage() {
   }, [loadAvailability]);
 
   useEffect(() => {
-    if (!selectedRoomId || currentStepKey === "session" || currentStepKey === "band" || currentStepKey === "room") {
+    if (
+      !selectedRoomId ||
+      currentStepKey === "session" ||
+      currentStepKey === "band" ||
+      currentStepKey === "room" ||
+      currentStepKey === "duration"
+    ) {
       return;
     }
 
@@ -566,7 +585,7 @@ export default function PrenotazioniPage() {
           </div>
         </div>
       ) : (
-      <div className="mx-auto max-w-3xl px-6 py-8">
+      <div className="mx-auto max-w-3xl px-4 py-4 sm:px-6 sm:py-6">
         {hasSession && !memberId && !loading && (
           <div className="mb-8 rounded-2xl border border-amber-200 bg-amber-50 p-6">
             <h2 className="text-lg font-semibold text-amber-900">Profilo non collegato</h2>
@@ -591,7 +610,10 @@ export default function PrenotazioniPage() {
 
         {hasSession && memberId && !bookingLocked && (
         <>
-        <ol className="flex flex-wrap gap-2 text-sm" aria-label="Passaggi prenotazione">
+        <ol
+          className="-mx-1 flex flex-nowrap gap-1 overflow-x-auto px-1 pb-0.5 text-xs sm:text-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          aria-label="Passaggi prenotazione"
+        >
           {wizardSteps.map(({ key, label }, index) => {
             const isCurrent = stepIndex === index;
             const isCompleted = stepIndex > index;
@@ -604,7 +626,7 @@ export default function PrenotazioniPage() {
                 : "bg-neutral-100 text-neutral-500";
 
             return (
-              <li key={key}>
+              <li key={key} className="shrink-0">
                 {isClickable ? (
                   <button
                     type="button"
@@ -615,18 +637,18 @@ export default function PrenotazioniPage() {
                         ? undefined
                         : `Torna a: ${label}`
                     }
-                    className={`rounded-full px-3 py-1 font-medium transition ${className} ${
+                    className={`whitespace-nowrap rounded-full px-2.5 py-1 font-medium transition sm:px-3 ${className} ${
                       isClickable && !isCurrent ? "cursor-pointer" : ""
                     }`}
                   >
-                    {index + 1}. {label}
+                    {label}
                   </button>
                 ) : (
                   <span
-                    className={`inline-block rounded-full px-3 py-1 ${className}`}
+                    className={`inline-block whitespace-nowrap rounded-full px-2.5 py-1 sm:px-3 ${className}`}
                     aria-disabled="true"
                   >
-                    {index + 1}. {label}
+                    {label}
                   </span>
                 )}
               </li>
@@ -673,7 +695,7 @@ export default function PrenotazioniPage() {
         )}
 
         {currentStepKey === "session" && (
-          <div className="mt-8">
+          <div className="mt-3 sm:mt-4">
             <SessionTypeStep
               value={sessionType}
               onChange={setSessionType}
@@ -683,7 +705,7 @@ export default function PrenotazioniPage() {
         )}
 
         {currentStepKey === "band" && sessionType === "band" && (
-          <div className="mt-8 space-y-4">
+          <div className="mt-3 space-y-3 sm:mt-4">
             {myBands.length === 0 ? (
               <section className="space-y-6 rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
                 <div>
@@ -724,114 +746,116 @@ export default function PrenotazioniPage() {
         )}
 
         {rooms.length > 0 && currentStepKey === "room" && (
-          <section className="glass-card mt-8 space-y-6 p-6">
-            <div>
-              <h2 className="font-display text-lg font-semibold text-[var(--brand)]">
-                Tipologia di sala
-              </h2>
-              <p className="mt-1 text-sm text-neutral-600">
-                Scegli sala, orario e durata
+          <section className="glass-card mt-3 space-y-3 p-4 sm:mt-4 sm:space-y-4 sm:p-5">
+            <RoomPickerGrid
+              rooms={rooms}
+              selectedRoomId={selectedRoomId}
+              onSelectRoom={(roomId) => {
+                setSelectedRoomId(roomId);
+                const room = rooms.find((r) => r.id === roomId);
+                if (room) setDurationMinutes(room.default_duration_minutes);
+              }}
+            />
+            {selectedRoom?.description ? (
+              <p className="text-xs text-neutral-500 sm:text-sm">
+                {selectedRoom.description}
               </p>
-              <div className="mt-4">
-                <RoomPickerGrid
-                  rooms={rooms}
-                  selectedRoomId={selectedRoomId}
-                  onSelectRoom={(roomId) => {
-                    setSelectedRoomId(roomId);
-                    const room = rooms.find((r) => r.id === roomId);
-                    if (room) setDurationMinutes(room.default_duration_minutes);
-                  }}
-                />
-              </div>
-              {selectedRoom?.description && (
-                <p className="mt-3 text-sm text-neutral-500">
-                  {selectedRoom.description}
-                </p>
-              )}
+            ) : null}
+
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => goToStepIndex(stepIndex + 1)}
+                className="rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90"
+              >
+                Continua
+              </button>
+              {showBandFlow ? (
+                <button
+                  type="button"
+                  onClick={() => goToStepIndex(stepIndex - 1)}
+                  className="text-sm text-neutral-600 underline"
+                >
+                  Indietro
+                </button>
+              ) : null}
+            </div>
+          </section>
+        )}
+
+        {rooms.length > 0 && currentStepKey === "duration" && (
+          <section className="glass-card mt-3 space-y-3 p-4 sm:mt-4 sm:space-y-4 sm:p-5">
+            <div className="flex flex-wrap gap-1.5 sm:gap-2">
+              {durationOptions.map((minutes) => {
+                const active = minutes === durationMinutes;
+                return (
+                  <button
+                    key={minutes}
+                    type="button"
+                    onClick={() => setDurationMinutes(minutes)}
+                    className={`rounded-full px-3 py-1.5 text-xs font-medium transition sm:px-4 sm:py-2 sm:text-sm ${
+                      active
+                        ? "bg-[var(--brand)] text-white"
+                        : "border border-neutral-200 bg-white/80 text-neutral-700 hover:border-[var(--brand)]/30"
+                    }`}
+                  >
+                    {formatDurationLabel(minutes)}
+                    {selectedRoom
+                      ? ` · ${formatEuro(calculateBookingPrice(selectedRoom, minutes))}`
+                      : ""}
+                  </button>
+                );
+              })}
             </div>
 
-            <div>
-              <p className="text-sm font-medium text-[var(--brand)]">Durata</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {durationOptions.map((minutes) => {
-                  const active = minutes === durationMinutes;
-                  return (
-                    <button
-                      key={minutes}
-                      type="button"
-                      onClick={() => setDurationMinutes(minutes)}
-                      className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                        active
-                          ? "bg-[var(--brand)] text-white"
-                          : "border border-neutral-200 bg-white/80 text-neutral-700 hover:border-[var(--brand)]/30"
-                      }`}
-                    >
-                      {formatDurationLabel(minutes)}
-                      {selectedRoom
-                        ? ` · ${formatEuro(calculateBookingPrice(selectedRoom, minutes))}`
-                        : ""}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => goToStepIndex(stepIndex + 1)}
-              className="rounded-lg bg-[var(--brand)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90"
-            >
-              Continua
-            </button>
-            {showBandFlow && (
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => goToStepIndex(stepIndex + 1)}
+                className="rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90"
+              >
+                Continua
+              </button>
               <button
                 type="button"
                 onClick={() => goToStepIndex(stepIndex - 1)}
-                className="ml-3 text-sm text-neutral-600 underline"
+                className="text-sm text-neutral-600 underline"
               >
                 Indietro
               </button>
-            )}
+            </div>
           </section>
         )}
 
         {rooms.length > 0 && currentStepKey === "slot" && (
-          <section className="glass-card mt-8 space-y-6 p-6">
-            <div>
-              <label
-                htmlFor="date"
-                className="block text-sm font-medium text-[var(--brand)]"
-              >
-                Data
+          <section className="glass-card mt-3 space-y-3 p-4 sm:mt-4 sm:space-y-4 sm:p-5">
+            <div className="flex flex-wrap items-end gap-2">
+              <label htmlFor="date" className="min-w-0 flex-1">
+                <span className="sr-only">Data</span>
+                <input
+                  id="date"
+                  type="date"
+                  value={selectedDate}
+                  min={todayInRome()}
+                  onChange={(e) => {
+                    setSelectedDate(e.target.value);
+                    setSelectedSlot(null);
+                  }}
+                  className="w-full rounded-lg border border-neutral-300 bg-white px-2.5 py-1.5 text-sm"
+                />
               </label>
-              <input
-                id="date"
-                type="date"
-                value={selectedDate}
-                min={todayInRome()}
-                onChange={(e) => {
-                  setSelectedDate(e.target.value);
-                  setSelectedSlot(null);
-                }}
-                className="mt-2 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm"
-              />
-              <p className="mt-2 text-sm capitalize text-neutral-500">
+              <p className="pb-1.5 text-xs capitalize text-neutral-500 sm:text-sm">
                 {formatDateItalian(selectedDate)}
               </p>
             </div>
 
             <div>
-              <h2 className="text-sm font-medium text-[var(--brand)]">
-                Slot disponibili ({formatDurationLabel(durationMinutes)})
-              </h2>
               {bookableSlots.length === 0 ? (
-                <p className="mt-3 rounded-lg border border-dashed border-neutral-300 bg-neutral-50 px-4 py-6 text-center text-sm text-neutral-600">
-                  Nessuno slot prenotabile per questa data e durata.
-                  <br />
-                  Prova un&apos;altra data o torna indietro per cambiare sala o durata.
+                <p className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 px-3 py-4 text-center text-xs text-neutral-600 sm:text-sm">
+                  Nessuno slot per questa data e durata. Cambia data, durata o sala.
                 </p>
               ) : (
-                <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+                <ul className="grid gap-1.5 sm:grid-cols-2 sm:gap-2">
                   {bookableSlots.map((slot) => (
                     <li key={slot.startAt}>
                       <button
@@ -840,13 +864,13 @@ export default function PrenotazioniPage() {
                           setSelectedSlot(slot);
                           goToStepIndex(stepIndex + 1);
                         }}
-                        className="w-full rounded-lg border border-neutral-200 bg-white px-4 py-3 text-left text-sm transition hover:border-[var(--brand)] hover:bg-neutral-50"
+                        className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-left text-sm transition hover:border-[var(--brand)] hover:bg-neutral-50"
                       >
                         <span className="font-medium">{slot.label}</span>
-                        <span className="mt-1 block text-xs text-neutral-600">
+                        <span className="mt-0.5 block text-xs text-neutral-600">
                           {slot.leadTimeCategory === "approval" ? (
                             <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-900">
-                              Richiede approvazione admin
+                              Richiede approvazione
                             </span>
                           ) : slot.priceEur != null ? (
                             formatEuro(slot.priceEur)
@@ -872,12 +896,12 @@ export default function PrenotazioniPage() {
         )}
 
         {currentStepKey === "confirm" && selectedSlot && selectedRoom && (
-          <section className="mt-8 space-y-6">
-            <div className="rounded-xl border border-neutral-200 bg-white p-6">
-              <h2 className="text-lg font-medium text-[var(--brand)]">
+          <section className="mt-3 space-y-4 sm:mt-4">
+            <div className="rounded-xl border border-neutral-200 bg-white p-4 sm:p-5">
+              <h2 className="text-base font-medium text-[var(--brand)] sm:text-lg">
                 Riepilogo
               </h2>
-              <dl className="mt-4 space-y-2 text-sm">
+              <dl className="mt-3 space-y-1.5 text-sm">
                 <div className="flex justify-between gap-4">
                   <dt className="text-neutral-500">Sala</dt>
                   <dd className="font-medium">{selectedRoom.name}</dd>
