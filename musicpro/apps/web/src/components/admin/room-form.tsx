@@ -809,6 +809,59 @@ export function RoomForm({ room, tab, otherRooms = [] }: RoomFormProps) {
                   </p>
                 </div>
 
+                {otherRooms.length > 0 ? (
+                  <div className="flex flex-wrap items-end gap-2">
+                    <label className="min-w-[12rem] flex-1">
+                      <FieldLabel>Copia orari da</FieldLabel>
+                      <select
+                        value={copyFromId}
+                        onChange={(e) => setCopyFromId(e.target.value)}
+                        className={settingsInputClass}
+                      >
+                        <option value="">Scegli una sala…</option>
+                        {otherRooms.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <button
+                      type="button"
+                      disabled={!copyFromId}
+                      onClick={() => {
+                        if (!copyFromId) return;
+                        void listProviSchedule(supabase, copyFromId)
+                          .then((entries) => {
+                            if (
+                              entries.length === 0 ||
+                              !entries.some((row) => row.enabled)
+                            ) {
+                              setError(
+                                "La sala scelta non ha orari da solo configurati.",
+                              );
+                              return;
+                            }
+                            setDayRows(scheduleToDayRows(entries));
+                            setSuccess(
+                              "Orari copiati. Premi Salva per confermare.",
+                            );
+                          })
+                          .catch((err) =>
+                            setError(
+                              err instanceof Error
+                                ? err.message
+                                : "Copia non riuscita.",
+                            ),
+                          );
+                      }}
+                      className="rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+                    >
+                      Copia
+                    </button>
+                  </div>
+                ) : null}
+
                 <div>
                   <FieldLabel>Giorni</FieldLabel>
                   {loadingSchedule ? (
@@ -843,60 +896,83 @@ export function RoomForm({ room, tab, otherRooms = [] }: RoomFormProps) {
                         })}
                       </div>
 
-                      {DAY_ORDER.map((dayOfWeek) => {
-                        const row = dayRows.find(
-                          (item) => item.dayOfWeek === dayOfWeek,
+                      {(() => {
+                        const enabledRows = DAY_ORDER.map((dayOfWeek) =>
+                          dayRows.find((item) => item.dayOfWeek === dayOfWeek),
+                        ).filter(
+                          (row): row is DayScheduleRow =>
+                            row != null && row.enabled,
                         );
-                        if (!row?.enabled) return null;
-                        const startOptions = buildTimeOptions(row.startTime);
-                        const endOptions = buildTimeOptions(row.endTime);
-                        return (
-                          <div
-                            key={`hours-${dayOfWeek}`}
-                            className="grid gap-3 sm:grid-cols-[7rem_1fr_1fr] sm:items-end"
-                          >
-                            <p className="text-sm font-medium text-neutral-800">
-                              {proviDayLabel(dayOfWeek)}
-                            </p>
-                            <div>
-                              <FieldLabel>Dalle</FieldLabel>
-                              <select
-                                value={row.startTime}
-                                onChange={(e) =>
-                                  updateDayRow(dayOfWeek, {
-                                    startTime: e.target.value,
-                                  })
-                                }
-                                className={settingsInputClass}
-                              >
-                                {startOptions.map((time) => (
-                                  <option key={time} value={time}>
-                                    {time}
-                                  </option>
-                                ))}
-                              </select>
+
+                        return enabledRows.map((row, index) => {
+                          const previousRow =
+                            index > 0 ? enabledRows[index - 1] : null;
+                          const startOptions = buildTimeOptions(row.startTime);
+                          const endOptions = buildTimeOptions(row.endTime);
+                          return (
+                            <div
+                              key={`hours-${row.dayOfWeek}`}
+                              className="grid gap-2 sm:grid-cols-[7rem_1fr_1fr_auto] sm:items-end"
+                            >
+                              <p className="text-sm font-medium text-neutral-800">
+                                {proviDayLabel(row.dayOfWeek)}
+                              </p>
+                              <div>
+                                <FieldLabel>Dalle</FieldLabel>
+                                <select
+                                  value={row.startTime}
+                                  onChange={(e) =>
+                                    updateDayRow(row.dayOfWeek, {
+                                      startTime: e.target.value,
+                                    })
+                                  }
+                                  className={settingsInputClass}
+                                >
+                                  {startOptions.map((time) => (
+                                    <option key={time} value={time}>
+                                      {time}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div>
+                                <FieldLabel>Alle</FieldLabel>
+                                <select
+                                  value={row.endTime}
+                                  onChange={(e) =>
+                                    updateDayRow(row.dayOfWeek, {
+                                      endTime: e.target.value,
+                                    })
+                                  }
+                                  className={settingsInputClass}
+                                >
+                                  {endOptions.map((time) => (
+                                    <option key={time} value={time}>
+                                      {time}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              {previousRow ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    updateDayRow(row.dayOfWeek, {
+                                      startTime: previousRow.startTime,
+                                      endTime: previousRow.endTime,
+                                    })
+                                  }
+                                  className="self-end rounded-md border border-neutral-300 bg-white px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-600 hover:bg-neutral-50 sm:whitespace-nowrap"
+                                >
+                                  Copia dalla riga sopra
+                                </button>
+                              ) : (
+                                <span className="hidden sm:block" aria-hidden />
+                              )}
                             </div>
-                            <div>
-                              <FieldLabel>Alle</FieldLabel>
-                              <select
-                                value={row.endTime}
-                                onChange={(e) =>
-                                  updateDayRow(dayOfWeek, {
-                                    endTime: e.target.value,
-                                  })
-                                }
-                                className={settingsInputClass}
-                              >
-                                {endOptions.map((time) => (
-                                  <option key={time} value={time}>
-                                    {time}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        });
+                      })()}
                     </div>
                   )}
                 </div>
