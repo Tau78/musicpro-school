@@ -1,0 +1,22 @@
+Guideline 3.2 — Resolution Center draft (English)
+
+Option A — Accept assessment, switch distribution (recommended for MusicPro School today)
+
+Hello App Review,
+
+Thank you for the clarification on Guideline 3.2.
+
+You are correct that MusicPro School is intended for members and teachers of our organization (MusicPro Eventi / Associazione MusicPro), not for an unrestricted public audience discovering the app via App Store search.
+
+We will change the distribution method accordingly (Unlisted App Distribution or Custom App Distribution via Apple Business Manager / Apple School Manager) and resubmit under the appropriate option.
+
+Please cancel or hold this public App Store review while we update Pricing and Availability / distribution settings.
+
+Best regards,
+Mauro Andreoni
+
+---
+
+Option B — Argue general public (ONLY if product really becomes multi-org SaaS)
+
+Do NOT use Option B for the current roster-only MusicPro Eventi app. Apple will likely reject again.

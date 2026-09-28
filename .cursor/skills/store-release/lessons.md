@@ -76,6 +76,16 @@ Più «Mostra password», così il reviewer digita il demo a mano.
 
 ---
 
+## Diario Veicoli — 2026-09-17 — Upload ok ma TestFlight resta sulla build 4
+
+**Cosa si è visto:** su iPhone TestFlight mostrava `1.0.0 (4) · Apri`. Icona e UI vecchie. Upload altool di build 5–10 riusciti.
+
+**Causa:** `altool --upload-app` mette la build su ASC (`processing=VALID`, `internalBuildState=READY_FOR_BETA_TESTING`) ma **non** la assegna al gruppo interno. Solo le build già linkate al gruppo `Test` passano a `IN_BETA_TESTING` e compaiono come Aggiorna.
+
+**Fix:** dopo ogni upload, `POST /v1/betaGroups/{Test}/relationships/builds` con l’id della build nuova (ora in `scripts/xcode-testflight.sh` → `assign_build_to_test_group`). Sul telefono: pull-to-refresh TestFlight → Aggiorna.
+
+**Regola:** upload ≠ disponibile ai tester. Sempre assegnare al gruppo Test.
+
 ## Tutte le app — 2026-08-31 — TestFlight «La build è stata rimossa»
 
 **Cosa si è visto:** su iPhone, quasi tutte le app in «Testate in precedenza» con *La build è stata rimossa*. Eventi/Love Roulette/ReWavier mostravano ancora «Aggiorna»; il tap dava «questa build non è più disponibile» o «l’app non esiste».
@@ -111,6 +121,23 @@ Più «Mostra password», così il reviewer digita il demo a mano.
 - Notes e Sign-In Required devono coincidere; password mai in git.
 - Non inventare allegati video.
 - Prima di un nuovo Submit dopo reject: cancellare submission `UNRESOLVED_ISSUES` / stale `READY_FOR_REVIEW` con `canceled: true`, poi create/attach/submit.
+
+---
+
+## MusicPro School — 2026-09-28 — Guideline 3.2 Business (pubblico vs organizzazione)
+
+**Cosa ha detto Apple:** 3.2 Business. L’app è per un’organizzazione specifica (soci / docenti / partner), ma la distribuzione scelta è **App Store pubblica**. Review su iPad Air 11″, v1.1.0 (3). Submission `ac49ed0e-…`. Chiedono: passare a Custom / Unlisted / altra distribution, oppure rispondere alle 5 domande se si insiste sul pubblico.
+
+**Causa:** MusicPro School è il portale di **MusicPro Eventi** (associati/docenti, roster, login obbligatorio). Non è un prodotto SaaS multi-tenant apribile da chiunque senza affiliazione. Su Individual + listing “scuola MusicPro” Apple legge B2B/org.
+
+**Fix consigliato (onesto):**
+1. **Unlisted App Distribution** (link diretto, non in cerca Store) — tipico per associazioni / BYOD.
+2. Oppure **Custom App** via Apple Business Manager / Apple School Manager se dispositivi gestiti dall’org.
+3. **Non** reinventare la risposta «è per il pubblico generale» se l’accesso resta roster-only: ripresentano 3.2.
+
+**Se** un giorno diventa prodotto multi-scuola (qualsiasi associazione può iscriversi e usare l’app): allora si può argomentare pubblico e rispondere alle 5 domande con evidenza di self-serve signup.
+
+**Regola:** prima del Submit, decidere distribution (Public / Unlisted / Custom) in base al modello utenti. App di una sola scuola/associazione → Unlisted o Custom, non Public.
 
 ---
 
