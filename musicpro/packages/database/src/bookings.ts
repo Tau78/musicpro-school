@@ -5,6 +5,7 @@ import type {
 } from "@supabase/supabase-js";
 
 import { listMyBands, type MyBandSummary } from "./bands";
+import { listExternalCalendarEventsInRange } from "./external-calendars";
 import {
   listRoomOpeningDays,
   listRoomSpecialDays,
@@ -12,6 +13,73 @@ import {
   type OpeningWindow,
 } from "./rooms";
 import type { Database } from "./types/database";
+
+const AVAILABILITY_CACHE_TTL_MS = 45_000;
+const availabilityCache = new Map<
+  string,
+  { expiresAt: number; data: RoomAvailability }
+>();
+
+function availabilityCacheKey(
+  roomId: string,
+  date: string,
+  durationMinutes: number,
+  excludeBookingId?: string | null,
+): string {
+  return `${roomId}|${date}|${durationMinutes}|${excludeBookingId ?? ""}`;
+}
+
+export function peekRoomAvailabilityCache(
+  roomId: string,
+  date: string,
+  durationMinutes: number,
+  excludeBookingId?: string | null,
+): RoomAvailability | null {
+  const key = availabilityCacheKey(
+    roomId,
+    date,
+    durationMinutes,
+    excludeBookingId,
+  );
+  const hit = availabilityCache.get(key);
+  if (!hit) return null;
+  if (hit.expiresAt < Date.now()) {
+    availabilityCache.delete(key);
+    return null;
+  }
+  return hit.data;
+}
+
+export function invalidateRoomAvailabilityCache(roomId?: string) {
+  if (!roomId) {
+    availabilityCache.clear();
+    return;
+  }
+  const prefix = `${roomId}|`;
+  for (const key of availabilityCache.keys()) {
+    if (key.startsWith(prefix)) availabilityCache.delete(key);
+  }
+}
+
+function storeRoomAvailabilityCache(data: RoomAvailability, excludeBookingId?: string | null) {
+  const key = availabilityCacheKey(
+    data.roomId,
+    data.date,
+    data.durationMinutes,
+    excludeBookingId,
+  );
+  availabilityCache.set(key, {
+    expiresAt: Date.now() + AVAILABILITY_CACHE_TTL_MS,
+    data,
+  });
+}
+
+/** YYYY-MM-DD ± giorni (calendario civile, utile per prefetch). */
+export function addBookingCalendarDays(date: string, days: number): string {
+  const [y, m, d] = date.split("-").map(Number);
+  const next = new Date(Date.UTC(y, m - 1, d + days));
+  return next.toISOString().slice(0, 10);
+}
 
 export const BOOKING_TIMEZONE = "Europe/Rome";
 
@@ -728,39 +796,99 @@ export async function getRoomAvailability(
   roomId: string,
   date: string,
   durationMinutes?: number,
+  options?: { excludeBookingId?: string | null; prefetchNeighbors?: boolean },
 ): Promise<RoomAvailability> {
+  const excludeBookingId = options?.excludeBookingId ?? null;
+  const durationHint = durationMinutes;
+  if (durationHint != null) {
+    const cached = peekRoomAvailabilityCache(
+      roomId,
+      date,
+      durationHint,
+      excludeBookingId,
+    );
+    if (cached) {
+      if (options?.prefetchNeighbors !== false) {
+        void prefetchNeighborAvailability(
+          client,
+          roomId,
+          date,
+          durationHint,
+          excludeBookingId,
+        );
+      }
+      return cached;
+    }
+  }
+
   const room = await getRoomById(client, roomId);
   if (!room) {
     throw new Error("Sala non trovata.");
   }
 
   const duration = durationMinutes ?? room.default_duration_minutes;
-  const settings = await getBookingSettings(client);
-  const { startUtc, endUtc } = getRomeDayBoundsUtc(date);
-
-  const { data, error } = await client
-    .from("bookings")
-    .select("id, start_at, end_at, status")
-    .eq("room_id", roomId)
-    .lt("start_at", endUtc)
-    .gt("end_at", startUtc)
-    .neq("status", "cancelled");
-
-  if (error) {
-    throw new Error(`Impossibile caricare la disponibilità: ${error.message}`);
+  const cachedAfterRoom = peekRoomAvailabilityCache(
+    roomId,
+    date,
+    duration,
+    excludeBookingId,
+  );
+  if (cachedAfterRoom) {
+    if (options?.prefetchNeighbors !== false) {
+      void prefetchNeighborAvailability(
+        client,
+        roomId,
+        date,
+        duration,
+        excludeBookingId,
+      );
+    }
+    return cachedAfterRoom;
   }
 
-  const activeBookings = (data ?? []) as Array<{
+  const { startUtc, endUtc } = getRomeDayBoundsUtc(date);
+
+  const [settings, bookingsRes, weekly, specials, externalEvents] =
+    await Promise.all([
+      getBookingSettings(client),
+      client
+        .from("bookings")
+        .select("id, start_at, end_at, status")
+        .eq("room_id", roomId)
+        .lt("start_at", endUtc)
+        .gt("end_at", startUtc)
+        .neq("status", "cancelled"),
+      listRoomOpeningDays(client, roomId).catch(() => []),
+      listRoomSpecialDays(client, roomId).catch(() => []),
+      listExternalCalendarEventsInRange(client, {
+        from: startUtc,
+        to: endUtc,
+        roomId,
+      }).catch(() => []),
+    ]);
+
+  if (bookingsRes.error) {
+    throw new Error(
+      `Impossibile caricare la disponibilità: ${bookingsRes.error.message}`,
+    );
+  }
+
+  const activeBookings = ((bookingsRes.data ?? []) as Array<{
     id: string;
     start_at: string;
     end_at: string;
     status: BookingStatus;
-  }>;
+  }>).filter((booking) => !excludeBookingId || booking.id !== excludeBookingId);
 
-  const [weekly, specials] = await Promise.all([
-    listRoomOpeningDays(client, roomId).catch(() => []),
-    listRoomSpecialDays(client, roomId).catch(() => []),
-  ]);
+  const calendarBusy: BusyInterval[] = externalEvents
+    .filter((event) => event.roomId === roomId)
+    .map((event) => ({
+      id: event.id,
+      start_at: event.startsAt,
+      end_at: event.endsAt,
+      source: "calendar" as const,
+    }));
+
   const windows = resolveOpeningWindows(
     date,
     {
@@ -771,22 +899,57 @@ export async function getRoomAvailability(
     specials,
   );
 
-  const slots = buildSlotsForRoom(
-    date,
+  const availability = buildRoomAvailability(
     room,
+    date,
     duration,
     activeBookings,
     settings,
+    calendarBusy,
     windows,
   );
 
-  return {
-    roomId,
-    date,
-    timezone: BOOKING_TIMEZONE,
-    durationMinutes: duration,
-    slots,
-  };
+  storeRoomAvailabilityCache(availability, excludeBookingId);
+
+  if (options?.prefetchNeighbors !== false) {
+    void prefetchNeighborAvailability(
+      client,
+      roomId,
+      date,
+      duration,
+      excludeBookingId,
+    );
+  }
+
+  return availability;
+}
+
+async function prefetchNeighborAvailability(
+  client: BookingsClient,
+  roomId: string,
+  date: string,
+  durationMinutes: number,
+  excludeBookingId: string | null,
+) {
+  const neighbors = [
+    addBookingCalendarDays(date, -1),
+    addBookingCalendarDays(date, 1),
+  ];
+  await Promise.all(
+    neighbors.map(async (neighbor) => {
+      if (peekRoomAvailabilityCache(roomId, neighbor, durationMinutes, excludeBookingId)) {
+        return;
+      }
+      try {
+        await getRoomAvailability(client, roomId, neighbor, durationMinutes, {
+          excludeBookingId,
+          prefetchNeighbors: false,
+        });
+      } catch {
+        // prefetch best-effort
+      }
+    }),
+  );
 }
 
 export type FetchRoomAvailabilityOptions = {

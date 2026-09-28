@@ -6,10 +6,11 @@ import {
   type BookingWithRoom,
   type BookingSettings,
   type TimeSlot,
-  fetchRoomAvailability,
   formatDateItalian,
   formatDurationLabel,
+  getRoomAvailability,
   modifyBooking,
+  peekRoomAvailabilityCache,
   todayInRome,
   utcIsoToRomeLocalInput,
 } from "@musicpro/database";
@@ -56,11 +57,23 @@ export function BookingModifyPanel({
     if (!booking.room_id || !selectedDate) return;
 
     const requestId = ++loadRequestId.current;
-    setLoadingSlots(true);
+    const cached = peekRoomAvailabilityCache(
+      booking.room_id,
+      selectedDate,
+      durationMinutes,
+      booking.id,
+    );
+    if (cached) {
+      setSlots(cached.slots);
+      setLoadingSlots(false);
+    } else {
+      setLoadingSlots(true);
+    }
     setSelectedSlot(null);
 
     try {
-      const availability = await fetchRoomAvailability(
+      const availability = await getRoomAvailability(
+        supabase,
         booking.room_id,
         selectedDate,
         durationMinutes,
@@ -70,6 +83,7 @@ export function BookingModifyPanel({
       setSlots(availability.slots);
     } catch (err) {
       if (requestId !== loadRequestId.current) return;
+      if (cached) return;
       onErrorRef.current(
         mapUserFacingError(
           err instanceof Error ? err.message : "",
@@ -82,7 +96,7 @@ export function BookingModifyPanel({
         setLoadingSlots(false);
       }
     }
-  }, [booking.id, booking.room_id, durationMinutes, selectedDate]);
+  }, [booking.id, booking.room_id, durationMinutes, selectedDate, supabase]);
 
   useEffect(() => {
     if (!open) return;

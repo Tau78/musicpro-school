@@ -17,14 +17,16 @@ import {
   calculateBookingPrice,
   createBooking,
   durationOptionsForRoom,
-  fetchRoomAvailability,
   formatDateItalian,
   formatDurationLabel,
   formatEuro,
   getCurrentMember,
+  getRoomAvailability,
   listRooms,
+  peekRoomAvailabilityCache,
   requestRoomBookingPaymentUrl,
   subscribeToBookings,
+  invalidateRoomAvailabilityCache,
   todayInRome,
 } from "@musicpro/database";
 
@@ -109,34 +111,32 @@ export default function PrenotazioniScreen() {
   const loadAvailability = useCallback(async () => {
     if (!selectedRoomId) return;
 
-    const apiBaseUrl = process.env.EXPO_PUBLIC_WEB_URL?.trim();
-    if (!apiBaseUrl) {
-      setError("EXPO_PUBLIC_WEB_URL non configurato per la disponibilità sale.");
-      return;
+    const requestId = ++loadRequestId.current;
+    const cached = peekRoomAvailabilityCache(
+      selectedRoomId,
+      selectedDate,
+      durationMinutes,
+    );
+    if (cached) {
+      setSlots(cached.slots);
+      setLoadingSlots(false);
+    } else {
+      setLoadingSlots(true);
     }
 
-    const requestId = ++loadRequestId.current;
-    setLoadingSlots(true);
-
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      const availability = await fetchRoomAvailability(
+      const availability = await getRoomAvailability(
+        supabase,
         selectedRoomId,
         selectedDate,
         durationMinutes,
-        {
-          apiBaseUrl,
-          accessToken: session?.access_token,
-        },
       );
       if (requestId !== loadRequestId.current) return;
       setSlots(availability.slots);
       setError(null);
     } catch (err) {
       if (requestId !== loadRequestId.current) return;
+      if (cached) return;
       setError(
         err instanceof Error ? err.message : "Errore nel caricamento degli slot",
       );
@@ -224,6 +224,7 @@ export default function PrenotazioniScreen() {
     if (!selectedRoomId) return;
 
     const unsubscribe = subscribeToBookings(supabase, selectedRoomId, () => {
+      invalidateRoomAvailabilityCache(selectedRoomId);
       void loadAvailability();
     });
 
