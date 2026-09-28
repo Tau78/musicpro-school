@@ -1,15 +1,30 @@
 export function roomVisualFromName(name: string) {
   const lower = name.toLowerCase();
   if (lower.includes("verde")) {
-    return { key: "verde" as const, color: "#38764B", tag: "Rock / Acoustic" };
+    return { key: "verde" as const, color: "#38764B" };
   }
   if (lower.includes("rossa")) {
-    return { key: "rossa" as const, color: "#B23B3E", tag: "Elettrica" };
+    return { key: "rossa" as const, color: "#B23B3E" };
   }
   if (lower.includes("arancio")) {
-    return { key: "arancio" as const, color: "#D2762A", tag: "Creativa / Mix" };
+    return { key: "arancio" as const, color: "#D2762A" };
   }
-  return { key: "default" as const, color: "#1e3a5f", tag: "" };
+  return { key: "default" as const, color: "#1e3a5f" };
+}
+
+/** Capacità sala per associati (es. «2/5 persone»). */
+export function roomCapacityLabel(
+  name: string,
+  capacity?: number | null,
+): string {
+  if (capacity != null && capacity > 0) {
+    return `2/${capacity} persone`;
+  }
+  const lower = name.toLowerCase();
+  if (lower.includes("verde")) return "2/5 persone";
+  if (lower.includes("rossa")) return "2/6 persone";
+  if (lower.includes("arancio")) return "2/8 persone";
+  return "";
 }
 
 export function formatLessonWhen(startsAt: string): string {

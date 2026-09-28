@@ -12,7 +12,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 
 const inputClass =
-  "rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)] disabled:bg-neutral-50 disabled:text-neutral-500";
+  "w-full rounded-md border border-neutral-300 px-2.5 py-1.5 text-sm focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)] disabled:bg-neutral-50 disabled:text-neutral-500 sm:rounded-lg sm:px-3 sm:py-2";
 
 interface PlaceLessonFormProps {
   lessonId: string;
@@ -105,8 +105,8 @@ export function PlaceLessonForm({
         </ul>
       ) : null}
 
-      <div className="flex flex-wrap items-end gap-2">
-        <label className="flex flex-col gap-1 text-xs text-neutral-600">
+      <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-end">
+        <label className="flex min-w-0 flex-col gap-0.5 text-xs text-neutral-600 sm:min-w-[12rem] sm:flex-1">
           {label}
           <input
             type="datetime-local"
@@ -120,7 +120,7 @@ export function PlaceLessonForm({
           />
         </label>
         {requiresRoom ? (
-          <label className="flex flex-col gap-1 text-xs text-neutral-600">
+          <label className="flex min-w-0 flex-col gap-0.5 text-xs text-neutral-600 sm:min-w-[8rem]">
             Sala
             <select
               value={roomId}
@@ -138,12 +138,12 @@ export function PlaceLessonForm({
             </select>
           </label>
         ) : (
-          <p className="pb-2 text-sm text-neutral-500">Online</p>
+          <p className="text-xs text-neutral-500 sm:pb-2 sm:text-sm">Online</p>
         )}
         <button
           type="submit"
           disabled={busy}
-          className="rounded-lg bg-[var(--brand)] px-3 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
+          className="w-full rounded-md bg-[var(--brand)] px-3 py-1.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50 sm:w-auto sm:rounded-lg sm:py-2"
         >
           {busy ? "Piazzo…" : "Piazza"}
         </button>

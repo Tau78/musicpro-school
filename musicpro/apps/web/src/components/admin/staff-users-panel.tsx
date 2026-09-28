@@ -108,7 +108,7 @@ export function StaffUsersPanel({
 
     const profileResult = await upsertTeacherProfile(supabase, memberId, {
       canCreateCourses: false,
-      canReschedule: true,
+      canReschedule: false,
       canCloseCourses: false,
       paymentVisibility: "hidden",
     });

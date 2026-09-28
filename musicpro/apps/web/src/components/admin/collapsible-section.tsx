@@ -23,10 +23,10 @@ export function CollapsibleSection({
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((current) => !current)}
-        className="flex w-full items-start justify-between gap-3 px-4 py-3 text-left touch-manipulation hover:bg-neutral-50"
+        className="flex w-full items-start justify-between gap-2 px-3 py-2 text-left touch-manipulation hover:bg-neutral-50 sm:gap-3 sm:px-4 sm:py-3"
       >
         <span className="min-w-0">
-          <span className="block text-base font-semibold text-[var(--brand)]">
+          <span className="block text-sm font-semibold text-[var(--brand)] sm:text-base">
             {title}
           </span>
           {description ? (
@@ -47,7 +47,7 @@ export function CollapsibleSection({
       {open ? (
         <div
           id={panelId}
-          className="space-y-4 border-t border-neutral-100 px-4 py-4"
+          className="space-y-3 border-t border-neutral-100 px-3 py-3 sm:space-y-4 sm:px-4 sm:py-4"
         >
           {children}
         </div>
