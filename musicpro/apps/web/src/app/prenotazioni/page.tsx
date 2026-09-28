@@ -4,8 +4,6 @@ import Link from "next/link";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
-  buildRoomAvailability,
-  fetchRoomAvailability,
   type BookingStatus,
   type CreateBookingResult,
   type MyBandSummary,
@@ -23,13 +21,16 @@ import {
   getBookingSettings,
   getCurrentMember,
   getMemberCreditBalance,
+  getRoomAvailability,
   isSlotInProviSchedule,
   listMyBands,
   listProviSchedule,
   listRooms,
+  peekRoomAvailabilityCache,
   requestBookingCreditsPayment,
   requestRoomBookingPaymentUrl,
   subscribeToBookings,
+  invalidateRoomAvailabilityCache,
   todayInRome,
   type MemberCreditBalance,
   type ProviScheduleEntry,
@@ -197,9 +198,18 @@ export default function PrenotazioniPage() {
     }
 
     const requestId = ++loadRequestId.current;
+    const cached = peekRoomAvailabilityCache(
+      selectedRoomId,
+      selectedDate,
+      durationMinutes,
+    );
+    if (cached) {
+      setSlots(cached.slots);
+    }
 
     try {
-      const availability = await fetchRoomAvailability(
+      const availability = await getRoomAvailability(
+        supabase,
         selectedRoomId,
         selectedDate,
         durationMinutes,
@@ -208,6 +218,7 @@ export default function PrenotazioniPage() {
       setSlots(availability.slots);
     } catch (err) {
       if (requestId !== loadRequestId.current) return;
+      if (cached) return;
       setError(
         mapUserFacingError(
           err instanceof Error ? err.message : "",
@@ -215,7 +226,7 @@ export default function PrenotazioniPage() {
         ),
       );
     }
-  }, [currentStepKey, durationMinutes, selectedDate, selectedRoomId]);
+  }, [currentStepKey, durationMinutes, selectedDate, selectedRoomId, supabase]);
 
   useEffect(() => {
     let cancelled = false;
@@ -333,6 +344,7 @@ export default function PrenotazioniPage() {
     }
 
     const unsubscribe = subscribeToBookings(supabase, selectedRoomId, () => {
+      invalidateRoomAvailabilityCache(selectedRoomId);
       void loadAvailability();
     });
 
