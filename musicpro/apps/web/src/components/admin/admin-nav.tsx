@@ -2,11 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useMemo, useOptimistic, useTransition } from "react";
+import { useMemo, useOptimistic, useTransition, type ReactNode } from "react";
 
-import { AdminNavMoreButton } from "@/components/admin/admin-nav-more";
-import { isSettingsPath } from "@/lib/admin/settings-nav";
-
+import {
+  NavIconCalendar,
+  NavIconDocumenti,
+  NavIconHome,
+  NavIconNotes,
+  NavIconRimborsi,
+  NavIconRubrica,
+} from "@/components/admin/admin-nav-icons";
 interface AdminNavProps {
   showRubrica: boolean;
   showLezioni: boolean;
@@ -25,39 +30,61 @@ type NavKey =
   | "lezioni"
   | "prenotazioni"
   | "documenti"
-  | "rimborsi"
-  | "impostazioni"
-  | "website";
+  | "rimborsi";
 
-const NAV_DEFS: {
+type NavDef = {
   key: NavKey;
   label: string;
+  mobileLabel: string;
   href: string;
-  mobilePrimary?: boolean;
-}[] = [
-  { key: "home", label: "Home", href: "/dashboard", mobilePrimary: true },
+  mobileHref?: string;
+  mobileIcon: ReactNode;
+};
+
+const NAV_DEFS: NavDef[] = [
+  {
+    key: "home",
+    label: "Home",
+    mobileLabel: "Casa",
+    href: "/dashboard",
+    mobileIcon: <NavIconHome />,
+  },
   {
     key: "prenotazioni",
     label: "Prenotazioni",
+    mobileLabel: "Calendario",
     href: "/admin/prenotazioni",
-    mobilePrimary: true,
+    mobileHref: "/admin/prenotazioni/calendario",
+    mobileIcon: <NavIconCalendar />,
   },
   {
     key: "lezioni",
     label: "Lezioni",
+    mobileLabel: "Note",
     href: "/admin/lezioni/calendario",
-    mobilePrimary: true,
+    mobileIcon: <NavIconNotes />,
   },
   {
     key: "rubrica",
     label: "Rubrica",
+    mobileLabel: "Rubrica",
     href: "/admin/associati",
-    mobilePrimary: true,
+    mobileIcon: <NavIconRubrica />,
   },
-  { key: "documenti", label: "Documenti", href: "/admin/documenti" },
-  { key: "rimborsi", label: "Rimborsi", href: "/admin/rimborsi" },
-  { key: "impostazioni", label: "Impostazioni", href: "/admin/impostazioni" },
-  { key: "website", label: "Sito", href: "/admin/website" },
+  {
+    key: "documenti",
+    label: "Documenti",
+    mobileLabel: "Documenti",
+    href: "/admin/documenti",
+    mobileIcon: <NavIconDocumenti />,
+  },
+  {
+    key: "rimborsi",
+    label: "Rimborsi",
+    mobileLabel: "Rimborsi",
+    href: "/admin/rimborsi",
+    mobileIcon: <NavIconRimborsi />,
+  },
 ];
 
 export function AdminNav({
@@ -66,10 +93,7 @@ export function AdminNav({
   showPrenotazioni,
   showDocumenti,
   showRimborsi,
-  showImpostazioni,
-  showWebsite,
   documentiHref,
-  settingsHref,
 }: AdminNavProps) {
   const pathname = usePathname();
   const [, startTransition] = useTransition();
@@ -83,58 +107,31 @@ export function AdminNav({
       if (item.key === "prenotazioni") return showPrenotazioni;
       if (item.key === "documenti") return showDocumenti;
       if (item.key === "rimborsi") return showRimborsi;
-      if (item.key === "impostazioni") return showImpostazioni;
-      if (item.key === "website") return showWebsite;
       return false;
     }).map((item) => {
-      if (item.key === "impostazioni") return { ...item, href: settingsHref };
       if (item.key === "documenti") return { ...item, href: documentiHref };
       return item;
     });
   }, [
     documentiHref,
-    settingsHref,
     showDocumenti,
-    showImpostazioni,
     showLezioni,
     showPrenotazioni,
     showRimborsi,
     showRubrica,
-    showWebsite,
   ]);
 
-  const fixedPrimaryKeys = new Set<NavKey>([
-    "home",
-    ...(showPrenotazioni ? (["prenotazioni"] as const) : []),
-    ...(showLezioni ? (["lezioni"] as const) : []),
-    ...(showRubrica ? (["rubrica"] as const) : []),
-  ]);
-
-  const mobileBarItems = visibleItems.filter((item) =>
-    fixedPrimaryKeys.has(item.key),
-  );
-
-  const mobileMoreItems = visibleItems
-    .filter((item) => !fixedPrimaryKeys.has(item.key))
-    .map((item) => ({
-      key: item.key,
-      href: item.href,
-      label: item.label,
-      active: isNavItemActive(item.key, item.href, optimisticPath),
-    }));
-
-  const anyMoreActive = mobileMoreItems.some((item) => item.active);
-
-  function navLinkClass(active: boolean, compact = false) {
-    if (compact) {
-      return `flex flex-1 flex-col items-center py-2.5 text-[11px] font-medium touch-manipulation ${
-        active ? "text-[var(--brand)]" : "text-neutral-500"
-      }`;
-    }
+  function navLinkClass(active: boolean) {
     return `touch-manipulation border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
       active
         ? "border-[var(--brand-accent)] text-white"
         : "border-transparent text-white/70 hover:text-white"
+    }`;
+  }
+
+  function mobileLinkClass(active: boolean) {
+    return `flex min-w-0 flex-1 flex-col items-center gap-0.5 px-0.5 py-1.5 touch-manipulation ${
+      active ? "text-[var(--brand)]" : "text-neutral-500"
     }`;
   }
 
@@ -165,29 +162,34 @@ export function AdminNav({
         </div>
       </nav>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-neutral-200 bg-white md:hidden">
-        <div className="flex pb-[max(0.625rem,env(safe-area-inset-bottom,0.625rem))] pt-0.5">
-          {mobileBarItems.map((item) => {
-            const active = isNavItemActive(
-              item.key,
-              item.href,
-              optimisticPath,
-            );
+      <nav
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-neutral-200 bg-white md:hidden"
+        aria-label="Navigazione principale"
+      >
+        <div className="flex pb-[max(0.625rem,env(safe-area-inset-bottom,0.625rem))] pt-1">
+          {visibleItems.map((item) => {
+            const href = item.mobileHref ?? item.href;
+            const active = isNavItemActive(item.key, item.href, optimisticPath);
             return (
               <Link
                 key={item.key}
-                href={item.href}
+                href={href}
                 prefetch
+                aria-current={active ? "page" : undefined}
+                aria-label={item.mobileLabel}
+                title={item.mobileLabel}
                 onClick={() => {
-                  startTransition(() => setOptimisticPath(item.href));
+                  startTransition(() => setOptimisticPath(href));
                 }}
-                className={navLinkClass(active, true)}
+                className={mobileLinkClass(active)}
               >
-                <span>{item.label}</span>
+                {item.mobileIcon}
+                <span className="max-w-full truncate text-[9px] font-medium leading-none">
+                  {item.mobileLabel}
+                </span>
               </Link>
             );
           })}
-          <AdminNavMoreButton items={mobileMoreItems} anyActive={anyMoreActive} />
         </div>
       </nav>
     </>
@@ -206,9 +208,8 @@ function isNavItemActive(
         !pathname.startsWith("/dashboard/impostazioni"))
     );
   }
-  if (key === "impostazioni") return isSettingsPath(pathname);
   if (key === "documenti") return pathname.startsWith("/admin/documenti");
-  if (key === "website") return pathname.startsWith("/admin/website");
   if (key === "lezioni") return pathname.startsWith("/admin/lezioni");
+  if (key === "prenotazioni") return pathname.startsWith("/admin/prenotazioni");
   return pathname.startsWith(href);
 }
