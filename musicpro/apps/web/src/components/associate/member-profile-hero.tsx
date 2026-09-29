@@ -26,7 +26,24 @@ export function MemberProfileHero({
   return (
     <div className="space-y-5">
       <div className="flex items-start gap-4">
-        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[var(--brand)]/10 text-lg font-semibold text-[var(--brand)]">
+        <div
+          className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[var(--brand)]/10 text-lg font-semibold text-[var(--brand)]"
+          style={{
+            width: 64,
+            height: 64,
+            borderRadius: 9999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+            whiteSpace: "nowrap",
+            letterSpacing: "0.02em",
+            background: "rgba(30,58,95,0.1)",
+            color: "#1e3a5f",
+            fontWeight: 600,
+            fontSize: "1.125rem",
+          }}
+        >
           {memberInitials(firstName, lastName)}
         </div>
         <div className="min-w-0 flex-1">

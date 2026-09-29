@@ -46,14 +46,25 @@ export function BrandLogo({
   const s = sizes[size];
 
   const content = (
-    <div className="flex items-center gap-3">
+    <div
+      className="flex items-center gap-3"
+      style={{ display: "flex", alignItems: "center", gap: 12 }}
+    >
       <LogoMark size={s.icon} />
-      <div className="min-w-0">
-        <p className={`font-semibold leading-tight text-[var(--brand)] ${s.title}`}>
+      <div className="min-w-0" style={{ minWidth: 0 }}>
+        <p
+          className={`font-semibold leading-tight text-[var(--brand)] ${s.title}`}
+          style={{ margin: 0, color: "#1e3a5f", fontWeight: 600, lineHeight: 1.25 }}
+        >
           {APP_NAME}
         </p>
         {showSubtitle ? (
-          <p className={`text-neutral-500 ${s.sub}`}>Associazione MusicPro</p>
+          <p
+            className={`text-neutral-500 ${s.sub}`}
+            style={{ margin: 0, color: "#737373" }}
+          >
+            Associazione MusicPro
+          </p>
         ) : null}
       </div>
     </div>
