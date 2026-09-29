@@ -20,7 +20,7 @@ import {
   formatDurationLabel,
   formatEuro,
   getBookingSettings,
-  getCurrentMember,
+  getCurrentMemberWithRoles,
   getMemberCreditBalance,
   getRoomAvailability,
   isSlotInProviSchedule,
@@ -39,6 +39,7 @@ import {
 import { mapUserFacingError } from "@musicpro/shared";
 import { AuthSignInPanel } from "@/components/auth/auth-sign-in-panel";
 import { SignOutButton } from "@/components/auth/sign-out-button";
+import { MemberQuotaAlert } from "@/components/associate/member-quota-alert";
 import { SiteHeader } from "@/components/layout/site-header";
 import { BandSelectStep } from "@/components/prenotazioni/band-select-step";
 import {
@@ -47,6 +48,11 @@ import {
 } from "@/components/prenotazioni/session-type-step";
 import { RoomPickerGrid } from "@/components/prenotazioni/room-picker-grid";
 import { PrenotazioniWelcomeHero } from "@/components/prenotazioni/welcome-hero";
+import {
+  getMembershipStatus,
+  isAssociatoMember,
+  type MembershipStatus,
+} from "@/lib/membership";
 import { createClient } from "@/lib/supabase/client";
 import { requestBookingConfirmationEmail } from "@/lib/booking/send-confirmation-email";
 import { requestBookingCalendarSync } from "@/lib/calendar/sync-booking";
@@ -90,6 +96,9 @@ export default function PrenotazioniPage() {
   const [bandRequired, setBandRequired] = useState(false);
   const [bookingLocked, setBookingLocked] = useState(false);
   const [bookingLockedMessage, setBookingLockedMessage] = useState("");
+  const [quotaStatus, setQuotaStatus] = useState<MembershipStatus | null>(
+    null,
+  );
 
   const selectedRoom = useMemo(
     () => rooms.find((r) => r.id === selectedRoomId) ?? null,
@@ -244,13 +253,15 @@ export default function PrenotazioniPage() {
         } = await supabase.auth.getUser();
 
         const member = user
-          ? await getCurrentMember(supabase)
+          ? await getCurrentMemberWithRoles(supabase)
           : null;
         const includeSandbox =
           (member?.email ?? "").trim().toLowerCase() ===
           "mauro.andreoni@gmail.com";
+        const showQuotaUi = member ? isAssociatoMember(member.roles) : false;
 
-        const [roomList, bands, bookingSettings] = await Promise.all([
+        const [roomList, bands, bookingSettings, membershipStatus] =
+          await Promise.all([
           user
             ? listRooms(supabase, { includeSandbox })
             : Promise.resolve([] as Room[]),
@@ -262,6 +273,9 @@ export default function PrenotazioniPage() {
                 locked: false,
                 lockedMessage: "",
               } as Awaited<ReturnType<typeof getBookingSettings>>),
+          showQuotaUi && member
+            ? getMembershipStatus(supabase, member.id)
+            : Promise.resolve(null),
         ]);
 
         if (cancelled) return;
@@ -283,6 +297,7 @@ export default function PrenotazioniPage() {
           setSelectedBandId(bookable[0].id);
         }
         setMemberId(member?.id ?? null);
+        setQuotaStatus(membershipStatus);
       } catch (err) {
         if (!cancelled) {
           setError(
@@ -614,6 +629,12 @@ export default function PrenotazioniPage() {
         </div>
       ) : (
       <div className="mx-auto max-w-3xl px-4 py-4 sm:px-6 sm:py-6">
+        {hasSession && memberId && quotaStatus && !quotaStatus.quotaPaid ? (
+          <div className="mb-4">
+            <MemberQuotaAlert {...quotaStatus} />
+          </div>
+        ) : null}
+
         {hasSession && !memberId && !loading && (
           <div className="mb-8 rounded-2xl border border-amber-200 bg-amber-50 p-6">
             <h2 className="text-lg font-semibold text-amber-900">Profilo non collegato</h2>

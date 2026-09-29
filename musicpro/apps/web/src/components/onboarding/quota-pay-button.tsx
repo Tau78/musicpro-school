@@ -4,9 +4,15 @@ import { useState } from "react";
 
 interface QuotaPayButtonProps {
   disabled?: boolean;
+  label?: string;
+  className?: string;
 }
 
-export function QuotaPayButton({ disabled = false }: QuotaPayButtonProps) {
+export function QuotaPayButton({
+  disabled = false,
+  label = "Paga quota associativa",
+  className = "rounded-lg bg-[var(--brand)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-60",
+}: QuotaPayButtonProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,9 +56,9 @@ export function QuotaPayButton({ disabled = false }: QuotaPayButtonProps) {
         type="button"
         disabled={disabled || loading}
         onClick={() => void handlePay()}
-        className="rounded-lg bg-[var(--brand)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-60"
+        className={className}
       >
-        {loading ? "Reindirizzamento…" : "Paga quota associativa"}
+        {loading ? "Reindirizzamento…" : label}
       </button>
     </div>
   );

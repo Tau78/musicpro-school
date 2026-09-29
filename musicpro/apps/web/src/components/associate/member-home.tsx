@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { MemberQuotaAlert } from "@/components/associate/member-quota-alert";
+import type { MembershipStatus } from "@/lib/membership";
 import { formatLessonWhen } from "@/lib/ui/associate-theme";
 
 type NextLesson = {
@@ -13,6 +15,10 @@ type MemberHomeProps = {
   /** Allievo = iscrizione corso attiva. Se false, niente blocco lezioni. */
   showLessons: boolean;
   nextLesson: NextLesson | null;
+  quotaStatus?: Pick<
+    MembershipStatus,
+    "fiscalYear" | "formCompleted" | "quotaPaid" | "quotaAmountEur"
+  > | null;
 };
 
 function SectionLabel({ children }: { children: string }) {
@@ -62,6 +68,7 @@ export function MemberHome({
   firstName,
   showLessons,
   nextLesson,
+  quotaStatus = null,
 }: MemberHomeProps) {
   return (
     <div className="space-y-8">
@@ -73,6 +80,8 @@ export function MemberHome({
           Benvenuto nella tua area personale
         </p>
       </div>
+
+      {quotaStatus ? <MemberQuotaAlert {...quotaStatus} /> : null}
 
       {showLessons ? (
         <section className="space-y-3">

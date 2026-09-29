@@ -5,6 +5,8 @@ import {
   getCurrentMemberWithRoles,
   getMemberById,
   getMemberCreditBalance,
+  listAnnualQuotaSettings,
+  listMemberAnnualQuotas,
   listMyBands,
   listReimbursements,
 } from "@musicpro/database";
@@ -16,6 +18,7 @@ import {
 
 import { AssociatePageShell } from "@/components/associate/associate-page-shell";
 import { MemberProfileHero } from "@/components/associate/member-profile-hero";
+import { MemberQuotaPanel } from "@/components/associate/member-quota-panel";
 import { ChangePasswordForm } from "@/components/auth/change-password-form";
 import { DeleteAccountButton } from "@/components/auth/delete-account-button";
 import { PasskeySettings } from "@/components/auth/passkey-settings";
@@ -24,6 +27,10 @@ import { MailingOptInToggle } from "@/components/dashboard/mailing-opt-in-toggle
 import { MyReimbursements } from "@/components/dashboard/my-reimbursements";
 import { ProfileSettingsForm } from "@/components/dashboard/profile-settings-form";
 import { canAccessAdmin } from "@/lib/admin/roles";
+import {
+  getMembershipStatus,
+  isAssociatoMember,
+} from "@/lib/membership";
 import { createClient } from "@/lib/supabase/server";
 
 const PRIVACY_URL = "https://www.musicproeventi.it/privacy";
@@ -36,12 +43,24 @@ export default async function DashboardImpostazioniPage() {
     redirect("/login?error=member_not_linked");
   }
 
-  const [profile, myReimbursements, myBands, creditBalance] = await Promise.all([
-    getMemberById(supabase, member.id),
-    listReimbursements(supabase, { memberId: member.id }),
-    listMyBands(supabase).catch(() => []),
-    getMemberCreditBalance(supabase, member.id).catch(() => null),
-  ]);
+  const showQuotaUi = isAssociatoMember(member.roles);
+
+  const [profile, myReimbursements, myBands, creditBalance, quotaStatus, quotas, quotaSettings] =
+    await Promise.all([
+      getMemberById(supabase, member.id),
+      listReimbursements(supabase, { memberId: member.id }),
+      listMyBands(supabase).catch(() => []),
+      getMemberCreditBalance(supabase, member.id).catch(() => null),
+      showQuotaUi
+        ? getMembershipStatus(supabase, member.id)
+        : Promise.resolve(null),
+      showQuotaUi
+        ? listMemberAnnualQuotas(supabase, { memberId: member.id })
+        : Promise.resolve([]),
+      showQuotaUi
+        ? listAnnualQuotaSettings(supabase)
+        : Promise.resolve([]),
+    ]);
 
   const showAdminLink = canAccessAdmin(member.roles);
   const detail = profile ?? null;
@@ -92,6 +111,15 @@ export default async function DashboardImpostazioniPage() {
           bandName={primaryBand}
           roomCreditsHours={roomCredits}
         />
+
+        {quotaStatus ? (
+          <MemberQuotaPanel
+            {...quotaStatus}
+            quotas={quotas}
+            quotaSettings={quotaSettings}
+            enrolledAt={detail?.enrolledAt ?? null}
+          />
+        ) : null}
 
         <section id="dati-personali" className="glass-card p-6">
           <h2 className="text-lg font-medium text-[var(--brand)]">Profilo</h2>
