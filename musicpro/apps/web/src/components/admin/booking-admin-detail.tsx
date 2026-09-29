@@ -25,6 +25,7 @@ import {
   utcIsoToRomeLocalInput,
 } from "@musicpro/database";
 
+import { BookingWhatsAppLink } from "@/components/admin/booking-whatsapp-link";
 import { SettlementMethodPicker } from "@/components/admin/settlement-method-picker";
 import { requestBookingCalendarSync } from "@/lib/calendar/sync-booking";
 import { requestBookingConfirmationEmail } from "@/lib/booking/send-confirmation-email";
@@ -233,9 +234,17 @@ export function BookingAdminDetail({ booking, rooms }: BookingAdminDetailProps) 
               {formatBookingDateTime(booking.start_at, booking.end_at)}
             </p>
             <p className="mt-1 text-sm text-neutral-600">{memberName}</p>
-            {booking.member?.email && (
+            {booking.member?.email ? (
               <p className="text-xs text-neutral-500">{booking.member.email}</p>
-            )}
+            ) : null}
+            {booking.member?.phone ? (
+              <p className="text-xs text-neutral-500">{booking.member.phone}</p>
+            ) : null}
+            {booking.status !== "cancelled" ? (
+              <div className="mt-2">
+                <BookingWhatsAppLink booking={booking} />
+              </div>
+            ) : null}
           </div>
           <span className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700">
             {bookingStatusLabel(booking.status, booking.payment_status)}

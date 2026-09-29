@@ -15,6 +15,7 @@ import {
   reviewBooking,
 } from "@musicpro/database";
 
+import { BookingWhatsAppLink } from "@/components/admin/booking-whatsapp-link";
 import { requestBookingConfirmationEmail } from "@/lib/booking/send-confirmation-email";
 import { requestBookingCalendarSync } from "@/lib/calendar/sync-booking";
 import { createClient } from "@/lib/supabase/client";
@@ -187,41 +188,55 @@ export function BookingsAdminPanel({
               key={booking.id}
               className="rounded-xl border border-neutral-200 bg-white p-5"
             >
-              <Link
-                href={`/admin/prenotazioni/${booking.id}`}
-                className="block hover:opacity-95"
-              >
               <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <p className="font-medium text-[var(--brand)]">
-                    {booking.room?.name ?? "Sala"}
-                  </p>
-                  <p className="mt-1 text-sm text-neutral-800">
-                    {formatBookingDateTime(booking.start_at, booking.end_at)}
-                  </p>
-                  <p className="mt-1 text-sm text-neutral-600">{memberName}</p>
-                  {booking.member?.email && (
-                    <p className="text-xs text-neutral-500">
-                      {booking.member.email}
+                <div className="min-w-0 flex-1">
+                  <Link
+                    href={`/admin/prenotazioni/${booking.id}`}
+                    className="block hover:opacity-95"
+                  >
+                    <p className="font-medium text-[var(--brand)]">
+                      {booking.room?.name ?? "Sala"}
                     </p>
-                  )}
-                  {booking.status === "cancelled" && booking.cancelled_at ? (
-                    <p className="mt-1 text-xs text-neutral-500">
-                      Cancellata il{" "}
-                      {new Date(booking.cancelled_at).toLocaleString("it-IT", {
-                        timeZone: "Europe/Rome",
-                      })}
+                    <p className="mt-1 text-sm text-neutral-800">
+                      {formatBookingDateTime(booking.start_at, booking.end_at)}
                     </p>
-                  ) : null}
-                  {booking.total_price_eur != null && (
-                    <p className="mt-2 text-sm font-medium">
-                      {formatEuro(booking.total_price_eur)}
-                    </p>
-                  )}
-                  <BookingPaymentDetails booking={booking} />
-                  <p className="mt-2 text-xs font-medium text-[var(--brand)]">
-                    APRI DETTAGLIO →
-                  </p>
+                    <p className="mt-1 text-sm text-neutral-600">{memberName}</p>
+                    {booking.member?.email ? (
+                      <p className="text-xs text-neutral-500">
+                        {booking.member.email}
+                      </p>
+                    ) : null}
+                    {booking.member?.phone ? (
+                      <p className="text-xs text-neutral-500">
+                        {booking.member.phone}
+                      </p>
+                    ) : null}
+                    {booking.status === "cancelled" && booking.cancelled_at ? (
+                      <p className="mt-1 text-xs text-neutral-500">
+                        Cancellata il{" "}
+                        {new Date(booking.cancelled_at).toLocaleString("it-IT", {
+                          timeZone: "Europe/Rome",
+                        })}
+                      </p>
+                    ) : null}
+                    {booking.total_price_eur != null ? (
+                      <p className="mt-2 text-sm font-medium">
+                        {formatEuro(booking.total_price_eur)}
+                      </p>
+                    ) : null}
+                    <BookingPaymentDetails booking={booking} />
+                  </Link>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <Link
+                      href={`/admin/prenotazioni/${booking.id}`}
+                      className="text-xs font-medium text-[var(--brand)] hover:underline"
+                    >
+                      Apri dettaglio →
+                    </Link>
+                    {booking.status !== "cancelled" ? (
+                      <BookingWhatsAppLink booking={booking} />
+                    ) : null}
+                  </div>
                 </div>
                 <span
                   className={`rounded-full px-3 py-1 text-xs font-medium ${
@@ -235,7 +250,6 @@ export function BookingsAdminPanel({
                   {bookingStatusLabel(booking.status, booking.payment_status)}
                 </span>
               </div>
-              </Link>
 
               {isPendingApproval && filter === "pending_approval" && (
                 <div className="mt-4 space-y-3 border-t border-neutral-100 pt-4">

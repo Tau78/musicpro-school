@@ -222,6 +222,7 @@ export interface AdminBookingListItem extends BookingWithRoom {
     first_name: string;
     last_name: string;
     email: string | null;
+    phone: string | null;
   } | null;
   band?: {
     id: string;
@@ -1186,7 +1187,7 @@ export async function listAdminBookings(
       client.from("rooms").select("id, name, slug").in("id", roomIds),
       client
         .from("members")
-        .select("id, first_name, last_name, email")
+        .select("id, first_name, last_name, email, phone")
         .in("id", memberIds),
     ]);
 
@@ -1265,7 +1266,7 @@ export async function listBookingsInRange(
     client.from("rooms").select("id, name, slug").in("id", roomIds),
     client
       .from("members")
-      .select("id, first_name, last_name, email")
+      .select("id, first_name, last_name, email, phone")
       .in("id", memberIds),
     bandIds.length > 0
       ? client.from("bands").select("id, name").in("id", bandIds)
@@ -1864,7 +1865,7 @@ export async function getAdminBookingById(
     client.from("rooms").select("id, name, slug").eq("id", booking.room_id).maybeSingle(),
     client
       .from("members")
-      .select("id, first_name, last_name, email")
+      .select("id, first_name, last_name, email, phone")
       .eq("id", booking.member_id)
       .maybeSingle(),
     bandQuery,
