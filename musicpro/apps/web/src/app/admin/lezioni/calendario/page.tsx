@@ -16,11 +16,10 @@ import { LessonsCalendarPage } from "@/components/lezioni/lessons-calendar-page"
 import { getAdminMember } from "@/lib/admin/current-member";
 import { canManageMembers } from "@/lib/admin/roles";
 import {
+  calendarBounds,
   isIsoDate,
-  monthBounds,
   parseCalendarMode,
   parseCalendarView,
-  weekBounds,
 } from "@/lib/lezioni/calendar-range";
 import { createClient } from "@/lib/supabase/server";
 
@@ -73,10 +72,7 @@ export default async function AdminLezioniCalendarioPage({
       : null;
 
   const sundayVisible = settings?.sundayVisible ?? false;
-  const bounds =
-    view === "month"
-      ? monthBounds(anchorDate)
-      : weekBounds(anchorDate, sundayVisible);
+  const bounds = calendarBounds(view, anchorDate, sundayVisible);
 
   const roomFilter = mode === "sala" && roomId ? roomId : undefined;
   const [lessons, bookings, externals] = await Promise.all([

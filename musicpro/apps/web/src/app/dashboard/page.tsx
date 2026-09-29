@@ -35,10 +35,9 @@ import {
   canManageMembers,
 } from "@/lib/admin/roles";
 import {
+  calendarBounds,
   isIsoDate,
-  monthBounds,
   parseCalendarView,
-  weekBounds,
 } from "@/lib/lezioni/calendar-range";
 import { createClient } from "@/lib/supabase/server";
 
@@ -257,10 +256,7 @@ async function LegacyOperationalDashboard({
       : null;
 
   const sundayVisible = settings?.sundayVisible ?? false;
-  const bounds =
-    view === "month"
-      ? monthBounds(anchorDate)
-      : weekBounds(anchorDate, sundayVisible);
+  const bounds = calendarBounds(view, anchorDate, sundayVisible);
 
   const calendarSettings = {
     sundayVisible,
