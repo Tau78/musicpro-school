@@ -13,10 +13,9 @@ import { LessonsCalendarPage } from "@/components/lezioni/lessons-calendar-page"
 import { getAdminMember } from "@/lib/admin/current-member";
 import { canManageBookings } from "@/lib/admin/roles";
 import {
+  calendarBounds,
   isIsoDate,
-  monthBounds,
   parseCalendarView,
-  weekBounds,
 } from "@/lib/lezioni/calendar-range";
 import { createClient } from "@/lib/supabase/server";
 

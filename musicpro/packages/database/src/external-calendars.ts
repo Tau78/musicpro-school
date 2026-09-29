@@ -172,6 +172,8 @@ export async function deleteRoomExternalCalendar(
 
 export type ExternalCalendarEvent = {
   id: string;
+  /** ID evento Google/iCal (stesso valore di bookings.google_calendar_event_id). */
+  externalEventId: string;
   roomId: string;
   roomName: string | null;
   calendarName: string;
@@ -222,7 +224,7 @@ export async function listExternalCalendarEventsInRange(
   const calendarIds = calendars.map((row) => row.id);
   const { data: events, error: eventsError } = await client
     .from("external_calendar_events")
-    .select("id, external_calendar_id, start_at, end_at, summary")
+    .select("id, external_calendar_id, external_event_id, start_at, end_at, summary")
     .in("external_calendar_id", calendarIds)
     .lt("start_at", to)
     .gt("end_at", from)
@@ -260,6 +262,7 @@ export async function listExternalCalendarEventsInRange(
     return [
       {
         id: event.id,
+        externalEventId: event.external_event_id,
         roomId: room?.id ?? calendar.room_id,
         roomName: room?.name ?? null,
         calendarName: calendar.name,

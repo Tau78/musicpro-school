@@ -12,9 +12,7 @@ import {
 } from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
 
-import { AssociatesBookButton } from "@/components/admin/associates-book-button";
-import { CashEnrollmentCard } from "@/components/admin/cash-enrollment-card";
-import { MemberList } from "@/components/admin/member-list";
+import { AssociatiWorkspace } from "@/components/admin/associati-workspace";
 import { getAdminMember } from "@/lib/admin/current-member";
 import {
   canDeleteMembers,
@@ -66,42 +64,38 @@ export default async function AssociatiPage() {
     quotaSettings.find((s) => s.fiscalYear === fiscalYear)?.amountEur ?? null;
 
   return (
-    <div>
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h2 className="text-2xl font-semibold text-[var(--brand)]">
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-xl font-semibold text-[var(--brand)] sm:text-2xl">
             Rubrica associati
           </h2>
-          <p className="mt-1 text-sm text-neutral-600">
+          <p className="hidden text-sm text-neutral-600 sm:block">
             Anagrafica completa degli associati MusicPro School.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <AssociatesBookButton members={memberDetails} />
-          {showMerge ? (
-            <Link
-              href="/admin/associati/duplicati"
-              className="inline-flex items-center justify-center rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-neutral-50"
-            >
-              Compatta duplicati
-            </Link>
-          ) : null}
-        </div>
+        <Link
+          href="/admin/associati/nuovo"
+          className="inline-flex shrink-0 items-center justify-center rounded-lg bg-[var(--brand)] px-3 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 sm:px-4"
+        >
+          + Nuovo
+        </Link>
       </div>
 
-      <CashEnrollmentCard />
-
-      <MemberList
-        members={members}
-        canAdd
-        creditBalances={creditBalances}
-        docenteIds={docenteIds}
-        unpaidQuotaMemberIds={unpaidQuotaMemberIds}
-        unpaidQuotaYear={fiscalYear}
-        unpaidQuotaAmountEur={unpaidQuotaAmountEur}
-        canDelete={canDeleteMembers(member.roles)}
-        currentStaffMemberId={member.id}
-        currentStaffRoles={member.roles}
+      <AssociatiWorkspace
+        memberDetails={memberDetails}
+        showMerge={showMerge}
+        listProps={{
+          members,
+          creditBalances,
+          docenteIds,
+          unpaidQuotaMemberIds,
+          unpaidQuotaYear: fiscalYear,
+          unpaidQuotaAmountEur,
+          canDelete: canDeleteMembers(member.roles),
+          currentStaffMemberId: member.id,
+          currentStaffRoles: member.roles,
+        }}
       />
     </div>
   );

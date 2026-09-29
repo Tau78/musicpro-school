@@ -86,6 +86,27 @@ export function toExternalLesson(event: ExternalCalendarEvent): CalendarLesson {
   };
 }
 
+function isExternalDuplicateOfBooking(
+  event: ExternalCalendarEvent,
+  booking: AdminBookingListItem,
+): boolean {
+  const googleId = booking.google_calendar_event_id?.trim();
+  if (googleId && event.externalEventId.trim() === googleId) {
+    return true;
+  }
+  if (booking.room_id !== event.roomId) return false;
+  const bookingStart = Date.parse(booking.start_at);
+  const bookingEnd = Date.parse(booking.end_at);
+  const eventStart = Date.parse(event.startsAt);
+  const eventEnd = Date.parse(event.endsAt);
+  if (
+    ![bookingStart, bookingEnd, eventStart, eventEnd].every(Number.isFinite)
+  ) {
+    return false;
+  }
+  return bookingStart === eventStart && bookingEnd === eventEnd;
+}
+
 export function mergeCalendarEvents(
   lessons: Array<CalendarLesson & { bookingId?: string | null }>,
   bookings: AdminBookingListItem[],
@@ -96,9 +117,16 @@ export function mergeCalendarEvents(
       .map((lesson) => lesson.bookingId)
       .filter((id): id is string => Boolean(id)),
   );
+  const visibleBookings = bookings.filter((row) => !used.has(row.id));
+  const filteredExternals = externals.filter(
+    (event) =>
+      !visibleBookings.some((booking) =>
+        isExternalDuplicateOfBooking(event, booking),
+      ),
+  );
   return [
     ...lessons,
-    ...bookings.filter((row) => !used.has(row.id)).map(toBookingLesson),
-    ...externals.map(toExternalLesson),
+    ...visibleBookings.map(toBookingLesson),
+    ...filteredExternals.map(toExternalLesson),
   ];
 }

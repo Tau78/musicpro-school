@@ -15,7 +15,7 @@ type ResultState = {
   memberName?: string | null;
 } | null;
 
-export function CashEnrollmentCard() {
+export function CashEnrollmentCard({ embedded = false }: { embedded?: boolean }) {
   const [nome, setNome] = useState("");
   const [cognome, setCognome] = useState("");
   const [email, setEmail] = useState("");
@@ -80,20 +80,30 @@ export function CashEnrollmentCard() {
   }
 
   return (
-    <section className="mb-6 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm sm:p-5">
-      <div className="mb-3">
-        <h3 className="text-base font-semibold text-[var(--brand)]">
-          Iscrizione quota in contanti
-        </h3>
-        <p className="mt-0.5 text-sm text-neutral-600">
-          Nome, cognome ed email: registra la quota anno in corso e invia il
-          link precompilato (valido 24 ore).
+    <section
+      className={`rounded-xl border border-neutral-200 bg-white ${
+        embedded ? "p-3 sm:p-4" : "mb-6 p-4 shadow-sm sm:p-5"
+      }`}
+    >
+      {!embedded ? (
+        <div className="mb-3">
+          <h3 className="text-base font-semibold text-[var(--brand)]">
+            Iscrizione quota in contanti
+          </h3>
+          <p className="mt-0.5 text-sm text-neutral-600">
+            Nome, cognome ed email: registra la quota anno in corso e invia il
+            link precompilato (valido 24 ore).
+          </p>
+        </div>
+      ) : (
+        <p className="mb-2 text-xs text-neutral-600">
+          Registra la quota in contanti e invia il link precompilato (24 h).
         </p>
-      </div>
+      )}
 
       <form
         onSubmit={(e) => void handleSubmit(e)}
-        className="grid gap-3 sm:grid-cols-4 sm:items-end"
+        className="grid gap-2 sm:grid-cols-2 sm:items-end lg:grid-cols-4"
       >
         <div>
           <FieldLabel>Nome</FieldLabel>

@@ -50,7 +50,7 @@ export function AdminNavMoreButton({
         aria-expanded={open}
         aria-haspopup="menu"
         onClick={() => setOpen((current) => !current)}
-        className={`flex w-full flex-col items-center py-2.5 text-[11px] font-medium touch-manipulation ${
+        className={`flex w-full flex-col items-center py-2 text-[11px] font-medium touch-manipulation ${
           anyActive || open ? "text-[var(--brand)]" : "text-neutral-500"
         }`}
       >

@@ -5,7 +5,6 @@ import { useCallback, useMemo, useState } from "react";
 
 import {
   buildQuotaDunningMessage,
-  formatQuotaEuro,
   recordMemberQuotaDunning,
   type MemberSummary,
 } from "@musicpro/database";
@@ -15,9 +14,10 @@ import { BulkMessageModal } from "@/components/admin/bulk-message-modal";
 import { MemberDetailDialog } from "@/components/admin/member-detail-dialog";
 import { createClient } from "@/lib/supabase/client";
 
-interface MemberListProps {
+export interface MemberListProps {
   members: MemberSummary[];
   canAdd: boolean;
+  compact?: boolean;
   creditBalances?: Record<string, number | null>;
   docenteIds?: string[];
   unpaidQuotaMemberIds?: string[];
@@ -31,6 +31,7 @@ interface MemberListProps {
 export function MemberList({
   members,
   canAdd,
+  compact = false,
   creditBalances,
   docenteIds,
   unpaidQuotaMemberIds,
@@ -158,26 +159,38 @@ export function MemberList({
     setQuotaDunningDraft(null);
   }
 
+  const filterPillClass = (active: boolean, tone: "brand" | "amber" = "brand") =>
+    active
+      ? tone === "amber"
+        ? "border-amber-500 bg-amber-50 text-amber-800"
+        : "border-[var(--brand)] bg-[var(--brand)]/10 text-[var(--brand)]"
+      : "border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50";
+
   return (
     <div>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex w-full flex-wrap items-center gap-2 sm:max-w-xl">
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cerca per nome o cognome…"
-            className="min-w-0 flex-1 rounded-lg border border-neutral-300 px-4 py-2 text-sm focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)] sm:max-w-sm"
-          />
+      <div className={compact ? "space-y-2" : "flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"}>
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Cerca nome o cognome…"
+          className={`w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)] ${
+            compact ? "" : "sm:max-w-sm"
+          }`}
+        />
+
+        <div
+          className={`flex items-center gap-1.5 ${
+            compact
+              ? "overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              : "flex-wrap"
+          }`}
+        >
           <button
             type="button"
             onClick={() => setDocentiOnly((prev) => !prev)}
             aria-pressed={docentiOnly}
-            className={
-              docentiOnly
-                ? "inline-flex items-center justify-center rounded-full border border-[var(--brand)] bg-[var(--brand)]/10 px-3 py-1.5 text-sm font-medium text-[var(--brand)]"
-                : "inline-flex items-center justify-center rounded-full border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
-            }
+            className={`inline-flex shrink-0 items-center justify-center rounded-full border px-2.5 py-1 text-xs font-medium touch-manipulation sm:px-3 sm:py-1.5 sm:text-sm ${filterPillClass(docentiOnly)}`}
           >
             Docenti
           </button>
@@ -185,11 +198,7 @@ export function MemberList({
             type="button"
             onClick={() => setBozzeOnly((prev) => !prev)}
             aria-pressed={bozzeOnly}
-            className={
-              bozzeOnly
-                ? "inline-flex items-center justify-center rounded-full border border-amber-500 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-800"
-                : "inline-flex items-center justify-center rounded-full border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
-            }
+            className={`inline-flex shrink-0 items-center justify-center rounded-full border px-2.5 py-1 text-xs font-medium touch-manipulation sm:px-3 sm:py-1.5 sm:text-sm ${filterPillClass(bozzeOnly, "amber")}`}
           >
             Bozze
           </button>
@@ -197,27 +206,17 @@ export function MemberList({
             type="button"
             onClick={() => setQuotaUnpaidOnly((prev) => !prev)}
             aria-pressed={quotaUnpaidOnly}
-            className={
-              quotaUnpaidOnly
-                ? "inline-flex items-center justify-center rounded-full border border-amber-500 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-800"
-                : "inline-flex items-center justify-center rounded-full border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
-            }
+            className={`inline-flex shrink-0 items-center justify-center rounded-full border px-2.5 py-1 text-xs font-medium touch-manipulation sm:px-3 sm:py-1.5 sm:text-sm ${filterPillClass(quotaUnpaidOnly, "amber")}`}
           >
-            Quota {unpaidQuotaYear ?? ""} non versata
+            Quota {unpaidQuotaYear ?? ""}
           </button>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
           {unpaidQuotaIdSet.size > 0 && unpaidQuotaYear != null ? (
             <button
               type="button"
               onClick={openQuotaDunningBulk}
-              className="inline-flex items-center justify-center rounded-lg border border-amber-400 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100"
+              className="inline-flex shrink-0 items-center justify-center rounded-full border border-amber-400 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-900 touch-manipulation hover:bg-amber-100 sm:px-3 sm:py-1.5 sm:text-sm"
             >
-              Sollecita non versati ({unpaidQuotaIdSet.size}
-              {unpaidQuotaAmountEur != null
-                ? ` · ${formatQuotaEuro(unpaidQuotaAmountEur)}`
-                : ""}
-              )
+              Sollecita ({unpaidQuotaIdSet.size})
             </button>
           ) : null}
           {selectedIds.size > 0 ? (
@@ -227,12 +226,12 @@ export function MemberList({
                 setQuotaDunningDraft(null);
                 setMessageOpen(true);
               }}
-              className="inline-flex items-center justify-center rounded-lg border border-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand)] hover:bg-[var(--brand)]/5"
+              className="inline-flex shrink-0 items-center justify-center rounded-full border border-[var(--brand)] px-2.5 py-1 text-xs font-medium text-[var(--brand)] touch-manipulation hover:bg-[var(--brand)]/5 sm:px-3 sm:py-1.5 sm:text-sm"
             >
-              Invia messaggio ({selectedIds.size})
+              Messaggio ({selectedIds.size})
             </button>
           ) : null}
-          {canAdd ? (
+          {!compact && canAdd ? (
             <Link
               href="/admin/associati/nuovo"
               className="inline-flex items-center justify-center rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90"
@@ -243,7 +242,7 @@ export function MemberList({
         </div>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+      <div className={`flex flex-wrap items-center justify-between gap-2 ${compact ? "mt-2" : "mt-3"}`}>
         <p className="text-sm text-neutral-500">
           {filtered.length} associat{filtered.length === 1 ? "o" : "i"}
           {selectedIds.size > 0
@@ -263,7 +262,11 @@ export function MemberList({
         ) : null}
       </div>
 
-      <ul className="mt-4 divide-y divide-neutral-200 rounded-xl border border-neutral-200 bg-white">
+      <ul
+        className={`divide-y divide-neutral-200 rounded-xl border border-neutral-200 bg-white ${
+          compact ? "mt-2" : "mt-4"
+        }`}
+      >
         {filtered.length === 0 ? (
           <li className="px-4 py-8 text-center text-sm text-neutral-500">
             Nessun associato trovato.
@@ -294,9 +297,15 @@ export function MemberList({
                   event.preventDefault();
                   setOpenMemberId(member.id);
                 }}
-                className="flex min-w-0 flex-1 items-center gap-4 py-3 pr-4 transition-colors hover:bg-neutral-50"
+                className={`flex min-w-0 flex-1 items-center transition-colors hover:bg-neutral-50 ${
+                  compact ? "gap-2.5 py-2.5 pr-3" : "gap-4 py-3 pr-4"
+                }`}
               >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--brand)]/10 text-sm font-semibold text-[var(--brand)]">
+                <div
+                  className={`flex shrink-0 items-center justify-center rounded-full bg-[var(--brand)]/10 font-semibold text-[var(--brand)] ${
+                    compact ? "h-9 w-9 text-xs" : "h-10 w-10 text-sm"
+                  }`}
+                >
                   {member.firstName.charAt(0)}
                   {member.lastName.charAt(0)}
                 </div>
