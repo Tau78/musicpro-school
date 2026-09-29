@@ -56,10 +56,7 @@ export default async function AdminPrenotazioniCalendarioPage({
       : null;
 
   const sundayVisible = settings?.sundayVisible ?? false;
-  const bounds =
-    view === "month"
-      ? monthBounds(anchorDate)
-      : weekBounds(anchorDate, sundayVisible);
+  const bounds = calendarBounds(view, anchorDate, sundayVisible);
 
   const roomFilter = roomId ?? undefined;
   const [bookings, externals] = await Promise.all([
