@@ -191,10 +191,11 @@ export default function PrenotazioniScreen() {
       setError(null);
 
       try {
-        const [roomList, member] = await Promise.all([
-          listRooms(supabase),
-          getCurrentMember(supabase),
-        ]);
+        const member = await getCurrentMember(supabase);
+        const includeSandbox =
+          (member?.email ?? "").trim().toLowerCase() ===
+          "mauro.andreoni@gmail.com";
+        const roomList = await listRooms(supabase, { includeSandbox });
 
         if (cancelled) return;
 

@@ -243,9 +243,17 @@ export default function PrenotazioniPage() {
           data: { user },
         } = await supabase.auth.getUser();
 
-        const [roomList, member, bands, bookingSettings] = await Promise.all([
-          user ? listRooms(supabase) : Promise.resolve([] as Room[]),
-          user ? getCurrentMember(supabase) : Promise.resolve(null),
+        const member = user
+          ? await getCurrentMember(supabase)
+          : null;
+        const includeSandbox =
+          (member?.email ?? "").trim().toLowerCase() ===
+          "mauro.andreoni@gmail.com";
+
+        const [roomList, bands, bookingSettings] = await Promise.all([
+          user
+            ? listRooms(supabase, { includeSandbox })
+            : Promise.resolve([] as Room[]),
           user ? listMyBands(supabase).catch(() => [] as MyBandSummary[]) : Promise.resolve([] as MyBandSummary[]),
           user
             ? getBookingSettings(supabase)
