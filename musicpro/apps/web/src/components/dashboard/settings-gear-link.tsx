@@ -16,10 +16,13 @@ export function SettingsGearLink({
       title={label}
       className={
         className ??
-        "inline-flex h-9 w-9 items-center justify-center rounded-lg text-neutral-600 hover:bg-neutral-100 hover:text-[var(--brand)]"
+        "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-neutral-600 hover:bg-neutral-100 hover:text-[var(--brand)]"
       }
     >
+      {/* width/height nativi: senza CSS l'SVG non deve espandersi a tutto schermo */}
       <svg
+        width={20}
+        height={20}
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
