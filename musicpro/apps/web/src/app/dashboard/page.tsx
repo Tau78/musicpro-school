@@ -40,6 +40,10 @@ import {
   isIsoDate,
   parseCalendarView,
 } from "@/lib/lezioni/calendar-range";
+import {
+  getMembershipStatus,
+  isAssociatoMember,
+} from "@/lib/membership";
 import { createClient } from "@/lib/supabase/server";
 
 interface PageProps {
@@ -76,6 +80,10 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const useAdminShell = canAccessAdmin(member.roles);
 
   if (!showOperational) {
+    const showQuotaUi = isAssociatoMember(member.roles);
+    const quotaStatus = showQuotaUi
+      ? await getMembershipStatus(supabase, member.id)
+      : null;
     const isAllievo = await hasActiveCourseEnrollment(supabase, member.id);
     const nextAssociateLesson = isAllievo
       ? (
@@ -97,6 +105,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         <MemberHome
           firstName={member.firstName}
           showLessons={isAllievo}
+          quotaStatus={quotaStatus}
           nextLesson={
             nextAssociateLesson?.startsAt
               ? {

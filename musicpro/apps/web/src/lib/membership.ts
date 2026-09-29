@@ -119,4 +119,8 @@ export async function shouldEnforceOnboarding(
   return !status.isComplete;
 }
 
+export function isAssociatoMember(roles: MemberRoleValue[]): boolean {
+  return roles.includes(MemberRole.Associato);
+}
+
 export { hasAssociatoOnly };
