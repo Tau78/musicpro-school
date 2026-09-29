@@ -355,6 +355,7 @@ export interface Database {
           provi_da_solo: boolean;
           band_id: string | null;
           member_snapshot: Json | null;
+          microphone_count: number;
           source: "booking" | "calendar" | "lesson";
           created_at: string;
           updated_at: string;
@@ -387,6 +388,7 @@ export interface Database {
           provi_da_solo?: boolean;
           band_id?: string | null;
           member_snapshot?: Json | null;
+          microphone_count?: number;
           payment_method?: "stripe" | "nexi" | "credits" | null;
           credits_held?: number;
           credits_used?: number | null;
@@ -2047,6 +2049,9 @@ export interface Database {
           p_end_at: string;
           p_provi_da_solo?: boolean;
           p_band_id?: string | null;
+          p_option_ids?: string[] | null;
+          p_notes?: string | null;
+          p_microphone_count?: number;
         };
         Returns: Json;
       };

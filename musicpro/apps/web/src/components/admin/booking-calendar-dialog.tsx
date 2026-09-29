@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import {
+  BOOKING_MICROPHONE_COUNTS,
   adminUpdateBooking,
   bookingPaymentMethodLabel,
   bookingStatusLabel,
@@ -97,6 +98,7 @@ export function BookingCalendarDialog({
     draft?.durationMinutes ?? rooms[0]?.default_duration_minutes ?? 120,
   );
   const [notes, setNotes] = useState("");
+  const [microphoneCount, setMicrophoneCount] = useState(0);
   const [settlementMethod, setSettlementMethod] =
     useState<SettlementMethod | null>(null);
   const [sendEmail, setSendEmail] = useState(true);
@@ -126,6 +128,7 @@ export function BookingCalendarDialog({
             ),
         );
         setNotes(row.notes ?? "");
+        setMicrophoneCount(row.microphone_count ?? 0);
       })
       .catch((err) => {
         if (!cancelled) {
@@ -205,6 +208,8 @@ export function BookingCalendarDialog({
           memberId,
           startAt,
           endAt,
+          notes,
+          microphoneCount,
         });
         if (!result.success) {
           setError(result.errorMessage ?? "Creazione non riuscita.");
@@ -266,6 +271,7 @@ export function BookingCalendarDialog({
         startAt,
         endAt,
         notes,
+        microphoneCount,
         settlementMethod: priceChanged ? settlementMethod ?? undefined : undefined,
       });
 
@@ -517,19 +523,37 @@ export function BookingCalendarDialog({
               </div>
             </div>
 
-            {mode === "edit" ? (
+            <div className="flex flex-wrap items-end gap-3">
               <div>
                 <label className="block text-xs font-medium text-neutral-600">
-                  Note interne
+                  Microfoni
                 </label>
-                <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  rows={2}
-                  className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
-                />
+                <select
+                  value={microphoneCount}
+                  onChange={(e) => setMicrophoneCount(Number(e.target.value))}
+                  className="mt-1 rounded-lg border border-neutral-300 px-3 py-2 text-sm"
+                >
+                  {BOOKING_MICROPHONE_COUNTS.map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
               </div>
-            ) : null}
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-neutral-600">
+                Note
+              </label>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={2}
+                className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
+                placeholder="Visibili in Google Calendar"
+              />
+            </div>
 
             <p className="text-sm text-neutral-600">
               Totale stimato:{" "}

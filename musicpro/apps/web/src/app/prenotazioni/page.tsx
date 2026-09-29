@@ -12,6 +12,7 @@ import {
   bookingStatusLabel,
   calculateBookingPrice,
   proviDaSoloDiscountTotalEur,
+  BOOKING_MICROPHONE_COUNTS,
   createBooking,
   creditsForBookingDuration,
   durationOptionsForRoom,
@@ -84,6 +85,8 @@ export default function PrenotazioniPage() {
   const [error, setError] = useState<string | null>(null);
   const [proviSchedule, setProviSchedule] = useState<ProviScheduleEntry[]>([]);
   const [proviDaSolo, setProviDaSolo] = useState(false);
+  const [microphoneCount, setMicrophoneCount] = useState(0);
+  const [bookingNotes, setBookingNotes] = useState("");
   const [bandRequired, setBandRequired] = useState(false);
   const [bookingLocked, setBookingLocked] = useState(false);
   const [bookingLockedMessage, setBookingLockedMessage] = useState("");
@@ -447,6 +450,9 @@ export default function PrenotazioniPage() {
     setMessage(successMessage);
     setSelectedSlot(null);
     setSessionType("band");
+    setProviDaSolo(false);
+    setMicrophoneCount(0);
+    setBookingNotes("");
     if (bookableBands.length > 0) {
       setSelectedBandId(bookableBands[0].id);
     }
@@ -513,6 +519,8 @@ export default function PrenotazioniPage() {
           showBandFlow && sessionType === "band" && selectedBandId
             ? selectedBandId
             : undefined,
+        notes: bookingNotes,
+        microphoneCount,
       });
 
       if (!result.success) {
@@ -938,7 +946,8 @@ export default function PrenotazioniPage() {
                     <dd className="font-medium">{selectedBand.name}</dd>
                   </div>
                 )}
-                {(showBandFlow && sessionType === "provi_da_solo") && (
+                {((showBandFlow && sessionType === "provi_da_solo") ||
+                  (!showBandFlow && proviDaSolo)) && (
                   <div className="flex justify-between gap-4">
                     <dt className="text-neutral-500">PROVI DA SOLO</dt>
                     <dd className="font-medium">Sì</dd>
@@ -951,28 +960,63 @@ export default function PrenotazioniPage() {
                   </dd>
                 </div>
                 {slotAllowsProviDaSolo && !showBandFlow && (
-                  <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-3">
-                    <label className="flex cursor-pointer items-start gap-3 text-sm">
+                  <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2.5">
+                    <label className="flex cursor-pointer items-center gap-2.5 text-sm">
                       <input
                         type="checkbox"
                         checked={proviDaSolo}
                         onChange={(e) => setProviDaSolo(e.target.checked)}
-                        className="mt-0.5 rounded border-neutral-300"
+                        className="rounded border-neutral-300"
                       />
-                      <span>
-                        <span className="font-medium text-neutral-900">
-                          Provo da solo
-                        </span>
-                        {selectedRoom.provi_da_solo_discount_eur > 0 && (
-                          <span className="mt-0.5 block text-neutral-600">
-                            Sconto {formatEuro(selectedRoom.provi_da_solo_discount_eur)}
-                            /ora
+                      <span className="font-medium text-neutral-900">
+                        Provo da solo
+                        {selectedRoom.provi_da_solo_discount_eur > 0 ? (
+                          <span className="ml-1.5 font-normal text-neutral-600">
+                            (−{formatEuro(selectedRoom.provi_da_solo_discount_eur)}
+                            /ora)
                           </span>
-                        )}
+                        ) : null}
                       </span>
                     </label>
                   </div>
                 )}
+                <div className="flex flex-wrap items-center gap-2 border-t border-neutral-100 pt-3">
+                  <label
+                    htmlFor="microphoneCount"
+                    className="shrink-0 text-sm text-neutral-500"
+                  >
+                    Microfoni
+                  </label>
+                  <select
+                    id="microphoneCount"
+                    value={microphoneCount}
+                    onChange={(e) => setMicrophoneCount(Number(e.target.value))}
+                    className="rounded-lg border border-neutral-300 px-2.5 py-1.5 text-sm"
+                  >
+                    {BOOKING_MICROPHONE_COUNTS.map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="pt-1">
+                  <label
+                    htmlFor="bookingNotes"
+                    className="block text-sm text-neutral-500"
+                  >
+                    Note aggiuntive
+                  </label>
+                  <textarea
+                    id="bookingNotes"
+                    value={bookingNotes}
+                    onChange={(e) => setBookingNotes(e.target.value)}
+                    rows={2}
+                    maxLength={500}
+                    placeholder="Opzionale — visibili in calendario e in segreteria"
+                    className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
+                  />
+                </div>
                 {creditBalance != null && (
                   <div className="flex justify-between gap-4">
                     <dt className="text-neutral-500">Crediti</dt>

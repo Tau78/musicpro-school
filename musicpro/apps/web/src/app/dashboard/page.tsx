@@ -69,7 +69,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const showTeacherLessons = isDocente;
   const showOperational =
     showBookingsCalendar || showTeacherLessons || showStaffLessons;
-  const showAdminLink = canAccessAdmin(member.roles);
+  const useAdminShell = canAccessAdmin(member.roles);
 
   const [settings, rooms] = await Promise.all([
     getLessonSchoolSettings(supabase),
@@ -197,41 +197,8 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     );
   }
 
-  return (
-    <main className="min-h-screen bg-[var(--background)]">
-      <header className="border-b border-neutral-200 bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6">
-          <div>
-            <p className="text-sm font-medium text-[var(--brand-accent)]">
-              {APP_NAME}
-            </p>
-            <h1 className="text-xl font-semibold text-[var(--brand)]">
-              Dashboard
-            </h1>
-          </div>
-          <div className="flex items-center gap-2 sm:gap-3">
-            {isDocente ? (
-              <Link
-                href="/lezioni"
-                className="hidden text-sm text-neutral-600 hover:text-[var(--brand)] sm:inline"
-              >
-                Area lezioni
-              </Link>
-            ) : null}
-            {showAdminLink ? (
-              <Link
-                href="/admin"
-                className="hidden text-sm text-neutral-600 hover:text-[var(--brand)] sm:inline"
-              >
-                Admin
-              </Link>
-            ) : null}
-            <SettingsGearLink />
-          </div>
-        </div>
-      </header>
-
-      <div className="mx-auto max-w-7xl space-y-10 px-4 py-6 sm:px-6 sm:py-8">
+  const content = (
+    <div className={useAdminShell ? "space-y-8 sm:space-y-10" : "mx-auto max-w-7xl space-y-10 px-4 py-6 sm:px-6 sm:py-8"}>
         {paymentComplete ? (
           <BookingPaymentReturnNotice bookingId={paymentBookingId} />
         ) : null}
@@ -255,7 +222,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                     href="/admin/prenotazioni/calendario"
                     className="text-sm font-medium text-[var(--brand)] hover:underline"
                   >
-                    Apri in Admin
+                    Calendario completo
                   </Link>
                 ) : null}
               </div>
@@ -373,7 +340,39 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             ) : null}
           </>
         }
-      </div>
+    </div>
+  );
+
+  if (useAdminShell) {
+    return content;
+  }
+
+  return (
+    <main className="min-h-screen bg-[var(--background)]">
+      <header className="border-b border-neutral-200 bg-white">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6">
+          <div>
+            <p className="text-sm font-medium text-[var(--brand-accent)]">
+              {APP_NAME}
+            </p>
+            <h1 className="text-xl font-semibold text-[var(--brand)]">
+              Dashboard
+            </h1>
+          </div>
+          <div className="flex items-center gap-2 sm:gap-3">
+            {isDocente ? (
+              <Link
+                href="/lezioni"
+                className="hidden text-sm text-neutral-600 hover:text-[var(--brand)] sm:inline"
+              >
+                Area lezioni
+              </Link>
+            ) : null}
+            <SettingsGearLink />
+          </div>
+        </div>
+      </header>
+      {content}
     </main>
   );
 }

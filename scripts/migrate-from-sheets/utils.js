@@ -180,6 +180,26 @@ function parseSheetDate(value) {
     return Number.isNaN(d.getTime()) ? null : d;
   }
 
+  // GAS / Sheets: «05/05/2026 2.00.00» or «06/07/2026 19:21:26»
+  const dmyTime = str.match(
+    /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})\s+(\d{1,2})[.:](\d{2})(?:[.:](\d{2}))?$/,
+  );
+  if (dmyTime) {
+    const day = parseInt(dmyTime[1], 10);
+    const month = parseInt(dmyTime[2], 10) - 1;
+    let year = parseInt(dmyTime[3], 10);
+    if (year < 100) year += 2000;
+    const hour = parseInt(dmyTime[4], 10);
+    const minute = parseInt(dmyTime[5], 10);
+    const second = dmyTime[6] != null ? parseInt(dmyTime[6], 10) : 0;
+    const pad = (n) => String(n).padStart(2, '0');
+    const isoLocal = `${year}-${pad(month + 1)}-${pad(day)}T${pad(hour)}:${pad(minute)}:${pad(second)}`;
+    const rome = Date.parse(`${isoLocal}+02:00`);
+    if (!Number.isNaN(rome)) return new Date(rome);
+    const utc = Date.parse(`${isoLocal}Z`);
+    if (!Number.isNaN(utc)) return new Date(utc);
+  }
+
   return null;
 }
 
