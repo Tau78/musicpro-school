@@ -117,7 +117,10 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         {paymentComplete ? (
           <BookingPaymentReturnNotice bookingId={paymentBookingId} />
         ) : null}
-        <StaffDashboardHub {...hubProps} />
+        <StaffDashboardHub
+          {...hubProps}
+          firstName={member.firstName}
+        />
       </div>
     );
   }
@@ -158,7 +161,6 @@ async function loadStaffDashboardHub(
     changeRequests,
     todayLessons,
     arrearsRange,
-    teacherProfile,
   ] = await Promise.all([
     showBookingsCalendar
       ? countPendingApprovalBookings(supabase)
@@ -189,32 +191,27 @@ async function loadStaffDashboardHub(
           to: today,
         })
       : Promise.resolve([]),
-    showTeacherLessons && !showStaffLessons
-      ? getTeacherProfile(supabase, memberId)
-      : Promise.resolve(null),
   ]);
 
-  const todayArrears = showStaffLessons
+  const arrearsCount = showStaffLessons
     ? arrearsRange.filter(
         (lesson) =>
           !lesson.hasAttendance &&
           !lesson.id.startsWith("hold:") &&
           lesson.courseStatus !== "in_attesa",
-      )
-    : undefined;
+      ).length
+    : 0;
 
   return {
     showBookings: showBookingsCalendar,
     showStaffLessons,
     showTeacherLessons,
-    actorMemberId: memberId,
     pendingApprovalCount,
     unplacedCount: unplacedLessons.length,
     codaCount: pendingCourses.length + changeRequests.length,
-    upcomingBookings: upcomingBookingsRaw.slice(0, 5),
+    arrearsCount,
+    upcomingBookings: upcomingBookingsRaw.slice(0, 4),
     todayLessons,
-    todayArrears,
-    teacherCanReschedule: teacherProfile?.canReschedule ?? false,
   };
 }
 
