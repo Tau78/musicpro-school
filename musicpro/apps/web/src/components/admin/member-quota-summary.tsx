@@ -30,7 +30,7 @@ export function MemberQuotaSummary({
     () =>
       buildMemberQuotaHistory({
         quotas,
-        quotaSettings,
+        settings: quotaSettings,
         enrolledAt,
       }),
     [quotas, quotaSettings, enrolledAt],
