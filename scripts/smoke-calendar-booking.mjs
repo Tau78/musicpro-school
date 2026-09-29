@@ -63,6 +63,26 @@ async function checkMigration010() {
   ok("migration 010 — colonne google_calendar_* presenti");
 }
 
+async function checkMigration078() {
+  const { error } = await service
+    .from("bookings")
+    .select("microphone_count")
+    .limit(1);
+
+  if (error?.message?.includes("microphone_count")) {
+    fail(
+      "migration 078",
+      "colonna microphone_count assente — riesegui supabase/migrations/078_booking_notes_microphones.sql",
+    );
+    return;
+  }
+  if (error) {
+    fail("migration 078", error.message);
+    return;
+  }
+  ok("migration 078 — colonna microphone_count presente");
+}
+
 async function checkCalendarSetting() {
   const { data, error } = await service
     .from("app_settings")
@@ -252,6 +272,7 @@ async function checkOverlapQuery() {
 console.log("Smoke test — Google Calendar booking\n");
 
 await checkMigration010();
+await checkMigration078();
 await checkCalendarSetting();
 await checkRoomColors();
 await checkOverlapQuery();
