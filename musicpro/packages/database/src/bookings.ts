@@ -768,12 +768,24 @@ export function isSlotInProviSchedule(
   );
 }
 
-export async function listRooms(client: BookingsClient): Promise<Room[]> {
-  const { data, error } = await client
+/** Slug sala fittizia per account test — non occupa le sale reali. */
+export const SANDBOX_ROOM_SLUG = "sandbox-test";
+
+export async function listRooms(
+  client: BookingsClient,
+  options?: { includeSandbox?: boolean },
+): Promise<Room[]> {
+  let query = client
     .from("rooms")
     .select(ROOM_SELECT)
     .eq("is_active", true)
     .order("sort_order", { ascending: true });
+
+  if (!options?.includeSandbox) {
+    query = query.neq("slug", SANDBOX_ROOM_SLUG);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     throw new Error(`Impossibile caricare le sale: ${error.message}`);

@@ -76,6 +76,7 @@ export {
   listMyBookings,
   listBookableBands,
   listRooms,
+  SANDBOX_ROOM_SLUG,
   reviewBooking,
   romeLocalInputToUtcIso,
   settlementMethodLabel,
