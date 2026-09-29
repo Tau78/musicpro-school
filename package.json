@@ -26,7 +26,8 @@
     "setup:playwright-admin": "node scripts/setup-playwright-admin.mjs",
     "setup:playwright-e2e": "node scripts/setup-playwright-e2e.mjs",
     "vercel:cleanup": "bash scripts/vercel-cleanup.sh",
-    "import:ss-quotas": "node scripts/import-scuola-semplice-quotas.mjs"
+    "import:ss-quotas": "node scripts/import-scuola-semplice-quotas.mjs",
+    "smoke:credit-refund-cancel": "node scripts/smoke-credit-refund-cancel.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.8",
