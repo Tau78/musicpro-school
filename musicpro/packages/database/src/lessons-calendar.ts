@@ -614,6 +614,15 @@ async function resolveStudentCourseIds(
   return [...new Set((data ?? []).map((row) => row.course_id))];
 }
 
+/** True se il membro ha almeno un'iscrizione corso attiva (è allievo). */
+export async function hasActiveCourseEnrollment(
+  client: CalendarClient,
+  memberId: string,
+): Promise<boolean> {
+  const courseIds = await resolveStudentCourseIds(client, memberId);
+  return courseIds.length > 0;
+}
+
 async function listHoldCardsInRange(
   client: CalendarClient,
   opts: {
