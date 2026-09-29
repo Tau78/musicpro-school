@@ -147,16 +147,16 @@ export function MemberDetailDialog({
         aria-labelledby="member-detail-title"
         className={
           view === "quick"
-            ? "flex max-h-[100vh] w-full max-w-lg flex-col overflow-hidden bg-white shadow-xl sm:max-h-[90vh] sm:rounded-xl"
-            : "flex max-h-[100vh] w-full max-w-3xl flex-col overflow-hidden bg-white shadow-xl sm:max-h-[90vh] sm:rounded-xl"
+            ? "flex max-h-[100dvh] w-full max-w-lg flex-col overflow-hidden bg-white shadow-xl sm:max-h-[90vh] sm:rounded-xl"
+            : "flex max-h-[100dvh] w-full max-w-3xl flex-col overflow-hidden bg-white shadow-xl sm:max-h-[90vh] sm:rounded-xl"
         }
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-neutral-200 px-5 py-4">
+        <div className="flex shrink-0 items-start justify-between gap-2 border-b border-neutral-200 px-4 py-3 sm:px-5 sm:py-3.5">
           <div className="min-w-0">
             <h2
               id="member-detail-title"
-              className="truncate text-lg font-semibold text-[var(--brand)]"
+              className="truncate text-base font-semibold text-[var(--brand)] sm:text-lg"
             >
               {view === "quick" ? "Modifica associato" : title}
             </h2>
@@ -164,41 +164,49 @@ export function MemberDetailDialog({
               <button
                 type="button"
                 onClick={() => setView("quick")}
-                className="mt-1 text-xs font-medium text-neutral-500 hover:text-[var(--brand)] hover:underline"
+                className="mt-0.5 text-xs font-medium text-neutral-500 hover:text-[var(--brand)] hover:underline"
               >
                 Torna alla modifica rapida
               </button>
             ) : (
-              <p className="mt-1 truncate text-sm text-neutral-500">{title}</p>
+              <p className="mt-0.5 truncate text-xs text-neutral-500 sm:text-sm">
+                {title}
+              </p>
             )}
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="shrink-0 text-sm text-neutral-500 hover:text-neutral-800"
+            aria-label="Chiudi"
+            className="shrink-0 rounded-md px-2 py-1 text-lg leading-none text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800 sm:text-sm sm:font-normal"
           >
-            Chiudi
+            <span className="sm:hidden" aria-hidden>
+              ×
+            </span>
+            <span className="hidden sm:inline">Chiudi</span>
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-5">
-          {loading ? (
-            <p className="py-8 text-center text-sm text-neutral-500">
-              Caricamento dati…
-            </p>
-          ) : null}
+        {loading ? (
+          <p className="px-4 py-6 text-center text-sm text-neutral-500 sm:px-5">
+            Caricamento dati…
+          </p>
+        ) : null}
 
-          {error ? (
-            <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {error}
-            </p>
-          ) : null}
+        {error ? (
+          <p className="mx-4 mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 sm:mx-5">
+            {error}
+          </p>
+        ) : null}
 
-          {data && view === "quick" ? (
+        {data && view === "quick" ? (
+          <div className="flex min-h-0 flex-1 flex-col">
             <MemberQuickEdit
               key={`${data.member.id}-quick-${data.member.email}-${data.creditBalance.available}`}
               member={data.member}
               creditAvailable={data.creditBalance.available}
+              quotas={data.quotas}
+              quotaSettings={data.quotaSettings}
               canDelete={canDelete}
               onCancel={onClose}
               onDeleted={onClose}
@@ -215,9 +223,11 @@ export function MemberDetailDialog({
                 )
               }
             />
-          ) : null}
+          </div>
+        ) : null}
 
-          {data && view === "full" ? (
+        {data && view === "full" ? (
+          <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5 sm:py-5">
             <>
               {data.member.isEnrollmentDraft ? (
                 <p className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -271,8 +281,8 @@ export function MemberDetailDialog({
                 </Link>
               </p>
             </>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );
