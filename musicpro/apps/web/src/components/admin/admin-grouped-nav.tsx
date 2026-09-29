@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useOptimistic, useTransition } from "react";
+import { useEffect, useMemo, useOptimistic, useState, useTransition } from "react";
 
 export type AdminNavItem = {
   href: string;
@@ -19,11 +19,34 @@ function NavLink({
   item,
   active,
   onNavigate,
+  compact = false,
 }: {
   item: AdminNavItem;
   active: boolean;
   onNavigate: () => void;
+  compact?: boolean;
 }) {
+  if (compact) {
+    return (
+      <Link
+        href={item.href}
+        prefetch
+        scroll={false}
+        aria-current={active ? "page" : undefined}
+        onClick={() => {
+          if (!active) onNavigate();
+        }}
+        className={`inline-flex shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium touch-manipulation ${
+          active
+            ? "bg-[var(--brand)] text-white"
+            : "bg-neutral-100 text-neutral-700 hover:bg-neutral-200"
+        }`}
+      >
+        {item.label}
+      </Link>
+    );
+  }
+
   return (
     <Link
       href={item.href}
@@ -59,6 +82,15 @@ function NavLink({
   );
 }
 
+function resolveActiveGroupLabel(groups: readonly AdminNavGroup[]): string {
+  const activeItem = groups
+    .flatMap((group) => group.items.map((item) => ({ group, item })))
+    .filter(({ item }) => item.active)
+    .sort((a, b) => b.item.href.length - a.item.href.length)[0];
+
+  return activeItem?.group.label ?? groups[0]?.label ?? "";
+}
+
 export function AdminGroupedNav({
   groups,
   label,
@@ -76,42 +108,104 @@ export function AdminGroupedNav({
       .sort((a, b) => b.href.length - a.href.length)[0]?.href ?? null;
   const [optimisticHref, setOptimisticHref] = useOptimistic(activeHref);
 
+  const activeGroupLabel = useMemo(
+    () => resolveActiveGroupLabel(groups),
+    [groups],
+  );
+  const [mobileGroup, setMobileGroup] = useState(activeGroupLabel);
+
+  useEffect(() => {
+    setMobileGroup(activeGroupLabel);
+  }, [activeGroupLabel]);
+
+  const mobileItems =
+    groups.find((group) => group.label === mobileGroup)?.items ?? [];
+
   return (
-    <nav
-      className="md:w-56 md:shrink-0"
-      aria-label={label}
-    >
-      {title ? (
-        <p className="mb-4 hidden px-3 text-base font-semibold text-neutral-900 md:block">
-          {title}
-        </p>
-      ) : null}
-      <div className="flex flex-col gap-5">
-        {groups.map((group) => (
-          <div key={group.label}>
-            <p className="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
-              {group.label}
-            </p>
-            <ul className="flex flex-col gap-0.5">
-              {group.items.map((item) => {
-                const active = optimisticHref
-                  ? item.href === optimisticHref
-                  : item.active;
-                return (
-                  <li key={item.href}>
-                    <NavLink
-                      item={item}
-                      active={active}
-                      onNavigate={() =>
-                        startTransition(() => setOptimisticHref(item.href))
-                      }
-                    />
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ))}
+    <nav className="md:w-56 md:shrink-0" aria-label={label}>
+      <div className="space-y-2 md:hidden">
+        <div
+          className="flex gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          role="tablist"
+          aria-label={`Sezioni ${label}`}
+        >
+          {groups.map((group) => {
+            const selected = group.label === mobileGroup;
+            return (
+              <button
+                key={group.label}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                onClick={() => setMobileGroup(group.label)}
+                className={`shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold touch-manipulation ${
+                  selected
+                    ? "bg-[var(--brand)] text-white"
+                    : "bg-neutral-100 text-neutral-600"
+                }`}
+              >
+                {group.label}
+              </button>
+            );
+          })}
+        </div>
+        <div
+          className="flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          role="tablist"
+          aria-label={`Voci ${mobileGroup}`}
+        >
+          {mobileItems.map((item) => {
+            const active = optimisticHref
+              ? item.href === optimisticHref
+              : item.active;
+            return (
+              <NavLink
+                key={item.href}
+                item={item}
+                active={active}
+                compact
+                onNavigate={() =>
+                  startTransition(() => setOptimisticHref(item.href))
+                }
+              />
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="hidden md:block">
+        {title ? (
+          <p className="mb-4 px-3 text-base font-semibold text-neutral-900">
+            {title}
+          </p>
+        ) : null}
+        <div className="flex flex-col gap-5">
+          {groups.map((group) => (
+            <div key={group.label}>
+              <p className="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
+                {group.label}
+              </p>
+              <ul className="flex flex-col gap-0.5">
+                {group.items.map((item) => {
+                  const active = optimisticHref
+                    ? item.href === optimisticHref
+                    : item.active;
+                  return (
+                    <li key={item.href}>
+                      <NavLink
+                        item={item}
+                        active={active}
+                        onNavigate={() =>
+                          startTransition(() => setOptimisticHref(item.href))
+                        }
+                      />
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+        </div>
       </div>
     </nav>
   );

@@ -203,6 +203,7 @@ export interface Booking {
   member_snapshot?: BookingMemberSnapshotEntry[] | null;
   /** Microfoni richiesti (0–4). */
   microphone_count?: number;
+  google_calendar_event_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -401,7 +402,7 @@ const ROOM_SELECT =
   "id, name, slug, description, capacity, is_active, sort_order, hourly_rate_eur, slot_granularity_minutes, default_duration_minutes, min_duration_minutes, max_duration_minutes, open_hour, close_hour, open_minute, close_minute, google_calendar_color_id, provi_da_solo_enabled, provi_da_solo_discount_eur";
 
 const BOOKING_SELECT =
-  "id, room_id, member_id, start_at, end_at, status, total_price_eur, duration_minutes, payment_status, payment_method, credits_held, credits_used, provi_da_solo, band_id, member_snapshot, microphone_count, payment_link_url, payment_link_id, stripe_payment_intent_id, paid_at, title, notes, cancelled_at, cancelled_by, created_at, updated_at";
+  "id, room_id, member_id, start_at, end_at, status, total_price_eur, duration_minutes, payment_status, payment_method, credits_held, credits_used, provi_da_solo, band_id, member_snapshot, microphone_count, payment_link_url, payment_link_id, stripe_payment_intent_id, paid_at, title, notes, cancelled_at, cancelled_by, google_calendar_event_id, created_at, updated_at";
 
 export function bookingNeedsPayment(booking: Pick<Booking, "status" | "payment_status">): boolean {
   return (

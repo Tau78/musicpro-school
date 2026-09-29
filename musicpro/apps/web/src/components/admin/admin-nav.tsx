@@ -165,8 +165,8 @@ export function AdminNav({
         </div>
       </nav>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-neutral-200 bg-white pb-[env(safe-area-inset-bottom)] md:hidden">
-        <div className="flex">
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-neutral-200 bg-white md:hidden">
+        <div className="flex pb-[max(0.625rem,env(safe-area-inset-bottom,0.625rem))] pt-0.5">
           {mobileBarItems.map((item) => {
             const active = isNavItemActive(
               item.key,

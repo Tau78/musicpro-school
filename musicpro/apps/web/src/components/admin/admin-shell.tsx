@@ -18,7 +18,7 @@ export function AdminShell({
   wide?: boolean;
 }) {
   return (
-    <div className="min-h-screen bg-[var(--background)] pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0">
+    <div className="min-h-screen bg-[var(--background)] pb-[calc(3.75rem+max(0.625rem,env(safe-area-inset-bottom,0.625rem)))] md:pb-0">
       <header className="bg-[var(--brand)] text-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 sm:py-4">
           <div className="min-w-0">
