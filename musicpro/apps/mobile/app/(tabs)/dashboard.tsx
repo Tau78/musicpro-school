@@ -19,6 +19,7 @@ import {
   cancelLessonAsSchool,
   getRomeMinutesFromMidnight,
   getTeacherProfile,
+  hasActiveCourseEnrollment,
   listBookingsInRange,
   listLessonsInRange,
   listMyBookings,
@@ -142,6 +143,7 @@ export default function DashboardScreen() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [nextLesson, setNextLesson] = useState<CalendarLesson | null>(null);
+  const [isAllievo, setIsAllievo] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [createDate, setCreateDate] = useState<string | undefined>();
   const [createOra, setCreateOra] = useState<string | undefined>();
@@ -169,8 +171,7 @@ export default function DashboardScreen() {
         const salaTo = addRomeDays(salaWeekStart, 7);
         const lezioniTo = addRomeDays(lezioniWeekStart, 7);
 
-        const [bookingRows, lessonRows, profile, studentLessons] =
-          await Promise.all([
+        const [bookingRows, lessonRows, profile, allievo] = await Promise.all([
           manageSala
             ? listBookingsInRange(supabase, {
                 from: salaWeekStart,
@@ -194,16 +195,22 @@ export default function DashboardScreen() {
             ? getTeacherProfile(supabase, member.id)
             : Promise.resolve(null),
           isSimpleAssociate
-            ? listLessonsInRange(supabase, {
+            ? hasActiveCourseEnrollment(supabase, member.id)
+            : Promise.resolve(false),
+        ]);
+
+        const studentLessons =
+          isSimpleAssociate && allievo
+            ? await listLessonsInRange(supabase, {
                 from: today,
                 to: addRomeDays(today, 90),
                 studentMemberId: member.id,
               })
-            : Promise.resolve([] as CalendarLesson[]),
-        ]);
+            : ([] as CalendarLesson[]);
 
         setBookings(bookingRows);
         setLessons(lessonRows);
+        setIsAllievo(allievo);
         setNextLesson(studentLessons[0] ?? null);
         setCanReschedule(Boolean(profile?.canReschedule) || isStaff);
         setSelectedBooking((current) =>
@@ -478,48 +485,70 @@ export default function DashboardScreen() {
       {isSimpleAssociate ? (
         <View style={styles.homeSection}>
           <Text style={styles.homeGreeting}>
-            Ciao, {member?.firstName ?? "associato"} 👋
+            Ciao, {member?.firstName ?? "associato"}
           </Text>
           <Text style={styles.homeSubtitle}>
             Benvenuto nella tua area personale
           </Text>
 
-          <View style={styles.heroCard}>
-            <Text style={styles.heroEyebrow}>PROSSIMA LEZIONE</Text>
-            {nextLesson?.startsAt ? (
-              <>
-                <Text style={styles.heroTitle}>{nextLesson.subjectName}</Text>
-                <Text style={styles.heroMeta}>
-                  {formatNextLessonWhen(nextLesson.startsAt)} · Docente{" "}
-                  {`${nextLesson.titularFirstName} ${nextLesson.titularLastName}`.trim()}
-                </Text>
-              </>
-            ) : (
-              <>
-                <Text style={styles.heroTitle}>Nessuna lezione in programma</Text>
-                <Text style={styles.heroMeta}>
-                  Quando la segreteria fissa un corso, lo vedrai qui.
-                </Text>
-              </>
-            )}
+          {isAllievo ? (
+            <View style={styles.homeBlock}>
+              <Text style={styles.sectionEyebrow}>LEZIONI</Text>
+              <View style={styles.heroCard}>
+                <Text style={styles.heroEyebrow}>PROSSIMA LEZIONE</Text>
+                {nextLesson?.startsAt ? (
+                  <>
+                    <Text style={styles.heroTitle}>{nextLesson.subjectName}</Text>
+                    <Text style={styles.heroMeta}>
+                      {formatNextLessonWhen(nextLesson.startsAt)} · Docente{" "}
+                      {`${nextLesson.titularFirstName} ${nextLesson.titularLastName}`.trim()}
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.heroTitle}>
+                      Nessuna lezione in programma
+                    </Text>
+                    <Text style={styles.heroMeta}>
+                      Quando la segreteria fissa un corso, lo vedrai qui.
+                    </Text>
+                  </>
+                )}
+              </View>
+            </View>
+          ) : null}
+
+          <View style={styles.homeBlock}>
+            <Text style={styles.sectionEyebrow}>SALA PROVE</Text>
+            <View style={styles.actionRow}>
+              <Pressable
+                style={styles.actionCard}
+                onPress={() => router.push("/(tabs)/prenotazioni")}
+              >
+                <Text style={styles.actionEmoji}>📅</Text>
+                <Text style={styles.actionTitle}>Prenota sala</Text>
+                <Text style={styles.actionHint}>Scegli sala e orario</Text>
+              </Pressable>
+              <Pressable
+                style={styles.actionCard}
+                onPress={() => router.push("/mie-prenotazioni")}
+              >
+                <Text style={styles.actionEmoji}>🗓️</Text>
+                <Text style={styles.actionTitle}>Le mie prenotazioni</Text>
+                <Text style={styles.actionHint}>Prossime prove</Text>
+              </Pressable>
+            </View>
           </View>
 
-          <View style={styles.actionRow}>
+          <View style={styles.homeBlock}>
+            <Text style={styles.sectionEyebrow}>ANAGRAFICA</Text>
             <Pressable
-              style={styles.actionCard}
-              onPress={() => router.push("/(tabs)/prenotazioni")}
-            >
-              <Text style={styles.actionEmoji}>📅</Text>
-              <Text style={styles.actionTitle}>Prenota sala</Text>
-              <Text style={styles.actionHint}>Scegli sala e orario</Text>
-            </Pressable>
-            <Pressable
-              style={styles.actionCard}
+              style={[styles.actionCard, styles.actionCardFull]}
               onPress={() => router.push("/impostazioni")}
             >
               <Text style={styles.actionEmoji}>📋</Text>
               <Text style={styles.actionTitle}>La mia scheda</Text>
-              <Text style={styles.actionHint}>Profilo e crediti</Text>
+              <Text style={styles.actionHint}>Profilo, band e crediti</Text>
             </Pressable>
           </View>
 
@@ -729,7 +758,14 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "transparent" },
   content: { padding: 20, paddingBottom: 48 },
-  homeSection: { gap: 16 },
+  homeSection: { gap: 20 },
+  homeBlock: { gap: 10 },
+  sectionEyebrow: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+    color: theme.accent,
+  },
   homeGreeting: {
     fontSize: 28,
     fontWeight: "600",
@@ -741,7 +777,6 @@ const styles = StyleSheet.create({
     color: "#666",
   },
   heroCard: {
-    marginTop: 8,
     padding: 18,
     borderRadius: 20,
     borderWidth: 1,
@@ -777,6 +812,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.glassBorder,
     backgroundColor: theme.glass,
+  },
+  actionCardFull: {
+    width: "100%",
   },
   actionEmoji: { fontSize: 22 },
   actionTitle: {

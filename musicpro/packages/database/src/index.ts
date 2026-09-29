@@ -667,6 +667,7 @@ export {
   listLessonsOnDate,
   moveLesson,
   requestLessonMove,
+  hasActiveCourseEnrollment,
 } from "./lessons-calendar";
 export type {
   CalendarLesson,

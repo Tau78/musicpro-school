@@ -7,6 +7,7 @@ import {
   getCurrentMemberWithRoles,
   getLessonSchoolSettings,
   getTeacherProfile,
+  hasActiveCourseEnrollment,
   listAdminBookings,
   listBookingsInRange,
   listExternalCalendarEventsInRange,
@@ -75,12 +76,16 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const useAdminShell = canAccessAdmin(member.roles);
 
   if (!showOperational) {
-    const associateLessons = await listLessonsInRange(supabase, {
-      from: today,
-      to: addDaysIso(today, 90),
-      studentMemberId: member.id,
-    });
-    const nextAssociateLesson = associateLessons[0] ?? null;
+    const isAllievo = await hasActiveCourseEnrollment(supabase, member.id);
+    const nextAssociateLesson = isAllievo
+      ? (
+          await listLessonsInRange(supabase, {
+            from: today,
+            to: addDaysIso(today, 90),
+            studentMemberId: member.id,
+          })
+        )[0] ?? null
+      : null;
 
     return (
       <AssociatePageShell actions={<SettingsGearLink />}>
@@ -91,6 +96,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         ) : null}
         <MemberHome
           firstName={member.firstName}
+          showLessons={isAllievo}
           nextLesson={
             nextAssociateLesson?.startsAt
               ? {

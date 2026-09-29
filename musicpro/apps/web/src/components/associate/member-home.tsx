@@ -10,98 +10,143 @@ type NextLesson = {
 
 type MemberHomeProps = {
   firstName: string;
+  /** Allievo = iscrizione corso attiva. Se false, niente blocco lezioni. */
+  showLessons: boolean;
   nextLesson: NextLesson | null;
 };
 
-export function MemberHome({ firstName, nextLesson }: MemberHomeProps) {
+function SectionLabel({ children }: { children: string }) {
   return (
-    <div className="space-y-6">
+    <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--brand-accent)]">
+      {children}
+    </h2>
+  );
+}
+
+function ActionCard({
+  href,
+  emoji,
+  emojiBg,
+  title,
+  description,
+}: {
+  href: string;
+  emoji: string;
+  emojiBg: string;
+  title: string;
+  description: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="glass-card group block p-5 transition hover:border-[var(--brand)]/20"
+    >
+      <div className="flex items-start gap-3">
+        <span
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg ${emojiBg}`}
+        >
+          {emoji}
+        </span>
+        <div>
+          <p className="font-medium text-[var(--brand)] group-hover:underline">
+            {title}
+          </p>
+          <p className="mt-1 text-sm text-neutral-600">{description}</p>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+export function MemberHome({
+  firstName,
+  showLessons,
+  nextLesson,
+}: MemberHomeProps) {
+  return (
+    <div className="space-y-8">
       <div>
         <h1 className="font-display text-3xl font-semibold tracking-tight text-[var(--brand)] sm:text-4xl">
           Ciao, {firstName}
-          <span aria-hidden className="ml-1">
-            👋
-          </span>
         </h1>
         <p className="mt-1 text-sm text-neutral-600">
           Benvenuto nella tua area personale
         </p>
       </div>
 
-      <section className="glass-card overflow-hidden p-0">
-        <div className="border-b border-white/60 bg-gradient-to-br from-[var(--brand)]/[0.06] to-transparent px-5 py-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-[var(--brand-accent)]">
-            Prossima lezione
-          </p>
-        </div>
-        <div className="flex items-start justify-between gap-4 px-5 py-5">
-          <div className="min-w-0 flex-1">
-            {nextLesson ? (
-              <>
-                <p className="font-display text-xl font-semibold text-[var(--brand)]">
-                  {nextLesson.subjectName}
-                </p>
-                <p className="mt-1 text-sm text-neutral-600">
-                  {formatLessonWhen(nextLesson.startsAt)} · Docente{" "}
-                  {nextLesson.teacherLabel}
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="font-display text-xl font-semibold text-[var(--brand)]">
-                  Nessuna lezione in programma
-                </p>
-                <p className="mt-1 text-sm text-neutral-600">
-                  Quando la segreteria fissa un corso, lo vedrai qui.
-                </p>
-              </>
-            )}
+      {showLessons ? (
+        <section className="space-y-3">
+          <SectionLabel>Lezioni</SectionLabel>
+          <div className="glass-card overflow-hidden p-0">
+            <div className="border-b border-white/60 bg-gradient-to-br from-[var(--brand)]/[0.06] to-transparent px-5 py-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--brand-accent)]">
+                Prossima lezione
+              </p>
+            </div>
+            <div className="flex items-start justify-between gap-4 px-5 py-5">
+              <div className="min-w-0 flex-1">
+                {nextLesson ? (
+                  <>
+                    <p className="font-display text-xl font-semibold text-[var(--brand)]">
+                      {nextLesson.subjectName}
+                    </p>
+                    <p className="mt-1 text-sm text-neutral-600">
+                      {formatLessonWhen(nextLesson.startsAt)} · Docente{" "}
+                      {nextLesson.teacherLabel}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-display text-xl font-semibold text-[var(--brand)]">
+                      Nessuna lezione in programma
+                    </p>
+                    <p className="mt-1 text-sm text-neutral-600">
+                      Quando la segreteria fissa un corso, lo vedrai qui.
+                    </p>
+                  </>
+                )}
+              </div>
+              <div
+                aria-hidden
+                className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[var(--brand-accent)]/15 text-2xl"
+              >
+                🎸
+              </div>
+            </div>
           </div>
-          <div
-            aria-hidden
-            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[var(--brand-accent)]/15 text-2xl"
-          >
-            🎸
-          </div>
+        </section>
+      ) : null}
+
+      <section className="space-y-3">
+        <SectionLabel>Sala prove</SectionLabel>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <ActionCard
+            href="/prenotazioni"
+            emoji="📅"
+            emojiBg="bg-[#38764B]/15"
+            title="Prenota sala"
+            description="Scegli sala, orario e durata"
+          />
+          <ActionCard
+            href="/prenotazioni/mie"
+            emoji="🗓️"
+            emojiBg="bg-[#38764B]/15"
+            title="Le mie prenotazioni"
+            description="Prossime prove e storico"
+          />
         </div>
       </section>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Link href="/prenotazioni" className="glass-card group block p-5 transition hover:border-[var(--brand)]/20">
-          <div className="flex items-start gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#38764B]/15 text-lg">
-              📅
-            </span>
-            <div>
-              <p className="font-medium text-[var(--brand)] group-hover:underline">
-                Prenota sala
-              </p>
-              <p className="mt-1 text-sm text-neutral-600">
-                Scegli sala, orario e durata
-              </p>
-            </div>
-          </div>
-        </Link>
-
-        <Link
+      <section className="space-y-3">
+        <SectionLabel>Anagrafica</SectionLabel>
+        <ActionCard
           href="/dashboard/impostazioni"
-          className="glass-card group block p-5 transition hover:border-[var(--brand)]/20"
-        >
-          <div className="flex items-start gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--brand-accent)]/15 text-lg">
-              📋
-            </span>
-            <div>
-              <p className="font-medium text-[var(--brand)] group-hover:underline">
-                La mia scheda
-              </p>
-              <p className="mt-1 text-sm text-neutral-600">
-                Profilo, band e crediti
-              </p>
-            </div>
-          </div>
-        </Link>
-      </div>
+          emoji="📋"
+          emojiBg="bg-[var(--brand-accent)]/15"
+          title="La mia scheda"
+          description="Profilo, band e crediti"
+        />
+      </section>
 
       <p className="text-center text-sm italic text-neutral-500">
         La tua passione, il nostro palcoscenico
