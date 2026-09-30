@@ -65,6 +65,11 @@ type WizardStepKey =
   | "slot"
   | "confirm";
 
+type AlternativeRoomOption = {
+  room: Room;
+  slot: TimeSlot;
+};
+
 export default function PrenotazioniPage() {
   const supabase = useMemo(() => createClient(), []);
   const loadRequestId = useRef(0);
@@ -79,6 +84,9 @@ export default function PrenotazioniPage() {
   const [selectedDate, setSelectedDate] = useState(todayInRome());
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   const [slots, setSlots] = useState<TimeSlot[]>([]);
+  const [alternativeRoomsByStartAt, setAlternativeRoomsByStartAt] = useState<
+    Record<string, AlternativeRoomOption[]>
+  >({});
   const [memberId, setMemberId] = useState<string | null>(null);
   const [hasSession, setHasSession] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -193,9 +201,14 @@ export default function PrenotazioniPage() {
     [bookableBands, selectedBandId],
   );
 
-  const bookableSlots = useMemo(
-    () => slots.filter((slot) => slot.available),
-    [slots],
+  const visibleSlots = useMemo(
+    () =>
+      slots.filter(
+        (slot) =>
+          slot.available ||
+          (alternativeRoomsByStartAt[slot.startAt]?.length ?? 0) > 0,
+      ),
+    [alternativeRoomsByStartAt, slots],
   );
 
   const loadAvailability = useCallback(async () => {
@@ -210,6 +223,7 @@ export default function PrenotazioniPage() {
     }
 
     const requestId = ++loadRequestId.current;
+    setAlternativeRoomsByStartAt({});
     const cached = peekRoomAvailabilityCache(
       selectedRoomId,
       selectedDate,
@@ -228,6 +242,54 @@ export default function PrenotazioniPage() {
       );
       if (requestId !== loadRequestId.current) return;
       setSlots(availability.slots);
+
+      const alternativeRooms = rooms.filter(
+        (room) =>
+          room.id !== selectedRoomId &&
+          durationOptionsForRoom(room).includes(durationMinutes),
+      );
+      const alternativeAvailability = await Promise.all(
+        alternativeRooms.map(async (room) => {
+          try {
+            const result = await getRoomAvailability(
+              supabase,
+              room.id,
+              selectedDate,
+              durationMinutes,
+              { prefetchNeighbors: false },
+            );
+            return { room, slots: result.slots };
+          } catch {
+            return null;
+          }
+        }),
+      );
+      if (requestId !== loadRequestId.current) return;
+
+      const suggestions: Record<string, AlternativeRoomOption[]> = {};
+      for (const slot of availability.slots) {
+        if (
+          slot.available ||
+          !slot.bookingId ||
+          slot.leadTimeCategory === "too_late"
+        ) {
+          continue;
+        }
+        for (const candidate of alternativeAvailability) {
+          const alternativeSlot = candidate?.slots.find(
+            (item) =>
+              item.available &&
+              item.startAt === slot.startAt &&
+              item.endAt === slot.endAt,
+          );
+          if (!candidate || !alternativeSlot) continue;
+          (suggestions[slot.startAt] ??= []).push({
+            room: candidate.room,
+            slot: alternativeSlot,
+          });
+        }
+      }
+      setAlternativeRoomsByStartAt(suggestions);
     } catch (err) {
       if (requestId !== loadRequestId.current) return;
       if (cached) return;
@@ -238,7 +300,14 @@ export default function PrenotazioniPage() {
         ),
       );
     }
-  }, [currentStepKey, durationMinutes, selectedDate, selectedRoomId, supabase]);
+  }, [
+    currentStepKey,
+    durationMinutes,
+    rooms,
+    selectedDate,
+    selectedRoomId,
+    supabase,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -318,14 +387,6 @@ export default function PrenotazioniPage() {
       cancelled = true;
     };
   }, [supabase]);
-
-  useEffect(() => {
-    if (selectedRoom) {
-      setDurationMinutes(selectedRoom.default_duration_minutes);
-      setSelectedSlot(null);
-      setProviDaSolo(false);
-    }
-  }, [selectedRoomId, selectedRoom]);
 
   useEffect(() => {
     if (!selectedRoomId) {
@@ -799,6 +860,8 @@ export default function PrenotazioniPage() {
               selectedRoomId={selectedRoomId}
               onSelectRoom={(roomId) => {
                 setSelectedRoomId(roomId);
+                setSelectedSlot(null);
+                setProviDaSolo(false);
                 const room = rooms.find((r) => r.id === roomId);
                 if (room) setDurationMinutes(room.default_duration_minutes);
               }}
@@ -897,37 +960,73 @@ export default function PrenotazioniPage() {
             </div>
 
             <div>
-              {bookableSlots.length === 0 ? (
+              {visibleSlots.length === 0 ? (
                 <p className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 px-3 py-4 text-center text-xs text-neutral-600 sm:text-sm">
                   Nessuno slot per questa data e durata. Cambia data, durata o sala.
                 </p>
               ) : (
                 <ul className="grid gap-1.5 sm:grid-cols-2 sm:gap-2">
-                  {bookableSlots.map((slot) => (
-                    <li key={slot.startAt}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedSlot(slot);
-                          goToStepIndex(stepIndex + 1);
-                        }}
-                        className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-left text-sm transition hover:border-[var(--brand)] hover:bg-neutral-50"
-                      >
-                        <span className="font-medium">{slot.label}</span>
-                        <span className="mt-0.5 block text-xs text-neutral-600">
-                          {slot.leadTimeCategory === "approval" ? (
-                            <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-900">
-                              Richiede approvazione
+                  {visibleSlots.map((slot) => {
+                    const alternatives =
+                      alternativeRoomsByStartAt[slot.startAt] ?? [];
+                    return (
+                      <li key={slot.startAt}>
+                        {slot.available ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedSlot(slot);
+                              goToStepIndex(stepIndex + 1);
+                            }}
+                            className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-left text-sm transition hover:border-[var(--brand)] hover:bg-neutral-50"
+                          >
+                            <span className="font-medium">{slot.label}</span>
+                            <span className="mt-0.5 block text-xs text-neutral-600">
+                              {slot.leadTimeCategory === "approval" ? (
+                                <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-900">
+                                  Richiede approvazione
+                                </span>
+                              ) : slot.priceEur != null ? (
+                                formatEuro(slot.priceEur)
+                              ) : (
+                                "Disponibile"
+                              )}
                             </span>
-                          ) : slot.priceEur != null ? (
-                            formatEuro(slot.priceEur)
-                          ) : (
-                            "Disponibile"
-                          )}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
+                          </button>
+                        ) : (
+                          <div className="rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2 text-sm">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-medium">{slot.label}</span>
+                              <span className="text-xs text-amber-800">
+                                {selectedRoom?.name ?? "Sala"} occupata
+                              </span>
+                            </div>
+                            <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-neutral-700">
+                              <span>Se vuoi, a quell&apos;ora è libera</span>
+                              {alternatives.map((alternative) => (
+                                <button
+                                  key={alternative.room.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedRoomId(alternative.room.id);
+                                    setSelectedSlot(alternative.slot);
+                                    setProviDaSolo(false);
+                                    goToStepIndex(stepIndex + 1);
+                                  }}
+                                  className="rounded-full border border-[var(--brand)]/25 bg-white px-2 py-1 font-semibold text-[var(--brand)] hover:bg-[var(--brand)]/5"
+                                >
+                                  {alternative.room.name.replace(
+                                    /^Sala\s+/i,
+                                    "",
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </div>
