@@ -10,6 +10,7 @@ import {
   QUOTA_ASSOCIATIVA_CENTESIMI,
 } from "@/lib/iscrizione/stripe-payment-link";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
 export const dynamic = "force-dynamic";
 
@@ -56,7 +57,11 @@ export async function POST(request: NextRequest) {
         : authPublicOrigin(process.env);
     const returnBase = `${origin.replace(/\/$/, "")}/onboarding/quota`;
 
-    const { error: enrollmentError } = await supabase.from("enrollments").insert({
+    // L'associato è già stato autenticato e collegato al proprio member sopra.
+    // Le scritture su enrollments sono server-side: la RLS permette la gestione
+    // solo allo staff, quindi il client di sessione causerebbe un 42501.
+    const service = createServiceRoleClient();
+    const { error: enrollmentError } = await service.from("enrollments").insert({
       id: idIscrizione,
       legacy_enrollment_id: idIscrizione,
       member_id: member.id,
@@ -93,7 +98,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (!linkRes.success || !linkRes.url) {
-      await supabase
+      await service
         .from("enrollments")
         .update({ payment_status: "ERRORE" })
         .eq("id", idIscrizione);
@@ -107,7 +112,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await supabase
+    await service
       .from("enrollments")
       .update({
         payment_status: "INVIATO",
