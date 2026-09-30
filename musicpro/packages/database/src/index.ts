@@ -275,7 +275,7 @@ export type {
 export {
   adminAdjustMemberCredits,
   createCreditPackage,
-  creditsForBookingDuration,
+  creditsForBookingPrice,
   debitBookingCredits,
   deleteCreditPackage,
   getCreditPackageById,
