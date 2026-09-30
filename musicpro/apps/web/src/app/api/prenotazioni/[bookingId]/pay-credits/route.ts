@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import {
-  creditsForBookingDuration,
+  creditsForBookingPrice,
   debitBookingCredits,
   holdBookingCredits,
 } from "@musicpro/database";
@@ -11,7 +11,7 @@ import { createClient } from "@/lib/supabase/server";
 export const dynamic = "force-dynamic";
 
 export async function POST(
-  request: NextRequest,
+  _request: NextRequest,
   context: { params: Promise<{ bookingId: string }> },
 ) {
   try {
@@ -28,10 +28,6 @@ export async function POST(
       );
     }
 
-    const body = (await request.json().catch(() => ({}))) as {
-      credits?: number;
-    };
-
     const { data: member, error: memberError } = await supabase
       .from("members")
       .select("id")
@@ -47,7 +43,7 @@ export async function POST(
 
     const { data: booking, error: bookingError } = await supabase
       .from("bookings")
-      .select("id, member_id, status, duration_minutes")
+      .select("id, member_id, status, total_price_eur")
       .eq("id", bookingId)
       .maybeSingle();
 
@@ -65,9 +61,11 @@ export async function POST(
       );
     }
 
-    const credits =
-      body.credits ??
-      creditsForBookingDuration(booking.duration_minutes ?? 60);
+    // Il costo è sempre ricalcolato dal prezzo salvato server-side:
+    // il client non può scegliere quanti crediti addebitare.
+    const credits = creditsForBookingPrice(
+      Number(booking.total_price_eur ?? 0),
+    );
 
     if (credits <= 0) {
       return NextResponse.json(

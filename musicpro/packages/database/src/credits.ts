@@ -158,9 +158,10 @@ interface BookingCreditsRpcResponse {
   payment_status?: string;
 }
 
-/** 1 credito = 1 ora di prenotazione (arrotondamento per eccesso). */
-export function creditsForBookingDuration(durationMinutes: number): number {
-  return Math.ceil(durationMinutes / 60);
+/** 1 credito = 1 euro del prezzo finale della prenotazione. */
+export function creditsForBookingPrice(priceEur: number): number {
+  if (!Number.isFinite(priceEur) || priceEur <= 0) return 0;
+  return Math.round(priceEur);
 }
 
 function mapCreditPackage(row: CreditPackageRow): CreditPackage {

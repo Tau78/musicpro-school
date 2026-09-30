@@ -415,7 +415,6 @@ export function bookingNeedsPayment(booking: Pick<Booking, "status" | "payment_s
 /** Richiede POST /api/prenotazioni/{id}/pay-credits (solo web). */
 export async function requestBookingCreditsPayment(
   bookingId: string,
-  credits: number,
 ): Promise<{
   success: boolean;
   action?: "hold" | "debit";
@@ -427,8 +426,6 @@ export async function requestBookingCreditsPayment(
     `/api/prenotazioni/${encodeURIComponent(bookingId)}/pay-credits`,
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ credits }),
     },
   );
 

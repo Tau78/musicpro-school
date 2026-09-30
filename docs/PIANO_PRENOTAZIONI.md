@@ -575,8 +575,8 @@ Per ogni pacchetto l'admin definisce (proposta):
 
 ### Equivalenza crediti (confermato)
 
-- **1 credito = 1 ora di sala** (rapporto **1:1** con la durata prenotata).
-- Il costo in crediti segue la tariffa oraria: es. Rossa 2h = **2 crediti** (tariffa 10€/h → 20€ equivalente se pagato in crediti al valore nominale).
+- **1 credito = 1 €** (rapporto **1:1** con il prezzo finale della prenotazione).
+- Il costo in crediti segue gli euro: es. Rossa 2h a 10 €/h = **20 crediti**.
 - I crediti **non scadono**.
 
 ### Uso crediti in prenotazione
@@ -1530,7 +1530,7 @@ flowchart LR
 - ~~BAND obbligatoria~~ → sì, **eccetto PROVI DA SOLO**.
 - ~~Modifica/annullamento admin~~ → calendario cliccabile, edit completo, soglie configurabili.
 - ~~Google Calendar~~ → publish + import calendari esterni scuola.
-- ~~Equivalenza crediti~~ → **1:1** con ore; non scadono.
+- ~~Equivalenza crediti~~ → **1 credito = 1 €**; non scadono.
 - ~~Penali cancellazione~~ → fasce configurabili admin (es. 24–12h = 50%).
 - ~~Pagamento pending_approval~~ → preautorizzazione; addebito dopo approvazione admin.
 - ~~PROVI DA SOLO~~ → **flag** in config sala + **orari dedicati** per fascia; promo €/% da rifinire.
