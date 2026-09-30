@@ -58,23 +58,36 @@ import { requestBookingConfirmationEmail } from "@/lib/booking/send-confirmation
 import { requestBookingCalendarSync } from "@/lib/calendar/sync-booking";
 
 type WizardStepKey =
+  | "start"
   | "session"
   | "band"
   | "room"
   | "duration"
+  | "date"
+  | "time"
   | "slot"
   | "confirm";
+
+type BookingStartMode = "room" | "date" | "time";
 
 type AlternativeRoomOption = {
   room: Room;
   slot: TimeSlot;
 };
 
+function slotStartMinutes(label: string): number {
+  const match = label.match(/(\d{1,2}):(\d{2})/);
+  if (!match) return Number.MAX_SAFE_INTEGER;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
 export default function PrenotazioniPage() {
   const supabase = useMemo(() => createClient(), []);
   const loadRequestId = useRef(0);
 
   const [stepIndex, setStepIndex] = useState(0);
+  const [startMode, setStartMode] = useState<BookingStartMode>("room");
+  const [preferredTime, setPreferredTime] = useState("18:00");
   const [rooms, setRooms] = useState<Room[]>([]);
   const [myBands, setMyBands] = useState<MyBandSummary[]>([]);
   const [sessionType, setSessionType] = useState<SessionType>("band");
@@ -162,19 +175,39 @@ export default function PrenotazioniPage() {
     creditBalance != null && creditBalance.available >= creditCost;
 
   const wizardSteps = useMemo(() => {
-    const steps: { key: WizardStepKey; label: string }[] = [];
+    const steps: { key: WizardStepKey; label: string }[] = [
+      { key: "start", label: "Partenza" },
+    ];
     if (showBandFlow) {
       steps.push({ key: "session", label: "Tipo sessione" });
       if (sessionType === "band") {
         steps.push({ key: "band", label: "Band" });
       }
     }
-    steps.push({ key: "room", label: "Sala" });
-    steps.push({ key: "duration", label: "Durata" });
-    steps.push({ key: "slot", label: "Data e orario" });
+    if (startMode === "room") {
+      steps.push(
+        { key: "room", label: "Sala" },
+        { key: "duration", label: "Durata" },
+        { key: "date", label: "Giorno" },
+      );
+    } else if (startMode === "date") {
+      steps.push(
+        { key: "date", label: "Giorno" },
+        { key: "room", label: "Sala" },
+        { key: "duration", label: "Durata" },
+      );
+    } else {
+      steps.push(
+        { key: "time", label: "Orario" },
+        { key: "date", label: "Giorno" },
+        { key: "room", label: "Sala" },
+        { key: "duration", label: "Durata" },
+      );
+    }
+    steps.push({ key: "slot", label: "Soluzioni" });
     steps.push({ key: "confirm", label: "Conferma" });
     return steps;
-  }, [showBandFlow, sessionType]);
+  }, [showBandFlow, sessionType, startMode]);
 
   const currentStepKey = wizardSteps[stepIndex]?.key ?? "room";
 
@@ -211,13 +244,27 @@ export default function PrenotazioniPage() {
     [alternativeRoomsByStartAt, slots],
   );
 
+  const solutionSlots = useMemo(() => {
+    if (startMode !== "time") return visibleSlots;
+    const [hours, minutes] = preferredTime.split(":").map(Number);
+    const target = hours * 60 + minutes;
+    return [...visibleSlots].sort(
+      (a, b) =>
+        Math.abs(slotStartMinutes(a.label) - target) -
+        Math.abs(slotStartMinutes(b.label) - target),
+    );
+  }, [preferredTime, startMode, visibleSlots]);
+
   const loadAvailability = useCallback(async () => {
     if (
       !selectedRoomId ||
+      currentStepKey === "start" ||
       currentStepKey === "session" ||
       currentStepKey === "band" ||
       currentStepKey === "room" ||
-      currentStepKey === "duration"
+      currentStepKey === "duration" ||
+      currentStepKey === "date" ||
+      currentStepKey === "time"
     ) {
       return;
     }
@@ -422,10 +469,13 @@ export default function PrenotazioniPage() {
   useEffect(() => {
     if (
       !selectedRoomId ||
+      currentStepKey === "start" ||
       currentStepKey === "session" ||
       currentStepKey === "band" ||
       currentStepKey === "room" ||
-      currentStepKey === "duration"
+      currentStepKey === "duration" ||
+      currentStepKey === "date" ||
+      currentStepKey === "time"
     ) {
       return;
     }
@@ -476,11 +526,6 @@ export default function PrenotazioniPage() {
   }
 
   function handleSessionContinue() {
-    if (sessionType === "provi_da_solo") {
-      const roomIndex = wizardSteps.findIndex((step) => step.key === "room");
-      goToStepIndex(roomIndex >= 0 ? roomIndex : stepIndex + 1);
-      return;
-    }
     goToStepIndex(stepIndex + 1);
   }
 
@@ -805,6 +850,46 @@ export default function PrenotazioniPage() {
           </div>
         )}
 
+        {currentStepKey === "start" && (
+          <section className="glass-card mt-3 space-y-3 p-4 sm:mt-4 sm:p-5">
+            <div>
+              <h2 className="text-base font-semibold text-[var(--brand)] sm:text-lg">
+                Da cosa vuoi partire?
+              </h2>
+              <p className="mt-1 text-xs text-neutral-600 sm:text-sm">
+                Ti portiamo alle soluzioni disponibili con il percorso più breve.
+              </p>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {(
+                [
+                  ["room", "Sala", "So già dove"],
+                  ["date", "Giorno", "So già quando"],
+                  ["time", "Orario", "Cerco quell’ora"],
+                ] as const
+              ).map(([mode, label, hint]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => {
+                    setStartMode(mode);
+                    setSelectedSlot(null);
+                    goToStepIndex(stepIndex + 1);
+                  }}
+                  className="touch-manipulation rounded-xl border border-neutral-200 bg-white px-2 py-3 text-center hover:border-[var(--brand)]/40 hover:bg-neutral-50"
+                >
+                  <span className="block text-sm font-semibold text-[var(--brand)]">
+                    {label}
+                  </span>
+                  <span className="mt-0.5 block text-[10px] leading-tight text-neutral-500 sm:text-xs">
+                    {hint}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
         {currentStepKey === "session" && (
           <div className="mt-3 sm:mt-4">
             <SessionTypeStep
@@ -857,6 +942,66 @@ export default function PrenotazioniPage() {
           </div>
         )}
 
+        {currentStepKey === "time" && (
+          <section className="glass-card mt-3 p-4 sm:mt-4 sm:p-5">
+            <div className="flex items-end gap-2">
+              <label htmlFor="preferredTime" className="min-w-0 flex-1">
+                <span className="mb-1 block text-xs font-medium text-neutral-600">
+                  A che ora preferisci?
+                </span>
+                <input
+                  id="preferredTime"
+                  type="time"
+                  step={1800}
+                  value={preferredTime}
+                  onChange={(event) => setPreferredTime(event.target.value)}
+                  className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => goToStepIndex(stepIndex + 1)}
+                className="rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90"
+              >
+                Continua
+              </button>
+            </div>
+          </section>
+        )}
+
+        {currentStepKey === "date" && (
+          <section className="glass-card mt-3 p-4 sm:mt-4 sm:p-5">
+            <div className="flex items-end gap-2">
+              <label htmlFor="date" className="min-w-0 flex-1">
+                <span className="mb-1 block text-xs font-medium text-neutral-600">
+                  In quale giorno?
+                </span>
+                <input
+                  id="date"
+                  type="date"
+                  value={selectedDate}
+                  min={todayInRome()}
+                  onChange={(event) => {
+                    setSelectedDate(event.target.value);
+                    setSelectedSlot(null);
+                  }}
+                  className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => goToStepIndex(stepIndex + 1)}
+                className="rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90"
+              >
+                Continua
+              </button>
+            </div>
+            <p className="mt-2 text-xs capitalize text-neutral-500">
+              {formatDateItalian(selectedDate)}
+            </p>
+          </section>
+        )}
+
         {rooms.length > 0 && currentStepKey === "room" && (
           <section className="glass-card mt-3 space-y-3 p-4 sm:mt-4 sm:space-y-4 sm:p-5">
             <RoomPickerGrid
@@ -867,7 +1012,10 @@ export default function PrenotazioniPage() {
                 setSelectedSlot(null);
                 setProviDaSolo(false);
                 const room = rooms.find((r) => r.id === roomId);
-                if (room) setDurationMinutes(room.default_duration_minutes);
+                if (room) {
+                  setDurationMinutes(room.default_duration_minutes);
+                  goToStepIndex(stepIndex + 1);
+                }
               }}
             />
             {selectedRoom?.description ? (
@@ -876,24 +1024,13 @@ export default function PrenotazioniPage() {
               </p>
             ) : null}
 
-            <div className="flex flex-wrap items-center gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => goToStepIndex(stepIndex + 1)}
-                className="rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90"
-              >
-                Continua
-              </button>
-              {showBandFlow ? (
-                <button
-                  type="button"
-                  onClick={() => goToStepIndex(stepIndex - 1)}
-                  className="text-sm text-neutral-600 underline"
-                >
-                  Indietro
-                </button>
-              ) : null}
-            </div>
+            <button
+              type="button"
+              onClick={() => goToStepIndex(stepIndex - 1)}
+              className="text-sm text-neutral-600 underline"
+            >
+              Indietro
+            </button>
           </section>
         )}
 
@@ -906,7 +1043,11 @@ export default function PrenotazioniPage() {
                   <button
                     key={minutes}
                     type="button"
-                    onClick={() => setDurationMinutes(minutes)}
+                    onClick={() => {
+                      setDurationMinutes(minutes);
+                      setSelectedSlot(null);
+                      goToStepIndex(stepIndex + 1);
+                    }}
                     className={`rounded-full px-3 py-1.5 text-xs font-medium transition sm:px-4 sm:py-2 sm:text-sm ${
                       active
                         ? "bg-[var(--brand)] text-white"
@@ -922,43 +1063,27 @@ export default function PrenotazioniPage() {
               })}
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => goToStepIndex(stepIndex + 1)}
-                className="rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90"
-              >
-                Continua
-              </button>
-              <button
-                type="button"
-                onClick={() => goToStepIndex(stepIndex - 1)}
-                className="text-sm text-neutral-600 underline"
-              >
-                Indietro
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => goToStepIndex(stepIndex - 1)}
+              className="text-sm text-neutral-600 underline"
+            >
+              Indietro
+            </button>
           </section>
         )}
 
         {rooms.length > 0 && currentStepKey === "slot" && (
           <section className="glass-card mt-3 space-y-3 p-4 sm:mt-4 sm:space-y-4 sm:p-5">
-            <div className="flex flex-wrap items-end gap-2">
-              <label htmlFor="date" className="min-w-0 flex-1">
-                <span className="sr-only">Data</span>
-                <input
-                  id="date"
-                  type="date"
-                  value={selectedDate}
-                  min={todayInRome()}
-                  onChange={(e) => {
-                    setSelectedDate(e.target.value);
-                    setSelectedSlot(null);
-                  }}
-                  className="w-full rounded-lg border border-neutral-300 bg-white px-2.5 py-1.5 text-sm"
-                />
-              </label>
-              <p className="pb-1.5 text-xs capitalize text-neutral-500 sm:text-sm">
+            <div className="flex items-center justify-between gap-3 text-xs sm:text-sm">
+              <p className="font-medium text-[var(--brand)]">
+                {startMode === "time"
+                  ? `Soluzioni più vicine alle ${preferredTime}`
+                  : startMode === "date"
+                    ? "Prime soluzioni disponibili"
+                    : "Orari disponibili"}
+              </p>
+              <p className="shrink-0 capitalize text-neutral-500">
                 {formatDateItalian(selectedDate)}
               </p>
             </div>
@@ -970,7 +1095,7 @@ export default function PrenotazioniPage() {
                 </p>
               ) : (
                 <ul className="grid gap-1.5 sm:grid-cols-2 sm:gap-2">
-                  {visibleSlots.map((slot) => {
+                  {solutionSlots.map((slot) => {
                     const alternatives =
                       alternativeRoomsByStartAt[slot.startAt] ?? [];
                     return (
