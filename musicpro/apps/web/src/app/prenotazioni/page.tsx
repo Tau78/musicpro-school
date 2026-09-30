@@ -686,7 +686,7 @@ export default function PrenotazioniPage() {
                         ? undefined
                         : `Torna a: ${label}`
                     }
-                    className={`whitespace-nowrap rounded-full px-2.5 py-1 font-medium transition sm:px-3 ${className} ${
+                    className={`touch-manipulation whitespace-nowrap rounded-full px-2.5 py-1 font-medium sm:px-3 ${className} ${
                       isClickable && !isCurrent ? "cursor-pointer" : ""
                     }`}
                   >
