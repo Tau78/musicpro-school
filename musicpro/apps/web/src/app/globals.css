@@ -81,3 +81,11 @@ body {
 ::selection {
   background: color-mix(in srgb, var(--brand-accent) 35%, white);
 }
+
+/**
+ * Marker usato da StyleLoadGuard: presente SOLO se il bundle Tailwind
+ * è caricato. Non duplicare nel CSS critico inline.
+ */
+.mps-tw-ok {
+  --mps-tw: 1;
+}
