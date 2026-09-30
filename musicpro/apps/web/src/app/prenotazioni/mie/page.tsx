@@ -26,6 +26,8 @@ import { BookingModifyPanel } from "@/components/prenotazioni/booking-modify-pan
 import { createClient } from "@/lib/supabase/client";
 import { requestBookingCalendarSync } from "@/lib/calendar/sync-booking";
 
+type BookingTab = "upcoming" | "past";
+
 export default function MiePrenotazioniPage() {
   return (
     <Suspense fallback={<p className="p-8 text-sm text-neutral-500">Caricamento…</p>}>
@@ -59,8 +61,13 @@ function MiePrenotazioniContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [tab, setTab] = useState<"upcoming" | "past">("upcoming");
-  const [bookings, setBookings] = useState<BookingWithRoom[]>([]);
+  const [tab, setTab] = useState<BookingTab>("upcoming");
+  const [bookingsByTab, setBookingsByTab] = useState<
+    Record<BookingTab, BookingWithRoom[]>
+  >({
+    upcoming: [],
+    past: [],
+  });
   const [cancelSettings, setCancelSettings] = useState({
     cancelMinHours: 24,
     autoConfirmMinHours: 12,
@@ -77,12 +84,17 @@ function MiePrenotazioniContent() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const loadBookings = useCallback(async () => {
+  const bookings = bookingsByTab[tab];
+
+  const loadBookings = useCallback(async (targetTab: BookingTab) => {
     if (!memberId) return;
 
     try {
-      const list = await listMyBookings(supabase, memberId, tab);
-      setBookings(list);
+      const list = await listMyBookings(supabase, memberId, targetTab);
+      setBookingsByTab((current) => ({
+        ...current,
+        [targetTab]: list,
+      }));
     } catch (err) {
       setError(
         mapUserFacingError(
@@ -91,7 +103,7 @@ function MiePrenotazioniContent() {
         ),
       );
     }
-  }, [memberId, supabase, tab]);
+  }, [memberId, supabase]);
 
   useEffect(() => {
     let cancelled = false;
@@ -133,9 +145,38 @@ function MiePrenotazioniContent() {
 
   useEffect(() => {
     if (!memberId) return;
+    let cancelled = false;
+
     setLoading(true);
-    void loadBookings().finally(() => setLoading(false));
-  }, [loadBookings, memberId]);
+    setError(null);
+
+    void Promise.all([
+      listMyBookings(supabase, memberId, "upcoming"),
+      listMyBookings(supabase, memberId, "past"),
+    ])
+      .then(([upcoming, past]) => {
+        if (!cancelled) {
+          setBookingsByTab({ upcoming, past });
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setError(
+            mapUserFacingError(
+              err instanceof Error ? err.message : "",
+              "Impossibile caricare le prenotazioni.",
+            ),
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [memberId, supabase]);
 
   useEffect(() => {
     if (searchParams.get("dopoPagamento") !== "1") return;
@@ -186,7 +227,7 @@ function MiePrenotazioniContent() {
 
     setMessage(buildCancelSuccessMessage(result));
     void requestBookingCalendarSync(bookingId, "delete");
-    await loadBookings();
+    await loadBookings(tab);
   }
 
   return (
@@ -229,7 +270,7 @@ function MiePrenotazioniContent() {
           <button
             type="button"
             onClick={() => setTab("upcoming")}
-            className={`rounded-lg px-4 py-2 text-sm font-medium ${
+            className={`touch-manipulation rounded-lg px-4 py-2 text-sm font-medium ${
               tab === "upcoming"
                 ? "bg-[var(--brand)] text-white"
                 : "bg-neutral-100 text-neutral-600"
@@ -240,7 +281,7 @@ function MiePrenotazioniContent() {
           <button
             type="button"
             onClick={() => setTab("past")}
-            className={`rounded-lg px-4 py-2 text-sm font-medium ${
+            className={`touch-manipulation rounded-lg px-4 py-2 text-sm font-medium ${
               tab === "past"
                 ? "bg-[var(--brand)] text-white"
                 : "bg-neutral-100 text-neutral-600"
@@ -346,7 +387,7 @@ function MiePrenotazioniContent() {
                         onSuccess={(msg) => {
                           setMessage(msg);
                           setError(null);
-                          void loadBookings();
+                          void loadBookings(tab);
                         }}
                         onError={(msg) => {
                           setError(msg);
