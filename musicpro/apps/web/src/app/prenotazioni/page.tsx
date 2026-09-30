@@ -660,7 +660,11 @@ export default function PrenotazioniPage() {
         eyebrow="Sale prova"
         title="Prenota una sala"
         navLinks={[
-          { href: "/prenotazioni/mie", label: "Le mie prenotazioni" },
+          {
+            href: "/prenotazioni/mie",
+            label: "Le mie prenotazioni",
+            mobileLabel: "Le mie",
+          },
           { href: "/dashboard", label: "Dashboard" },
         ]}
         actions={hasSession ? <SignOutButton className="rounded-lg border border-neutral-200 px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50" /> : null}
