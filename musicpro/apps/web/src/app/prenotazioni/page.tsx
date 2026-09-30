@@ -789,6 +789,7 @@ export default function PrenotazioniPage() {
                 onSelectBand={setSelectedBandId}
                 onContinue={() => goToStepIndex(stepIndex + 1)}
                 onBack={() => goToStepIndex(stepIndex - 1)}
+                quotaStatus={quotaStatus}
               />
             )}
           </div>
