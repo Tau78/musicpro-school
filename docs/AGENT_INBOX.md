@@ -4,11 +4,21 @@ Voci recenti in cima. Marca `✓ letto YYYY-MM-DD` dopo lettura.
 
 ---
 
+## 2026-10-01 — [OUT] Vetrina GBP → MusicPro Website
+
+**Da:** questo agente School (`Integrazione google reserve`)  
+**Per:** agente MusicPro Website  
+**Stato:** mandato scritto in `/Users/mauroandreoni/MusicPro Website/docs/AGENT_INBOX.md` (voce `[VETRINA GBP]`).
+
+Decisione: no Reserve with Google E2E; sì landing pubblica hub + link GBP. Attesa risposta website con URL finale.
+
+---
+
 ## 2026-09-27 — [PAGAMENTI] Stripe → Nexi Classic XPay (mandato Mauro)
 
 **Da:** agente workspace `APP Eventi da GAS`  
 **Per:** agente MusicPro School  
-**Stato:** ✓ letto 2026-09-27 — implementato Classic XPay (quota, sale, shop, iscrizione, pack). Stripe mint/webhook rimossi.
+**Stato:** ✓ letto 2026-10-01 — già implementato Classic XPay (quota, sale, shop, iscrizione, pack). Stripe mint/webhook rimossi.
 
 ### Mandato
 
