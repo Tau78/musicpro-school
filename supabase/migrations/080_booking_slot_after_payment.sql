@@ -34,6 +34,7 @@ CREATE UNIQUE INDEX idx_bookings_unique_active_slot
   WHERE public.booking_occupies_slot(status, payment_status, credits_held);
 
 -- Patch create_booking_safe overlap + cancel own abandoned unpaid on same slot
+-- Signature after 078_booking_notes_microphones: + notes text + microphone integer
 DO $$
 DECLARE
   src text;
@@ -76,13 +77,16 @@ $new$
 $new$;
 BEGIN
   src := pg_get_functiondef(
-    'public.create_booking_safe(uuid, uuid, timestamptz, timestamptz, boolean, uuid, uuid[])'::regprocedure
+    'public.create_booking_safe(uuid, uuid, timestamptz, timestamptz, boolean, uuid, uuid[], text, integer)'::regprocedure
   );
-  IF position(old_overlap IN src) = 0 THEN
+  IF position('booking_occupies_slot' IN src) > 0 THEN
+    RAISE NOTICE 'create_booking_safe already patched — skip';
+  ELSIF position(old_overlap IN src) = 0 THEN
     RAISE EXCEPTION 'create_booking_safe: overlap block not found — refuse silent skip';
+  ELSE
+    patched := replace(src, old_overlap, new_overlap);
+    EXECUTE patched;
   END IF;
-  patched := replace(src, old_overlap, new_overlap);
-  EXECUTE patched;
 END
 $$;
 
@@ -119,11 +123,14 @@ BEGIN
   src := pg_get_functiondef(
     'public.modify_booking_safe(uuid, timestamptz, timestamptz, integer)'::regprocedure
   );
-  IF position(old_overlap IN src) = 0 THEN
+  IF position('booking_occupies_slot' IN src) > 0 THEN
+    RAISE NOTICE 'modify_booking_safe already patched — skip';
+  ELSIF position(old_overlap IN src) = 0 THEN
     RAISE EXCEPTION 'modify_booking_safe: overlap block not found — refuse silent skip';
+  ELSE
+    patched := replace(src, old_overlap, new_overlap);
+    EXECUTE patched;
   END IF;
-  patched := replace(src, old_overlap, new_overlap);
-  EXECUTE patched;
 END
 $$;
 
@@ -177,11 +184,14 @@ BEGIN
   src := pg_get_functiondef(
     'public.apply_stripe_room_booking_payment(uuid, text, text, text, text)'::regprocedure
   );
-  IF position(old_block IN src) = 0 THEN
+  IF position('SLOT_TAKEN' IN src) > 0 AND position('booking_occupies_slot' IN src) > 0 THEN
+    RAISE NOTICE 'apply_stripe_room_booking_payment already patched — skip';
+  ELSIF position(old_block IN src) = 0 THEN
     RAISE EXCEPTION 'apply_stripe_room_booking_payment: cancel guard not found';
+  ELSE
+    patched := replace(src, old_block, new_block);
+    EXECUTE patched;
   END IF;
-  patched := replace(src, old_block, new_block);
-  EXECUTE patched;
 END
 $$;
 
