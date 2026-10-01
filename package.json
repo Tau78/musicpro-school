@@ -12,6 +12,7 @@
     "check:hermes-clone": "bash scripts/check-hermes-structuredclone.sh",
     "import:cespiti": "node scripts/import-libro-cespiti.mjs",
     "setup:test-associato-mauro": "node scripts/setup-test-associato-mauro.mjs",
+    "backfill:associate-auth": "node scripts/backfill-associate-auth.mjs",
     "smoke:documenti": "node scripts/smoke-documenti.mjs",
     "smoke:rimborsi": "node scripts/smoke-rimborsi-pdf.mjs",
     "smoke:rimborsi-email": "node scripts/smoke-rimborsi-email.mjs",
