@@ -90,15 +90,15 @@ export default async function AssociatoDetailPage({ params }: PageProps) {
       : [[], [], null, [], null];
 
   return (
-    <div>
-      <div className="mb-6">
+    <div className="pb-2">
+      <div className="mb-4 sm:mb-6">
         <Link
           href="/admin/associati"
           className="text-sm text-[var(--brand)] hover:underline"
         >
           ← Torna alla rubrica
         </Link>
-        <h2 className="mt-2 text-2xl font-semibold text-[var(--brand)]">
+        <h2 className="mt-2 text-xl font-semibold text-[var(--brand)] sm:text-2xl">
           {member.lastName} {member.firstName}
         </h2>
         {member.isEnrollmentDraft ? (
