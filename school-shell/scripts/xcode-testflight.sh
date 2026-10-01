@@ -53,27 +53,29 @@ load_asc_api() {
   [[ -n "$ASC_KEY_ID" && -n "$ASC_ISSUER_ID" && -n "$ASC_KEY_PATH" && -f "$ASC_KEY_PATH" ]]
 }
 
-if [[ "$BUMP" == "1" ]]; then
-  echo "→ Incremento build number"
-  (cd "$ROOT" && xcrun agvtool next-version -all >/dev/null) || true
-fi
-
 VERSION="$(xcodebuild -project "$PROJECT" -scheme "$SCHEME" -showBuildSettings 2>/dev/null | awk '/MARKETING_VERSION / {print $3; exit}')"
 BUILD_NUM="$(xcodebuild -project "$PROJECT" -scheme "$SCHEME" -showBuildSettings 2>/dev/null | awk '/CURRENT_PROJECT_VERSION / {print $3; exit}')"
 VERSION="${VERSION:-1.1.0}"
 BUILD_NUM="${BUILD_NUM:-1}"
 
-# Se agvtool non ha bumpato (progetto senza VERSIONING_SYSTEM attivo in cwd), forza timestamp.
-if [[ "$BUMP" == "1" && "$BUILD_NUM" == "1" ]]; then
-  BUILD_NUM="$(date +%Y%m%d%H%M)"
+if [[ "$BUMP" == "1" ]]; then
+  echo "→ Incremento build number"
+  (cd "$ROOT" && xcrun agvtool next-version -all >/dev/null) || true
+  BUILD_NUM="$(xcodebuild -project "$PROJECT" -scheme "$SCHEME" -showBuildSettings 2>/dev/null | awk '/CURRENT_PROJECT_VERSION / {print $3; exit}')"
+  BUILD_NUM="${BUILD_NUM:-1}"
+  # agvtool spesso non muove il pbxproj: forza N+1 se è numerico, altrimenti timestamp.
+  if [[ "$BUILD_NUM" =~ ^[0-9]+$ ]]; then
+    BUILD_NUM="$((BUILD_NUM + 1))"
+  else
+    BUILD_NUM="$(date +%Y%m%d%H%M)"
+  fi
   /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUM" \
     "$ROOT/MusicProSchool/Info.plist" 2>/dev/null || true
-  # Patch CURRENT_PROJECT_VERSION in pbxproj
   python3 - <<PY
 from pathlib import Path
+import re
 p = Path("$ROOT/$PROJECT/project.pbxproj")
 text = p.read_text()
-import re
 text2, n = re.subn(
     r"CURRENT_PROJECT_VERSION = [^;]+;",
     f"CURRENT_PROJECT_VERSION = {BUILD_NUM};",
@@ -156,7 +158,7 @@ fi
 mkdir -p "$HOME/.appstoreconnect/private_keys"
 KEY_DEST="$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
 if [[ ! -e "$KEY_DEST" ]] || ! cmp -s "$ASC_KEY_PATH" "$KEY_DEST" 2>/dev/null; then
-  cp -f "$ASC_KEY_PATH" "$KEY_DEST"
+  cp -f "$ASC_KEY_PATH" "$KEY_DEST" || true
 fi
 
 echo "→ Upload to App Store Connect (API key $ASC_KEY_ID)"
