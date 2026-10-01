@@ -20,6 +20,7 @@ import {
   type MemberRoleValue,
 } from "@musicpro/shared";
 
+import { MemberPasswordReset } from "@/components/admin/member-password-reset";
 import { MemberQuotaInline } from "@/components/admin/member-quota-inline";
 import { createClient } from "@/lib/supabase/client";
 
@@ -520,6 +521,14 @@ export function MemberForm({
           />
         </div>
       </fieldset>
+
+      {isEdit && member ? (
+        <MemberPasswordReset
+          memberId={member.id}
+          memberEmail={form.email ?? member.email}
+          memberFirstName={form.firstName || member.firstName}
+        />
+      ) : null}
 
       <fieldset className="space-y-4 rounded-xl border border-neutral-200 bg-white p-6">
         <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
