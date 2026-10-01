@@ -1,4 +1,8 @@
-GUIDELINE 2.1 — APP REVIEW INFORMATION
+GUIDELINE 2.1 + 3.2 — APP REVIEW INFORMATION
+
+0) DISTRIBUTION REQUEST (Guideline 3.2)
+This app is for members and teachers of a single organization (MusicPro Eventi / Associazione MusicPro), not for unrestricted discovery via App Store search.
+We request Unlisted App Distribution. Please review this binary for Unlisted (not public category/search listing). After approval we will complete the Unlisted distribution request so Pricing and Availability shows Unlisted App.
 
 1) HOW THE REVIEWER SEES THE APP (NO VIDEO REQUIRED BY DEFAULT)
 A screen recording is not attached and is not required unless Apple asks in Resolution Center.
@@ -13,12 +17,12 @@ Private school roster data — not a public social feed; no report/block flow.
 No ATT, location, contacts, or camera.
 
 2) DEVICES AND OS TESTED BEFORE SUBMISSION
-- Bundle it.musicproeventi.school, ASC id 6806407450, version 1.1.0, TestFlight build 3 (school-shell WKWebView).
+- Bundle it.musicproeventi.school, ASC id 6806407450, version 1.1.0, TestFlight build 10 (school-shell WKWebView).
 - Tested on physical iPhone via TestFlight before submit; iPad supported (same binary).
 Do not invent device model names beyond what was actually used.
 
 3) WHAT THE APP DOES / WHO IT IS FOR
-MusicPro School is for MusicPro Eventi association members and teachers: personal area, practice-room bookings, and (teachers) lesson tools. The iOS app is a native shell that opens the production school web app over HTTPS (Supabase auth + data). Not simulated gambling. No real-money play, no IAP currency, no cash-out. Age rating: Simulated Gambling = None. No contests.
+MusicPro School is for MusicPro Eventi association members and teachers only (roster-based access): personal area, practice-room bookings, and (teachers) lesson tools. The iOS app is a native shell that opens the production school web app over HTTPS (Supabase auth + data). Not simulated gambling. No real-money play, no IAP currency, no cash-out. Age rating: Simulated Gambling = None. No contests.
 
 4) HOW TO SET UP AND USE THE MAIN FEATURES
 SIGN IN — open app → Accedi → Password tab only. No magic link. No Sign in with Apple / Google.
