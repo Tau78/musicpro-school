@@ -53,8 +53,8 @@ load_asc_api() {
   [[ -n "$ASC_KEY_ID" && -n "$ASC_ISSUER_ID" && -n "$ASC_KEY_PATH" && -f "$ASC_KEY_PATH" ]]
 }
 
-VERSION="$(xcodebuild -project "$PROJECT" -scheme "$SCHEME" -showBuildSettings 2>/dev/null | awk '/MARKETING_VERSION / {print $3; exit}')"
-BUILD_NUM="$(xcodebuild -project "$PROJECT" -scheme "$SCHEME" -showBuildSettings 2>/dev/null | awk '/CURRENT_PROJECT_VERSION / {print $3; exit}')"
+VERSION="$(xcodebuild -project "$PROJECT" -scheme "$SCHEME" -showBuildSettings 2>/dev/null | awk '/MARKETING_VERSION / {print $3; exit}' | tr -d '\r')"
+BUILD_NUM="$(xcodebuild -project "$PROJECT" -scheme "$SCHEME" -showBuildSettings 2>/dev/null | awk '/CURRENT_PROJECT_VERSION / {print $3; exit}' | tr -d '\r')"
 VERSION="${VERSION:-1.1.0}"
 BUILD_NUM="${BUILD_NUM:-1}"
 
