@@ -143,6 +143,7 @@ export default function DashboardScreen() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [nextLesson, setNextLesson] = useState<CalendarLesson | null>(null);
+  const [nextBooking, setNextBooking] = useState<BookingWithRoom | null>(null);
   const [isAllievo, setIsAllievo] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [createDate, setCreateDate] = useState<string | undefined>();
@@ -159,6 +160,9 @@ export default function DashboardScreen() {
       if (!member?.id) {
         setBookings([]);
         setLessons([]);
+        setNextLesson(null);
+        setNextBooking(null);
+        setIsAllievo(false);
         setLoading(false);
         return;
       }
@@ -171,7 +175,8 @@ export default function DashboardScreen() {
         const salaTo = addRomeDays(salaWeekStart, 7);
         const lezioniTo = addRomeDays(lezioniWeekStart, 7);
 
-        const [bookingRows, lessonRows, profile, allievo] = await Promise.all([
+        const [bookingRows, lessonRows, profile, allievo, upcomingMine] =
+          await Promise.all([
           manageSala
             ? listBookingsInRange(supabase, {
                 from: salaWeekStart,
@@ -197,6 +202,9 @@ export default function DashboardScreen() {
           isSimpleAssociate
             ? hasActiveCourseEnrollment(supabase, member.id)
             : Promise.resolve(false),
+          isSimpleAssociate
+            ? listMyBookings(supabase, member.id, "upcoming")
+            : Promise.resolve([] as BookingWithRoom[]),
         ]);
 
         const studentLessons =
@@ -212,6 +220,7 @@ export default function DashboardScreen() {
         setLessons(lessonRows);
         setIsAllievo(allievo);
         setNextLesson(studentLessons[0] ?? null);
+        setNextBooking(upcomingMine[0] ?? null);
         setCanReschedule(Boolean(profile?.canReschedule) || isStaff);
         setSelectedBooking((current) =>
           current
@@ -454,6 +463,27 @@ export default function DashboardScreen() {
     return `${weekday} ${time}`;
   }
 
+  function formatNextBookingWhen(startAt: string, endAt: string): string {
+    const start = new Date(startAt);
+    const day = new Intl.DateTimeFormat("it-IT", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      timeZone: "Europe/Rome",
+    }).format(start);
+    const startTime = new Intl.DateTimeFormat("it-IT", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "Europe/Rome",
+    }).format(start);
+    const endTime = new Intl.DateTimeFormat("it-IT", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "Europe/Rome",
+    }).format(new Date(endAt));
+    return `${day} · ${startTime}–${endTime}`;
+  }
+
   return (
     <>
     <AssociateGradientBg>
@@ -518,8 +548,33 @@ export default function DashboardScreen() {
             </View>
           ) : null}
 
+          {nextBooking ? (
+            <View style={styles.homeBlock}>
+              <Text style={styles.sectionEyebrow}>SALA PROVE</Text>
+              <Pressable
+                style={styles.heroCard}
+                onPress={() => router.push("/mie-prenotazioni")}
+              >
+                <Text style={[styles.heroEyebrow, { color: "#38764B" }]}>
+                  PROSSIMA PRENOTAZIONE
+                </Text>
+                <Text style={styles.heroTitle}>
+                  {nextBooking.room?.name ?? "Sala"}
+                </Text>
+                <Text style={styles.heroMeta}>
+                  {formatNextBookingWhen(
+                    nextBooking.start_at,
+                    nextBooking.end_at,
+                  )}
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
+
           <View style={styles.homeBlock}>
-            <Text style={styles.sectionEyebrow}>SALA PROVE</Text>
+            <Text style={styles.sectionEyebrow}>
+              {nextBooking ? "AZIONI" : "SALA PROVE"}
+            </Text>
             <View style={styles.actionRow}>
               <Pressable
                 style={styles.actionCard}

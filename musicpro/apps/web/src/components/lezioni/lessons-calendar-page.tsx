@@ -38,7 +38,7 @@ import {
   type MoveScope,
 } from "@/components/lezioni/lessons-calendar";
 import { lessonCourseId } from "@/components/lezioni/lessons-oggi";
-import { calendarBounds } from "@/lib/lezioni/calendar-range";
+import { monthBounds, weekBounds } from "@/lib/lezioni/calendar-range";
 import { createClient } from "@/lib/supabase/client";
 
 export type CalendarMode = "docente" | "sala";
@@ -150,7 +150,10 @@ export function LessonsCalendarPage({
     }) => {
       const gen = ++fetchGen.current;
       setLessonsBusy(true);
-      const bounds = calendarBounds(next.view, next.date, sundayVisible);
+      const bounds =
+        next.view === "month"
+          ? monthBounds(next.date)
+          : weekBounds(next.date, sundayVisible);
       try {
         const roomFilter =
           isStaff && (bookingsOnly || next.mode === "sala") && next.roomId

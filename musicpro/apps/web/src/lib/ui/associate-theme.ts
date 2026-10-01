@@ -41,6 +41,29 @@ export function formatLessonWhen(startsAt: string): string {
   return `${weekday} ${time}`;
 }
 
+/** Etichetta completa per la prossima prenotazione sala (data + fascia oraria). */
+export function formatBookingWhen(startAt: string, endAt?: string | null): string {
+  const start = new Date(startAt);
+  const day = new Intl.DateTimeFormat("it-IT", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    timeZone: "Europe/Rome",
+  }).format(start);
+  const startTime = new Intl.DateTimeFormat("it-IT", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/Rome",
+  }).format(start);
+  if (!endAt) return `${day} · ${startTime}`;
+  const endTime = new Intl.DateTimeFormat("it-IT", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/Rome",
+  }).format(new Date(endAt));
+  return `${day} · ${startTime}–${endTime}`;
+}
+
 export function memberInitials(firstName: string, lastName: string): string {
   const a = firstName.trim().charAt(0);
   const b = lastName.trim().charAt(0);

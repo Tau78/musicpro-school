@@ -64,6 +64,7 @@ export {
   timeInputToCloseMinute,
   timeLabelToMinutes,
   bookingNeedsPayment,
+  bookingOccupiesSlot,
   requestBookingCreditsPayment,
   requestRoomBookingPaymentUrl,
   adminUpdateBooking,
@@ -663,11 +664,11 @@ export type {
   LifecycleNotifyKind,
 } from "./lessons-lifecycle-notify";
 export {
+  hasActiveCourseEnrollment,
   listLessonsInRange,
   listLessonsOnDate,
   moveLesson,
   requestLessonMove,
-  hasActiveCourseEnrollment,
 } from "./lessons-calendar";
 export type {
   CalendarLesson,

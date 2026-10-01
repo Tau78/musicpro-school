@@ -412,6 +412,25 @@ export function bookingNeedsPayment(booking: Pick<Booking, "status" | "payment_s
   );
 }
 
+/** True se la prenotazione occupa lo slot sala (non i checkout Nexi abbandonati). */
+export function bookingOccupiesSlot(booking: {
+  status: BookingStatus;
+  payment_status?: BookingPaymentStatus | string | null;
+  credits_held?: number | null;
+}): boolean {
+  if (booking.status === "cancelled") return false;
+  const payment = booking.payment_status ?? "";
+  const creditsHeld = booking.credits_held ?? 0;
+  if (
+    booking.status === "pending" &&
+    (payment === "unpaid" || payment === "link_sent") &&
+    creditsHeld === 0
+  ) {
+    return false;
+  }
+  return true;
+}
+
 /** Richiede POST /api/prenotazioni/{id}/pay-credits (solo web). */
 export async function requestBookingCreditsPayment(
   bookingId: string,
@@ -870,7 +889,7 @@ export async function getRoomAvailability(
       getBookingSettings(client),
       client
         .from("bookings")
-        .select("id, start_at, end_at, status")
+        .select("id, start_at, end_at, status, payment_status, credits_held")
         .eq("room_id", roomId)
         .lt("start_at", endUtc)
         .gt("end_at", startUtc)
@@ -895,7 +914,11 @@ export async function getRoomAvailability(
     start_at: string;
     end_at: string;
     status: BookingStatus;
-  }>).filter((booking) => !excludeBookingId || booking.id !== excludeBookingId);
+    payment_status?: BookingPaymentStatus | string | null;
+    credits_held?: number | null;
+  }>)
+    .filter((booking) => !excludeBookingId || booking.id !== excludeBookingId)
+    .filter((booking) => bookingOccupiesSlot(booking));
 
   const calendarBusy: BusyInterval[] = externalEvents
     .filter((event) => event.roomId === roomId)

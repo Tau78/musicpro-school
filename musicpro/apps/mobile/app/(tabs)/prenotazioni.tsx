@@ -6,17 +6,14 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 
 import {
   type CreateBookingResult,
-  type ProviScheduleEntry,
   type Room,
   type TimeSlot,
-  BOOKING_MICROPHONE_COUNTS,
   calculateBookingPrice,
   createBooking,
   durationOptionsForRoom,
@@ -25,11 +22,8 @@ import {
   formatEuro,
   getCurrentMember,
   getRoomAvailability,
-  isSlotInProviSchedule,
-  listProviSchedule,
   listRooms,
   peekRoomAvailabilityCache,
-  proviDaSoloDiscountTotalEur,
   requestRoomBookingPaymentUrl,
   subscribeToBookings,
   invalidateRoomAvailabilityCache,
@@ -87,10 +81,6 @@ export default function PrenotazioniScreen() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [stepIndex, setStepIndex] = useState(0);
-  const [proviSchedule, setProviSchedule] = useState<ProviScheduleEntry[]>([]);
-  const [proviDaSolo, setProviDaSolo] = useState(false);
-  const [microphoneCount, setMicrophoneCount] = useState(0);
-  const [bookingNotes, setBookingNotes] = useState("");
 
   const currentStep = WIZARD_STEPS[stepIndex]?.key ?? "room";
   const confirmStepIndex = WIZARD_STEPS.findIndex((step) => step.key === "confirm");
@@ -110,39 +100,13 @@ export default function PrenotazioniScreen() {
     [slots],
   );
 
-  const slotAllowsProviDaSolo = useMemo(() => {
-    if (!selectedRoom?.provi_da_solo_enabled || !selectedSlot) return false;
-    return isSlotInProviSchedule(
-      selectedSlot.startAt,
-      selectedSlot.endAt,
-      proviSchedule,
-    );
-  }, [proviSchedule, selectedRoom, selectedSlot]);
-
   const previewPrice = useMemo(() => {
     if (!selectedRoom) return null;
-    const base =
+    return (
       selectedSlot?.priceEur ??
-      calculateBookingPrice(selectedRoom, durationMinutes);
-    if (
-      proviDaSolo &&
-      selectedRoom.provi_da_solo_enabled &&
-      selectedRoom.provi_da_solo_discount_eur > 0
-    ) {
-      return Math.max(
-        0,
-        Math.round(
-          (base -
-            proviDaSoloDiscountTotalEur(
-              selectedRoom.provi_da_solo_discount_eur,
-              durationMinutes,
-            )) *
-            100,
-        ) / 100,
-      );
-    }
-    return base;
-  }, [durationMinutes, proviDaSolo, selectedRoom, selectedSlot]);
+      calculateBookingPrice(selectedRoom, durationMinutes)
+    );
+  }, [durationMinutes, selectedRoom, selectedSlot]);
 
   const loadAvailability = useCallback(async () => {
     if (!selectedRoomId) return;
@@ -191,11 +155,10 @@ export default function PrenotazioniScreen() {
       setError(null);
 
       try {
-        const member = await getCurrentMember(supabase);
-        const includeSandbox =
-          (member?.email ?? "").trim().toLowerCase() ===
-          "mauro.andreoni@gmail.com";
-        const roomList = await listRooms(supabase, { includeSandbox });
+        const [roomList, member] = await Promise.all([
+          listRooms(supabase),
+          getCurrentMember(supabase),
+        ]);
 
         if (cancelled) return;
 
@@ -228,30 +191,6 @@ export default function PrenotazioniScreen() {
   useEffect(() => {
     if (prefDate) setSelectedDate(prefDate);
   }, [prefDate]);
-
-  useEffect(() => {
-    if (!selectedRoomId) {
-      setProviSchedule([]);
-      setProviDaSolo(false);
-      return;
-    }
-    let cancelled = false;
-    void listProviSchedule(supabase, selectedRoomId)
-      .then((rows) => {
-        if (!cancelled) setProviSchedule(rows);
-      })
-      .catch(() => {
-        if (!cancelled) setProviSchedule([]);
-      });
-    setProviDaSolo(false);
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedRoomId, supabase]);
-
-  useEffect(() => {
-    if (!slotAllowsProviDaSolo) setProviDaSolo(false);
-  }, [slotAllowsProviDaSolo]);
 
   useEffect(() => {
     if (currentStep !== "slot" && currentStep !== "confirm") return;
@@ -317,9 +256,6 @@ export default function PrenotazioniScreen() {
         memberId,
         startAt: selectedSlot.startAt,
         endAt: selectedSlot.endAt,
-        proviDaSolo: proviDaSolo && slotAllowsProviDaSolo,
-        notes: bookingNotes,
-        microphoneCount,
       });
 
       if (!result.success) {
@@ -370,9 +306,6 @@ export default function PrenotazioniScreen() {
           : "Prenotazione confermata!",
       );
       setSelectedSlot(null);
-      setProviDaSolo(false);
-      setMicrophoneCount(0);
-      setBookingNotes("");
       setStepIndex(0);
       await loadAvailability();
     } finally {
@@ -627,62 +560,6 @@ export default function PrenotazioniScreen() {
                   <Text style={styles.confirmTotal}>
                     {previewPrice != null ? formatEuro(previewPrice) : "—"}
                   </Text>
-                </View>
-                {slotAllowsProviDaSolo ? (
-                  <Pressable
-                    onPress={() => setProviDaSolo((v) => !v)}
-                    style={styles.optionRow}
-                  >
-                    <View
-                      style={[
-                        styles.checkbox,
-                        proviDaSolo && styles.checkboxChecked,
-                      ]}
-                    />
-                    <Text style={styles.optionLabel}>
-                      Provo da solo
-                      {selectedRoom &&
-                      selectedRoom.provi_da_solo_discount_eur > 0
-                        ? ` (−${formatEuro(selectedRoom.provi_da_solo_discount_eur)}/ora)`
-                        : ""}
-                    </Text>
-                  </Pressable>
-                ) : null}
-                <View style={styles.optionRow}>
-                  <Text style={styles.confirmKey}>Microfoni</Text>
-                  <View style={styles.micRow}>
-                    {BOOKING_MICROPHONE_COUNTS.map((n) => (
-                      <Pressable
-                        key={n}
-                        onPress={() => setMicrophoneCount(n)}
-                        style={[
-                          styles.micChip,
-                          microphoneCount === n && styles.micChipActive,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.micChipText,
-                            microphoneCount === n && styles.micChipTextActive,
-                          ]}
-                        >
-                          {n}
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                </View>
-                <View style={styles.notesBlock}>
-                  <Text style={styles.confirmKey}>Note aggiuntive</Text>
-                  <TextInput
-                    value={bookingNotes}
-                    onChangeText={setBookingNotes}
-                    placeholder="Opzionale"
-                    placeholderTextColor="#8a857c"
-                    multiline
-                    maxLength={500}
-                    style={styles.notesInput}
-                  />
                 </View>
                 {selectedSlot.leadTimeCategory === "approval" && (
                   <Text style={styles.approvalHint}>
@@ -957,73 +834,6 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: "#eee",
-  },
-  optionRow: {
-    marginTop: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-  },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 4,
-    borderWidth: 1.5,
-    borderColor: "#cfc8bc",
-    backgroundColor: "#fff",
-  },
-  checkboxChecked: {
-    backgroundColor: theme.accent,
-    borderColor: theme.accent,
-  },
-  optionLabel: {
-    flex: 1,
-    fontSize: 14,
-    color: theme.brand,
-    fontWeight: "500",
-  },
-  micRow: {
-    flexDirection: "row",
-    gap: 6,
-  },
-  micChip: {
-    minWidth: 32,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#cfc8bc",
-    backgroundColor: "#fff",
-    alignItems: "center",
-  },
-  micChipActive: {
-    borderColor: theme.accent,
-    backgroundColor: theme.accent,
-  },
-  micChipText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: theme.brand,
-  },
-  micChipTextActive: {
-    color: "#fff",
-  },
-  notesBlock: {
-    marginTop: 12,
-    gap: 6,
-  },
-  notesInput: {
-    minHeight: 64,
-    borderWidth: 1,
-    borderColor: "#cfc8bc",
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    fontSize: 14,
-    color: theme.brand,
-    backgroundColor: "#fff",
-    textAlignVertical: "top",
   },
   confirmTotal: {
     fontSize: 18,

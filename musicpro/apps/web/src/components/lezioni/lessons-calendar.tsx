@@ -193,23 +193,16 @@ export function LessonsCalendar({
     () => Array.from({ length: weekDays }, (_, i) => addDays(weekStart, i)),
     [weekStart, weekDays],
   );
-  const gridDates = useMemo(() => {
-    if (view === "day") return [anchorDate];
-    if (view === "3day") {
-      return [0, 1, 2].map((offset) => addDays(anchorDate, offset));
-    }
-    return weekDates;
-  }, [view, anchorDate, weekDates]);
   const monthDates = useMemo(() => monthCellDates(anchorDate), [anchorDate]);
 
   const visibleLessons = useMemo(() => {
-    if (view === "month") {
-      const prefix = anchorDate.slice(0, 7);
-      return placed.filter((lesson) => lesson.date.startsWith(prefix));
+    if (view === "week") {
+      const set = new Set(weekDates);
+      return placed.filter((lesson) => set.has(lesson.date));
     }
-    const set = new Set(gridDates);
-    return placed.filter((lesson) => set.has(lesson.date));
-  }, [view, placed, gridDates, anchorDate]);
+    const prefix = anchorDate.slice(0, 7);
+    return placed.filter((lesson) => lesson.date.startsWith(prefix));
+  }, [view, placed, weekDates, anchorDate]);
 
   const hoursLabel = formatOreLabel(
     visibleLessons.reduce((sum, lesson) => {
@@ -218,21 +211,13 @@ export function LessonsCalendar({
   );
 
   const dateLabel =
-    view === "day"
-      ? formatDayLong(anchorDate)
-      : view === "3day"
-        ? weekRangeLabel(gridDates[0]!, gridDates[gridDates.length - 1]!)
-        : view === "week"
-          ? weekRangeLabel(weekDates[0]!, weekDates[weekDates.length - 1]!)
-          : monthTitle(anchorDate);
+    view === "week"
+      ? weekRangeLabel(weekDates[0]!, weekDates[weekDates.length - 1]!)
+      : monthTitle(anchorDate);
   const dateLabelShort =
-    view === "day"
-      ? formatDayShort(anchorDate)
-      : view === "3day"
-        ? weekRangeLabelShort(gridDates[0]!, gridDates[gridDates.length - 1]!)
-        : view === "week"
-          ? weekRangeLabelShort(weekDates[0]!, weekDates[weekDates.length - 1]!)
-          : dateLabel;
+    view === "week"
+      ? weekRangeLabelShort(weekDates[0]!, weekDates[weekDates.length - 1]!)
+      : dateLabel;
 
   const [pending, setPending] = useState<PendingMove | null>(null);
   const [hover, setHover] = useState<HoverSlot | null>(null);
@@ -246,16 +231,12 @@ export function LessonsCalendar({
   }
 
   function goPrev() {
-    if (view === "day") onAnchorDateChange?.(addDays(anchorDate, -1));
-    else if (view === "3day") onAnchorDateChange?.(addDays(anchorDate, -3));
-    else if (view === "week") onAnchorDateChange?.(addDays(weekStart, -7));
+    if (view === "week") onAnchorDateChange?.(addDays(weekStart, -7));
     else onAnchorDateChange?.(shiftMonth(anchorDate, -1));
   }
 
   function goNext() {
-    if (view === "day") onAnchorDateChange?.(addDays(anchorDate, 1));
-    else if (view === "3day") onAnchorDateChange?.(addDays(anchorDate, 3));
-    else if (view === "week") onAnchorDateChange?.(addDays(weekStart, 7));
+    if (view === "week") onAnchorDateChange?.(addDays(weekStart, 7));
     else onAnchorDateChange?.(shiftMonth(anchorDate, 1));
   }
 
@@ -265,7 +246,7 @@ export function LessonsCalendar({
       return;
     }
     onAnchorDateChange?.(date);
-    onViewChange?.("day");
+    onViewChange?.("week");
   }
 
   function beginDrag(lesson: PlacedLesson) {
@@ -343,9 +324,9 @@ export function LessonsCalendar({
       />
 
       <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
-        {view !== "month" ? (
+        {view === "week" ? (
           <WeekGrid
-            dates={gridDates}
+            dates={weekDates}
             lessons={visibleLessons}
             openMinute={openMinute}
             closeMinute={closeMinute}
@@ -1402,15 +1383,7 @@ function formatDayLong(date: string): string {
     weekday: "long",
     day: "numeric",
     month: "long",
-    year: "numeric",
   }).format(new Date(romeLocalNoonUtc(date) ?? noon));
-}
-
-function formatDayShort(date: string): string {
-  const day = Number(date.slice(8, 10));
-  const month = MONTHS_SHORT[Number(date.slice(5, 7)) - 1]!.toLowerCase();
-  const year = date.slice(0, 4);
-  return `${day} ${month} ${year}`;
 }
 
 function romeLocalNoonUtc(date: string): string | null {
