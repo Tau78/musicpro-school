@@ -51,3 +51,9 @@ supabase/.temp/
 # ScuolaSemplice import local venv / reports
 scripts/scuola-semplice/.venv/
 tmp/
+
+# Android local
+school-shell-android/local.properties
+school-shell-android/**/*.jks
+school-shell-android/**/*.keystore
+

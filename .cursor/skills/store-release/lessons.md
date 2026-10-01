@@ -141,6 +141,21 @@ Più «Mostra password», così il reviewer digita il demo a mano.
 
 ---
 
+## MusicPro School — 2026-10-01 — Resubmit Unlisted + Android shell
+
+**Cosa fatto in autonomia:**
+1. Cancellata submission `UNRESOLVED_ISSUES` (3.2). Versione 1.1.0 tornata `PREPARE_FOR_SUBMISSION`.
+2. Collegata build **10**; Review Notes aggiornate con richiesta **Unlisted** (Guideline 3.2).
+3. `asc-metadata.sh` + `ASC_SUBMIT=1 asc-submit.sh` → submission `WAITING_FOR_REVIEW`.
+4. Script `scripts/asc-prepare-unlisted-resubmit.mjs` + testo form in `store/ios/UNLISTED_REQUEST.md`.
+5. Guscio Android nativo `school-shell-android/` (WebView, stesso package) + listing `store/android/it-IT/`.
+
+**Ancora manuale (Account Holder):**
+- Form Apple Unlisted: https://developer.apple.com/contact/request/unlisted-app/ (testo in `UNLISTED_REQUEST.md`).
+- Play Console: creare app `it.musicproeventi.school`, invitare `musicpro-play-submit@rewavier-app.iam.gserviceaccount.com`, firmare AAB (keystore), upload internal → production.
+
+---
+
 ## MusicPro Eventi — Listing, Privacy, dati veri
 
 - **Listing pubblica** = solo il ruolo utente (giocatore). Staff / host solo in Review Notes.

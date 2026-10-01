@@ -28,7 +28,9 @@
     "vercel:cleanup": "bash scripts/vercel-cleanup.sh",
     "import:ss-quotas": "node scripts/import-scuola-semplice-quotas.mjs",
     "smoke:credit-refund-cancel": "node scripts/smoke-credit-refund-cancel.mjs",
-    "smoke:credit-shop-nexi": "node scripts/smoke-credit-shop-nexi-e2e.mjs"
+    "smoke:credit-shop-nexi": "node scripts/smoke-credit-shop-nexi-e2e.mjs",
+    "asc:prepare-unlisted": "node scripts/asc-prepare-unlisted-resubmit.mjs",
+    "android:aab": "bash school-shell-android/scripts/build-aab.sh"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.8",
