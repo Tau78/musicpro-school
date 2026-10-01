@@ -161,15 +161,20 @@ export async function POST(request: Request) {
     subject: mail.subject,
     text: mail.text,
     html: mail.html,
+    preferGoogleSmtp: true,
   });
 
   if (!sent.sent) {
-    return NextResponse.json({
-      success: true,
-      message: `Password aggiornata, ma email non inviata: ${sent.error ?? "trasporto assente"}. Comunica a mano la nuova password a ${email}.`,
-      emailSent: false,
-      emailError: sent.error ?? null,
-    });
+    return NextResponse.json(
+      {
+        success: false,
+        message: `Password aggiornata su Auth, ma email NON inviata a ${email}: ${sent.error ?? "trasporto assente"}. Comunica a mano la password all'associato.`,
+        emailSent: false,
+        emailError: sent.error ?? null,
+        passwordUpdated: true,
+      },
+      { status: 502 },
+    );
   }
 
   return NextResponse.json({

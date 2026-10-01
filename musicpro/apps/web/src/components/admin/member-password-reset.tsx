@@ -71,7 +71,10 @@ export function MemberPasswordReset({
       };
 
       if (!response.ok || !payload.success) {
-        setError(payload.message ?? "Operazione non riuscita.");
+        setError(
+          payload.message ??
+            "Operazione non riuscita. Se la password è stata aggiornata ma l'email no, comunicala a mano all'associato.",
+        );
         return;
       }
 

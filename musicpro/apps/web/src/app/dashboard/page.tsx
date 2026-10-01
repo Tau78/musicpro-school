@@ -3,26 +3,20 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 
 import {
-  countPendingApprovalBookings,
   getCurrentMemberWithRoles,
   getLessonSchoolSettings,
   getTeacherProfile,
   hasActiveCourseEnrollment,
-  listAdminBookings,
   listBookingsInRange,
   listExternalCalendarEventsInRange,
   listLessonsInRange,
-  listLessonsOnDate,
   listMemberLabelsWithRole,
-  listPendingCourses,
-  listPendingLessonChangeRequests,
+  listMyBookings,
   listRooms,
-  listUnplacedLessons,
   todayInRome,
 } from "@musicpro/database";
 import { APP_NAME, MemberRole } from "@musicpro/shared";
 
-import { StaffDashboardHub } from "@/components/admin/staff-dashboard-hub";
 import { AssociatePageShell } from "@/components/associate/associate-page-shell";
 import { MemberHome } from "@/components/associate/member-home";
 import { SettingsGearLink } from "@/components/dashboard/settings-gear-link";
@@ -36,15 +30,13 @@ import {
   canManageMembers,
 } from "@/lib/admin/roles";
 import {
-  calendarBounds,
   isIsoDate,
+  monthBounds,
   parseCalendarView,
+  weekBounds,
 } from "@/lib/lezioni/calendar-range";
-import {
-  getMembershipStatus,
-  isAssociatoMember,
-} from "@/lib/membership";
 import { createClient } from "@/lib/supabase/server";
+import { formatBookingWhen } from "@/lib/ui/associate-theme";
 
 interface PageProps {
   searchParams: Promise<{
@@ -68,6 +60,9 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
   const params = await searchParams;
   const today = todayInRome();
+  const view = parseCalendarView(params.view);
+  const anchorDate = isIsoDate(params.date) ? params.date : today;
+  const highlightDay = isIsoDate(params.hl) ? params.hl : null;
   const paymentComplete = params.dopoPagamento === "1";
   const paymentBookingId = params.bookingId?.trim() || null;
 
@@ -77,184 +72,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const showTeacherLessons = isDocente;
   const showOperational =
     showBookingsCalendar || showTeacherLessons || showStaffLessons;
-  const useAdminShell = canAccessAdmin(member.roles);
-
-  if (!showOperational) {
-    const showQuotaUi = isAssociatoMember(member.roles);
-    const quotaStatus = showQuotaUi
-      ? await getMembershipStatus(supabase, member.id)
-      : null;
-    const isAllievo = await hasActiveCourseEnrollment(supabase, member.id);
-    const nextAssociateLesson = isAllievo
-      ? (
-          await listLessonsInRange(supabase, {
-            from: today,
-            to: addDaysIso(today, 90),
-            studentMemberId: member.id,
-          })
-        )[0] ?? null
-      : null;
-
-    return (
-      <AssociatePageShell actions={<SettingsGearLink />}>
-        {paymentComplete ? (
-          <div className="mb-6">
-            <BookingPaymentReturnNotice bookingId={paymentBookingId} />
-          </div>
-        ) : null}
-        <MemberHome
-          firstName={member.firstName}
-          showLessons={isAllievo}
-          quotaStatus={quotaStatus}
-          nextLesson={
-            nextAssociateLesson?.startsAt
-              ? {
-                  subjectName: nextAssociateLesson.subjectName,
-                  startsAt: nextAssociateLesson.startsAt,
-                  teacherLabel: `${nextAssociateLesson.titularFirstName} ${nextAssociateLesson.titularLastName}`.trim(),
-                }
-              : null
-          }
-        />
-      </AssociatePageShell>
-    );
-  }
-
-  if (useAdminShell) {
-    const hubProps = await loadStaffDashboardHub(supabase, member.id, today, {
-      showBookingsCalendar,
-      showStaffLessons,
-      showTeacherLessons,
-    });
-
-    return (
-      <div className="space-y-4 sm:space-y-5">
-        {paymentComplete ? (
-          <BookingPaymentReturnNotice bookingId={paymentBookingId} />
-        ) : null}
-        <StaffDashboardHub
-          {...hubProps}
-          firstName={member.firstName}
-        />
-      </div>
-    );
-  }
-
-  return (
-    <LegacyOperationalDashboard
-      memberId={member.id}
-      params={params}
-      today={today}
-      paymentComplete={paymentComplete}
-      paymentBookingId={paymentBookingId}
-      showBookingsCalendar={showBookingsCalendar}
-      showStaffLessons={showStaffLessons}
-      showTeacherLessons={showTeacherLessons}
-      isDocente={isDocente}
-    />
-  );
-}
-
-async function loadStaffDashboardHub(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  memberId: string,
-  today: string,
-  flags: {
-    showBookingsCalendar: boolean;
-    showStaffLessons: boolean;
-    showTeacherLessons: boolean;
-  },
-) {
-  const { showBookingsCalendar, showStaffLessons, showTeacherLessons } = flags;
-  const showLessons = showStaffLessons || showTeacherLessons;
-
-  const [
-    pendingApprovalCount,
-    upcomingBookingsRaw,
-    unplacedLessons,
-    pendingCourses,
-    changeRequests,
-    todayLessons,
-    arrearsRange,
-  ] = await Promise.all([
-    showBookingsCalendar
-      ? countPendingApprovalBookings(supabase)
-      : Promise.resolve(0),
-    showBookingsCalendar
-      ? listAdminBookings(supabase, "upcoming")
-      : Promise.resolve([]),
-    showStaffLessons
-      ? listUnplacedLessons(supabase)
-      : Promise.resolve([]),
-    showStaffLessons
-      ? listPendingCourses(supabase)
-      : Promise.resolve([]),
-    showStaffLessons
-      ? listPendingLessonChangeRequests(supabase)
-      : Promise.resolve([]),
-    showLessons
-      ? listLessonsOnDate(supabase, today, {
-          includePendingHold: true,
-          ...(showStaffLessons
-            ? {}
-            : { teacherMemberId: memberId }),
-        })
-      : Promise.resolve([]),
-    showStaffLessons
-      ? listLessonsInRange(supabase, {
-          from: addDaysIso(today, -14),
-          to: today,
-        })
-      : Promise.resolve([]),
-  ]);
-
-  const arrearsCount = showStaffLessons
-    ? arrearsRange.filter(
-        (lesson) =>
-          !lesson.hasAttendance &&
-          !lesson.id.startsWith("hold:") &&
-          lesson.courseStatus !== "in_attesa",
-      ).length
-    : 0;
-
-  return {
-    showBookings: showBookingsCalendar,
-    showStaffLessons,
-    showTeacherLessons,
-    pendingApprovalCount,
-    unplacedCount: unplacedLessons.length,
-    codaCount: pendingCourses.length + changeRequests.length,
-    arrearsCount,
-    upcomingBookings: upcomingBookingsRaw.slice(0, 4),
-    todayLessons,
-  };
-}
-
-async function LegacyOperationalDashboard({
-  memberId,
-  params,
-  today,
-  paymentComplete,
-  paymentBookingId,
-  showBookingsCalendar,
-  showStaffLessons,
-  showTeacherLessons,
-  isDocente,
-}: {
-  memberId: string;
-  params: Awaited<PageProps["searchParams"]>;
-  today: string;
-  paymentComplete: boolean;
-  paymentBookingId: string | null;
-  showBookingsCalendar: boolean;
-  showStaffLessons: boolean;
-  showTeacherLessons: boolean;
-  isDocente: boolean;
-}) {
-  const supabase = await createClient();
-  const view = parseCalendarView(params.view);
-  const anchorDate = isIsoDate(params.date) ? params.date : today;
-  const highlightDay = isIsoDate(params.hl) ? params.hl : null;
+  const showAdminLink = canAccessAdmin(member.roles);
 
   const [settings, rooms] = await Promise.all([
     getLessonSchoolSettings(supabase),
@@ -268,7 +86,10 @@ async function LegacyOperationalDashboard({
       : null;
 
   const sundayVisible = settings?.sundayVisible ?? false;
-  const bounds = calendarBounds(view, anchorDate, sundayVisible);
+  const bounds =
+    view === "month"
+      ? monthBounds(anchorDate)
+      : weekBounds(anchorDate, sundayVisible);
 
   const calendarSettings = {
     sundayVisible,
@@ -315,7 +136,7 @@ async function LegacyOperationalDashboard({
       ? listMemberLabelsWithRole(supabase, MemberRole.Docente)
       : Promise.resolve([]),
     showTeacherLessons && !showStaffLessons
-      ? getTeacherProfile(supabase, memberId)
+      ? getTeacherProfile(supabase, member.id)
       : Promise.resolve(null),
   ]);
 
@@ -334,7 +155,7 @@ async function LegacyOperationalDashboard({
           includePendingHold: true,
           ...(showStaffLessons
             ? { titularMemberId: teacherId ?? undefined }
-            : { teacherMemberId: memberId }),
+            : { teacherMemberId: member.id }),
         })
       : [];
 
@@ -345,6 +166,56 @@ async function LegacyOperationalDashboard({
   const staffLessonEvents = showStaffLessons
     ? mergeCalendarEvents(lessonEvents, lessonBookings, lessonExternals)
     : lessonEvents;
+
+  if (!showOperational) {
+    const isAllievo = await hasActiveCourseEnrollment(supabase, member.id);
+    const [associateLessons, upcomingBookings] = await Promise.all([
+      isAllievo
+        ? listLessonsInRange(supabase, {
+            from: today,
+            to: addDaysIso(today, 90),
+            studentMemberId: member.id,
+          })
+        : Promise.resolve([]),
+      listMyBookings(supabase, member.id, "upcoming"),
+    ]);
+    const nextAssociateLesson = associateLessons[0] ?? null;
+    const nextAssociateBooking = upcomingBookings[0] ?? null;
+
+    return (
+      <AssociatePageShell actions={<SettingsGearLink />}>
+        {paymentComplete ? (
+          <div className="mb-6">
+            <BookingPaymentReturnNotice bookingId={paymentBookingId} />
+          </div>
+        ) : null}
+        <MemberHome
+          firstName={member.firstName}
+          showNextLesson={isAllievo}
+          nextLesson={
+            nextAssociateLesson?.startsAt
+              ? {
+                  subjectName: nextAssociateLesson.subjectName,
+                  startsAt: nextAssociateLesson.startsAt,
+                  teacherLabel: `${nextAssociateLesson.titularFirstName} ${nextAssociateLesson.titularLastName}`.trim(),
+                }
+              : null
+          }
+          nextBooking={
+            nextAssociateBooking
+              ? {
+                  roomName: nextAssociateBooking.room?.name ?? "Sala",
+                  whenLabel: formatBookingWhen(
+                    nextAssociateBooking.start_at,
+                    nextAssociateBooking.end_at,
+                  ),
+                }
+              : null
+          }
+        />
+      </AssociatePageShell>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-[var(--background)]">
@@ -367,6 +238,14 @@ async function LegacyOperationalDashboard({
                 Area lezioni
               </Link>
             ) : null}
+            {showAdminLink ? (
+              <Link
+                href="/admin"
+                className="hidden text-sm text-neutral-600 hover:text-[var(--brand)] sm:inline"
+              >
+                Admin
+              </Link>
+            ) : null}
             <SettingsGearLink />
           </div>
         </div>
@@ -377,137 +256,143 @@ async function LegacyOperationalDashboard({
           <BookingPaymentReturnNotice bookingId={paymentBookingId} />
         ) : null}
 
-        <section className="space-y-3">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <h2 className="text-2xl font-semibold text-[var(--brand)]">
-                Sala prove
-              </h2>
-              <p className="mt-1 text-sm text-neutral-600">
-                {showBookingsCalendar
-                  ? "Calendario cliccabile: trascina su uno slot vuoto per creare, clicca un evento per modificare o cancellare."
-                  : "Prenota una sala o gestisci le tue prove dall’area riservata."}
-              </p>
-            </div>
-            {showBookingsCalendar ? (
-              <Link
-                href="/admin/prenotazioni/calendario"
-                className="text-sm font-medium text-[var(--brand)] hover:underline"
-              >
-                Calendario completo
-              </Link>
-            ) : null}
-          </div>
-
-          {showBookingsCalendar ? (
-            <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white p-3 sm:p-4">
-              <LessonsCalendarPage
-                initialLessons={bookingOnlyEvents}
-                settings={calendarSettings}
-                rooms={roomOptions}
-                bookingRooms={rooms}
-                initialRoomId={roomId}
-                initialView={view}
-                initialDate={anchorDate}
-                initialMode="sala"
-                isStaff
-                canDrag={false}
-                courseDetailBasePath="/admin/prenotazioni"
-                today={today}
-                highlightDay={highlightDay}
-                memberId={memberId}
-                bookingsOnly
-              />
-            </div>
-          ) : (
-            <MemberSalaLinks />
-          )}
-        </section>
-
-        {showTeacherLessons || showStaffLessons ? (
-          <section className="space-y-3">
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <h2 className="text-2xl font-semibold text-[var(--brand)]">
-                  Lezioni
-                </h2>
-                <p className="mt-1 text-sm text-neutral-600">
-                  Calendario cliccabile con modifiche e cancellazioni.
-                </p>
+        {
+          <>
+            <section className="space-y-3">
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <h2 className="text-2xl font-semibold text-[var(--brand)]">
+                    Sala prove
+                  </h2>
+                  <p className="mt-1 text-sm text-neutral-600">
+                    {showBookingsCalendar
+                      ? "Calendario cliccabile: trascina su uno slot vuoto per creare, clicca un evento per modificare o cancellare."
+                      : "Prenota una sala o gestisci le tue prove dall’area riservata."}
+                  </p>
+                </div>
+                {showBookingsCalendar ? (
+                  <Link
+                    href="/admin/prenotazioni/calendario"
+                    className="text-sm font-medium text-[var(--brand)] hover:underline"
+                  >
+                    Apri in Admin
+                  </Link>
+                ) : null}
               </div>
-              <Link
-                href={
-                  showStaffLessons
-                    ? "/admin/lezioni/calendario"
-                    : "/lezioni/calendario"
-                }
-                className="text-sm font-medium text-[var(--brand)] hover:underline"
-              >
-                Apri calendario completo
-              </Link>
-            </div>
 
-            {showStaffLessons ? (
-              <Suspense fallback={null}>
-                <UnplacedLessonsBlock
-                  actor={{
-                    memberId,
-                    isStaff: true,
-                    canReschedule: true,
-                  }}
-                  rooms={roomOptions}
-                  courseDetailBaseHref="/admin/lezioni/corsi"
-                />
-              </Suspense>
+              {showBookingsCalendar ? (
+                <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white p-3 sm:p-4">
+                  <LessonsCalendarPage
+                    initialLessons={bookingOnlyEvents}
+                    settings={calendarSettings}
+                    rooms={roomOptions}
+                    bookingRooms={rooms}
+                    initialRoomId={roomId}
+                    initialView={view}
+                    initialDate={anchorDate}
+                    initialMode="sala"
+                    isStaff
+                    canDrag={false}
+                    courseDetailBasePath="/admin/prenotazioni"
+                    today={today}
+                    highlightDay={highlightDay}
+                    memberId={member.id}
+                    bookingsOnly
+                  />
+                </div>
+              ) : (
+                <MemberSalaLinks />
+              )}
+            </section>
+
+            {showTeacherLessons || showStaffLessons ? (
+              <section className="space-y-3">
+                <div className="flex flex-wrap items-end justify-between gap-3">
+                  <div>
+                    <h2 className="text-2xl font-semibold text-[var(--brand)]">
+                      Lezioni
+                    </h2>
+                    <p className="mt-1 text-sm text-neutral-600">
+                      Calendario cliccabile con modifiche e cancellazioni.
+                      Aggiungi o riposiziona lezioni al volo dagli slot e dalle
+                      lezioni da piazzare.
+                    </p>
+                  </div>
+                  <Link
+                    href={
+                      showStaffLessons
+                        ? "/admin/lezioni/calendario"
+                        : "/lezioni/calendario"
+                    }
+                    className="text-sm font-medium text-[var(--brand)] hover:underline"
+                  >
+                    Apri calendario completo
+                  </Link>
+                </div>
+
+                {showStaffLessons ? (
+                  <Suspense fallback={null}>
+                    <UnplacedLessonsBlock
+                      actor={{
+                        memberId: member.id,
+                        isStaff: true,
+                        canReschedule: true,
+                      }}
+                      rooms={roomOptions}
+                      courseDetailBaseHref="/admin/lezioni/corsi"
+                    />
+                  </Suspense>
+                ) : null}
+
+                {showTeacherLessons &&
+                !showStaffLessons &&
+                teacherProfile?.canReschedule ? (
+                  <Suspense fallback={null}>
+                    <UnplacedLessonsBlock
+                      actor={{
+                        memberId: member.id,
+                        isStaff: false,
+                        canReschedule: true,
+                      }}
+                      rooms={roomOptions}
+                      courseDetailBaseHref="/lezioni/corsi"
+                      titularMemberId={member.id}
+                    />
+                  </Suspense>
+                ) : null}
+
+                <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white p-3 sm:p-4">
+                  <LessonsCalendarPage
+                    initialLessons={
+                      showStaffLessons ? staffLessonEvents : lessonEvents
+                    }
+                    settings={calendarSettings}
+                    rooms={roomOptions}
+                    teachers={showStaffLessons ? teachers : []}
+                    initialTeacherId={teacherId}
+                    initialView={view}
+                    initialDate={anchorDate}
+                    initialMode="docente"
+                    isStaff={showStaffLessons}
+                    canDrag={
+                      showStaffLessons ||
+                      (teacherProfile?.canReschedule ?? false)
+                    }
+                    courseDetailBasePath={
+                      showStaffLessons
+                        ? "/admin/lezioni/corsi"
+                        : "/lezioni/corsi"
+                    }
+                    today={today}
+                    highlightDay={highlightDay}
+                    memberId={member.id}
+                    bookingRooms={rooms}
+                  />
+                </div>
+              </section>
             ) : null}
-
-            {showTeacherLessons &&
-            !showStaffLessons &&
-            teacherProfile?.canReschedule ? (
-              <Suspense fallback={null}>
-                <UnplacedLessonsBlock
-                  actor={{
-                    memberId,
-                    isStaff: false,
-                    canReschedule: true,
-                  }}
-                  rooms={roomOptions}
-                  courseDetailBaseHref="/lezioni/corsi"
-                  titularMemberId={memberId}
-                />
-              </Suspense>
-            ) : null}
-
-            <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white p-3 sm:p-4">
-              <LessonsCalendarPage
-                initialLessons={
-                  showStaffLessons ? staffLessonEvents : lessonEvents
-                }
-                settings={calendarSettings}
-                rooms={roomOptions}
-                teachers={showStaffLessons ? teachers : []}
-                initialTeacherId={teacherId}
-                initialView={view}
-                initialDate={anchorDate}
-                initialMode="docente"
-                isStaff={showStaffLessons}
-                canDrag={
-                  showStaffLessons ||
-                  (teacherProfile?.canReschedule ?? false)
-                }
-                courseDetailBasePath={
-                  showStaffLessons
-                    ? "/admin/lezioni/corsi"
-                    : "/lezioni/corsi"
-                }
-                today={today}
-                highlightDay={highlightDay}
-                memberId={memberId}
-                bookingRooms={rooms}
-              />
-            </div>
-          </section>
-        ) : null}
+          </>
+        }
       </div>
     </main>
   );
@@ -540,3 +425,4 @@ function MemberSalaLinks() {
     </div>
   );
 }
+

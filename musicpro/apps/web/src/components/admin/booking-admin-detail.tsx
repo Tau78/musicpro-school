@@ -4,7 +4,6 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import {
-  BOOKING_MICROPHONE_COUNTS,
   adminUpdateBooking,
   bookingAuditActionLabel,
   bookingPaymentMethodLabel,
@@ -25,7 +24,6 @@ import {
   utcIsoToRomeLocalInput,
 } from "@musicpro/database";
 
-import { BookingWhatsAppLink } from "@/components/admin/booking-whatsapp-link";
 import { SettlementMethodPicker } from "@/components/admin/settlement-method-picker";
 import { requestBookingCalendarSync } from "@/lib/calendar/sync-booking";
 import { requestBookingConfirmationEmail } from "@/lib/booking/send-confirmation-email";
@@ -92,9 +90,6 @@ export function BookingAdminDetail({ booking, rooms }: BookingAdminDetailProps) 
       ),
   );
   const [notes, setNotes] = useState(booking.notes ?? "");
-  const [microphoneCount, setMicrophoneCount] = useState(
-    booking.microphone_count ?? 0,
-  );
   const [settlementMethod, setSettlementMethod] =
     useState<SettlementMethod | null>(null);
   const [auditLog, setAuditLog] = useState<BookingAuditLogEntry[]>([]);
@@ -183,7 +178,6 @@ export function BookingAdminDetail({ booking, rooms }: BookingAdminDetailProps) 
         startAt,
         endAt,
         notes,
-        microphoneCount,
         settlementMethod: priceChanged ? settlementMethod ?? undefined : undefined,
       });
 
@@ -234,17 +228,9 @@ export function BookingAdminDetail({ booking, rooms }: BookingAdminDetailProps) 
               {formatBookingDateTime(booking.start_at, booking.end_at)}
             </p>
             <p className="mt-1 text-sm text-neutral-600">{memberName}</p>
-            {booking.member?.email ? (
+            {booking.member?.email && (
               <p className="text-xs text-neutral-500">{booking.member.email}</p>
-            ) : null}
-            {booking.member?.phone ? (
-              <p className="text-xs text-neutral-500">{booking.member.phone}</p>
-            ) : null}
-            {booking.status !== "cancelled" ? (
-              <div className="mt-2">
-                <BookingWhatsAppLink booking={booking} />
-              </div>
-            ) : null}
+            )}
           </div>
           <span className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700">
             {bookingStatusLabel(booking.status, booking.payment_status)}
@@ -280,18 +266,6 @@ export function BookingAdminDetail({ booking, rooms }: BookingAdminDetailProps) 
               <dd className="font-medium">Sì</dd>
             </div>
           )}
-          <div>
-            <dt className="text-neutral-500">Microfoni</dt>
-            <dd className="font-medium">{booking.microphone_count ?? 0}</dd>
-          </div>
-          {booking.notes?.trim() ? (
-            <div className="sm:col-span-2">
-              <dt className="text-neutral-500">Note associato</dt>
-              <dd className="mt-1 whitespace-pre-wrap font-medium">
-                {booking.notes.trim()}
-              </dd>
-            </div>
-          ) : null}
           {booking.band?.name && (
             <div>
               <dt className="text-neutral-500">Band</dt>
@@ -379,32 +353,9 @@ export function BookingAdminDetail({ booking, rooms }: BookingAdminDetailProps) 
           </div>
         </div>
 
-        <div className="flex flex-wrap items-end gap-3">
-          <div>
-            <label
-              htmlFor="microphoneCount"
-              className="block text-sm font-medium text-neutral-700"
-            >
-              Microfoni
-            </label>
-            <select
-              id="microphoneCount"
-              value={microphoneCount}
-              onChange={(e) => setMicrophoneCount(Number(e.target.value))}
-              className="mt-1 rounded-lg border border-neutral-300 px-3 py-2 text-sm"
-            >
-              {BOOKING_MICROPHONE_COUNTS.map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
         <div>
           <label htmlFor="notes" className="block text-sm font-medium text-neutral-700">
-            Note
+            Note interne
           </label>
           <textarea
             id="notes"
@@ -412,7 +363,7 @@ export function BookingAdminDetail({ booking, rooms }: BookingAdminDetailProps) 
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
             className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
-            placeholder="Note associato / segreteria (Google Calendar)"
+            placeholder="Note visibili in anagrafica prenotazione"
           />
         </div>
 

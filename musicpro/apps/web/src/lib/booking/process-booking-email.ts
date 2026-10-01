@@ -40,6 +40,7 @@ export interface BookingEmailProcessResult {
   success: boolean;
   skipped?: boolean;
   sent?: boolean;
+  admin_sent?: boolean;
   dev_mode?: boolean;
   message?: string;
   booking_id?: string;
@@ -173,6 +174,26 @@ async function getCancelPolicyHours(): Promise<number> {
   if (error || !data?.value) return 24;
   const parsed = parseInt(String(data.value), 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 24;
+}
+
+async function getAdminNotifyEmails(): Promise<string[]> {
+  const client = serviceClient();
+  const { data, error } = await client
+    .from("app_settings")
+    .select("key, value")
+    .in("key", ["admin_email", "segreteria_email"]);
+
+  if (error) {
+    console.error("[booking-email] admin emails:", error.message);
+    return [];
+  }
+
+  const emails = new Set<string>();
+  for (const row of data ?? []) {
+    const value = typeof row.value === "string" ? row.value.trim().toLowerCase() : "";
+    if (value && value.includes("@")) emails.add(value);
+  }
+  return [...emails];
 }
 
 async function getMemberCreditAvailable(memberId: string): Promise<number | null> {
@@ -319,6 +340,73 @@ function buildBookingEmailContent(
   return { subject, html, text, recipientEmail };
 }
 
+function buildAdminBookingNotifyContent(
+  booking: BookingRow,
+  template: BookingEmailTemplate,
+  options: { paymentUrl?: string | null },
+): { subject: string; html: string; text: string } {
+  const memberName = booking.members
+    ? `${booking.members.first_name} ${booking.members.last_name}`.trim()
+    : "Associato";
+  const memberEmail = booking.members?.email?.trim() || "—";
+  const roomName = booking.rooms?.name ?? "Sala";
+  const whenLine = `${formatDateTimeRome(booking.start_at)} – ${formatTimeRome(booking.end_at)}`;
+  const price = formatEuro(booking.total_price_eur);
+  const bookingRef = shortBookingId(booking.id);
+  const paymentUrl = options.paymentUrl?.trim() || null;
+  const status = paymentUrl
+    ? "In attesa pagamento"
+    : statusLabel(booking.status, booking.payment_status);
+  const adminUrl = `${appUrl()}/admin/prenotazioni`;
+
+  const subject =
+    template === "modified"
+      ? `Prenotazione modificata — ${memberName}`
+      : `Nuova prenotazione — ${memberName}`;
+
+  const intro =
+    template === "modified"
+      ? "Una prenotazione sala è stata modificata."
+      : "È stata creata una nuova prenotazione sala.";
+
+  const text = [
+    intro,
+    "",
+    `Associato: ${memberName} <${memberEmail}>`,
+    `Stato: ${status}`,
+    `ID: ${bookingRef}`,
+    `Quando: ${whenLine}`,
+    `Sala: ${roomName}`,
+    `Prezzo: ${price}`,
+    ...(paymentUrl ? [`Pagamento: ${paymentUrl}`] : []),
+    "",
+    `Apri admin: ${adminUrl}`,
+    "",
+    "MusicPro School",
+  ].join("\n");
+
+  const html = `<!DOCTYPE html>
+<html lang="it">
+<body style="font-family:system-ui,-apple-system,sans-serif;line-height:1.5;color:#1a1a1a;max-width:560px;margin:0 auto;padding:24px;">
+  <p>${escapeHtml(intro)}</p>
+  <table style="width:100%;border-collapse:collapse;margin:20px 0;background:#fafafa;border-radius:8px;">
+    <tr><td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;width:140px;">Associato</td><td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:500;">${escapeHtml(memberName)} &lt;${escapeHtml(memberEmail)}&gt;</td></tr>
+    <tr><td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;">Stato</td><td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:500;">${escapeHtml(status)}</td></tr>
+    <tr><td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;">ID</td><td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:500;">${escapeHtml(bookingRef)}</td></tr>
+    <tr><td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;">Quando</td><td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:500;">${escapeHtml(whenLine)}</td></tr>
+    <tr><td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;">Sala</td><td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:500;">${escapeHtml(roomName)}</td></tr>
+    <tr><td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;">Prezzo</td><td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:500;">${escapeHtml(price)}</td></tr>
+  </table>
+  <p style="margin-top:24px;">
+    <a href="${escapeHtml(adminUrl)}" style="display:inline-block;background:#0b3d5c;color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;font-weight:600;">Apri prenotazioni</a>
+  </p>
+  <p style="margin-top:32px;font-size:12px;color:#888;">MusicPro School — notifica admin</p>
+</body>
+</html>`;
+
+  return { subject, html, text };
+}
+
 async function logBookingEmail(params: {
   bookingId: string;
   recipientEmail: string;
@@ -419,9 +507,45 @@ export async function processBookingEmail(params: {
         status: "skipped",
         error: "Email già inviata in precedenza (usa force per reinviare)",
       });
+
+      // Anche se la mail all'associato era già partita, prova comunque la notifica admin.
+      let adminSent = false;
+      const adminEmails = (await getAdminNotifyEmails()).filter(
+        (email) => email !== content.recipientEmail.toLowerCase(),
+      );
+      if (adminEmails.length > 0) {
+        const adminContent = buildAdminBookingNotifyContent(booking, template, {
+          paymentUrl,
+        });
+        const adminAlready = await hasRecentSentEmail(
+          bookingId,
+          adminContent.subject,
+        );
+        if (!adminAlready) {
+          const adminDelivery = await sendEnrollmentEmail({
+            to: adminEmails,
+            subject: adminContent.subject,
+            text: adminContent.text,
+            html: adminContent.html,
+            preferGoogleSmtp: true,
+          });
+          adminSent = adminDelivery.sent === true;
+          await logBookingEmail({
+            bookingId,
+            recipientEmail: adminEmails.join(", "),
+            subject: adminContent.subject,
+            status: adminSent ? "sent" : "failed",
+            error: adminSent
+              ? null
+              : (adminDelivery.error ?? "Invio admin fallito"),
+          });
+        }
+      }
+
       return {
         success: true,
         skipped: true,
+        admin_sent: adminSent,
         message: "Email già inviata — skipped",
         booking_id: bookingId,
       };
@@ -476,10 +600,43 @@ export async function processBookingEmail(params: {
     status: "sent",
   });
 
+  // Notifica admin/segreteria (impostazioni admin_email / segreteria_email).
+  let adminSent = false;
+  const adminEmails = (await getAdminNotifyEmails()).filter(
+    (email) => email !== content.recipientEmail.toLowerCase(),
+  );
+  if (adminEmails.length > 0) {
+    const adminContent = buildAdminBookingNotifyContent(booking, template, {
+      paymentUrl,
+    });
+    const adminDelivery = await sendEnrollmentEmail({
+      to: adminEmails,
+      subject: adminContent.subject,
+      text: adminContent.text,
+      html: adminContent.html,
+      preferGoogleSmtp: true,
+    });
+    adminSent = adminDelivery.sent === true;
+    await logBookingEmail({
+      bookingId,
+      recipientEmail: adminEmails.join(", "),
+      subject: adminContent.subject,
+      status: adminSent ? "sent" : "failed",
+      error: adminSent ? null : (adminDelivery.error ?? "Invio admin fallito"),
+    });
+    if (!adminSent) {
+      console.error(
+        "[booking-email] admin notify failed:",
+        adminDelivery.error,
+      );
+    }
+  }
+
   return {
     success: true,
     sent: true,
-    message: `Email inviata via ${delivery.via ?? "smtp"}`,
+    admin_sent: adminSent,
+    message: `Email inviata via ${delivery.via ?? "smtp"}${adminSent ? " (+ admin)" : ""}`,
     booking_id: bookingId,
     subject: content.subject,
     recipient: content.recipientEmail,

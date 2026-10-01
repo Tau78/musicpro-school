@@ -22,7 +22,6 @@ export { createMobileClient } from "./mobile";
 export { getSupabaseAnonKey, getSupabaseUrl } from "./env";
 export type { Database, MemberRoleEnum } from "./types/database";
 export {
-  BOOKING_MICROPHONE_COUNTS,
   BOOKING_TIMEZONE,
   SLOT_CLOSE_HOUR,
   SLOT_DURATION_MINUTES,
@@ -64,6 +63,7 @@ export {
   timeInputToCloseMinute,
   timeLabelToMinutes,
   bookingNeedsPayment,
+  bookingOccupiesSlot,
   requestBookingCreditsPayment,
   requestRoomBookingPaymentUrl,
   adminUpdateBooking,
@@ -76,7 +76,6 @@ export {
   listMyBookings,
   listBookableBands,
   listRooms,
-  SANDBOX_ROOM_SLUG,
   reviewBooking,
   romeLocalInputToUtcIso,
   settlementMethodLabel,
@@ -233,7 +232,6 @@ export type {
   BookingChangePayload,
   BookingErrorCode,
   BookingMemberSnapshotEntry,
-  BookingMicrophoneCount,
   BookingPaymentStatus,
   BookingPaymentMethod,
   BookingPriceOptions,
@@ -275,7 +273,7 @@ export type {
 export {
   adminAdjustMemberCredits,
   createCreditPackage,
-  creditsForBookingPrice,
+  creditsForBookingDuration,
   debitBookingCredits,
   deleteCreditPackage,
   getCreditPackageById,
@@ -663,11 +661,11 @@ export type {
   LifecycleNotifyKind,
 } from "./lessons-lifecycle-notify";
 export {
+  hasActiveCourseEnrollment,
   listLessonsInRange,
   listLessonsOnDate,
   moveLesson,
   requestLessonMove,
-  hasActiveCourseEnrollment,
 } from "./lessons-calendar";
 export type {
   CalendarLesson,

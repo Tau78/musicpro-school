@@ -12,15 +12,14 @@ import {
   bookingStatusLabel,
   calculateBookingPrice,
   proviDaSoloDiscountTotalEur,
-  BOOKING_MICROPHONE_COUNTS,
   createBooking,
-  creditsForBookingPrice,
+  creditsForBookingDuration,
   durationOptionsForRoom,
   formatDateItalian,
   formatDurationLabel,
   formatEuro,
   getBookingSettings,
-  getCurrentMemberWithRoles,
+  getCurrentMember,
   getMemberCreditBalance,
   getRoomAvailability,
   isSlotInProviSchedule,
@@ -39,7 +38,6 @@ import {
 import { mapUserFacingError } from "@musicpro/shared";
 import { AuthSignInPanel } from "@/components/auth/auth-sign-in-panel";
 import { SignOutButton } from "@/components/auth/sign-out-button";
-import { MemberQuotaAlert } from "@/components/associate/member-quota-alert";
 import { SiteHeader } from "@/components/layout/site-header";
 import { BandSelectStep } from "@/components/prenotazioni/band-select-step";
 import {
@@ -48,46 +46,23 @@ import {
 } from "@/components/prenotazioni/session-type-step";
 import { RoomPickerGrid } from "@/components/prenotazioni/room-picker-grid";
 import { PrenotazioniWelcomeHero } from "@/components/prenotazioni/welcome-hero";
-import {
-  getMembershipStatus,
-  isAssociatoMember,
-  type MembershipStatus,
-} from "@/lib/membership";
 import { createClient } from "@/lib/supabase/client";
 import { requestBookingConfirmationEmail } from "@/lib/booking/send-confirmation-email";
 import { requestBookingCalendarSync } from "@/lib/calendar/sync-booking";
 
 type WizardStepKey =
-  | "start"
   | "session"
   | "band"
   | "room"
   | "duration"
-  | "date"
-  | "time"
   | "slot"
   | "confirm";
-
-type BookingStartMode = "room" | "date" | "time";
-
-type AlternativeRoomOption = {
-  room: Room;
-  slot: TimeSlot;
-};
-
-function slotStartMinutes(label: string): number {
-  const match = label.match(/(\d{1,2}):(\d{2})/);
-  if (!match) return Number.MAX_SAFE_INTEGER;
-  return Number(match[1]) * 60 + Number(match[2]);
-}
 
 export default function PrenotazioniPage() {
   const supabase = useMemo(() => createClient(), []);
   const loadRequestId = useRef(0);
 
   const [stepIndex, setStepIndex] = useState(0);
-  const [startMode, setStartMode] = useState<BookingStartMode>("room");
-  const [preferredTime, setPreferredTime] = useState("18:00");
   const [rooms, setRooms] = useState<Room[]>([]);
   const [myBands, setMyBands] = useState<MyBandSummary[]>([]);
   const [sessionType, setSessionType] = useState<SessionType>("band");
@@ -97,9 +72,6 @@ export default function PrenotazioniPage() {
   const [selectedDate, setSelectedDate] = useState(todayInRome());
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   const [slots, setSlots] = useState<TimeSlot[]>([]);
-  const [alternativeRoomsByStartAt, setAlternativeRoomsByStartAt] = useState<
-    Record<string, AlternativeRoomOption[]>
-  >({});
   const [memberId, setMemberId] = useState<string | null>(null);
   const [hasSession, setHasSession] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -112,14 +84,9 @@ export default function PrenotazioniPage() {
   const [error, setError] = useState<string | null>(null);
   const [proviSchedule, setProviSchedule] = useState<ProviScheduleEntry[]>([]);
   const [proviDaSolo, setProviDaSolo] = useState(false);
-  const [microphoneCount, setMicrophoneCount] = useState(0);
-  const [bookingNotes, setBookingNotes] = useState("");
   const [bandRequired, setBandRequired] = useState(false);
   const [bookingLocked, setBookingLocked] = useState(false);
   const [bookingLockedMessage, setBookingLockedMessage] = useState("");
-  const [quotaStatus, setQuotaStatus] = useState<MembershipStatus | null>(
-    null,
-  );
 
   const selectedRoom = useMemo(
     () => rooms.find((r) => r.id === selectedRoomId) ?? null,
@@ -167,47 +134,27 @@ export default function PrenotazioniPage() {
   }, [proviSchedule, selectedRoom, selectedSlot]);
 
   const creditCost = useMemo(
-    () => creditsForBookingPrice(previewPrice ?? 0),
-    [previewPrice],
+    () => creditsForBookingDuration(durationMinutes),
+    [durationMinutes],
   );
 
   const canPayWithCredits =
     creditBalance != null && creditBalance.available >= creditCost;
 
   const wizardSteps = useMemo(() => {
-    const steps: { key: WizardStepKey; label: string }[] = [
-      { key: "start", label: "Partenza" },
-    ];
+    const steps: { key: WizardStepKey; label: string }[] = [];
     if (showBandFlow) {
       steps.push({ key: "session", label: "Tipo sessione" });
       if (sessionType === "band") {
         steps.push({ key: "band", label: "Band" });
       }
     }
-    if (startMode === "room") {
-      steps.push(
-        { key: "room", label: "Sala" },
-        { key: "duration", label: "Durata" },
-        { key: "date", label: "Giorno" },
-      );
-    } else if (startMode === "date") {
-      steps.push(
-        { key: "date", label: "Giorno" },
-        { key: "room", label: "Sala" },
-        { key: "duration", label: "Durata" },
-      );
-    } else {
-      steps.push(
-        { key: "time", label: "Orario" },
-        { key: "date", label: "Giorno" },
-        { key: "room", label: "Sala" },
-        { key: "duration", label: "Durata" },
-      );
-    }
-    steps.push({ key: "slot", label: "Soluzioni" });
+    steps.push({ key: "room", label: "Sala" });
+    steps.push({ key: "duration", label: "Durata" });
+    steps.push({ key: "slot", label: "Data e orario" });
     steps.push({ key: "confirm", label: "Conferma" });
     return steps;
-  }, [showBandFlow, sessionType, startMode]);
+  }, [showBandFlow, sessionType]);
 
   const currentStepKey = wizardSteps[stepIndex]?.key ?? "room";
 
@@ -234,43 +181,23 @@ export default function PrenotazioniPage() {
     [bookableBands, selectedBandId],
   );
 
-  const visibleSlots = useMemo(
-    () =>
-      slots.filter(
-        (slot) =>
-          slot.available ||
-          (alternativeRoomsByStartAt[slot.startAt]?.length ?? 0) > 0,
-      ),
-    [alternativeRoomsByStartAt, slots],
+  const bookableSlots = useMemo(
+    () => slots.filter((slot) => slot.available),
+    [slots],
   );
-
-  const solutionSlots = useMemo(() => {
-    if (startMode !== "time") return visibleSlots;
-    const [hours, minutes] = preferredTime.split(":").map(Number);
-    const target = hours * 60 + minutes;
-    return [...visibleSlots].sort(
-      (a, b) =>
-        Math.abs(slotStartMinutes(a.label) - target) -
-        Math.abs(slotStartMinutes(b.label) - target),
-    );
-  }, [preferredTime, startMode, visibleSlots]);
 
   const loadAvailability = useCallback(async () => {
     if (
       !selectedRoomId ||
-      currentStepKey === "start" ||
       currentStepKey === "session" ||
       currentStepKey === "band" ||
       currentStepKey === "room" ||
-      currentStepKey === "duration" ||
-      currentStepKey === "date" ||
-      currentStepKey === "time"
+      currentStepKey === "duration"
     ) {
       return;
     }
 
     const requestId = ++loadRequestId.current;
-    setAlternativeRoomsByStartAt({});
     const cached = peekRoomAvailabilityCache(
       selectedRoomId,
       selectedDate,
@@ -289,54 +216,6 @@ export default function PrenotazioniPage() {
       );
       if (requestId !== loadRequestId.current) return;
       setSlots(availability.slots);
-
-      const alternativeRooms = rooms.filter(
-        (room) =>
-          room.id !== selectedRoomId &&
-          durationOptionsForRoom(room).includes(durationMinutes),
-      );
-      const alternativeAvailability = await Promise.all(
-        alternativeRooms.map(async (room) => {
-          try {
-            const result = await getRoomAvailability(
-              supabase,
-              room.id,
-              selectedDate,
-              durationMinutes,
-              { prefetchNeighbors: false },
-            );
-            return { room, slots: result.slots };
-          } catch {
-            return null;
-          }
-        }),
-      );
-      if (requestId !== loadRequestId.current) return;
-
-      const suggestions: Record<string, AlternativeRoomOption[]> = {};
-      for (const slot of availability.slots) {
-        if (
-          slot.available ||
-          !slot.bookingId ||
-          slot.leadTimeCategory === "too_late"
-        ) {
-          continue;
-        }
-        for (const candidate of alternativeAvailability) {
-          const alternativeSlot = candidate?.slots.find(
-            (item) =>
-              item.available &&
-              item.startAt === slot.startAt &&
-              item.endAt === slot.endAt,
-          );
-          if (!candidate || !alternativeSlot) continue;
-          (suggestions[slot.startAt] ??= []).push({
-            room: candidate.room,
-            slot: alternativeSlot,
-          });
-        }
-      }
-      setAlternativeRoomsByStartAt(suggestions);
     } catch (err) {
       if (requestId !== loadRequestId.current) return;
       if (cached) return;
@@ -347,14 +226,7 @@ export default function PrenotazioniPage() {
         ),
       );
     }
-  }, [
-    currentStepKey,
-    durationMinutes,
-    rooms,
-    selectedDate,
-    selectedRoomId,
-    supabase,
-  ]);
+  }, [currentStepKey, durationMinutes, selectedDate, selectedRoomId, supabase]);
 
   useEffect(() => {
     let cancelled = false;
@@ -368,19 +240,9 @@ export default function PrenotazioniPage() {
           data: { user },
         } = await supabase.auth.getUser();
 
-        const member = user
-          ? await getCurrentMemberWithRoles(supabase)
-          : null;
-        const includeSandbox =
-          (member?.email ?? "").trim().toLowerCase() ===
-          "mauro.andreoni@gmail.com";
-        const showQuotaUi = member ? isAssociatoMember(member.roles) : false;
-
-        const [roomList, bands, bookingSettings, membershipStatus] =
-          await Promise.all([
-          user
-            ? listRooms(supabase, { includeSandbox })
-            : Promise.resolve([] as Room[]),
+        const [roomList, member, bands, bookingSettings] = await Promise.all([
+          user ? listRooms(supabase) : Promise.resolve([] as Room[]),
+          user ? getCurrentMember(supabase) : Promise.resolve(null),
           user ? listMyBands(supabase).catch(() => [] as MyBandSummary[]) : Promise.resolve([] as MyBandSummary[]),
           user
             ? getBookingSettings(supabase)
@@ -389,9 +251,6 @@ export default function PrenotazioniPage() {
                 locked: false,
                 lockedMessage: "",
               } as Awaited<ReturnType<typeof getBookingSettings>>),
-          showQuotaUi && member
-            ? getMembershipStatus(supabase, member.id)
-            : Promise.resolve(null),
         ]);
 
         if (cancelled) return;
@@ -413,7 +272,6 @@ export default function PrenotazioniPage() {
           setSelectedBandId(bookable[0].id);
         }
         setMemberId(member?.id ?? null);
-        setQuotaStatus(membershipStatus);
       } catch (err) {
         if (!cancelled) {
           setError(
@@ -434,6 +292,14 @@ export default function PrenotazioniPage() {
       cancelled = true;
     };
   }, [supabase]);
+
+  useEffect(() => {
+    if (selectedRoom) {
+      setDurationMinutes(selectedRoom.default_duration_minutes);
+      setSelectedSlot(null);
+      setProviDaSolo(false);
+    }
+  }, [selectedRoomId, selectedRoom]);
 
   useEffect(() => {
     if (!selectedRoomId) {
@@ -469,13 +335,10 @@ export default function PrenotazioniPage() {
   useEffect(() => {
     if (
       !selectedRoomId ||
-      currentStepKey === "start" ||
       currentStepKey === "session" ||
       currentStepKey === "band" ||
       currentStepKey === "room" ||
-      currentStepKey === "duration" ||
-      currentStepKey === "date" ||
-      currentStepKey === "time"
+      currentStepKey === "duration"
     ) {
       return;
     }
@@ -526,6 +389,11 @@ export default function PrenotazioniPage() {
   }
 
   function handleSessionContinue() {
+    if (sessionType === "provi_da_solo") {
+      const roomIndex = wizardSteps.findIndex((step) => step.key === "room");
+      goToStepIndex(roomIndex >= 0 ? roomIndex : stepIndex + 1);
+      return;
+    }
     goToStepIndex(stepIndex + 1);
   }
 
@@ -579,9 +447,6 @@ export default function PrenotazioniPage() {
     setMessage(successMessage);
     setSelectedSlot(null);
     setSessionType("band");
-    setProviDaSolo(false);
-    setMicrophoneCount(0);
-    setBookingNotes("");
     if (bookableBands.length > 0) {
       setSelectedBandId(bookableBands[0].id);
     }
@@ -648,8 +513,6 @@ export default function PrenotazioniPage() {
           showBandFlow && sessionType === "band" && selectedBandId
             ? selectedBandId
             : undefined,
-        notes: bookingNotes,
-        microphoneCount,
       });
 
       if (!result.success) {
@@ -658,7 +521,10 @@ export default function PrenotazioniPage() {
       }
 
       if (payWithCredits && result.bookingId) {
-        const creditPayment = await requestBookingCreditsPayment(result.bookingId);
+        const creditPayment = await requestBookingCreditsPayment(
+          result.bookingId,
+          creditCost,
+        );
 
         if (!creditPayment.success) {
           setError(
@@ -705,11 +571,7 @@ export default function PrenotazioniPage() {
         eyebrow="Sale prova"
         title="Prenota una sala"
         navLinks={[
-          {
-            href: "/prenotazioni/mie",
-            label: "Le mie prenotazioni",
-            mobileLabel: "Le mie",
-          },
+          { href: "/prenotazioni/mie", label: "Le mie prenotazioni" },
           { href: "/dashboard", label: "Dashboard" },
         ]}
         actions={hasSession ? <SignOutButton className="rounded-lg border border-neutral-200 px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50" /> : null}
@@ -736,12 +598,6 @@ export default function PrenotazioniPage() {
         </div>
       ) : (
       <div className="mx-auto max-w-3xl px-4 py-4 sm:px-6 sm:py-6">
-        {hasSession && memberId && quotaStatus && !quotaStatus.quotaPaid ? (
-          <div className="mb-4">
-            <MemberQuotaAlert {...quotaStatus} />
-          </div>
-        ) : null}
-
         {hasSession && !memberId && !loading && (
           <div className="mb-8 rounded-2xl border border-amber-200 bg-amber-50 p-6">
             <h2 className="text-lg font-semibold text-amber-900">Profilo non collegato</h2>
@@ -793,7 +649,7 @@ export default function PrenotazioniPage() {
                         ? undefined
                         : `Torna a: ${label}`
                     }
-                    className={`touch-manipulation whitespace-nowrap rounded-full px-2.5 py-1 font-medium sm:px-3 ${className} ${
+                    className={`whitespace-nowrap rounded-full px-2.5 py-1 font-medium transition sm:px-3 ${className} ${
                       isClickable && !isCurrent ? "cursor-pointer" : ""
                     }`}
                   >
@@ -850,46 +706,6 @@ export default function PrenotazioniPage() {
           </div>
         )}
 
-        {currentStepKey === "start" && (
-          <section className="glass-card mt-3 space-y-3 p-4 sm:mt-4 sm:p-5">
-            <div>
-              <h2 className="text-base font-semibold text-[var(--brand)] sm:text-lg">
-                Da cosa vuoi partire?
-              </h2>
-              <p className="mt-1 text-xs text-neutral-600 sm:text-sm">
-                Ti portiamo alle soluzioni disponibili con il percorso più breve.
-              </p>
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              {(
-                [
-                  ["room", "Sala", "So già dove"],
-                  ["date", "Giorno", "So già quando"],
-                  ["time", "Orario", "Cerco quell’ora"],
-                ] as const
-              ).map(([mode, label, hint]) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => {
-                    setStartMode(mode);
-                    setSelectedSlot(null);
-                    goToStepIndex(stepIndex + 1);
-                  }}
-                  className="touch-manipulation rounded-xl border border-neutral-200 bg-white px-2 py-3 text-center hover:border-[var(--brand)]/40 hover:bg-neutral-50"
-                >
-                  <span className="block text-sm font-semibold text-[var(--brand)]">
-                    {label}
-                  </span>
-                  <span className="mt-0.5 block text-[10px] leading-tight text-neutral-500 sm:text-xs">
-                    {hint}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </section>
-        )}
-
         {currentStepKey === "session" && (
           <div className="mt-3 sm:mt-4">
             <SessionTypeStep
@@ -936,70 +752,9 @@ export default function PrenotazioniPage() {
                 onSelectBand={setSelectedBandId}
                 onContinue={() => goToStepIndex(stepIndex + 1)}
                 onBack={() => goToStepIndex(stepIndex - 1)}
-                quotaStatus={quotaStatus}
               />
             )}
           </div>
-        )}
-
-        {currentStepKey === "time" && (
-          <section className="glass-card mt-3 p-4 sm:mt-4 sm:p-5">
-            <div className="flex items-end gap-2">
-              <label htmlFor="preferredTime" className="min-w-0 flex-1">
-                <span className="mb-1 block text-xs font-medium text-neutral-600">
-                  A che ora preferisci?
-                </span>
-                <input
-                  id="preferredTime"
-                  type="time"
-                  step={1800}
-                  value={preferredTime}
-                  onChange={(event) => setPreferredTime(event.target.value)}
-                  className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm"
-                />
-              </label>
-              <button
-                type="button"
-                onClick={() => goToStepIndex(stepIndex + 1)}
-                className="rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90"
-              >
-                Continua
-              </button>
-            </div>
-          </section>
-        )}
-
-        {currentStepKey === "date" && (
-          <section className="glass-card mt-3 p-4 sm:mt-4 sm:p-5">
-            <div className="flex items-end gap-2">
-              <label htmlFor="date" className="min-w-0 flex-1">
-                <span className="mb-1 block text-xs font-medium text-neutral-600">
-                  In quale giorno?
-                </span>
-                <input
-                  id="date"
-                  type="date"
-                  value={selectedDate}
-                  min={todayInRome()}
-                  onChange={(event) => {
-                    setSelectedDate(event.target.value);
-                    setSelectedSlot(null);
-                  }}
-                  className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm"
-                />
-              </label>
-              <button
-                type="button"
-                onClick={() => goToStepIndex(stepIndex + 1)}
-                className="rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90"
-              >
-                Continua
-              </button>
-            </div>
-            <p className="mt-2 text-xs capitalize text-neutral-500">
-              {formatDateItalian(selectedDate)}
-            </p>
-          </section>
         )}
 
         {rooms.length > 0 && currentStepKey === "room" && (
@@ -1009,13 +764,8 @@ export default function PrenotazioniPage() {
               selectedRoomId={selectedRoomId}
               onSelectRoom={(roomId) => {
                 setSelectedRoomId(roomId);
-                setSelectedSlot(null);
-                setProviDaSolo(false);
                 const room = rooms.find((r) => r.id === roomId);
-                if (room) {
-                  setDurationMinutes(room.default_duration_minutes);
-                  goToStepIndex(stepIndex + 1);
-                }
+                if (room) setDurationMinutes(room.default_duration_minutes);
               }}
             />
             {selectedRoom?.description ? (
@@ -1024,13 +774,24 @@ export default function PrenotazioniPage() {
               </p>
             ) : null}
 
-            <button
-              type="button"
-              onClick={() => goToStepIndex(stepIndex - 1)}
-              className="text-sm text-neutral-600 underline"
-            >
-              Indietro
-            </button>
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => goToStepIndex(stepIndex + 1)}
+                className="rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90"
+              >
+                Continua
+              </button>
+              {showBandFlow ? (
+                <button
+                  type="button"
+                  onClick={() => goToStepIndex(stepIndex - 1)}
+                  className="text-sm text-neutral-600 underline"
+                >
+                  Indietro
+                </button>
+              ) : null}
+            </div>
           </section>
         )}
 
@@ -1043,11 +804,7 @@ export default function PrenotazioniPage() {
                   <button
                     key={minutes}
                     type="button"
-                    onClick={() => {
-                      setDurationMinutes(minutes);
-                      setSelectedSlot(null);
-                      goToStepIndex(stepIndex + 1);
-                    }}
+                    onClick={() => setDurationMinutes(minutes)}
                     className={`rounded-full px-3 py-1.5 text-xs font-medium transition sm:px-4 sm:py-2 sm:text-sm ${
                       active
                         ? "bg-[var(--brand)] text-white"
@@ -1063,99 +820,79 @@ export default function PrenotazioniPage() {
               })}
             </div>
 
-            <button
-              type="button"
-              onClick={() => goToStepIndex(stepIndex - 1)}
-              className="text-sm text-neutral-600 underline"
-            >
-              Indietro
-            </button>
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => goToStepIndex(stepIndex + 1)}
+                className="rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90"
+              >
+                Continua
+              </button>
+              <button
+                type="button"
+                onClick={() => goToStepIndex(stepIndex - 1)}
+                className="text-sm text-neutral-600 underline"
+              >
+                Indietro
+              </button>
+            </div>
           </section>
         )}
 
         {rooms.length > 0 && currentStepKey === "slot" && (
           <section className="glass-card mt-3 space-y-3 p-4 sm:mt-4 sm:space-y-4 sm:p-5">
-            <div className="flex items-center justify-between gap-3 text-xs sm:text-sm">
-              <p className="font-medium text-[var(--brand)]">
-                {startMode === "time"
-                  ? `Soluzioni più vicine alle ${preferredTime}`
-                  : startMode === "date"
-                    ? "Prime soluzioni disponibili"
-                    : "Orari disponibili"}
-              </p>
-              <p className="shrink-0 capitalize text-neutral-500">
+            <div className="flex flex-wrap items-end gap-2">
+              <label htmlFor="date" className="min-w-0 flex-1">
+                <span className="sr-only">Data</span>
+                <input
+                  id="date"
+                  type="date"
+                  value={selectedDate}
+                  min={todayInRome()}
+                  onChange={(e) => {
+                    setSelectedDate(e.target.value);
+                    setSelectedSlot(null);
+                  }}
+                  className="w-full rounded-lg border border-neutral-300 bg-white px-2.5 py-1.5 text-sm"
+                />
+              </label>
+              <p className="pb-1.5 text-xs capitalize text-neutral-500 sm:text-sm">
                 {formatDateItalian(selectedDate)}
               </p>
             </div>
 
             <div>
-              {visibleSlots.length === 0 ? (
+              {bookableSlots.length === 0 ? (
                 <p className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 px-3 py-4 text-center text-xs text-neutral-600 sm:text-sm">
                   Nessuno slot per questa data e durata. Cambia data, durata o sala.
                 </p>
               ) : (
                 <ul className="grid gap-1.5 sm:grid-cols-2 sm:gap-2">
-                  {solutionSlots.map((slot) => {
-                    const alternatives =
-                      alternativeRoomsByStartAt[slot.startAt] ?? [];
-                    return (
-                      <li key={slot.startAt}>
-                        {slot.available ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedSlot(slot);
-                              goToStepIndex(stepIndex + 1);
-                            }}
-                            className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-left text-sm transition hover:border-[var(--brand)] hover:bg-neutral-50"
-                          >
-                            <span className="font-medium">{slot.label}</span>
-                            <span className="mt-0.5 block text-xs text-neutral-600">
-                              {slot.leadTimeCategory === "approval" ? (
-                                <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-900">
-                                  Richiede approvazione
-                                </span>
-                              ) : slot.priceEur != null ? (
-                                formatEuro(slot.priceEur)
-                              ) : (
-                                "Disponibile"
-                              )}
+                  {bookableSlots.map((slot) => (
+                    <li key={slot.startAt}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedSlot(slot);
+                          goToStepIndex(stepIndex + 1);
+                        }}
+                        className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-left text-sm transition hover:border-[var(--brand)] hover:bg-neutral-50"
+                      >
+                        <span className="font-medium">{slot.label}</span>
+                        <span className="mt-0.5 block text-xs text-neutral-600">
+                          {slot.leadTimeCategory === "approval" ? (
+                            <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-900">
+                              Richiede approvazione
                             </span>
-                          </button>
-                        ) : (
-                          <div className="rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2 text-sm">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="font-medium">{slot.label}</span>
-                              <span className="text-xs text-amber-800">
-                                {selectedRoom?.name ?? "Sala"} occupata
-                              </span>
-                            </div>
-                            <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-neutral-700">
-                              <span>Se vuoi, a quell&apos;ora è libera</span>
-                              {alternatives.map((alternative) => (
-                                <button
-                                  key={alternative.room.id}
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedRoomId(alternative.room.id);
-                                    setSelectedSlot(alternative.slot);
-                                    setProviDaSolo(false);
-                                    goToStepIndex(stepIndex + 1);
-                                  }}
-                                  className="rounded-full border border-[var(--brand)]/25 bg-white px-2 py-1 font-semibold text-[var(--brand)] hover:bg-[var(--brand)]/5"
-                                >
-                                  {alternative.room.name.replace(
-                                    /^Sala\s+/i,
-                                    "",
-                                  )}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </li>
-                    );
-                  })}
+                          ) : slot.priceEur != null ? (
+                            formatEuro(slot.priceEur)
+                          ) : (
+                            "Disponibile"
+                          )}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
                 </ul>
               )}
             </div>
@@ -1201,8 +938,7 @@ export default function PrenotazioniPage() {
                     <dd className="font-medium">{selectedBand.name}</dd>
                   </div>
                 )}
-                {((showBandFlow && sessionType === "provi_da_solo") ||
-                  (!showBandFlow && proviDaSolo)) && (
+                {(showBandFlow && sessionType === "provi_da_solo") && (
                   <div className="flex justify-between gap-4">
                     <dt className="text-neutral-500">PROVI DA SOLO</dt>
                     <dd className="font-medium">Sì</dd>
@@ -1215,63 +951,28 @@ export default function PrenotazioniPage() {
                   </dd>
                 </div>
                 {slotAllowsProviDaSolo && !showBandFlow && (
-                  <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2.5">
-                    <label className="flex cursor-pointer items-center gap-2.5 text-sm">
+                  <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-3">
+                    <label className="flex cursor-pointer items-start gap-3 text-sm">
                       <input
                         type="checkbox"
                         checked={proviDaSolo}
                         onChange={(e) => setProviDaSolo(e.target.checked)}
-                        className="rounded border-neutral-300"
+                        className="mt-0.5 rounded border-neutral-300"
                       />
-                      <span className="font-medium text-neutral-900">
-                        Provo da solo
-                        {selectedRoom.provi_da_solo_discount_eur > 0 ? (
-                          <span className="ml-1.5 font-normal text-neutral-600">
-                            (−{formatEuro(selectedRoom.provi_da_solo_discount_eur)}
-                            /ora)
+                      <span>
+                        <span className="font-medium text-neutral-900">
+                          Provo da solo
+                        </span>
+                        {selectedRoom.provi_da_solo_discount_eur > 0 && (
+                          <span className="mt-0.5 block text-neutral-600">
+                            Sconto {formatEuro(selectedRoom.provi_da_solo_discount_eur)}
+                            /ora
                           </span>
-                        ) : null}
+                        )}
                       </span>
                     </label>
                   </div>
                 )}
-                <div className="flex flex-wrap items-center gap-2 border-t border-neutral-100 pt-3">
-                  <label
-                    htmlFor="microphoneCount"
-                    className="shrink-0 text-sm text-neutral-500"
-                  >
-                    Microfoni
-                  </label>
-                  <select
-                    id="microphoneCount"
-                    value={microphoneCount}
-                    onChange={(e) => setMicrophoneCount(Number(e.target.value))}
-                    className="rounded-lg border border-neutral-300 px-2.5 py-1.5 text-sm"
-                  >
-                    {BOOKING_MICROPHONE_COUNTS.map((n) => (
-                      <option key={n} value={n}>
-                        {n}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="pt-1">
-                  <label
-                    htmlFor="bookingNotes"
-                    className="block text-sm text-neutral-500"
-                  >
-                    Note aggiuntive
-                  </label>
-                  <textarea
-                    id="bookingNotes"
-                    value={bookingNotes}
-                    onChange={(e) => setBookingNotes(e.target.value)}
-                    rows={2}
-                    maxLength={500}
-                    placeholder="Opzionale — visibili in calendario e in segreteria"
-                    className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
-                  />
-                </div>
                 {creditBalance != null && (
                   <div className="flex justify-between gap-4">
                     <dt className="text-neutral-500">Crediti</dt>
@@ -1281,8 +982,8 @@ export default function PrenotazioniPage() {
                       </span>
                       <span className="mt-0.5 block text-neutral-500">
                         Costo: {creditCost}{" "}
-                        {creditCost === 1 ? "credito" : "crediti"} · 1 credito =
-                        1 €
+                        {creditCost === 1 ? "credito" : "crediti"} (
+                        {formatDurationLabel(durationMinutes)})
                       </span>
                     </dd>
                   </div>

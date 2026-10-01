@@ -5,9 +5,6 @@ import { useSearchParams } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
 
 import { BrandLogo } from "@/components/brand/brand-logo";
-import { mapAuthError } from "@musicpro/shared";
-import { authCallbackUrl } from "@/lib/auth/redirect-url";
-import { createClient } from "@/lib/supabase/client";
 
 const inputClass =
   "mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/20";
@@ -32,24 +29,34 @@ export function ForgotPasswordForm() {
     setMessage(null);
     setIsLoading(true);
 
-    const supabase = createClient();
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(
-      email.trim(),
-      {
-        redirectTo: authCallbackUrl("/reset-password"),
-      },
-    );
+    try {
+      const response = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      const payload = (await response.json()) as {
+        success?: boolean;
+        message?: string;
+      };
 
-    setIsLoading(false);
+      if (!response.ok || !payload.success) {
+        setError(
+          payload.message ??
+            "Impossibile inviare l'email di reset. Riprova tra poco.",
+        );
+        return;
+      }
 
-    if (resetError) {
-      setError(mapAuthError(resetError.message));
-      return;
+      setMessage(
+        payload.message ??
+          "Se l'email è registrata, riceverai un link per reimpostare la password. Controlla anche la cartella spam.",
+      );
+    } catch {
+      setError("Impossibile contattare il server. Riprova.");
+    } finally {
+      setIsLoading(false);
     }
-
-    setMessage(
-      "Se l'email è registrata, riceverai un link per reimpostare la password. Controlla anche la cartella spam.",
-    );
   }
 
   return (
