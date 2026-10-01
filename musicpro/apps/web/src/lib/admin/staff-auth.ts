@@ -64,32 +64,73 @@ async function loadMemberAuth(
   };
 }
 
-async function linkMemberUserId(
+/** Auth trigger `link_member_on_auth_signup` may set user_id before we link manually. */
+async function ensureMemberUserLink(
   service: ServiceClient,
   memberId: string,
   userId: string,
 ): Promise<void> {
   const { data, error } = await service
     .from("members")
-    .update({ user_id: userId })
+    .select("user_id")
     .eq("id", memberId)
-    .is("user_id", null)
-    .select("id");
+    .maybeSingle();
 
   if (error) {
-    if (error.code === "23505") {
+    throw new Error(error.message);
+  }
+  if (!data) {
+    throw new Error("Associato non trovato.");
+  }
+
+  if (data.user_id === userId) {
+    return;
+  }
+
+  if (data.user_id && data.user_id !== userId) {
+    throw new Error(
+      "Questo associato è già collegato a un altro account di accesso.",
+    );
+  }
+
+  const { error: updateError } = await service
+    .from("members")
+    .update({ user_id: userId })
+    .eq("id", memberId)
+    .is("user_id", null);
+
+  if (updateError) {
+    if (updateError.code === "23505") {
       throw new Error(
         "Questo account di accesso è già collegato a un altro associato.",
       );
     }
-    throw new Error(error.message);
+    throw new Error(updateError.message);
   }
 
-  if (!data?.length) {
+  const { data: again, error: againError } = await service
+    .from("members")
+    .select("user_id")
+    .eq("id", memberId)
+    .maybeSingle();
+
+  if (againError) {
+    throw new Error(againError.message);
+  }
+
+  if (again?.user_id === userId) {
+    return;
+  }
+
+  if (again?.user_id && again.user_id !== userId) {
     throw new Error(
-      "Collegamento account fallito: l'associato ha già un accesso collegato oppure il link non è riuscito.",
+      "Questo associato è già collegato a un altro account di accesso.",
     );
   }
+
+  throw new Error(
+    "Collegamento account fallito: riprova o contatta il supporto.",
+  );
 }
 
 export async function setStaffMemberPassword(
@@ -105,20 +146,44 @@ export async function setStaffMemberPassword(
   const member = await loadMemberAuth(service, memberId);
   const email = member.email?.trim().toLowerCase() ?? "";
 
-  if (member.userId) {
-    const { error } = await service.auth.admin.updateUserById(member.userId, {
-      password,
-    });
-    if (error) {
-      throw new Error(error.message);
-    }
-    return;
-  }
-
   if (!email) {
     throw new Error(
       "Manca l'email sull'associato: non è possibile creare l'accesso.",
     );
+  }
+
+  let authUser: User | null = null;
+
+  if (member.userId) {
+    const { data: byId, error: byIdError } =
+      await service.auth.admin.getUserById(member.userId);
+    if (byIdError) {
+      throw new Error(byIdError.message);
+    }
+    authUser = byId.user ?? null;
+    if (authUser && authUser.email?.trim().toLowerCase() !== email) {
+      authUser = null;
+    }
+  }
+
+  if (!authUser) {
+    authUser = await findAuthUserByEmail(service, email);
+  }
+
+  if (authUser) {
+    const { error: updateError } = await service.auth.admin.updateUserById(
+      authUser.id,
+      {
+        email,
+        password,
+        email_confirm: true,
+      },
+    );
+    if (updateError) {
+      throw new Error(updateError.message);
+    }
+    await ensureMemberUserLink(service, memberId, authUser.id);
+    return;
   }
 
   const { data: created, error: createError } =
@@ -129,7 +194,7 @@ export async function setStaffMemberPassword(
     });
 
   if (!createError && created.user) {
-    await linkMemberUserId(service, memberId, created.user.id);
+    await ensureMemberUserLink(service, memberId, created.user.id);
     return;
   }
 
@@ -153,13 +218,17 @@ export async function setStaffMemberPassword(
 
   const { error: updateError } = await service.auth.admin.updateUserById(
     existing.id,
-    { password },
+    {
+      email,
+      password,
+      email_confirm: true,
+    },
   );
   if (updateError) {
     throw new Error(updateError.message);
   }
 
-  await linkMemberUserId(service, memberId, existing.id);
+  await ensureMemberUserLink(service, memberId, existing.id);
 }
 
 export async function removeStaffMemberPassword(

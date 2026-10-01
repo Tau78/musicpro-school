@@ -27,15 +27,15 @@ function buildPasswordResetEmail(params: {
   loginUrl: string;
 }): { subject: string; text: string; html: string } {
   const name = params.firstName.trim() || "Ciao";
-  const subject = "Password aggiornata — MusicPro School";
+  const subject = "Accesso MusicPro School — nuova password";
   const text = [
     `${name},`,
     "",
-    "l'amministrazione ha resettato la tua password di accesso a MusicPro School.",
+    "l'amministrazione ha impostato la tua password di accesso a MusicPro School (area associati).",
     "",
-    `Ecco la nuova password: ${params.password}`,
+    `Nuova password: ${params.password}`,
     "",
-    `Accedi qui: ${params.loginUrl}`,
+    `Accedi con email e password (non è un link di pagamento): ${params.loginUrl}`,
     "",
     "Ti consigliamo di cambiarla dalle Impostazioni dopo il primo accesso.",
     "",
@@ -44,9 +44,10 @@ function buildPasswordResetEmail(params: {
 
   const html = `
 <p>${escapeHtml(name)},</p>
-<p>l'amministrazione ha resettato la tua password di accesso a MusicPro School.</p>
-<p><strong>Ecco la nuova password:</strong> <code style="font-size:1.05em">${escapeHtml(params.password)}</code></p>
-<p><a href="${escapeHtml(params.loginUrl)}">Accedi a MusicPro School</a></p>
+<p>l'amministrazione ha impostato la tua password di accesso a MusicPro School (area associati).</p>
+<p><strong>Nuova password:</strong> <code style="font-size:1.15em;letter-spacing:0.04em">${escapeHtml(params.password)}</code></p>
+<p>Usa <strong>email + password</strong> nella scheda Password — non è un link di pagamento quota/Stripe.</p>
+<p><a href="${escapeHtml(params.loginUrl)}">Vai al login MusicPro School</a></p>
 <p>Ti consigliamo di cambiarla dalle Impostazioni dopo il primo accesso.</p>
 <p>— MusicPro School</p>
 `.trim();

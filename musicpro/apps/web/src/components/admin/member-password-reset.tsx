@@ -94,16 +94,18 @@ export function MemberPasswordReset({
         Accesso / password
       </legend>
       <p className="text-xs text-neutral-600">
-        Override della password di accesso
+        Imposta la password di login su{" "}
+        <span className="font-medium">school.musicproeventi.it</span>
         {emailOk ? (
           <>
             {" "}
-            · email a <span className="font-medium">{memberEmail}</span>
+            e invia un&apos;email con la nuova password a{" "}
+            <span className="font-medium">{memberEmail}</span>
           </>
         ) : (
           " · manca l'email in anagrafica"
         )}
-        . La password attuale non è visibile.
+        . Non è il link Stripe della quota (sezione Quote sopra).
       </p>
 
       {error ? (
