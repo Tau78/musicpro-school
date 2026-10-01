@@ -132,7 +132,7 @@ export function MemberCreditsPanel({
   }
 
   return (
-    <section className="mt-10 space-y-6">
+    <section className="mt-8 space-y-4 border-t border-neutral-200 pt-6 pb-8 sm:mt-10 sm:space-y-6 sm:pt-8">
       <div>
         <h3 className="text-lg font-semibold text-[var(--brand)]">
           Crediti sala
@@ -153,17 +153,21 @@ export function MemberCreditsPanel({
         </p>
       ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
         <BalanceCard
           label="Disponibili"
           value={balance.available}
           highlight
         />
         <BalanceCard label="Bloccati" value={balance.held} />
-        <BalanceCard label="Totale" value={balance.total} />
+        <BalanceCard
+          label="Totale"
+          value={balance.total}
+          className="col-span-2 sm:col-span-1"
+        />
       </div>
 
-      <fieldset className="space-y-4 rounded-xl border border-neutral-200 bg-white p-6">
+      <fieldset className="space-y-4 rounded-xl border border-neutral-200 bg-white p-4 sm:p-6">
         <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
           Rettifica manuale
         </legend>
@@ -285,24 +289,26 @@ function BalanceCard({
   label,
   value,
   highlight = false,
+  className = "",
 }: {
   label: string;
   value: number;
   highlight?: boolean;
+  className?: string;
 }) {
   return (
     <div
-      className={`rounded-xl border p-4 ${
+      className={`rounded-xl border p-3 sm:p-4 ${
         highlight
           ? "border-[var(--brand)]/30 bg-[var(--brand)]/5"
           : "border-neutral-200 bg-white"
-      }`}
+      } ${className}`}
     >
       <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">
         {label}
       </p>
       <p
-        className={`mt-1 text-2xl font-semibold tabular-nums ${
+        className={`mt-1 text-xl font-semibold tabular-nums sm:text-2xl ${
           highlight ? "text-[var(--brand)]" : "text-neutral-900"
         }`}
       >

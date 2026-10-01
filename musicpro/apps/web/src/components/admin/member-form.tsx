@@ -20,6 +20,7 @@ import {
   type MemberRoleValue,
 } from "@musicpro/shared";
 
+import { MemberPasswordReset } from "@/components/admin/member-password-reset";
 import { MemberQuotaInline } from "@/components/admin/member-quota-inline";
 import { createClient } from "@/lib/supabase/client";
 
@@ -521,7 +522,15 @@ export function MemberForm({
         </div>
       </fieldset>
 
-      <fieldset className="space-y-4 rounded-xl border border-neutral-200 bg-white p-6">
+      {isEdit && member ? (
+        <MemberPasswordReset
+          memberId={member.id}
+          memberEmail={form.email ?? member.email}
+          memberFirstName={form.firstName || member.firstName}
+        />
+      ) : null}
+
+      <fieldset className="space-y-4 rounded-xl border border-neutral-200 bg-white p-4 sm:p-6">
         <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
           Altro
         </legend>
@@ -600,12 +609,12 @@ export function MemberForm({
         </fieldset>
       ) : null}
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="space-y-4 border-t border-neutral-200 pt-5">
         <div className="flex gap-3">
           <button
             type="submit"
             disabled={saving}
-            className="rounded-lg bg-[var(--brand)] px-6 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
+            className="min-h-11 flex-1 rounded-lg bg-[var(--brand)] px-4 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50 sm:flex-none sm:px-6"
           >
             {saving ? "Salvataggio…" : isEdit ? "Salva modifiche" : "Crea associato"}
           </button>
@@ -615,20 +624,22 @@ export function MemberForm({
               if (onCancel) onCancel();
               else router.push("/admin/associati");
             }}
-            className="rounded-lg border border-neutral-300 px-6 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+            className="min-h-11 flex-1 rounded-lg border border-neutral-300 px-4 py-2.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50 sm:flex-none sm:px-6"
           >
             Annulla
           </button>
         </div>
 
         {isEdit && canDelete ? (
-          <button
-            type="button"
-            onClick={() => setShowDeleteConfirm(true)}
-            className="rounded-lg border border-red-300 px-6 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
-          >
-            Elimina
-          </button>
+          <div className="flex justify-center sm:justify-end">
+            <button
+              type="button"
+              onClick={() => setShowDeleteConfirm(true)}
+              className="min-h-11 rounded-lg border border-red-300 px-6 py-2.5 text-sm font-medium text-red-700 hover:bg-red-50"
+            >
+              Elimina
+            </button>
+          </div>
         ) : null}
       </div>
 

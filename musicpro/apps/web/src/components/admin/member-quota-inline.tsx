@@ -370,104 +370,102 @@ export function MemberQuotaInline({
         <p className="text-sm text-green-700">{success}</p>
       ) : null}
 
-      <ul className="divide-y divide-neutral-100 rounded-lg border border-neutral-200">
+      <ul className="divide-y divide-neutral-100 overflow-hidden rounded-lg border border-neutral-200">
         {history.map((row) => {
           const versata = row.status === "versata";
           const draft = draftDates[row.fiscalYear] ?? "";
           const busy = busyYear === row.fiscalYear;
           const link = paymentLinks[row.fiscalYear];
           return (
-            <li key={row.fiscalYear} className="space-y-2 px-3 py-2.5">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-                <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm">
-                  <span className="font-medium text-neutral-900">
-                    {row.fiscalYear}
+            <li key={row.fiscalYear} className="space-y-1.5 px-3 py-2.5">
+              <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm">
+                <span className="font-medium text-neutral-900">
+                  {row.fiscalYear}
+                </span>
+                <span
+                  className={versata ? "text-green-700" : "text-amber-700"}
+                >
+                  {versata ? "versata" : "non versata"}
+                </span>
+                {row.amountEur != null ? (
+                  <span className="text-neutral-500">
+                    ({formatQuotaEuro(row.amountEur)})
                   </span>
-                  <span
-                    className={versata ? "text-green-700" : "text-amber-700"}
-                  >
-                    {versata ? "versata" : "non versata"}
-                  </span>
-                  {row.amountEur != null ? (
-                    <span className="text-neutral-500">
-                      ({formatQuotaEuro(row.amountEur)})
-                    </span>
-                  ) : null}
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <input
-                    type="date"
-                    value={draft}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setDraftDates((prev) => ({
-                        ...prev,
-                        [row.fiscalYear]: value,
-                      }));
-                      setError(null);
-                      setSuccess(null);
-                    }}
-                    disabled={busy}
-                    aria-label={`Data versamento ${row.fiscalYear}`}
-                    className="rounded-md border border-neutral-300 px-2 py-1.5 text-sm text-neutral-800 disabled:opacity-50"
-                  />
+                ) : null}
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <input
+                  type="date"
+                  value={draft}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setDraftDates((prev) => ({
+                      ...prev,
+                      [row.fiscalYear]: value,
+                    }));
+                    setError(null);
+                    setSuccess(null);
+                  }}
+                  disabled={busy}
+                  aria-label={`Data versamento ${row.fiscalYear}`}
+                  className="min-h-9 min-w-0 flex-1 rounded-md border border-neutral-300 px-2 py-1.5 text-sm text-neutral-800 disabled:opacity-50 sm:flex-none"
+                />
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void saveYear(row.fiscalYear)}
+                  className="inline-flex min-h-9 shrink-0 items-center rounded-md bg-[var(--brand)] px-2.5 py-1.5 text-xs font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
+                >
+                  {busy && busyAction === "save"
+                    ? "…"
+                    : versata
+                      ? "Aggiorna"
+                      : "Registra"}
+                </button>
+                {versata ? (
                   <button
                     type="button"
                     disabled={busy}
-                    onClick={() => void saveYear(row.fiscalYear)}
-                    className="shrink-0 rounded-md bg-[var(--brand)] px-3 py-1.5 text-xs font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
+                    onClick={() => void clearYear(row.fiscalYear)}
+                    className="inline-flex min-h-9 shrink-0 items-center rounded-md border border-neutral-300 px-2.5 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
                   >
-                    {busy && busyAction === "save"
-                      ? "…"
-                      : versata
-                        ? "Aggiorna"
-                        : "Registra"}
+                    {busy && busyAction === "clear" ? "…" : "Annulla"}
                   </button>
-                  {versata ? (
+                ) : (
+                  <>
                     <button
                       type="button"
                       disabled={busy}
-                      onClick={() => void clearYear(row.fiscalYear)}
-                      className="shrink-0 rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+                      onClick={() => void linkYear(row.fiscalYear)}
+                      className="inline-flex min-h-9 shrink-0 items-center rounded-md border border-neutral-300 px-2.5 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
                     >
-                      {busy && busyAction === "clear" ? "…" : "Annulla"}
+                      {busy && busyAction === "link" ? "…" : "Link paga"}
                     </button>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => void linkYear(row.fiscalYear)}
-                        className="shrink-0 rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+                    <button
+                      type="button"
+                      disabled={busy || !memberEmail?.trim()}
+                      onClick={() =>
+                        void sollecitoYear(row.fiscalYear, row.amountEur)
+                      }
+                      title={
+                        memberEmail?.trim()
+                          ? "Invia sollecito via email (con link se disponibile)"
+                          : "Manca l'email dell'associato"
+                      }
+                      className="inline-flex min-h-9 shrink-0 items-center rounded-md border border-amber-400 bg-amber-50 px-2.5 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+                    >
+                      {busy && busyAction === "dunning" ? "…" : "Sollecita"}
+                    </button>
+                    {memberEmail?.trim() ? (
+                      <a
+                        href={mailtoHref(row.fiscalYear, row.amountEur)}
+                        className="inline-flex min-h-9 shrink-0 items-center px-1 text-xs font-medium text-[var(--brand)] hover:underline"
                       >
-                        {busy && busyAction === "link" ? "…" : "Link paga"}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={busy || !memberEmail?.trim()}
-                        onClick={() =>
-                          void sollecitoYear(row.fiscalYear, row.amountEur)
-                        }
-                        title={
-                          memberEmail?.trim()
-                            ? "Invia sollecito via email (con link se disponibile)"
-                            : "Manca l'email dell'associato"
-                        }
-                        className="shrink-0 rounded-md border border-amber-400 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50"
-                      >
-                        {busy && busyAction === "dunning" ? "…" : "Sollecita"}
-                      </button>
-                      {memberEmail?.trim() ? (
-                        <a
-                          href={mailtoHref(row.fiscalYear, row.amountEur)}
-                          className="shrink-0 text-xs font-medium text-[var(--brand)] hover:underline"
-                        >
-                          Apri email
-                        </a>
-                      ) : null}
-                    </>
-                  )}
-                </div>
+                        Apri email
+                      </a>
+                    ) : null}
+                  </>
+                )}
               </div>
               {!versata && row.dunningCount > 0 ? (
                 <p className="text-xs text-neutral-500">
