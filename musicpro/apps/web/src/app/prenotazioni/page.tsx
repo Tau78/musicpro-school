@@ -13,7 +13,7 @@ import {
   calculateBookingPrice,
   proviDaSoloDiscountTotalEur,
   createBooking,
-  creditsForBookingDuration,
+  creditsForBookingPrice,
   durationOptionsForRoom,
   formatDateItalian,
   formatDurationLabel,
@@ -134,8 +134,8 @@ export default function PrenotazioniPage() {
   }, [proviSchedule, selectedRoom, selectedSlot]);
 
   const creditCost = useMemo(
-    () => creditsForBookingDuration(durationMinutes),
-    [durationMinutes],
+    () => creditsForBookingPrice(previewPrice ?? 0),
+    [previewPrice],
   );
 
   const canPayWithCredits =
@@ -523,7 +523,6 @@ export default function PrenotazioniPage() {
       if (payWithCredits && result.bookingId) {
         const creditPayment = await requestBookingCreditsPayment(
           result.bookingId,
-          creditCost,
         );
 
         if (!creditPayment.success) {

@@ -201,9 +201,16 @@ export interface Booking {
   provi_da_solo?: boolean;
   band_id?: string | null;
   member_snapshot?: BookingMemberSnapshotEntry[] | null;
+  /** Microfoni richiesti (0–4). */
+  microphone_count?: number;
+  google_calendar_event_id?: string | null;
   created_at: string;
   updated_at: string;
 }
+
+/** Valori ammessi per il dropdown microfoni (SuperSaaS). */
+export const BOOKING_MICROPHONE_COUNTS = [0, 1, 2, 3, 4] as const;
+export type BookingMicrophoneCount = (typeof BOOKING_MICROPHONE_COUNTS)[number];
 
 export interface BookingWithRoom extends Booking {
   room?: Pick<Room, "id" | "name" | "slug"> | null;
@@ -215,6 +222,7 @@ export interface AdminBookingListItem extends BookingWithRoom {
     first_name: string;
     last_name: string;
     email: string | null;
+    phone: string | null;
   } | null;
   band?: {
     id: string;
@@ -395,7 +403,7 @@ const ROOM_SELECT =
   "id, name, slug, description, capacity, is_active, sort_order, hourly_rate_eur, slot_granularity_minutes, default_duration_minutes, min_duration_minutes, max_duration_minutes, open_hour, close_hour, open_minute, close_minute, google_calendar_color_id, provi_da_solo_enabled, provi_da_solo_discount_eur";
 
 const BOOKING_SELECT =
-  "id, room_id, member_id, start_at, end_at, status, total_price_eur, duration_minutes, payment_status, payment_method, credits_held, credits_used, provi_da_solo, band_id, member_snapshot, payment_link_url, payment_link_id, stripe_payment_intent_id, paid_at, title, notes, cancelled_at, cancelled_by, created_at, updated_at";
+  "id, room_id, member_id, start_at, end_at, status, total_price_eur, duration_minutes, payment_status, payment_method, credits_held, credits_used, provi_da_solo, band_id, member_snapshot, microphone_count, payment_link_url, payment_link_id, stripe_payment_intent_id, paid_at, title, notes, cancelled_at, cancelled_by, google_calendar_event_id, created_at, updated_at";
 
 export function bookingNeedsPayment(booking: Pick<Booking, "status" | "payment_status">): boolean {
   return (
@@ -426,7 +434,6 @@ export function bookingOccupiesSlot(booking: {
 /** Richiede POST /api/prenotazioni/{id}/pay-credits (solo web). */
 export async function requestBookingCreditsPayment(
   bookingId: string,
-  credits: number,
 ): Promise<{
   success: boolean;
   action?: "hold" | "debit";
@@ -438,8 +445,6 @@ export async function requestBookingCreditsPayment(
     `/api/prenotazioni/${encodeURIComponent(bookingId)}/pay-credits`,
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ credits }),
     },
   );
 
@@ -779,12 +784,24 @@ export function isSlotInProviSchedule(
   );
 }
 
-export async function listRooms(client: BookingsClient): Promise<Room[]> {
-  const { data, error } = await client
+/** Slug sala fittizia per account test — non occupa le sale reali. */
+export const SANDBOX_ROOM_SLUG = "sandbox-test";
+
+export async function listRooms(
+  client: BookingsClient,
+  options?: { includeSandbox?: boolean },
+): Promise<Room[]> {
+  let query = client
     .from("rooms")
     .select(ROOM_SELECT)
     .eq("is_active", true)
     .order("sort_order", { ascending: true });
+
+  if (!options?.includeSandbox) {
+    query = query.neq("slug", SANDBOX_ROOM_SLUG);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     throw new Error(`Impossibile caricare le sale: ${error.message}`);
@@ -1202,7 +1219,7 @@ export async function listAdminBookings(
       client.from("rooms").select("id, name, slug").in("id", roomIds),
       client
         .from("members")
-        .select("id, first_name, last_name, email")
+        .select("id, first_name, last_name, email, phone")
         .in("id", memberIds),
     ]);
 
@@ -1281,7 +1298,7 @@ export async function listBookingsInRange(
     client.from("rooms").select("id, name, slug").in("id", roomIds),
     client
       .from("members")
-      .select("id, first_name, last_name, email")
+      .select("id, first_name, last_name, email, phone")
       .in("id", memberIds),
     bandIds.length > 0
       ? client.from("bands").select("id, name").in("id", bandIds)
@@ -1350,8 +1367,16 @@ export async function createBooking(
     endAt: string;
     proviDaSolo?: boolean;
     bandId?: string | null;
+    notes?: string | null;
+    microphoneCount?: number;
   },
 ): Promise<CreateBookingResult> {
+  const micRaw = params.microphoneCount ?? 0;
+  const microphoneCount = Math.min(
+    4,
+    Math.max(0, Number.isFinite(micRaw) ? Math.trunc(micRaw) : 0),
+  );
+
   const { data, error } = await client.rpc("create_booking_safe", {
     p_room_id: params.roomId,
     p_member_id: params.memberId,
@@ -1359,6 +1384,8 @@ export async function createBooking(
     p_end_at: params.endAt,
     p_provi_da_solo: params.proviDaSolo ?? false,
     p_band_id: params.bandId ?? null,
+    p_notes: params.notes?.trim() || null,
+    p_microphone_count: microphoneCount,
   });
 
   if (error) {
@@ -1792,6 +1819,7 @@ export interface AdminBookingUpdateInput {
   startAt: string;
   endAt: string;
   notes?: string | null;
+  microphoneCount?: number;
   settlementMethod?: SettlementMethod;
 }
 
@@ -1869,7 +1897,7 @@ export async function getAdminBookingById(
     client.from("rooms").select("id, name, slug").eq("id", booking.room_id).maybeSingle(),
     client
       .from("members")
-      .select("id, first_name, last_name, email")
+      .select("id, first_name, last_name, email, phone")
       .eq("id", booking.member_id)
       .maybeSingle(),
     bandQuery,
@@ -1921,6 +1949,24 @@ export async function adminUpdateBooking(
         BOOKING_ERROR_MESSAGES_IT[code] ??
         BOOKING_ERROR_MESSAGES_IT.UNKNOWN,
     };
+  }
+
+  if (input.microphoneCount != null && result.booking_id) {
+    const mic = Math.min(
+      4,
+      Math.max(0, Math.trunc(input.microphoneCount)),
+    );
+    const { error: micError } = await client
+      .from("bookings")
+      .update({ microphone_count: mic } as never)
+      .eq("id", result.booking_id);
+    if (micError) {
+      return {
+        success: false,
+        bookingId: result.booking_id,
+        errorMessage: `Prenotazione aggiornata, ma microfoni non salvati: ${micError.message}`,
+      };
+    }
   }
 
   return {
