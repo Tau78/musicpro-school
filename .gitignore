@@ -57,3 +57,8 @@ school-shell-android/local.properties
 school-shell-android/**/*.jks
 school-shell-android/**/*.keystore
 
+
+school-shell-android/.gradle/
+school-shell-android/build/
+school-shell-android/app/build/
+school-shell-android/local.properties
