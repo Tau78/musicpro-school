@@ -30,7 +30,7 @@ export type RoomColorMatch = {
   googleCalendarColorId: string | null;
 };
 
-/** Abbina il titolo evento alla sala (es. «Rossa 1h — Mario»). */
+/** Abbina il titolo evento alla sala (es. «Rossa 1h — Mario», «ROSSA - Marco»). */
 export function matchRoomFromEventSummary(
   summary: string | null | undefined,
   rooms: RoomColorMatch[],
@@ -46,6 +46,8 @@ export function matchRoomFromEventSummary(
       normalized === name ||
       normalized.startsWith(`${name} `) ||
       normalized.startsWith(`${name}-`) ||
+      normalized.startsWith(`${name}—`) ||
+      normalized.startsWith(`${name} –`) ||
       normalized.startsWith(`${name} —`)
     ) {
       return room;
