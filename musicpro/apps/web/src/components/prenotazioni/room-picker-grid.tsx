@@ -18,7 +18,7 @@ type RoomPickerGridProps = {
 
 const ROOM_PHOTOS = {
   rossa: "https://www.musicproeventi.it/img/sale.jpg",
-  verde: "https://www.musicproeventi.it/img/sede-2.jpg",
+  verde: "/rooms/verde.jpg",
   arancio: "https://www.musicproeventi.it/img/vintage.jpg",
   default: "https://www.musicproeventi.it/img/sale.jpg",
 } as const;
