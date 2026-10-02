@@ -44,16 +44,16 @@ export function MemberQuotaSummary({
 
   if (history.length === 0) {
     return (
-      <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2">
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-xs font-medium text-neutral-800">
+      <div className="min-w-0 overflow-hidden rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2">
+        <div className="flex items-start justify-between gap-2">
+          <p className="min-w-0 text-xs font-medium text-neutral-800">
             Quote associative
           </p>
           {onManage ? (
             <button
               type="button"
               onClick={onManage}
-              className="text-[11px] font-medium text-[var(--brand)] hover:underline"
+              className="shrink-0 text-[11px] font-medium text-[var(--brand)] hover:underline"
             >
               Gestisci
             </button>
@@ -67,11 +67,11 @@ export function MemberQuotaSummary({
   }
 
   return (
-    <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2">
-      <div className="mb-1.5 flex items-center justify-between gap-2">
-        <p className="text-xs font-medium text-neutral-800">
+    <div className="min-w-0 overflow-hidden rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2">
+      <div className="mb-1.5 flex items-start justify-between gap-2">
+        <p className="min-w-0 text-xs font-medium leading-snug text-neutral-800">
           Quote associative
-          <span className="ml-1.5 font-normal text-neutral-500">
+          <span className="mt-0.5 block font-normal text-neutral-500 sm:ml-1.5 sm:mt-0 sm:inline">
             {paidCount}/{history.length} versate
           </span>
         </p>
@@ -79,7 +79,7 @@ export function MemberQuotaSummary({
           <button
             type="button"
             onClick={onManage}
-            className="shrink-0 text-[11px] font-medium text-[var(--brand)] hover:underline"
+            className="shrink-0 pt-0.5 text-[11px] font-medium text-[var(--brand)] hover:underline"
           >
             Gestisci
           </button>
@@ -88,7 +88,7 @@ export function MemberQuotaSummary({
 
       {currentRow ? (
         <p
-          className={`mb-1.5 text-[11px] font-medium ${
+          className={`mb-1.5 break-words text-[11px] font-medium leading-snug ${
             currentRow.status === "versata"
               ? "text-green-700"
               : "text-amber-800"
@@ -105,29 +105,31 @@ export function MemberQuotaSummary({
         </p>
       ) : null}
 
-      <ul className="space-y-1">
+      <ul className="min-w-0 space-y-1.5">
         {visible.map((row) => {
           const versata = row.status === "versata";
+          const detail =
+            versata && row.paidAt
+              ? `Versata · ${formatQuotaDateItalian(row.paidAt)}`
+              : `Da versare${
+                  row.amountEur != null
+                    ? ` · ${formatQuotaEuro(row.amountEur)}`
+                    : ""
+                }`;
           return (
             <li
               key={row.fiscalYear}
-              className="flex items-baseline justify-between gap-2 text-[11px] sm:text-xs"
+              className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-2 gap-y-0.5 text-[11px] sm:text-xs"
             >
               <span className="font-medium tabular-nums text-neutral-800">
                 {row.fiscalYear}
               </span>
               <span
-                className={`min-w-0 truncate text-right ${
+                className={`min-w-0 break-words text-right leading-snug ${
                   versata ? "text-green-700" : "text-amber-800"
                 }`}
               >
-                {versata && row.paidAt
-                  ? `Versata · ${formatQuotaDateItalian(row.paidAt)}`
-                  : `Da versare${
-                      row.amountEur != null
-                        ? ` · ${formatQuotaEuro(row.amountEur)}`
-                        : ""
-                    }`}
+                {detail}
               </span>
             </li>
           );

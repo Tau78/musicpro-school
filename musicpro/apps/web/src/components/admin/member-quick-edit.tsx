@@ -144,9 +144,9 @@ export function MemberQuickEdit({
   return (
     <form
       onSubmit={(e) => void handleSubmit(e)}
-      className="flex min-h-0 flex-1 flex-col"
+      className="flex min-h-0 min-w-0 max-w-full flex-1 flex-col overflow-hidden"
     >
-      <div className="flex-1 space-y-2.5 overflow-y-auto px-4 py-3 sm:space-y-3 sm:px-5 sm:py-4">
+      <div className="min-w-0 flex-1 space-y-2.5 overflow-x-hidden overflow-y-auto px-4 py-3 sm:space-y-3 sm:px-5 sm:py-4">
         {error ? (
           <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 sm:text-sm">
             {error}
@@ -186,7 +186,7 @@ export function MemberQuickEdit({
           </p>
         </QuickField>
 
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid min-w-0 grid-cols-2 gap-2">
           <QuickField label="Nome *">
             <input
               required
@@ -207,7 +207,7 @@ export function MemberQuickEdit({
           </QuickField>
         </div>
 
-        <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+        <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
           <QuickField label="Cellulare">
             <input
               type="tel"
@@ -343,7 +343,7 @@ export function MemberQuickEdit({
 }
 
 const inputClass =
-  "w-full rounded-md border border-neutral-300 px-2.5 py-1.5 text-sm focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)] sm:rounded-lg sm:px-3 sm:py-2";
+  "box-border w-full max-w-full min-w-0 rounded-md border border-neutral-300 px-2.5 py-1.5 text-sm focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)] sm:rounded-lg sm:px-3 sm:py-2";
 
 function QuickField({
   label,
@@ -353,7 +353,7 @@ function QuickField({
   children: React.ReactNode;
 }) {
   return (
-    <label className="block min-w-0 text-sm">
+    <label className="block min-w-0 max-w-full text-sm">
       <span className="mb-0.5 block text-xs text-neutral-600">{label}</span>
       {children}
     </label>

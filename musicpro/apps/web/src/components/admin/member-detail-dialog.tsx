@@ -147,8 +147,8 @@ export function MemberDetailDialog({
         aria-labelledby="member-detail-title"
         className={
           view === "quick"
-            ? "flex max-h-[100dvh] w-full max-w-lg flex-col overflow-hidden bg-white shadow-xl sm:max-h-[90vh] sm:rounded-xl"
-            : "flex max-h-[100dvh] w-full max-w-3xl flex-col overflow-hidden bg-white shadow-xl sm:max-h-[90vh] sm:rounded-xl"
+            ? "flex max-h-[100dvh] w-full max-w-lg min-w-0 flex-col overflow-hidden bg-white shadow-xl sm:max-h-[90vh] sm:rounded-xl"
+            : "flex max-h-[100dvh] w-full max-w-3xl min-w-0 flex-col overflow-hidden bg-white shadow-xl sm:max-h-[90vh] sm:rounded-xl"
         }
         onClick={(event) => event.stopPropagation()}
       >
@@ -200,7 +200,7 @@ export function MemberDetailDialog({
         ) : null}
 
         {data && view === "quick" ? (
-          <div className="flex min-h-0 flex-1 flex-col">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             <MemberQuickEdit
               key={`${data.member.id}-quick-${data.member.email}-${data.creditBalance.available}`}
               member={data.member}
