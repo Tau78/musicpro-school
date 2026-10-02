@@ -203,15 +203,13 @@ export async function listExternalCalendarEventsInRange(
   const to = resolveRangeBound(input.to, "La data di fine");
   if (from >= to) return [];
 
-  let calendarsQuery = client
+  // Carica tutti i calendari abilitati: quelli aggregati (es. «Tutte» su Verde)
+  // contengono eventi di altre sale nel titolo. L'attribuzione e il filtro
+  // sala avvengono dopo matchRoomFromEventSummary.
+  const { data: calendars, error: calendarsError } = await client
     .from("room_external_calendars")
     .select("id, room_id, name, enabled")
     .eq("enabled", true);
-  if (input.roomId) {
-    calendarsQuery = calendarsQuery.eq("room_id", input.roomId);
-  }
-
-  const { data: calendars, error: calendarsError } = await calendarsQuery;
   if (calendarsError) {
     throw new Error(
       `Impossibile caricare i calendari esterni: ${calendarsError.message}`,
@@ -257,10 +255,12 @@ export async function listExternalCalendarEventsInRange(
     const host = roomById.get(calendar.room_id) ?? null;
     const matched = matchRoomFromEventSummary(event.summary, roomMatches);
     const room = matched ?? host;
+    const roomId = room?.id ?? calendar.room_id;
+    if (input.roomId && roomId !== input.roomId) return [];
     return [
       {
         id: event.id,
-        roomId: room?.id ?? calendar.room_id,
+        roomId,
         roomName: room?.name ?? null,
         calendarName: calendar.name,
         summary: event.summary,

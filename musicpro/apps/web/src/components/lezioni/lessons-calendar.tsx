@@ -193,16 +193,24 @@ export function LessonsCalendar({
     () => Array.from({ length: weekDays }, (_, i) => addDays(weekStart, i)),
     [weekStart, weekDays],
   );
+  const threeDayDates = useMemo(
+    () => Array.from({ length: 3 }, (_, i) => addDays(anchorDate, i)),
+    [anchorDate],
+  );
+  const dayDates = useMemo(() => [anchorDate], [anchorDate]);
   const monthDates = useMemo(() => monthCellDates(anchorDate), [anchorDate]);
+  const gridDates =
+    view === "day" ? dayDates : view === "3day" ? threeDayDates : weekDates;
+  const isTimeGrid = view === "day" || view === "3day" || view === "week";
 
   const visibleLessons = useMemo(() => {
-    if (view === "week") {
-      const set = new Set(weekDates);
+    if (isTimeGrid) {
+      const set = new Set(gridDates);
       return placed.filter((lesson) => set.has(lesson.date));
     }
     const prefix = anchorDate.slice(0, 7);
     return placed.filter((lesson) => lesson.date.startsWith(prefix));
-  }, [view, placed, weekDates, anchorDate]);
+  }, [isTimeGrid, placed, gridDates, anchorDate]);
 
   const hoursLabel = formatOreLabel(
     visibleLessons.reduce((sum, lesson) => {
@@ -210,14 +218,16 @@ export function LessonsCalendar({
     }, 0),
   );
 
-  const dateLabel =
-    view === "week"
-      ? weekRangeLabel(weekDates[0]!, weekDates[weekDates.length - 1]!)
-      : monthTitle(anchorDate);
-  const dateLabelShort =
-    view === "week"
-      ? weekRangeLabelShort(weekDates[0]!, weekDates[weekDates.length - 1]!)
-      : dateLabel;
+  const dateLabel = isTimeGrid
+    ? view === "day"
+      ? formatDayLong(anchorDate)
+      : weekRangeLabel(gridDates[0]!, gridDates[gridDates.length - 1]!)
+    : monthTitle(anchorDate);
+  const dateLabelShort = isTimeGrid
+    ? view === "day"
+      ? formatDayShort(anchorDate)
+      : weekRangeLabelShort(gridDates[0]!, gridDates[gridDates.length - 1]!)
+    : dateLabel;
 
   const [pending, setPending] = useState<PendingMove | null>(null);
   const [hover, setHover] = useState<HoverSlot | null>(null);
@@ -231,12 +241,16 @@ export function LessonsCalendar({
   }
 
   function goPrev() {
-    if (view === "week") onAnchorDateChange?.(addDays(weekStart, -7));
+    if (view === "day") onAnchorDateChange?.(addDays(anchorDate, -1));
+    else if (view === "3day") onAnchorDateChange?.(addDays(anchorDate, -3));
+    else if (view === "week") onAnchorDateChange?.(addDays(weekStart, -7));
     else onAnchorDateChange?.(shiftMonth(anchorDate, -1));
   }
 
   function goNext() {
-    if (view === "week") onAnchorDateChange?.(addDays(weekStart, 7));
+    if (view === "day") onAnchorDateChange?.(addDays(anchorDate, 1));
+    else if (view === "3day") onAnchorDateChange?.(addDays(anchorDate, 3));
+    else if (view === "week") onAnchorDateChange?.(addDays(weekStart, 7));
     else onAnchorDateChange?.(shiftMonth(anchorDate, 1));
   }
 
@@ -246,7 +260,7 @@ export function LessonsCalendar({
       return;
     }
     onAnchorDateChange?.(date);
-    onViewChange?.("week");
+    onViewChange?.("day");
   }
 
   function beginDrag(lesson: PlacedLesson) {
@@ -324,9 +338,9 @@ export function LessonsCalendar({
       />
 
       <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
-        {view === "week" ? (
+        {isTimeGrid ? (
           <WeekGrid
-            dates={weekDates}
+            dates={gridDates}
             lessons={visibleLessons}
             openMinute={openMinute}
             closeMinute={closeMinute}
@@ -1384,6 +1398,13 @@ function formatDayLong(date: string): string {
     day: "numeric",
     month: "long",
   }).format(new Date(romeLocalNoonUtc(date) ?? noon));
+}
+
+function formatDayShort(date: string): string {
+  const day = Number(date.slice(8, 10));
+  const month = MONTHS_SHORT[Number(date.slice(5, 7)) - 1];
+  const dow = DOW_SHORT[isoDow(date) - 1];
+  return `${dow} ${day} ${month}`;
 }
 
 function romeLocalNoonUtc(date: string): string | null {

@@ -30,10 +30,9 @@ import {
   canManageMembers,
 } from "@/lib/admin/roles";
 import {
+  calendarBounds,
   isIsoDate,
-  monthBounds,
   parseCalendarView,
-  weekBounds,
 } from "@/lib/lezioni/calendar-range";
 import { createClient } from "@/lib/supabase/server";
 import { formatBookingWhen } from "@/lib/ui/associate-theme";
@@ -86,10 +85,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       : null;
 
   const sundayVisible = settings?.sundayVisible ?? false;
-  const bounds =
-    view === "month"
-      ? monthBounds(anchorDate)
-      : weekBounds(anchorDate, sundayVisible);
+  const bounds = calendarBounds(view, anchorDate, sundayVisible);
 
   const calendarSettings = {
     sundayVisible,

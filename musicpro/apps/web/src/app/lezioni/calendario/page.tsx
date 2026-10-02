@@ -14,10 +14,9 @@ import { MemberRole } from "@musicpro/shared";
 import { LessonsCalendarPage } from "@/components/lezioni/lessons-calendar-page";
 import { UnplacedLessonsBlock } from "@/components/lezioni/unplaced-lessons-block";
 import {
+  calendarBounds,
   isIsoDate,
-  monthBounds,
   parseCalendarView,
-  weekBounds,
 } from "@/lib/lezioni/calendar-range";
 import { createClient } from "@/lib/supabase/server";
 
@@ -52,10 +51,7 @@ export default async function LezioniCalendarioPage({
   ]);
 
   const sundayVisible = settings?.sundayVisible ?? false;
-  const bounds =
-    view === "month"
-      ? monthBounds(anchorDate)
-      : weekBounds(anchorDate, sundayVisible);
+  const bounds = calendarBounds(view, anchorDate, sundayVisible);
 
   const lessons = await listLessonsInRange(supabase, {
     from: bounds.from,
