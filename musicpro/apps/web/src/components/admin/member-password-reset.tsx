@@ -61,6 +61,7 @@ export function MemberPasswordReset({
         body: JSON.stringify({
           memberId,
           password,
+          email: memberEmail?.trim() || undefined,
           notifyEmail: true,
         }),
       });
@@ -68,6 +69,7 @@ export function MemberPasswordReset({
         success?: boolean;
         message?: string;
         emailSent?: boolean;
+        passwordUpdated?: boolean;
       };
 
       if (!response.ok || !payload.success) {
@@ -75,6 +77,12 @@ export function MemberPasswordReset({
           payload.message ??
             "Operazione non riuscita. Se la password è stata aggiornata ma l'email no, comunicala a mano all'associato.",
         );
+        // Auth può essere ok anche se l'email di notifica fallisce (502).
+        if (payload.passwordUpdated) {
+          setSuccess(
+            "Password aggiornata su Auth; ricarica la scheda. Controlla il messaggio errore sotto.",
+          );
+        }
         return;
       }
 
@@ -100,10 +108,12 @@ export function MemberPasswordReset({
           <>
             {" "}
             e invia un&apos;email con la nuova password a{" "}
-            <span className="font-medium">{memberEmail}</span>
+            <span className="font-medium break-all">{memberEmail}</span>
+            . Se l&apos;email nel form non è ancora salvata, viene scritta in
+            anagrafica insieme all&apos;accesso Auth
           </>
         ) : (
-          " · manca l'email in anagrafica"
+          " · manca l'email nel form: compilala sopra (anche senza Salva) oppure Salva prima l'anagrafica"
         )}
         . Non è il link Stripe della quota (sezione Quote sopra).
       </p>

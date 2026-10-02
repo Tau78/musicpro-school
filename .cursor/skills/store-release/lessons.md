@@ -156,6 +156,14 @@ Più «Mostra password», così il reviewer digita il demo a mano.
 
 ---
 
+## MusicPro School — 2026-10-01 — 3.2 di nuovo (dopo note Unlisted)
+
+**Cosa ha detto Apple:** stessa Guideline **3.2** su submission `6a3355ab-…`, build **10**, iPhone 17 Pro Max. Le note Unlisted **non bastano**: finché in ASC resta **public distribution**, ripresentano 3.2. Hanno scritto: se hai già chiesto Unlisted, **non risottomettere** finché non arriva la **mail di esito** del form; se approved → then resubmit; se no → Custom / altre opzioni.
+
+**Regola:** Unlisted = (1) form developer.apple.com/contact/request/unlisted-app/ (2) aspetta mail (3) solo dopo, resubmit. Vietato un altro Submit “per tentare”. Agente: non lanciare `asc-submit --yes` su School finché Mauro non conferma mail Unlisted approved.
+
+---
+
 ## MusicPro Eventi — Listing, Privacy, dati veri
 
 - **Listing pubblica** = solo il ruolo utente (giocatore). Staff / host solo in Review Notes.
