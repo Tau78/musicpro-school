@@ -251,15 +251,13 @@ while (true) {
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (/already|registered|exists/i.test(msg)) {
-        const existingId = authByEmail.get(email);
-        if (existingId) {
-          await linkUserIdIfNeeded(service, member.id, existingId, false);
-          stats.linked_existing_auth++;
-          continue;
-        }
-      }
-      if (/members_user_id_key|23505/.test(msg)) {
+      // createUser può fallire se il trigger linka male o email già in Auth:
+      // ricarica mappa e prova solo il link a QUESTO member.
+      if (
+        /already|registered|exists|members_user_id_key|23505/i.test(msg)
+      ) {
+        const refreshed = await loadAuthUsersByEmail(supabaseUrl, serviceKey);
+        for (const [mail, id] of refreshed) authByEmail.set(mail, id);
         const existingId = authByEmail.get(email);
         if (existingId) {
           const linkResult = await linkUserIdIfNeeded(
@@ -268,12 +266,19 @@ while (true) {
             existingId,
             false,
           );
-          if (linkResult === "linked" || linkResult === "linked_ok") {
+          if (
+            linkResult === "linked" ||
+            linkResult === "linked_ok" ||
+            linkResult === "would_link"
+          ) {
             stats.linked_existing_auth++;
+            console.log(
+              `OK recover-link ${email} → auth ${existingId.slice(0, 8)}…`,
+            );
             continue;
           }
           console.warn(
-            `SKIP ${email}: anagrafica duplicata (auth già collegato ad altro profilo)`,
+            `SKIP ${email}: email già usata da un altro profilo (user_id unico). Figli/tutori con stessa email: solo uno può avere Auth.`,
           );
           stats.conflict++;
           continue;

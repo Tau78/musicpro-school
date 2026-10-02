@@ -133,6 +133,128 @@ async function ensureMemberUserLink(
   );
 }
 
+function isValidAuthEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function randomAuthPassword(): string {
+  return `Mp${randomBytes(18).toString("base64url")}!`;
+}
+
+export type EnsureMemberAuthResult = {
+  status: "ok" | "created" | "linked" | "synced_email" | "no_email" | "invalid_email";
+  userId?: string;
+};
+
+/**
+ * Garanzia: se l'associato ha email valida → esiste Auth + `members.user_id`.
+ * Password iniziale casuale (magic link / recupera password / reset admin).
+ * Opzionale: `email` dal form (persistita prima se diversa dal DB).
+ */
+export async function ensureMemberAuthAccess(
+  service: ServiceClient,
+  memberId: string,
+  options?: { email?: string | null },
+): Promise<EnsureMemberAuthResult> {
+  const emailFromForm = options?.email?.trim().toLowerCase() ?? "";
+  if (emailFromForm) {
+    if (!isValidAuthEmail(emailFromForm)) {
+      return { status: "invalid_email" };
+    }
+    const member = await loadMemberAuth(service, memberId);
+    if ((member.email?.trim().toLowerCase() ?? "") !== emailFromForm) {
+      const { error } = await service
+        .from("members")
+        .update({ email: emailFromForm })
+        .eq("id", memberId);
+      if (error) {
+        if (error.code === "23505") {
+          throw new Error("Questa email è già usata da un altro associato.");
+        }
+        throw new Error(error.message);
+      }
+    }
+  }
+
+  const member = await loadMemberAuth(service, memberId);
+  const email = member.email?.trim().toLowerCase() ?? "";
+  if (!email) {
+    return { status: "no_email" };
+  }
+  if (!isValidAuthEmail(email)) {
+    return { status: "invalid_email" };
+  }
+
+  if (member.userId) {
+    const { data: byId, error: byIdError } =
+      await service.auth.admin.getUserById(member.userId);
+    if (byIdError) {
+      throw new Error(byIdError.message);
+    }
+    const authUser = byId.user ?? null;
+    if (authUser) {
+      const authEmail = authUser.email?.trim().toLowerCase() ?? "";
+      if (authEmail === email) {
+        return { status: "ok", userId: authUser.id };
+      }
+      const { error: syncError } = await service.auth.admin.updateUserById(
+        authUser.id,
+        { email, email_confirm: true },
+      );
+      if (syncError) {
+        // Email già presa da altro Auth: prova a collegare quello e lascia user_id aggiornato.
+        const other = await findAuthUserByEmail(service, email);
+        if (other && other.id !== authUser.id) {
+          throw new Error(
+            "Questa email è già usata da un altro account di accesso. Controlla i duplicati.",
+          );
+        }
+        throw new Error(syncError.message);
+      }
+      return { status: "synced_email", userId: authUser.id };
+    }
+  }
+
+  let authUser = await findAuthUserByEmail(service, email);
+  if (authUser) {
+    await ensureMemberUserLink(service, memberId, authUser.id);
+    return { status: "linked", userId: authUser.id };
+  }
+
+  const password = randomAuthPassword();
+  const { data: created, error: createError } =
+    await service.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+    });
+
+  if (!createError && created.user) {
+    await ensureMemberUserLink(service, memberId, created.user.id);
+    return { status: "created", userId: created.user.id };
+  }
+
+  const alreadyExists =
+    createError?.message?.toLowerCase().includes("already") ||
+    createError?.message?.toLowerCase().includes("registered") ||
+    createError?.message?.toLowerCase().includes("exists");
+
+  if (!alreadyExists) {
+    throw new Error(
+      createError?.message || "Impossibile creare l'account di accesso.",
+    );
+  }
+
+  authUser = await findAuthUserByEmail(service, email);
+  if (!authUser) {
+    throw new Error(
+      "Esiste già un account con questa email, ma non è stato possibile collegarlo.",
+    );
+  }
+  await ensureMemberUserLink(service, memberId, authUser.id);
+  return { status: "linked", userId: authUser.id };
+}
+
 export async function setStaffMemberPassword(
   service: ServiceClient,
   memberId: string,
@@ -142,6 +264,9 @@ export async function setStaffMemberPassword(
   if (invalid) {
     throw new Error(invalid);
   }
+
+  // Crea/collega Auth se manca, poi imposta la password scelta.
+  await ensureMemberAuthAccess(service, memberId);
 
   const member = await loadMemberAuth(service, memberId);
   const email = member.email?.trim().toLowerCase() ?? "";
@@ -161,63 +286,18 @@ export async function setStaffMemberPassword(
       throw new Error(byIdError.message);
     }
     authUser = byId.user ?? null;
-    if (authUser && authUser.email?.trim().toLowerCase() !== email) {
-      authUser = null;
-    }
   }
 
   if (!authUser) {
     authUser = await findAuthUserByEmail(service, email);
   }
 
-  if (authUser) {
-    const { error: updateError } = await service.auth.admin.updateUserById(
-      authUser.id,
-      {
-        email,
-        password,
-        email_confirm: true,
-      },
-    );
-    if (updateError) {
-      throw new Error(updateError.message);
-    }
-    await ensureMemberUserLink(service, memberId, authUser.id);
-    return;
-  }
-
-  const { data: created, error: createError } =
-    await service.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-    });
-
-  if (!createError && created.user) {
-    await ensureMemberUserLink(service, memberId, created.user.id);
-    return;
-  }
-
-  const alreadyExists =
-    createError?.message?.toLowerCase().includes("already") ||
-    createError?.message?.toLowerCase().includes("registered") ||
-    createError?.message?.toLowerCase().includes("exists");
-
-  if (!alreadyExists) {
-    throw new Error(
-      createError?.message || "Impossibile creare l'account di accesso.",
-    );
-  }
-
-  const existing = await findAuthUserByEmail(service, email);
-  if (!existing) {
-    throw new Error(
-      "Esiste già un account con questa email, ma non è stato possibile collegarlo.",
-    );
+  if (!authUser) {
+    throw new Error("Impossibile trovare o creare l'account di accesso.");
   }
 
   const { error: updateError } = await service.auth.admin.updateUserById(
-    existing.id,
+    authUser.id,
     {
       email,
       password,
@@ -227,8 +307,7 @@ export async function setStaffMemberPassword(
   if (updateError) {
     throw new Error(updateError.message);
   }
-
-  await ensureMemberUserLink(service, memberId, existing.id);
+  await ensureMemberUserLink(service, memberId, authUser.id);
 }
 
 export async function removeStaffMemberPassword(

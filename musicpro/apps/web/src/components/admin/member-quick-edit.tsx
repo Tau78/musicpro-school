@@ -15,6 +15,7 @@ import {
 } from "@musicpro/database";
 
 import { MemberQuotaSummary } from "@/components/admin/member-quota-summary";
+import { ensureMemberAuthClient } from "@/lib/admin/ensure-member-auth-client";
 import { createClient } from "@/lib/supabase/client";
 
 interface MemberQuickEditProps {
@@ -118,8 +119,16 @@ export function MemberQuickEdit({
       nextBalance = adjust.balance;
     }
 
+    const auth = await ensureMemberAuthClient({
+      memberId: member.id,
+      email: input.email,
+    });
+
     setSaving(false);
     setSuccess("Associato aggiornato.");
+    if (!auth.ok && auth.warning) {
+      setError(auth.warning);
+    }
     onSaved({ ...member, ...input }, nextBalance);
     router.refresh();
   }

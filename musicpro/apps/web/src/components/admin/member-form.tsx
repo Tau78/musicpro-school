@@ -21,6 +21,7 @@ import {
 } from "@musicpro/shared";
 
 import { MemberPasswordReset } from "@/components/admin/member-password-reset";
+import { ensureMemberAuthClient } from "@/lib/admin/ensure-member-auth-client";
 import { MemberQuotaInline } from "@/components/admin/member-quota-inline";
 import { createClient } from "@/lib/supabase/client";
 
@@ -219,14 +220,34 @@ export function MemberForm({
         }
       }
 
+      const auth = await ensureMemberAuthClient({
+        memberId: result.id,
+        email: form.email,
+      });
       setSaving(false);
+      if (!auth.ok && auth.warning) {
+        setError(auth.warning);
+        router.push(`/admin/associati/${result.id}`);
+        router.refresh();
+        return;
+      }
       setSuccess("Associato creato.");
       router.push(`/admin/associati/${result.id}`);
       router.refresh();
       return;
     }
 
+    const auth = await ensureMemberAuthClient({
+      memberId: member!.id,
+      email: form.email,
+    });
     setSaving(false);
+    if (!auth.ok && auth.warning) {
+      setSuccess("Associato aggiornato.");
+      setError(auth.warning);
+      router.refresh();
+      return;
+    }
     setSuccess("Associato aggiornato.");
     router.refresh();
   }
