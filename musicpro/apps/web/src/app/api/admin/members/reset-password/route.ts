@@ -17,6 +17,11 @@ export const dynamic = "force-dynamic";
 interface Body {
   memberId?: string;
   password?: string;
+  /**
+   * Email dal form anagrafica (può non essere ancora salvata).
+   * Se presente, viene scritta su `members` prima di creare/aggiornare Auth.
+   */
+  email?: string;
   /** Se false, imposta la password senza email (default: true). */
   notifyEmail?: boolean;
 }
@@ -86,6 +91,7 @@ export async function POST(request: Request) {
   const memberId = body.memberId?.trim();
   const password = body.password ?? "";
   const notifyEmail = body.notifyEmail !== false;
+  const emailFromForm = body.email?.trim().toLowerCase() ?? "";
 
   if (!memberId) {
     return NextResponse.json(
@@ -98,6 +104,13 @@ export async function POST(request: Request) {
   if (invalid) {
     return NextResponse.json(
       { success: false, message: invalid },
+      { status: 400 },
+    );
+  }
+
+  if (emailFromForm && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailFromForm)) {
+    return NextResponse.json(
+      { success: false, message: "Email non valida." },
       { status: 400 },
     );
   }
@@ -122,13 +135,35 @@ export async function POST(request: Request) {
     );
   }
 
-  const email = member.email?.trim() ?? "";
+  // Il form può avere l'email in bozza: salvala prima di creare Auth,
+  // altrimenti setStaffMemberPassword legge ancora null dal DB.
+  if (emailFromForm && emailFromForm !== (member.email?.trim().toLowerCase() ?? "")) {
+    const { error: emailError } = await service
+      .from("members")
+      .update({ email: emailFromForm })
+      .eq("id", memberId);
+    if (emailError) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            emailError.code === "23505"
+              ? "Questa email è già usata da un altro associato."
+              : `Impossibile salvare l'email: ${emailError.message}`,
+        },
+        { status: 400 },
+      );
+    }
+    member.email = emailFromForm;
+  }
+
+  const email = member.email?.trim().toLowerCase() ?? "";
   if (!email) {
     return NextResponse.json(
       {
         success: false,
         message:
-          "Manca l'email sull'anagrafica: impossibile creare l'accesso o inviare la comunicazione.",
+          "Manca l'email sull'anagrafica: impossibile creare l'accesso o inviare la comunicazione. Salva l'email o ripetila qui.",
       },
       { status: 400 },
     );
