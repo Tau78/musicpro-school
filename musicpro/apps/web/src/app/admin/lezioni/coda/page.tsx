@@ -18,13 +18,15 @@ import {
 } from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
 
-import { CollapsibleSection } from "@/components/admin/collapsible-section";
 import { CashAdvanceActions } from "@/components/lezioni/cash-advance-actions";
 import { ChangeRequestActions } from "@/components/lezioni/change-request-actions";
 import { CloseRequestActions } from "@/components/lezioni/close-request-actions";
 import { CourseQueueActions } from "@/components/lezioni/course-queue-actions";
+import {
+  LessonsCodaPlanciaHeader,
+  LessonsCodaSection,
+} from "@/components/lezioni/lessons-coda-plancia";
 import { PlaceLessonForm } from "@/components/lezioni/place-lesson-form";
-import { SettingsPageHeader } from "@/components/admin/settings-page-chrome";
 import { getAdminMember } from "@/lib/admin/current-member";
 import { canManageMembers } from "@/lib/admin/roles";
 import { createClient } from "@/lib/supabase/server";
@@ -176,10 +178,13 @@ export default async function AdminLezioniCodaPage() {
   const slotStepMinutes = settings?.slotGranularityMinutes ?? 15;
 
   return (
-    <div className="space-y-8">
-      <SettingsPageHeader
-        title="Da fare"
-        description="Corsi da approvare, lezioni da calendarizzare, richieste di spostamento e anticipi in attesa."
+    <div className="space-y-5 sm:space-y-6">
+      <LessonsCodaPlanciaHeader
+        pendingCount={pending.length}
+        unplacedCount={unplaced.length}
+        changeCount={changeRequests.length}
+        advanceCount={cashAdvances.length}
+        closeCount={closeRequests.length}
       />
 
       {!expireResult.success ? (
@@ -201,22 +206,37 @@ export default async function AdminLezioniCodaPage() {
         </p>
       ) : null}
 
-      <CashAdvanceActions
-        advances={cashAdvances}
-        actorMemberId={member.id}
-      />
+      <LessonsCodaSection
+        id="coda-anticipi"
+        title="Anticipi"
+        count={cashAdvances.length}
+      >
+        <CashAdvanceActions
+          advances={cashAdvances}
+          actorMemberId={member.id}
+          embedded
+        />
+      </LessonsCodaSection>
 
-      <CloseRequestActions
-        requests={closeRequests}
-        actorMemberId={member.id}
-      />
+      <LessonsCodaSection
+        id="coda-chiusure"
+        title="Chiusure"
+        count={closeRequests.length}
+      >
+        <CloseRequestActions
+          requests={closeRequests}
+          actorMemberId={member.id}
+          embedded
+        />
+      </LessonsCodaSection>
 
-      <section className="space-y-4">
-        <h3 className="text-lg font-semibold text-[var(--brand)]">
-          Da approvare
-        </h3>
+      <LessonsCodaSection
+        id="coda-approvare"
+        title="Da approvare"
+        count={pending.length}
+      >
         {pending.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 px-4 py-4 text-sm text-neutral-600">
+          <p className="text-sm text-neutral-600">
             Nessun corso in attesa di approvazione.
           </p>
         ) : (
@@ -287,26 +307,18 @@ export default async function AdminLezioniCodaPage() {
             })}
           </ul>
         )}
-      </section>
+      </LessonsCodaSection>
 
-      {unplaced.length === 0 ? (
-        <section className="space-y-4">
-          <h3 className="text-lg font-semibold text-[var(--brand)]">
-            Da mettere in calendario
-          </h3>
-          <p className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 px-4 py-4 text-sm text-neutral-600">
+      <LessonsCodaSection
+        id="coda-calendario"
+        title="Da mettere in calendario"
+        count={unplaced.length}
+      >
+        {unplaced.length === 0 ? (
+          <p className="text-sm text-neutral-600">
             Nessuna lezione da mettere in calendario.
           </p>
-        </section>
-      ) : (
-        <CollapsibleSection
-          title={
-            unplaced.length === 1
-              ? "Da mettere in calendario (1)"
-              : `Da mettere in calendario (${unplaced.length})`
-          }
-          defaultOpen={false}
-        >
+        ) : (
           <ul className="space-y-3">
             {unplaced.map((lesson) => {
               const detail = detailsById.get(lesson.courseId);
@@ -364,15 +376,16 @@ export default async function AdminLezioniCodaPage() {
               );
             })}
           </ul>
-        </CollapsibleSection>
-      )}
+        )}
+      </LessonsCodaSection>
 
-      <section className="space-y-4">
-        <h3 className="text-lg font-semibold text-[var(--brand)]">
-          Richieste spostamento
-        </h3>
+      <LessonsCodaSection
+        id="coda-spostamenti"
+        title="Richieste spostamento"
+        count={changeRequests.length}
+      >
         {changeRequests.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 px-4 py-4 text-sm text-neutral-600">
+          <p className="text-sm text-neutral-600">
             Nessuna richiesta di spostamento.
           </p>
         ) : (
@@ -437,7 +450,7 @@ export default async function AdminLezioniCodaPage() {
             })}
           </ul>
         )}
-      </section>
+      </LessonsCodaSection>
     </div>
   );
 }

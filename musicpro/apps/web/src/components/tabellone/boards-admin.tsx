@@ -7,7 +7,6 @@ import { useState } from "react";
 import {
   createPublicBoard,
   deletePublicBoard,
-  generateBoardPin,
   layoutLabel,
   savePublicDisplaySettings,
   type BoardKind,
@@ -30,7 +29,6 @@ export function BoardsAdmin({
   const router = useRouter();
   const supabase = createClient();
   const [enabled, setEnabled] = useState(settings.enabled);
-  const [pin, setPin] = useState(settings.pin);
   const [siteLabel, setSiteLabel] = useState(settings.siteLabel);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +40,6 @@ export function BoardsAdmin({
     setMessage(null);
     const result = await savePublicDisplaySettings(supabase, {
       enabled,
-      pin,
       siteLabel,
     });
     setPending(false);
@@ -87,23 +84,6 @@ export function BoardsAdmin({
           Attiva
         </label>
         <label className="flex items-center gap-2 text-sm">
-          <span className="text-neutral-500">PIN</span>
-          <input
-            value={pin}
-            onChange={(event) => setPin(event.target.value.toUpperCase())}
-            className={`${settingsInputClass} w-28 font-mono uppercase`}
-            maxLength={12}
-            aria-label="PIN"
-          />
-        </label>
-        <button
-          type="button"
-          className="text-sm text-neutral-600 underline-offset-2 hover:underline"
-          onClick={() => setPin(generateBoardPin())}
-        >
-          Nuovo PIN
-        </button>
-        <label className="flex items-center gap-2 text-sm">
           <span className="text-neutral-500">Sede</span>
           <input
             value={siteLabel}
@@ -143,7 +123,7 @@ export function BoardsAdmin({
         <Link href="/tabellone" className="text-[var(--brand)]" target="_blank">
           /tabellone
         </Link>
-        . Il PIN si digita una volta sul televisore.
+        .
       </p>
       {error ? <p className="text-sm text-red-700">{error}</p> : null}
       {message ? <p className="text-sm text-green-800">{message}</p> : null}

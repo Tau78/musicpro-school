@@ -37,9 +37,11 @@ function staffActor(memberId: string) {
 export function CloseRequestActions({
   requests,
   actorMemberId,
+  embedded = false,
 }: {
   requests: CourseCloseRequest[];
   actorMemberId: string;
+  embedded?: boolean;
 }): JSX.Element {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
@@ -124,9 +126,11 @@ export function CloseRequestActions({
 
   return (
     <section className="space-y-4">
-      <h3 className="text-lg font-semibold text-[var(--brand)]">
-        Chiusure
-      </h3>
+      {!embedded ? (
+        <h3 className="text-lg font-semibold text-[var(--brand)]">
+          Chiusure
+        </h3>
+      ) : null}
 
       {error ? (
         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

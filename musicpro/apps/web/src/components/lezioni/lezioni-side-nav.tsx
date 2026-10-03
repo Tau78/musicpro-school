@@ -2,12 +2,14 @@
 
 import { usePathname } from "next/navigation";
 
-import { AdminGroupedNav } from "@/components/admin/admin-grouped-nav";
+import {
+  LessonsWorkspaceNav,
+  type LessonsNavGroup,
+} from "@/components/lezioni/lessons-workspace-nav";
 
-type NavItem = { href: string; label: string };
-type NavGroup = { label: string; items: readonly NavItem[] };
+export type { LessonsNavGroup };
 
-export const ADMIN_LEZIONI_NAV: readonly NavGroup[] = [
+export const ADMIN_LEZIONI_NAV: readonly LessonsNavGroup[] = [
   {
     label: "Giorno",
     items: [
@@ -40,7 +42,7 @@ export const ADMIN_LEZIONI_NAV: readonly NavGroup[] = [
   },
 ] as const;
 
-export const TEACHER_LEZIONI_NAV: readonly NavGroup[] = [
+export const TEACHER_LEZIONI_NAV: readonly LessonsNavGroup[] = [
   {
     label: "Giorno",
     items: [
@@ -62,10 +64,11 @@ export const TEACHER_LEZIONI_NAV: readonly NavGroup[] = [
   },
 ] as const;
 
+/** @deprecated Usa LessonsWorkspaceNav */
 export function LezioniSideNav({
   groups,
 }: {
-  groups: readonly NavGroup[];
+  groups: readonly LessonsNavGroup[];
 }) {
   const pathname = usePathname();
   const activeHref =
@@ -74,13 +77,7 @@ export function LezioniSideNav({
       .filter((item) => pathname.startsWith(item.href))
       .sort((a, b) => b.href.length - a.href.length)[0]?.href ?? null;
 
-  const resolved = groups.map((group) => ({
-    label: group.label,
-    items: group.items.map((item) => ({
-      ...item,
-      active: item.href === activeHref,
-    })),
-  }));
+  void activeHref;
 
-  return <AdminGroupedNav groups={resolved} label="Lezioni" title="Lezioni" />;
+  return <LessonsWorkspaceNav groups={groups} title="Lezioni" />;
 }

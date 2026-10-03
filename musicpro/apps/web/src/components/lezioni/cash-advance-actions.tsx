@@ -29,9 +29,11 @@ function formatDateTimeIt(iso: string): string {
 export function CashAdvanceActions({
   advances,
   actorMemberId,
+  embedded = false,
 }: {
   advances: TeacherCashAdvanceRow[];
   actorMemberId: string;
+  embedded?: boolean;
 }) {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);

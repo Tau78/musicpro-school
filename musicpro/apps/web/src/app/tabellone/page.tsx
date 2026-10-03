@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import {
@@ -9,9 +8,7 @@ import {
 } from "@musicpro/database";
 
 import { BoardOff } from "@/components/tabellone/tv-screen";
-import { PinForm } from "@/components/tabellone/pin-form";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
-import { BOARD_PIN_COOKIE, boardPinsMatch } from "@/lib/tabellone/pin";
 
 export const dynamic = "force-dynamic";
 
@@ -24,11 +21,6 @@ export default async function TabelloneIndexPage() {
     return <BoardOff unavailable />;
   }
   if (!settings?.enabled) return <BoardOff />;
-
-  const pin = (await cookies()).get(BOARD_PIN_COOKIE)?.value ?? "";
-  if (!boardPinsMatch(pin, settings.pin)) {
-    return <PinForm nextPath="/tabellone" />;
-  }
 
   const boards = await listPublicBoards(createServiceRoleClient());
   const timetables = boards.filter((board) => board.kind === "timetable");

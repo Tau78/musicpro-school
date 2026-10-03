@@ -15,9 +15,13 @@ export type BoardColumnKey =
   | "start_date"
   | "start_time"
   | "duration"
+  | "room"
+  | "who"
+  | "instrument"
+  | "microphones"
+  | "solo"
   | "course"
   | "site"
-  | "room"
   | "teacher"
   | "teacher_alias"
   | "subject"
@@ -34,16 +38,46 @@ export type BoardColumnCatalogItem = BoardColumn & { hint: string };
 
 export const BOARD_COLUMN_CATALOG: readonly BoardColumnCatalogItem[] = [
   {
-    key: "start_date",
-    boardLabel: "Inizio",
-    listLabel: "Inizio (dd/mm)",
-    hint: "Data",
+    key: "start_time",
+    boardLabel: "Ora",
+    listLabel: "Ora",
+    hint: "Ora di inizio",
   },
   {
-    key: "start_time",
-    boardLabel: "Inizio",
-    listLabel: "Inizio (h:m)",
-    hint: "Ora",
+    key: "room",
+    boardLabel: "Sala",
+    listLabel: "Sala",
+    hint: "Sala",
+  },
+  {
+    key: "who",
+    boardLabel: "Allievo / Band",
+    listLabel: "Allievo / Band",
+    hint: "Allievo, band o prenotante",
+  },
+  {
+    key: "instrument",
+    boardLabel: "Strumento",
+    listLabel: "Strumento",
+    hint: "Strumento della lezione",
+  },
+  {
+    key: "microphones",
+    boardLabel: "Microfoni",
+    listLabel: "Microfoni",
+    hint: "Microfoni della prenotazione",
+  },
+  {
+    key: "solo",
+    boardLabel: "Da solo",
+    listLabel: "Da solo",
+    hint: "Provi da solo: sì o no",
+  },
+  {
+    key: "start_date",
+    boardLabel: "Data",
+    listLabel: "Data",
+    hint: "Data",
   },
   {
     key: "duration",
@@ -55,37 +89,31 @@ export const BOARD_COLUMN_CATALOG: readonly BoardColumnCatalogItem[] = [
     key: "course",
     boardLabel: "Corso",
     listLabel: "Corso",
-    hint: "Corso. Sulle individuali: nome e iniziale del cognome",
-  },
-  {
-    key: "site",
-    boardLabel: "Sede",
-    listLabel: "Sede",
-    hint: "Nome della sede",
-  },
-  {
-    key: "room",
-    boardLabel: "Aula",
-    listLabel: "Aula",
-    hint: "Sala",
+    hint: "Nome del corso",
   },
   {
     key: "teacher",
     boardLabel: "Docente",
     listLabel: "Docente",
-    hint: "Nome e cognome",
+    hint: "Nome e cognome del docente",
   },
   {
     key: "teacher_alias",
     boardLabel: "Docente",
     listLabel: "Docente (cognome)",
-    hint: "Solo cognome",
+    hint: "Solo cognome del docente",
   },
   {
     key: "subject",
     boardLabel: "Materia",
     listLabel: "Materia",
     hint: "Materia",
+  },
+  {
+    key: "site",
+    boardLabel: "Sede",
+    listLabel: "Sede",
+    hint: "Nome della sede",
   },
   {
     key: "enrolled",
@@ -105,7 +133,6 @@ const COLUMN_KEYS = new Set<string>(BOARD_COLUMN_CATALOG.map((item) => item.key)
 
 export type PublicDisplaySettings = {
   enabled: boolean;
-  pin: string;
   siteLabel: string;
 };
 
@@ -139,6 +166,14 @@ export type BoardLessonSource = {
   enrolledCount: number;
   note: string;
   siteLabel: string;
+  /** Allievo, band o prenotante. Vuoto: si ricava dal corso. */
+  who: string;
+  /** Strumento della lezione. Vuoto sulle prenotazioni sala. */
+  instrument: string;
+  /** Microfoni della prenotazione. Vuoto sulle lezioni. */
+  microphones: string;
+  /** «Sì» o «No» sulle prenotazioni. Vuoto sulle lezioni. */
+  solo: string;
 };
 
 export type PublicBoardRow = {
@@ -192,24 +227,21 @@ export type BoardMutationResult = {
   id?: string;
 };
 
-const PIN_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-const PIN_RE = /^[A-Z0-9]{4,12}$/;
-
 type BoardRow = Database["public"]["Tables"]["public_boards"]["Row"];
 type SettingsRow = Database["public"]["Tables"]["public_display_settings"]["Row"];
 
+const DEFAULT_COLUMN_KEYS: readonly BoardColumnKey[] = [
+  "start_time",
+  "room",
+  "who",
+  "instrument",
+  "microphones",
+  "solo",
+];
+
 export function defaultTimetableColumns(): BoardColumn[] {
   return BOARD_COLUMN_CATALOG.filter((item) =>
-    [
-      "start_date",
-      "start_time",
-      "duration",
-      "course",
-      "site",
-      "room",
-      "teacher",
-      "subject",
-    ].includes(item.key),
+    DEFAULT_COLUMN_KEYS.includes(item.key),
   ).map(({ key, boardLabel, listLabel }) => ({ key, boardLabel, listLabel }));
 }
 
@@ -226,23 +258,6 @@ export function layoutLabel(layout: BoardLayout): string {
   }
 }
 
-export function generateBoardPin(random: () => number = Math.random): string {
-  let pin = "";
-  for (let i = 0; i < 8; i += 1) {
-    const index = Math.min(
-      PIN_ALPHABET.length - 1,
-      Math.floor(random() * PIN_ALPHABET.length),
-    );
-    pin += PIN_ALPHABET[index];
-  }
-  return pin;
-}
-
-export function normalizeBoardPin(value: string): string | null {
-  const pin = value.trim().toUpperCase().replace(/\s+/g, "");
-  return PIN_RE.test(pin) ? pin : null;
-}
-
 export function studentPublicLabel(
   firstName: string | null | undefined,
   lastName: string | null | undefined,
@@ -253,6 +268,20 @@ export function studentPublicLabel(
     ? `${last.charAt(0).toLocaleUpperCase("it-IT")}.`
     : "";
   return [first, initial].filter(Boolean).join(" ");
+}
+
+export function boardBookingWho(
+  bandName: string | null | undefined,
+  firstName: string | null | undefined,
+  lastName: string | null | undefined,
+): string {
+  const band = (bandName ?? "").trim();
+  if (band) return band;
+  return studentPublicLabel(firstName, lastName) || "Prenotazione";
+}
+
+export function soloLabel(proviDaSolo: boolean): string {
+  return proviDaSolo ? "Sì" : "No";
 }
 
 export function bookingPublicLabel(
@@ -316,6 +345,14 @@ export function columnValue(key: BoardColumnKey, lesson: BoardLessonSource): str
       return String(lesson.durationMinutes);
     case "course":
       return courseDisplayName(lesson);
+    case "who":
+      return lesson.who.trim() || courseDisplayName(lesson);
+    case "instrument":
+      return lesson.instrument.trim() || lesson.subjectName;
+    case "microphones":
+      return lesson.microphones;
+    case "solo":
+      return lesson.solo;
     case "site":
       return lesson.siteLabel;
     case "room":
@@ -335,8 +372,24 @@ export function columnValue(key: BoardColumnKey, lesson: BoardLessonSource): str
 
 export function columnTrack(key: BoardColumnKey): string {
   if (key === "start_date" || key === "start_time") return "0.7fr";
-  if (key === "duration" || key === "enrolled" || key === "note") return "0.55fr";
-  if (key === "course" || key === "teacher" || key === "teacher_alias") return "1.35fr";
+  if (
+    key === "duration" ||
+    key === "enrolled" ||
+    key === "note" ||
+    key === "microphones" ||
+    key === "solo"
+  ) {
+    return "0.55fr";
+  }
+  if (
+    key === "course" ||
+    key === "who" ||
+    key === "teacher" ||
+    key === "teacher_alias" ||
+    key === "instrument"
+  ) {
+    return "1.35fr";
+  }
   return "1fr";
 }
 
@@ -384,6 +437,10 @@ export function sampleBoardCells(
     enrolledCount: showIndividuals ? 1 : 8,
     note: "",
     siteLabel,
+    who: "",
+    instrument: "",
+    microphones: "",
+    solo: "",
   };
   return columns.map((column) => columnValue(column.key, lesson));
 }
@@ -456,7 +513,6 @@ function timeRange(startsAt: string, endsAt: string): string {
 function mapSettings(row: SettingsRow): PublicDisplaySettings {
   return {
     enabled: row.enabled,
-    pin: row.pin,
     siteLabel: row.site_label,
   };
 }
@@ -486,7 +542,7 @@ export async function getPublicDisplaySettings(
 ): Promise<PublicDisplaySettings | null> {
   const { data, error } = await client
     .from("public_display_settings")
-    .select("id, enabled, pin, site_label, updated_at")
+    .select("id, enabled, site_label, updated_at")
     .eq("id", true)
     .maybeSingle();
   if (error) {
@@ -497,17 +553,14 @@ export async function getPublicDisplaySettings(
 
 export async function savePublicDisplaySettings(
   client: BoardClient,
-  input: { enabled: boolean; pin: string; siteLabel: string },
+  input: { enabled: boolean; siteLabel: string },
 ): Promise<BoardMutationResult> {
-  const pin = normalizeBoardPin(input.pin);
-  if (!pin) return fail("Il PIN deve essere di 4–12 lettere o numeri.");
   const siteLabel = input.siteLabel.trim().slice(0, 40);
   if (!siteLabel) return fail("Il nome della sede è obbligatorio.");
   const { error } = await client
     .from("public_display_settings")
     .update({
       enabled: input.enabled,
-      pin,
       site_label: siteLabel,
       updated_at: new Date().toISOString(),
     })
@@ -720,6 +773,91 @@ function visibleLessons(
   });
 }
 
+type BoardBookingSlot = {
+  id: string;
+  roomId: string;
+  roomName: string | null;
+  startsAt: string;
+  endsAt: string;
+  durationMinutes: number;
+  who: string;
+  microphones: string;
+  solo: string;
+};
+
+async function listBoardBookings(
+  client: BoardClient,
+  board: PublicBoard,
+  date: string,
+  skipIds: Set<string>,
+): Promise<BoardBookingSlot[]> {
+  const { startUtc, endUtc } = getRomeDayBoundsUtc(date);
+  const { data: bookings, error } = await client
+    .from("bookings")
+    .select(
+      "id, room_id, member_id, band_id, start_at, end_at, status, cancelled_at, microphone_count, provi_da_solo, source",
+    )
+    .gte("start_at", startUtc)
+    .lt("start_at", endUtc)
+    .in("status", ["confirmed", "pending_approval"]);
+  if (error) throw new Error(error.message);
+
+  const visible = (bookings ?? []).filter(
+    (booking) =>
+      !booking.cancelled_at &&
+      booking.source !== "lesson" &&
+      !skipIds.has(booking.id) &&
+      (!board.roomId || booking.room_id === board.roomId),
+  );
+  if (visible.length === 0) return [];
+
+  const memberIds = [...new Set(visible.map((booking) => booking.member_id))];
+  const bandIds = [
+    ...new Set(
+      visible
+        .map((booking) => booking.band_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const roomIds = [...new Set(visible.map((booking) => booking.room_id))];
+  const [membersRes, bandsRes, roomsRes] = await Promise.all([
+    client.from("members").select("id, first_name, last_name").in("id", memberIds),
+    bandIds.length > 0
+      ? client.from("bands").select("id, name").in("id", bandIds)
+      : Promise.resolve({ data: [] as { id: string; name: string }[], error: null }),
+    client.from("rooms").select("id, name").in("id", roomIds),
+  ]);
+  if (membersRes.error) throw new Error(membersRes.error.message);
+  if (bandsRes.error) throw new Error(bandsRes.error.message);
+  if (roomsRes.error) throw new Error(roomsRes.error.message);
+
+  const memberById = new Map((membersRes.data ?? []).map((member) => [member.id, member]));
+  const bandById = new Map((bandsRes.data ?? []).map((band) => [band.id, band.name]));
+  const roomById = new Map((roomsRes.data ?? []).map((room) => [room.id, room.name]));
+
+  return visible.map((booking) => {
+    const member = memberById.get(booking.member_id);
+    return {
+      id: booking.id,
+      roomId: booking.room_id,
+      roomName: roomById.get(booking.room_id) ?? null,
+      startsAt: booking.start_at,
+      endsAt: booking.end_at,
+      durationMinutes: Math.max(
+        0,
+        Math.round((Date.parse(booking.end_at) - Date.parse(booking.start_at)) / 60_000),
+      ),
+      who: boardBookingWho(
+        booking.band_id ? bandById.get(booking.band_id) : null,
+        member?.first_name,
+        member?.last_name,
+      ),
+      microphones: String(booking.microphone_count ?? 0),
+      solo: soloLabel(booking.provi_da_solo),
+    };
+  });
+}
+
 export async function loadPublicTimetable(
   client: BoardClient,
   board: PublicBoard,
@@ -761,8 +899,40 @@ export async function loadPublicTimetable(
       enrolledCount: enrolled.length,
       note: lessonNote(lesson.kind),
       siteLabel: settings.siteLabel,
+      who: "",
+      instrument: lesson.subjectName,
+      microphones: "",
+      solo: "",
     };
   });
+  const bookings = await listBoardBookings(
+    client,
+    board,
+    date,
+    new Set(lessons.map((lesson) => lesson.bookingId).filter((id): id is string => Boolean(id))),
+  );
+  sources.push(
+    ...bookings.map((booking) => ({
+      id: `booking:${booking.id}`,
+      startsAt: booking.startsAt,
+      endsAt: booking.endsAt,
+      durationMinutes: booking.durationMinutes,
+      courseName: "",
+      courseKind: "gruppo" as const,
+      subjectName: "",
+      teacherFirst: "",
+      teacherLast: "",
+      roomName: booking.roomName,
+      students: [],
+      enrolledCount: 0,
+      note: "",
+      siteLabel: settings.siteLabel,
+      who: booking.who,
+      instrument: "",
+      microphones: booking.microphones,
+      solo: booking.solo,
+    })),
+  );
   return {
     boardId: board.id,
     name: board.name,
@@ -818,6 +988,10 @@ export async function loadPublicOccupancy(
       enrolledCount: enrolled.length,
       note: "",
       siteLabel: settings.siteLabel,
+      who: "",
+      instrument: lesson.subjectName,
+      microphones: "",
+      solo: "",
     };
     events.push({
       roomId: lesson.roomId,
@@ -830,45 +1004,13 @@ export async function loadPublicOccupancy(
     });
   }
 
-  const { startUtc, endUtc } = getRomeDayBoundsUtc(date);
-  const { data: bookings, error } = await client
-    .from("bookings")
-    .select("id, room_id, member_id, start_at, end_at, title, status, cancelled_at")
-    .gte("start_at", startUtc)
-    .lt("start_at", endUtc)
-    .in("status", ["confirmed", "pending_approval"]);
-  if (error) throw new Error(error.message);
-
-  const bookingMemberIds = [
-    ...new Set(
-      (bookings ?? [])
-        .filter((booking) => !booking.cancelled_at && !lessonBookingIds.has(booking.id))
-        .map((booking) => booking.member_id),
-    ),
-  ];
-  const { data: members, error: memberError } =
-    bookingMemberIds.length > 0
-      ? await client
-          .from("members")
-          .select("id, first_name, last_name")
-          .in("id", bookingMemberIds)
-      : { data: [], error: null };
-  if (memberError) throw new Error(memberError.message);
-  const memberById = new Map((members ?? []).map((member) => [member.id, member]));
-
-  for (const booking of bookings ?? []) {
-    if (booking.cancelled_at || lessonBookingIds.has(booking.id)) continue;
-    if (board.roomId && booking.room_id !== board.roomId) continue;
-    const member = memberById.get(booking.member_id);
+  const bookings = await listBoardBookings(client, board, date, lessonBookingIds);
+  for (const booking of bookings) {
     events.push({
-      roomId: booking.room_id,
-      startsAt: booking.start_at,
-      endsAt: booking.end_at,
-      label: bookingPublicLabel(
-        booking.title,
-        member?.first_name,
-        member?.last_name,
-      ),
+      roomId: booking.roomId,
+      startsAt: booking.startsAt,
+      endsAt: booking.endsAt,
+      label: booking.who,
     });
   }
 

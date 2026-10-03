@@ -1,10 +1,8 @@
 "use client";
 
-import {
-  ADMIN_LEZIONI_NAV,
-  LezioniSideNav,
-} from "@/components/lezioni/lezioni-side-nav";
+import { LessonsWorkspaceNav } from "@/components/lezioni/lessons-workspace-nav";
+import { ADMIN_LEZIONI_NAV } from "@/components/lezioni/lezioni-side-nav";
 
 export function AdminLezioniSubNav() {
-  return <LezioniSideNav groups={ADMIN_LEZIONI_NAV} />;
+  return <LessonsWorkspaceNav groups={ADMIN_LEZIONI_NAV} title="Lezioni" />;
 }
