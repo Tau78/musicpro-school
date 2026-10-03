@@ -2,16 +2,17 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  boardBookingWho,
   bookingPublicLabel,
   buildBoardRows,
   columnValue,
   defaultTimetableColumns,
-  generateBoardPin,
   occupancyForRooms,
   parseBoardColumns,
   rowsForScreen,
   sampleBoardCells,
   sliceBoardPages,
+  soloLabel,
   studentPublicLabel,
   type BoardLessonSource,
 } from "./public-boards";
@@ -33,6 +34,10 @@ function lesson(overrides: Partial<BoardLessonSource> = {}): BoardLessonSource {
     enrolledCount: 8,
     note: "",
     siteLabel: "MusicPro",
+    who: "",
+    instrument: "",
+    microphones: "",
+    solo: "",
     ...overrides,
   };
 }
@@ -55,6 +60,34 @@ test("data e ora sono quelle di Roma", () => {
   assert.equal(columnValue("start_date", row), "02/01");
   assert.equal(columnValue("start_time", row), "18:00");
   assert.equal(columnValue("teacher_alias", row), "Verdi");
+});
+
+test("la riga unisce lezione e prenotazione sala", () => {
+  const individual = lesson({ courseKind: "individuale", courseName: "Pianoforte" });
+  assert.equal(columnValue("who", individual), "Mario R.");
+  assert.equal(columnValue("instrument", individual), "Archeologia");
+  assert.equal(columnValue("microphones", individual), "");
+  assert.equal(columnValue("solo", individual), "");
+
+  const booking = lesson({
+    roomName: "Sala 2",
+    courseName: "",
+    courseKind: "gruppo",
+    subjectName: "",
+    students: [],
+    who: "I Gatti",
+    instrument: "",
+    microphones: "3",
+    solo: "No",
+  });
+  assert.equal(columnValue("who", booking), "I Gatti");
+  assert.equal(columnValue("instrument", booking), "");
+  assert.equal(columnValue("microphones", booking), "3");
+  assert.equal(columnValue("solo", booking), "No");
+  assert.equal(boardBookingWho("I Gatti", "Mario", "Rossi"), "I Gatti");
+  assert.equal(boardBookingWho(null, "Mario", "Rossi"), "Mario R.");
+  assert.equal(soloLabel(true), "Sì");
+  assert.equal(soloLabel(false), "No");
 });
 
 test("un titolo che contiene il cognome non finisce sul tabellone", () => {
@@ -103,12 +136,6 @@ test("una colonna sconosciuta non entra nel tabellone", () => {
   assert.equal(parsed.length, 1);
   assert.equal(parsed[0]?.key, "room");
   assert.equal(parseBoardColumns([]).length, defaultTimetableColumns().length);
-});
-
-test("il PIN è di 8 caratteri senza lettere ambigue", () => {
-  const pin = generateBoardPin(() => 0);
-  assert.equal(pin, "AAAAAAAA");
-  assert.match(generateBoardPin(), /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}$/);
 });
 
 test("l'occupazione distingue la sala libera da quella in corso", () => {

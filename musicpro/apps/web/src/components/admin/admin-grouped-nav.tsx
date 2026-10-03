@@ -123,7 +123,7 @@ export function AdminGroupedNav({
 
   return (
     <nav className="md:w-56 md:shrink-0" aria-label={label}>
-      <div className="space-y-2 md:hidden">
+      <div className="space-y-2 max-md:block md:hidden">
         <div
           className="flex gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           role="tablist"

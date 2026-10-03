@@ -214,13 +214,14 @@ export function StaffDashboardHub({
   const heroIsLesson = !heroIsBooking && Boolean(showLessons && nextLesson);
 
   return (
-    <div className="associate-gradient-page -mx-4 space-y-5 px-4 pb-1 sm:-mx-6 sm:px-6">
+    <div className="space-y-5">
       <div>
         <h1 className="font-display text-2xl font-semibold tracking-tight text-[var(--brand)] sm:text-3xl">
           Ciao, {firstName}
         </h1>
         <p className="mt-1 text-sm text-neutral-600">
-          Ecco cosa succede oggi in scuola
+          Plancia operativa — accedi ai calendari e alle code dal menu o dalle
+          scorciatoie sotto.
         </p>
       </div>
 
@@ -436,9 +437,6 @@ export function StaffDashboardHub({
         </div>
       ) : null}
 
-      <p className="text-center text-sm italic text-neutral-500">
-        La tua passione, il nostro palcoscenico
-      </p>
     </div>
   );
 }

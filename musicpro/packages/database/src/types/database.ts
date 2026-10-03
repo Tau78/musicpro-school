@@ -2056,14 +2056,12 @@ export interface Database {
         Row: {
           id: boolean;
           enabled: boolean;
-          pin: string;
           site_label: string;
           updated_at: string;
         };
         Insert: {
           id?: boolean;
           enabled?: boolean;
-          pin: string;
           site_label?: string;
           updated_at?: string;
         };
