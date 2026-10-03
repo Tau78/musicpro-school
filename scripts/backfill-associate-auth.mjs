@@ -36,7 +36,9 @@ function randomPassword() {
 
 /** Auth / SMTP-safe; esclude note in campo email in anagrafica. */
 function isValidAuthEmail(email) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const e = email.trim();
+  if (!e || /[\s?]/.test(e) || e.includes(",")) return false;
+  return /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(e);
 }
 
 async function loadAuthUsersByEmail(supabaseUrl, serviceKey) {

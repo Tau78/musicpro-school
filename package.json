@@ -14,6 +14,7 @@
     "setup:test-associato-mauro": "node scripts/setup-test-associato-mauro.mjs",
     "backfill:associate-auth": "node scripts/backfill-associate-auth.mjs",
     "resolve:duplicate-emails": "npx tsx scripts/resolve-email-duplicate-associati.ts",
+    "clear:invalid-emails": "node scripts/clear-invalid-member-emails.mjs",
     "smoke:documenti": "node scripts/smoke-documenti.mjs",
     "smoke:rimborsi": "node scripts/smoke-rimborsi-pdf.mjs",
     "smoke:rimborsi-email": "node scripts/smoke-rimborsi-email.mjs",
