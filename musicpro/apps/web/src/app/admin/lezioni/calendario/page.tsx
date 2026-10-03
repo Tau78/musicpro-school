@@ -2,23 +2,20 @@ import { redirect } from "next/navigation";
 
 import {
   getLessonSchoolSettings,
-  listBookingsInRange,
-  listExternalCalendarEventsInRange,
-  listLessonsInRange,
   listMemberLabelsWithRole,
   listRooms,
   todayInRome,
 } from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
 
-import { mergeCalendarEvents } from "@/components/lezioni/calendar-bookings";
 import { LessonsCalendarPage } from "@/components/lezioni/lessons-calendar-page";
+import { loadUnifiedCalendarEvents } from "@/lib/dashboard/load-unified-calendar";
 import { getAdminMember } from "@/lib/admin/current-member";
 import { canManageMembers } from "@/lib/admin/roles";
 import {
   calendarBounds,
   isIsoDate,
-  parseCalendarMode,
+  parseCalendarScope,
   parseCalendarView,
 } from "@/lib/lezioni/calendar-range";
 import { createClient } from "@/lib/supabase/server";
@@ -29,7 +26,7 @@ interface PageProps {
     date?: string;
     docente?: string;
     sala?: string;
-    modo?: string;
+    ambito?: string;
     hl?: string;
   }>;
 }
@@ -51,7 +48,7 @@ export default async function AdminLezioniCalendarioPage({
   const params = await searchParams;
   const today = todayInRome();
   const view = parseCalendarView(params.view);
-  const mode = parseCalendarMode(params.modo);
+  const scope = parseCalendarScope(params.ambito);
   const anchorDate = isIsoDate(params.date) ? params.date : today;
   const highlightDay = isIsoDate(params.hl) ? params.hl : null;
 
@@ -74,32 +71,21 @@ export default async function AdminLezioniCalendarioPage({
   const sundayVisible = settings?.sundayVisible ?? false;
   const bounds = calendarBounds(view, anchorDate, sundayVisible);
 
-  const roomFilter = mode === "sala" && roomId ? roomId : undefined;
-  const [lessons, bookings, externals] = await Promise.all([
-    listLessonsInRange(supabase, {
-      from: bounds.from,
-      to: bounds.to,
-      includePendingHold: true,
-      titularMemberId:
-        mode === "docente" && teacherId ? teacherId : undefined,
-      roomId: roomFilter,
-    }),
-    listBookingsInRange(supabase, {
-      from: bounds.from,
-      to: bounds.to,
-      roomId: roomFilter,
-    }),
-    listExternalCalendarEventsInRange(supabase, {
-      from: bounds.from,
-      to: bounds.to,
-      roomId: roomFilter,
-    }),
-  ]);
+  const initialLessons = await loadUnifiedCalendarEvents(supabase, {
+    view,
+    anchorDate,
+    sundayVisible,
+    scope,
+    roomId,
+    teacherId,
+    includeLessons: true,
+    includeBookings: true,
+  });
 
   return (
     <div>
       <LessonsCalendarPage
-        initialLessons={mergeCalendarEvents(lessons, bookings, externals)}
+        initialLessons={initialLessons}
         settings={{
           sundayVisible,
           gridOpenMinute: settings?.gridOpenMinute ?? 600,
@@ -112,7 +98,8 @@ export default async function AdminLezioniCalendarioPage({
         initialRoomId={roomId}
         initialView={view}
         initialDate={anchorDate}
-        initialMode={mode}
+        initialScope={scope}
+        filterLayout="unified"
         isStaff
         canDrag
         courseDetailBasePath="/admin/lezioni/corsi"

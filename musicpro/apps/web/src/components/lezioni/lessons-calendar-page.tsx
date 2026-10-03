@@ -42,6 +42,7 @@ import { calendarBounds } from "@/lib/lezioni/calendar-range";
 import { createClient } from "@/lib/supabase/client";
 
 export type CalendarMode = "docente" | "sala";
+export type CalendarScope = "tutto" | "lezioni" | "prenotazioni";
 
 export interface LessonsCalendarPageProps {
   initialLessons: CalendarLesson[];
@@ -69,6 +70,13 @@ export interface LessonsCalendarPageProps {
   memberId?: string;
   /** Solo prenotazioni sale (+ calendari esterni), senza lezioni didattiche. */
   bookingsOnly?: boolean;
+  /** Filtri Tutto / Lezioni / Prenotazioni + sala e docente insieme. */
+  filterLayout?: "legacy" | "unified";
+  initialScope?: CalendarScope;
+  /** Ambiti selezionabili (default: tutti e tre). */
+  availableScopes?: readonly CalendarScope[];
+  /** Docente fisso (es. dashboard docente). */
+  lockTeacherId?: string | null;
 }
 
 type RequestForm = {
@@ -97,6 +105,10 @@ export function LessonsCalendarPage({
   memberId,
   bookingsOnly = false,
   bookingRooms = [],
+  filterLayout = "legacy",
+  initialScope = "tutto",
+  availableScopes = ["tutto", "lezioni", "prenotazioni"],
+  lockTeacherId = null,
 }: LessonsCalendarPageProps) {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
@@ -106,10 +118,23 @@ export function LessonsCalendarPage({
   const [anchorDate, setAnchorDate] = useState(
     initialDate && isIsoDate(initialDate) ? initialDate : today,
   );
-  const [teacherId, setTeacherId] = useState(initialTeacherId ?? "");
+  const [teacherId, setTeacherId] = useState(
+    lockTeacherId ?? initialTeacherId ?? "",
+  );
   const [roomId, setRoomId] = useState(initialRoomId ?? "");
   const [mode, setMode] = useState<CalendarMode>(
     bookingsOnly ? "sala" : initialMode,
+  );
+  const [scope, setScope] = useState<CalendarScope>(
+    bookingsOnly ? "prenotazioni" : initialScope,
+  );
+  const unified = filterLayout === "unified" && !bookingsOnly;
+  const scopeOptions = useMemo(
+    () =>
+      availableScopes.filter((entry) =>
+        bookingsOnly ? entry === "prenotazioni" : true,
+      ),
+    [availableScopes, bookingsOnly],
   );
   const [highlight, setHighlight] = useState<string | null>(highlightDay);
   const [lessons, setLessons] = useState(initialLessons);
@@ -137,8 +162,22 @@ export function LessonsCalendarPage({
   >(null);
 
   const sundayVisible = settings.sundayVisible;
-  const filtersRef = useRef({ view, anchorDate, mode, teacherId, roomId });
-  filtersRef.current = { view, anchorDate, mode, teacherId, roomId };
+  const filtersRef = useRef({
+    view,
+    anchorDate,
+    mode,
+    teacherId,
+    roomId,
+    scope,
+  });
+  filtersRef.current = {
+    view,
+    anchorDate,
+    mode,
+    teacherId,
+    roomId,
+    scope,
+  };
 
   const loadLessons = useCallback(
     async (next: {
@@ -147,36 +186,51 @@ export function LessonsCalendarPage({
       mode: CalendarMode;
       teacherId: string;
       roomId: string;
+      scope: CalendarScope;
     }) => {
       const gen = ++fetchGen.current;
       setLessonsBusy(true);
       const bounds = calendarBounds(next.view, next.date, sundayVisible);
       try {
-        const roomFilter =
-          isStaff && (bookingsOnly || next.mode === "sala") && next.roomId
-            ? next.roomId
-            : undefined;
-        const rows = bookingsOnly
-          ? []
-          : await listLessonsInRange(supabase, {
+        const effectiveScope = bookingsOnly ? "prenotazioni" : next.scope;
+        const includeLessons =
+          !bookingsOnly &&
+          (effectiveScope === "tutto" || effectiveScope === "lezioni");
+        const includeBookings =
+          isStaff &&
+          (bookingsOnly ||
+            effectiveScope === "tutto" ||
+            effectiveScope === "prenotazioni");
+
+        const roomFilter = isStaff && next.roomId ? next.roomId : undefined;
+        const teacherFilter =
+          lockTeacherId ??
+          (isStaff && next.teacherId ? next.teacherId : undefined);
+
+        const rows = includeLessons
+          ? await listLessonsInRange(supabase, {
               from: bounds.from,
               to: bounds.to,
               includePendingHold: true,
               titularMemberId:
-                isStaff && next.mode === "docente" && next.teacherId
-                  ? next.teacherId
+                unified || next.mode === "docente"
+                  ? teacherFilter
                   : undefined,
               teacherMemberId: isStaff ? undefined : memberId,
-              roomId: roomFilter,
-            });
-        const bookings = isStaff
+              roomId:
+                unified || bookingsOnly || next.mode === "sala"
+                  ? roomFilter
+                  : undefined,
+            })
+          : [];
+        const bookings = includeBookings
           ? await listBookingsInRange(supabase, {
               from: bounds.from,
               to: bounds.to,
               roomId: roomFilter,
             })
           : [];
-        const externals = isStaff
+        const externals = includeBookings
           ? await listExternalCalendarEventsInRange(supabase, {
               from: bounds.from,
               to: bounds.to,
@@ -191,7 +245,15 @@ export function LessonsCalendarPage({
         if (gen === fetchGen.current) setLessonsBusy(false);
       }
     },
-    [bookingsOnly, isStaff, memberId, supabase, sundayVisible],
+    [
+      bookingsOnly,
+      isStaff,
+      lockTeacherId,
+      memberId,
+      supabase,
+      sundayVisible,
+      unified,
+    ],
   );
 
   function reloadLessons() {
@@ -202,6 +264,7 @@ export function LessonsCalendarPage({
       mode: current.mode,
       teacherId: current.teacherId,
       roomId: current.roomId,
+      scope: current.scope,
     });
   }
 
@@ -212,19 +275,27 @@ export function LessonsCalendarPage({
     docente?: string | null;
     sala?: string | null;
     modo?: CalendarMode;
+    ambito?: CalendarScope;
   }) {
     const nextView = next.view ?? view;
     const nextDate = next.date ?? anchorDate;
     const nextHl = next.hl === undefined ? highlight : next.hl;
     const nextMode = bookingsOnly ? "sala" : (next.modo ?? mode);
-    const nextTeacher =
-      next.docente === undefined ? teacherId : (next.docente ?? "");
+    const nextScope = bookingsOnly
+      ? "prenotazioni"
+      : (next.ambito ?? scope);
+    const nextTeacher = lockTeacherId
+      ? lockTeacherId
+      : next.docente === undefined
+        ? teacherId
+        : (next.docente ?? "");
     const nextRoom = next.sala === undefined ? roomId : (next.sala ?? "");
 
     setView(nextView);
     setAnchorDate(nextDate);
     setHighlight(nextHl);
     setMode(nextMode);
+    setScope(nextScope);
     setTeacherId(nextTeacher);
     setRoomId(nextRoom);
 
@@ -233,14 +304,22 @@ export function LessonsCalendarPage({
     params.set("date", nextDate);
     if (nextHl) params.set("hl", nextHl);
     if (isStaff) {
-      if (!bookingsOnly) {
-        params.set("modo", nextMode);
-      }
-      if (!bookingsOnly && nextMode === "docente" && nextTeacher) {
-        params.set("docente", nextTeacher);
-      }
-      if ((bookingsOnly || nextMode === "sala") && nextRoom) {
-        params.set("sala", nextRoom);
+      if (unified) {
+        params.set("ambito", nextScope);
+        if (nextTeacher && !lockTeacherId) {
+          params.set("docente", nextTeacher);
+        }
+        if (nextRoom) params.set("sala", nextRoom);
+      } else {
+        if (!bookingsOnly) {
+          params.set("modo", nextMode);
+        }
+        if (!bookingsOnly && nextMode === "docente" && nextTeacher) {
+          params.set("docente", nextTeacher);
+        }
+        if ((bookingsOnly || nextMode === "sala") && nextRoom) {
+          params.set("sala", nextRoom);
+        }
       }
     }
 
@@ -255,11 +334,17 @@ export function LessonsCalendarPage({
       mode: nextMode,
       teacherId: nextTeacher,
       roomId: nextRoom,
+      scope: nextScope,
     });
   }
 
+  const scopeIncludesBookings =
+    bookingsOnly || scope === "prenotazioni" || scope === "tutto";
+  const scopeIncludesLessons =
+    !bookingsOnly && (scope === "lezioni" || scope === "tutto");
+
   const canManageBookingEvents =
-    bookingsOnly || (isStaff && bookingRooms.length > 0);
+    scopeIncludesBookings && isStaff && bookingRooms.length > 0;
 
   function openCourse(lesson: CalendarLesson) {
     router.push(`${courseDetailBasePath}/${lessonCourseId(lesson)}`);
@@ -472,8 +557,41 @@ export function LessonsCalendarPage({
     <div className="space-y-1">
       {isStaff ? (
         <div className="rounded-lg border border-neutral-200 bg-white px-2 py-1.5 sm:flex sm:flex-wrap sm:items-center sm:gap-2 sm:border-0 sm:bg-transparent sm:p-0">
-          <div className="flex min-w-0 items-center gap-1.5 sm:contents">
-            {!bookingsOnly ? (
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:contents">
+            {unified && scopeOptions.length > 1 ? (
+              <div
+                className="inline-flex shrink-0 rounded-md bg-neutral-100 p-0.5"
+                role="group"
+                aria-label="Cosa mostrare"
+              >
+                {scopeOptions.includes("tutto") ? (
+                  <ModePill
+                    active={scope === "tutto"}
+                    onClick={() => pushQuery({ ambito: "tutto" })}
+                  >
+                    Tutto
+                  </ModePill>
+                ) : null}
+                {scopeOptions.includes("lezioni") ? (
+                  <ModePill
+                    active={scope === "lezioni"}
+                    onClick={() => pushQuery({ ambito: "lezioni" })}
+                  >
+                    Lezioni
+                  </ModePill>
+                ) : null}
+                {scopeOptions.includes("prenotazioni") ? (
+                  <ModePill
+                    active={scope === "prenotazioni"}
+                    onClick={() => pushQuery({ ambito: "prenotazioni" })}
+                  >
+                    Prenotazioni
+                  </ModePill>
+                ) : null}
+              </div>
+            ) : null}
+
+            {!bookingsOnly && !unified ? (
               <div
                 className="inline-flex shrink-0 rounded-md bg-neutral-100 p-0.5"
                 role="group"
@@ -494,7 +612,47 @@ export function LessonsCalendarPage({
               </div>
             ) : null}
 
-            {bookingsOnly || mode === "sala" ? (
+            {unified ? (
+              <>
+                {(scope === "tutto" || scope === "lezioni") &&
+                !lockTeacherId ? (
+                  <select
+                    aria-label="Docente"
+                    value={teacherId}
+                    onChange={(event) =>
+                      pushQuery({ docente: event.target.value || null })
+                    }
+                    className="h-7 min-w-0 flex-1 rounded-md border border-neutral-300 bg-white px-2 text-xs focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)] sm:min-w-[9rem] sm:flex-none"
+                  >
+                    <option value="">Tutti i docenti</option>
+                    {teachers.map((teacher) => (
+                      <option key={teacher.id} value={teacher.id}>
+                        {teacher.label}
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
+                {scope === "tutto" ||
+                scope === "prenotazioni" ||
+                scope === "lezioni" ? (
+                  <select
+                    aria-label="Sala"
+                    value={roomId}
+                    onChange={(event) =>
+                      pushQuery({ sala: event.target.value || null })
+                    }
+                    className="h-7 min-w-0 flex-1 rounded-md border border-neutral-300 bg-white px-2 text-xs focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)] sm:min-w-[9rem] sm:flex-none"
+                  >
+                    <option value="">Tutte le sale</option>
+                    {rooms.map((room) => (
+                      <option key={room.id} value={room.id}>
+                        {room.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
+              </>
+            ) : bookingsOnly || mode === "sala" ? (
               <select
                 aria-label="Sala"
                 value={roomId}
@@ -530,7 +688,13 @@ export function LessonsCalendarPage({
           </div>
 
           <span className="mt-1 flex items-center gap-2.5 text-[10px] text-neutral-500 sm:mt-0 sm:gap-3 sm:text-[11px]">
-            {bookingsOnly ? (
+            {scopeIncludesLessons ? (
+              <span className="inline-flex items-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-sm bg-amber-300" />
+                Lezioni
+              </span>
+            ) : null}
+            {scopeIncludesBookings ? (
               <>
                 <span className="inline-flex items-center gap-1">
                   <span className="h-1.5 w-1.5 rounded-sm bg-emerald-400" />
@@ -541,18 +705,7 @@ export function LessonsCalendarPage({
                   Esterno
                 </span>
               </>
-            ) : (
-              <>
-                <span className="inline-flex items-center gap-1">
-                  <span className="h-1.5 w-1.5 rounded-sm bg-amber-300" />
-                  Lezioni
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <span className="h-1.5 w-1.5 rounded-sm bg-emerald-400" />
-                  Sale
-                </span>
-              </>
-            )}
+            ) : null}
           </span>
         </div>
       ) : null}
@@ -573,21 +726,21 @@ export function LessonsCalendarPage({
           gridOpenMinute={settings.gridOpenMinute}
           gridCloseMinute={settings.gridCloseMinute}
           slotGranularityMinutes={settings.slotGranularityMinutes}
-          canDrag={bookingsOnly || canDrag}
+          canDrag={scopeIncludesLessons && canDrag}
           canDragBookings={canManageBookingEvents}
-          moveSingleScope={bookingsOnly}
+          moveSingleScope={bookingsOnly || scope === "prenotazioni"}
           showTeacherName={isStaff}
           rooms={rooms}
           highlightDay={highlight}
           onMove={handleMove}
           onOpenLesson={handleOpenLesson}
           onSlotDoubleClick={
-            bookingsOnly
+            canManageBookingEvents
               ? (date, startMinute) => openCreateBooking(date, startMinute)
               : undefined
           }
           onSlotRangeSelect={
-            bookingsOnly
+            canManageBookingEvents
               ? (date, startMinute, durationMinutes) =>
                   openCreateBooking(date, startMinute, durationMinutes)
               : undefined

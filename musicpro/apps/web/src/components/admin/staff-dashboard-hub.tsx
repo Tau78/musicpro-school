@@ -167,7 +167,10 @@ export function StaffDashboardHub({
   arrearsCount,
   upcomingBookings,
   todayLessons,
-}: StaffDashboardHubProps) {
+  embeddedCalendar = null,
+}: StaffDashboardHubProps & {
+  embeddedCalendar?: ReactNode;
+}) {
   const showLessons = showStaffLessons || showTeacherLessons;
   const lessonsCalendarHref = showStaffLessons
     ? "/admin/lezioni/calendario"
@@ -210,8 +213,11 @@ export function StaffDashboardHub({
     });
   }
 
-  const heroIsBooking = Boolean(showBookings && nextBooking);
-  const heroIsLesson = !heroIsBooking && Boolean(showLessons && nextLesson);
+  const heroIsBooking =
+    !embeddedCalendar && Boolean(showBookings && nextBooking);
+  const heroIsLesson =
+    !embeddedCalendar && !heroIsBooking && Boolean(showLessons && nextLesson);
+  const showEmptyHero = !embeddedCalendar && !heroIsBooking && !heroIsLesson;
 
   return (
     <div className="space-y-5">
@@ -220,8 +226,9 @@ export function StaffDashboardHub({
           Ciao, {firstName}
         </h1>
         <p className="mt-1 text-sm text-neutral-600">
-          Plancia operativa — accedi ai calendari e alle code dal menu o dalle
-          scorciatoie sotto.
+          {embeddedCalendar
+            ? "Calendario unificato: filtra per sala, docente, lezioni o prenotazioni."
+            : "Plancia operativa — accedi ai calendari e alle code dal menu o dalle scorciatoie sotto."}
         </p>
       </div>
 
@@ -229,6 +236,10 @@ export function StaffDashboardHub({
         <div className="flex flex-wrap gap-2">{todoItems.map((item) => (
             <TodoPill key={item.href} href={item.href} label={item.label} />
           ))}</div>
+      ) : null}
+
+      {embeddedCalendar ? (
+        <div className="min-w-0">{embeddedCalendar}</div>
       ) : null}
 
       {heroIsBooking && nextBooking ? (
@@ -283,7 +294,7 @@ export function StaffDashboardHub({
         </Link>
       ) : null}
 
-      {!heroIsBooking && !heroIsLesson ? (
+      {showEmptyHero ? (
         <HeroShell
           label="Oggi in scuola"
           icon="✨"

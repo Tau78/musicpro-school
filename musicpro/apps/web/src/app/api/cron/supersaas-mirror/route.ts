@@ -1,8 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
-import { redactSecrets } from "../../../../../../../../scripts/lib/supersaas-bookings.mjs";
-import { syncSuperSaasMirror } from "../../../../../../../../scripts/lib/supersaas-mirror-sync.mjs";
+import { redactSecrets } from "@/lib/supersaas/supersaas-bookings.mjs";
+import { syncSuperSaasMirror } from "@/lib/supersaas/supersaas-mirror-sync.mjs";
 
 export const runtime = "nodejs";
 

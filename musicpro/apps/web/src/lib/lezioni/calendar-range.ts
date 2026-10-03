@@ -2,6 +2,7 @@ const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export type CalendarViewParam = "day" | "3day" | "week" | "month";
 export type CalendarModeParam = "docente" | "sala";
+export type CalendarScopeParam = "tutto" | "lezioni" | "prenotazioni";
 
 export function isIsoDate(value: string | null | undefined): value is string {
   return Boolean(value && ISO_DATE_RE.test(value));
@@ -20,6 +21,14 @@ export function parseCalendarMode(
   value: string | null | undefined,
 ): CalendarModeParam {
   return value === "sala" ? "sala" : "docente";
+}
+
+export function parseCalendarScope(
+  value: string | null | undefined,
+): CalendarScopeParam {
+  if (value === "lezioni") return "lezioni";
+  if (value === "prenotazioni") return "prenotazioni";
+  return "tutto";
 }
 
 export function dayBounds(anchor: string): { from: string; to: string } {

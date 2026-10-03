@@ -12,6 +12,7 @@ import { MemberRole } from "@musicpro/shared";
 import { StaffDashboardHub } from "@/components/admin/staff-dashboard-hub";
 import { AssociatePageShell } from "@/components/associate/associate-page-shell";
 import { MemberHome } from "@/components/associate/member-home";
+import { StaffUnifiedCalendar } from "@/components/dashboard/staff-unified-calendar";
 import { SettingsGearLink } from "@/components/dashboard/settings-gear-link";
 import { BookingPaymentReturnNotice } from "@/components/prenotazioni/booking-payment-return";
 import {
@@ -25,6 +26,12 @@ import { formatBookingWhen } from "@/lib/ui/associate-theme";
 
 interface PageProps {
   searchParams: Promise<{
+    view?: string;
+    date?: string;
+    sala?: string;
+    docente?: string;
+    ambito?: string;
+    hl?: string;
     dopoPagamento?: string;
     bookingId?: string;
   }>;
@@ -50,6 +57,8 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const showTeacherLessons = isDocente;
   const showOperational =
     showBookingsCalendar || showTeacherLessons || showStaffLessons;
+  const showUnifiedCalendar =
+    showBookingsCalendar || showStaffLessons || showTeacherLessons;
 
   const paymentNotice = paymentComplete ? (
     <BookingPaymentReturnNotice bookingId={paymentBookingId} />
@@ -115,10 +124,36 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     showTeacherLessons,
   });
 
+  const calendarParams = {
+    view: params.view,
+    date: params.date,
+    sala: params.sala,
+    docente: params.docente,
+    ambito: params.ambito,
+    hl: params.hl,
+  };
+
   return (
     <div className="space-y-4 sm:space-y-5">
       {paymentNotice}
-      <StaffDashboardHub {...hubProps} firstName={member.firstName} />
+      <StaffDashboardHub
+        {...hubProps}
+        firstName={member.firstName}
+        embeddedCalendar={
+          showUnifiedCalendar ? (
+            <StaffUnifiedCalendar
+              memberId={member.id}
+              searchParams={calendarParams}
+              showStaffLessons={showStaffLessons}
+              showBookingsCalendar={showBookingsCalendar}
+              showTeacherLessons={showTeacherLessons}
+              lockTeacherId={
+                showTeacherLessons && !showStaffLessons ? member.id : null
+              }
+            />
+          ) : null
+        }
+      />
     </div>
   );
 }
