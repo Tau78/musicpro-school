@@ -24,6 +24,7 @@ import {
   getRoomAvailability,
   listRooms,
   peekRoomAvailabilityCache,
+  requestBookingConfirmationEmail,
   requestRoomBookingPaymentUrl,
   subscribeToBookings,
   invalidateRoomAvailabilityCache,
@@ -261,6 +262,25 @@ export default function PrenotazioniScreen() {
       if (!result.success) {
         setError(result.errorMessage ?? "Prenotazione non riuscita.");
         return;
+      }
+
+      if (
+        result.bookingId &&
+        (result.status === "confirmed" || result.status === "pending_approval")
+      ) {
+        const emailBaseUrl = process.env.EXPO_PUBLIC_WEB_URL?.trim();
+        if (emailBaseUrl) {
+          const {
+            data: { session },
+          } = await supabase.auth.getSession();
+          if (session?.access_token) {
+            void requestBookingConfirmationEmail(result.bookingId, {
+              apiBaseUrl: emailBaseUrl,
+              accessToken: session.access_token,
+              template: "confirm",
+            });
+          }
+        }
       }
 
       const needsCardPayment =

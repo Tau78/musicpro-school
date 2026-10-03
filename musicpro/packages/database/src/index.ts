@@ -67,6 +67,7 @@ export {
   bookingOccupiesSlot,
   requestBookingCreditsPayment,
   requestRoomBookingPaymentUrl,
+  requestBookingConfirmationEmail,
   adminUpdateBooking,
   bookingAuditActionLabel,
   countPendingApprovalBookings,
