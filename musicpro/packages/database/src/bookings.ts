@@ -511,6 +511,65 @@ export async function requestRoomBookingPaymentUrl(
   return { success: true, url: data.url };
 }
 
+export type RequestBookingConfirmationEmailOptions = {
+  /** Base URL web app (es. EXPO_PUBLIC_WEB_URL) — richiesto fuori dal browser. */
+  apiBaseUrl?: string;
+  /** Token Supabase per Authorization Bearer (mobile). */
+  accessToken?: string;
+  template?: "confirm" | "modified";
+  force?: boolean;
+  paymentUrl?: string;
+};
+
+/**
+ * Email associato + notifica admin/segreteria.
+ * Best-effort: il chiamante non deve bloccare la prenotazione se fallisce.
+ */
+export async function requestBookingConfirmationEmail(
+  bookingId: string,
+  options?: RequestBookingConfirmationEmailOptions,
+): Promise<{ success: boolean; message?: string }> {
+  const apiBase = options?.apiBaseUrl?.replace(/\/$/, "") ?? "";
+  const url = apiBase
+    ? `${apiBase}/api/bookings/${encodeURIComponent(bookingId)}/send-email`
+    : `/api/bookings/${encodeURIComponent(bookingId)}/send-email`;
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (options?.accessToken) {
+    headers.Authorization = `Bearer ${options.accessToken}`;
+  }
+
+  try {
+    const resp = await fetch(url, {
+      method: "POST",
+      credentials: apiBase ? "omit" : "same-origin",
+      headers,
+      body: JSON.stringify({
+        template: options?.template ?? "confirm",
+        force: options?.force ?? false,
+        payment_url: options?.paymentUrl?.trim() || undefined,
+      }),
+    });
+
+    const data = (await resp.json()) as {
+      success?: boolean;
+      message?: string;
+    };
+
+    return {
+      success: resp.ok && data.success !== false,
+      message: data.message,
+    };
+  } catch {
+    return {
+      success: false,
+      message: "Impossibile inviare l'email di conferma.",
+    };
+  }
+}
+
 export interface BookingPriceOptions {
   /** Sconto cumulativo da fasce durata (€) */
   durationDiscountEur?: number;
