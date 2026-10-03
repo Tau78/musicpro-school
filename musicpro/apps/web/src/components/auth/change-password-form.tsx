@@ -9,7 +9,11 @@ import { createClient } from "@/lib/supabase/client";
 const inputClass =
   "mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/20";
 
-export function ChangePasswordForm() {
+export function ChangePasswordForm({
+  onUpdated,
+}: {
+  onUpdated?: () => void;
+} = {}) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -32,7 +36,10 @@ export function ChangePasswordForm() {
 
     setBusy(true);
     const supabase = createClient();
-    const { error: updateError } = await supabase.auth.updateUser({ password });
+    const { error: updateError } = await supabase.auth.updateUser({
+      password,
+      data: { password_change_required: false },
+    });
     setBusy(false);
 
     if (updateError) {
@@ -43,6 +50,7 @@ export function ChangePasswordForm() {
     setPassword("");
     setConfirmPassword("");
     setOk("Password aggiornata.");
+    onUpdated?.();
   }
 
   return (
