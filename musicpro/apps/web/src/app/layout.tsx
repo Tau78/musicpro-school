@@ -3,6 +3,7 @@ import Script from "next/script";
 
 import { APP_NAME } from "@musicpro/shared";
 
+import { PasswordChangePrompt } from "@/components/auth/password-change-prompt";
 import { StyleLoadGuard } from "@/components/style-load-guard";
 
 import "./globals.css";
@@ -143,6 +144,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-screen antialiased">
         <StyleLoadGuard />
+        <PasswordChangePrompt />
         {children}
       </body>
     </html>

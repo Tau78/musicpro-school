@@ -34,6 +34,7 @@ export const ADMIN_LEZIONI_NAV: readonly NavGroup[] = [
     label: "Scuola",
     items: [
       { href: "/admin/lezioni/disponibilita", label: "Orari" },
+      { href: "/admin/lezioni/tabelloni", label: "Tabelloni" },
       { href: "/admin/lezioni/impostazioni", label: "Scuola" },
     ],
   },

@@ -128,6 +128,8 @@ export type BookingErrorCode =
   | "NOT_BAND_MEMBER"
   | "BOOKING_LOCKED"
   | "OUTSIDE_HOURS"
+  | "SUPERSAAS_SLOT_HELD"
+  | "SUPERSAAS_MIRROR_STALE"
   | "UNKNOWN";
 
 export interface BookingMemberSnapshotEntry {
@@ -396,6 +398,10 @@ const BOOKING_ERROR_MESSAGES_IT: Record<BookingErrorCode, string> = {
   NOT_BAND_MEMBER: "Non sei membro attivo di questa band.",
   BOOKING_LOCKED: "Le prenotazioni sono temporaneamente chiuse.",
   OUTSIDE_HOURS: "Orario fuori dall'apertura della sala.",
+  SUPERSAAS_SLOT_HELD:
+    "Questo slot è occupato da una prenotazione SuperSaaS non ancora migrata.",
+  SUPERSAAS_MIRROR_STALE:
+    "Le sale sono momentaneamente bloccate: lo specchio SuperSaaS non è aggiornato. Riprova tra poco.",
   UNKNOWN: "Si è verificato un errore durante la prenotazione.",
 };
 
@@ -886,6 +892,17 @@ export async function getRoomById(
   return (data as Room | null) ?? null;
 }
 
+function isMissingSupersaasMirrorTable(error: {
+  message?: string;
+  code?: string;
+}): boolean {
+  const message = `${error.code ?? ""} ${error.message ?? ""}`;
+  return (
+    /supersaas_slot_mirrors/i.test(message) &&
+    /schema cache|does not exist|Could not find/i.test(message)
+  );
+}
+
 export async function getRoomAvailability(
   client: BookingsClient,
   roomId: string,
@@ -943,7 +960,7 @@ export async function getRoomAvailability(
 
   const { startUtc, endUtc } = getRomeDayBoundsUtc(date);
 
-  const [settings, bookingsRes, weekly, specials, externalEvents] =
+  const [settings, bookingsRes, weekly, specials, externalEvents, mirrorsRes] =
     await Promise.all([
       getBookingSettings(client),
       client
@@ -960,6 +977,12 @@ export async function getRoomAvailability(
         to: endUtc,
         roomId,
       }).catch(() => []),
+      client
+        .from("supersaas_slot_mirrors")
+        .select("external_id, start_at, end_at")
+        .eq("room_id", roomId)
+        .lt("start_at", endUtc)
+        .gt("end_at", startUtc),
     ]);
 
   if (bookingsRes.error) {
@@ -979,14 +1002,32 @@ export async function getRoomAvailability(
     .filter((booking) => !excludeBookingId || booking.id !== excludeBookingId)
     .filter((booking) => bookingOccupiesSlot(booking));
 
-  const calendarBusy: BusyInterval[] = externalEvents
-    .filter((event) => event.roomId === roomId)
-    .map((event) => ({
-      id: event.id,
-      start_at: event.startsAt,
-      end_at: event.endsAt,
+  if (mirrorsRes.error && !isMissingSupersaasMirrorTable(mirrorsRes.error)) {
+    throw new Error(
+      `Impossibile leggere lo specchio SuperSaaS: ${mirrorsRes.error.message}`,
+    );
+  }
+
+  const mirrorBusy: BusyInterval[] = (mirrorsRes.error ? [] : (mirrorsRes.data ?? [])).map(
+    (row) => ({
+      id: `supersaas:${row.external_id}`,
+      start_at: row.start_at,
+      end_at: row.end_at,
       source: "calendar" as const,
-    }));
+    }),
+  );
+
+  const calendarBusy: BusyInterval[] = [
+    ...externalEvents
+      .filter((event) => event.roomId === roomId)
+      .map((event) => ({
+        id: event.id,
+        start_at: event.startsAt,
+        end_at: event.endsAt,
+        source: "calendar" as const,
+      })),
+    ...mirrorBusy,
+  ];
 
   const windows = resolveOpeningWindows(
     date,
@@ -1780,6 +1821,20 @@ function mapPostgresError(error: { code?: string; message: string }): CreateBook
       errorMessage: BOOKING_ERROR_MESSAGES_IT.OUTSIDE_HOURS,
     };
   }
+  if (message.includes("SUPERSAAS_SLOT_HELD")) {
+    return {
+      success: false,
+      errorCode: "SUPERSAAS_SLOT_HELD",
+      errorMessage: BOOKING_ERROR_MESSAGES_IT.SUPERSAAS_SLOT_HELD,
+    };
+  }
+  if (message.includes("SUPERSAAS_MIRROR_STALE")) {
+    return {
+      success: false,
+      errorCode: "SUPERSAAS_MIRROR_STALE",
+      errorMessage: BOOKING_ERROR_MESSAGES_IT.SUPERSAAS_MIRROR_STALE,
+    };
+  }
 
   return {
     success: false,
@@ -1837,7 +1892,12 @@ export function bookingPaymentMethodLabel(
 }
 
 export function formatCreditsCount(count: number): string {
-  return count === 1 ? "1 credito" : `${count} crediti`;
+  const rounded = Math.round(Number(count) * 100) / 100;
+  if (!Number.isFinite(rounded)) return "0 crediti";
+  const text = Number.isInteger(rounded)
+    ? String(rounded)
+    : rounded.toFixed(2).replace(".", ",");
+  return Math.abs(rounded) === 1 ? "1 credito" : `${text} crediti`;
 }
 
 export function bookingStatusLabel(

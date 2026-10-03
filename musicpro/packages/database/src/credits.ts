@@ -158,10 +158,10 @@ interface BookingCreditsRpcResponse {
   payment_status?: string;
 }
 
-/** 1 credito = 1 euro del prezzo finale della prenotazione. */
+/** 1 credito = 1 euro del prezzo finale, centesimi compresi. */
 export function creditsForBookingPrice(priceEur: number): number {
   if (!Number.isFinite(priceEur) || priceEur <= 0) return 0;
-  return Math.round(priceEur);
+  return Math.round(priceEur * 100) / 100;
 }
 
 function mapCreditPackage(row: CreditPackageRow): CreditPackage {

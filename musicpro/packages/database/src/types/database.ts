@@ -357,6 +357,8 @@ export interface Database {
           member_snapshot: Json | null;
           microphone_count: number;
           source: "booking" | "calendar" | "lesson";
+          external_source: "supersaas" | null;
+          external_id: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -396,6 +398,8 @@ export interface Database {
           google_calendar_synced_at?: string | null;
           google_calendar_sync_error?: string | null;
           source?: "booking" | "calendar" | "lesson";
+          external_source?: "supersaas" | null;
+          external_id?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["bookings"]["Insert"]> & {
           cancelled_at?: string | null;
@@ -603,6 +607,26 @@ export interface Database {
         };
         Update: Partial<
           Database["public"]["Tables"]["external_calendar_events"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      supersaas_slot_mirrors: {
+        Row: {
+          external_id: string;
+          room_id: string;
+          start_at: string;
+          end_at: string;
+          synced_at: string;
+        };
+        Insert: {
+          external_id: string;
+          room_id: string;
+          start_at: string;
+          end_at: string;
+          synced_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["supersaas_slot_mirrors"]["Insert"]
         >;
         Relationships: [];
       };
@@ -2026,6 +2050,60 @@ export interface Database {
         Update: Partial<
           Database["public"]["Tables"]["course_lifecycle_events"]["Insert"]
         >;
+        Relationships: [];
+      };
+      public_display_settings: {
+        Row: {
+          id: boolean;
+          enabled: boolean;
+          pin: string;
+          site_label: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: boolean;
+          enabled?: boolean;
+          pin: string;
+          site_label?: string;
+          updated_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["public_display_settings"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      public_boards: {
+        Row: {
+          id: string;
+          kind: "timetable" | "occupancy";
+          name: string;
+          layout: "aeroporto" | "giorno" | "notte" | "viola";
+          room_id: string | null;
+          show_individuals: boolean;
+          row_count: number;
+          row_height_px: number;
+          hide_brand: boolean;
+          columns: Json;
+          sort_order: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          kind: "timetable" | "occupancy";
+          name: string;
+          layout?: "aeroporto" | "giorno" | "notte" | "viola";
+          room_id?: string | null;
+          show_individuals?: boolean;
+          row_count?: number;
+          row_height_px?: number;
+          hide_brand?: boolean;
+          columns?: Json;
+          sort_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["public_boards"]["Insert"]>;
         Relationships: [];
       };
     };
