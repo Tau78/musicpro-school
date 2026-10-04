@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { formatCreditsCount } from "@musicpro/database";
+
 import { formatLessonWhen } from "@/lib/ui/associate-theme";
 
 type NextLesson = {
@@ -19,6 +21,8 @@ type MemberHomeProps = {
   showNextLesson?: boolean;
   nextLesson: NextLesson | null;
   nextBooking: NextBooking | null;
+  /** Crediti sala spendibili (1 credito = 1 €). */
+  creditAvailable?: number;
 };
 
 export function MemberHome({
@@ -26,7 +30,9 @@ export function MemberHome({
   showNextLesson = false,
   nextLesson,
   nextBooking,
+  creditAvailable = 0,
 }: MemberHomeProps) {
+  const hasCredits = creditAvailable > 0;
   return (
     <div className="space-y-6">
       <div>
@@ -111,6 +117,27 @@ export function MemberHome({
       ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2">
+        <Link
+          href="/dashboard/shop"
+          className="glass-card group block p-5 transition hover:border-[var(--brand)]/20"
+        >
+          <div className="flex items-start gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-lg">
+              🎟️
+            </span>
+            <div>
+              <p className="font-medium text-[var(--brand)] group-hover:underline">
+                Crediti
+              </p>
+              <p className="mt-1 text-sm text-neutral-600">
+                {hasCredits
+                  ? `${formatCreditsCount(creditAvailable)} · acquista altri`
+                  : "Acquista crediti per le sale"}
+              </p>
+            </div>
+          </div>
+        </Link>
+
         <Link href="/prenotazioni" className="glass-card group block p-5 transition hover:border-[var(--brand)]/20">
           <div className="flex items-start gap-3">
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#38764B]/15 text-lg">

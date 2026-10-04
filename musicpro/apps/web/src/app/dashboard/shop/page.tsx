@@ -58,10 +58,10 @@ export default async function DashboardShopPage({ searchParams }: ShopPageProps)
 
       <div className="mx-auto max-w-5xl px-6 py-8">
         <Link
-          href="/dashboard/impostazioni"
+          href="/dashboard"
           className="text-sm font-medium text-[var(--brand)] hover:underline"
         >
-          ← Torna alle impostazioni
+          ← Dashboard
         </Link>
 
         {paymentComplete ? (

@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { formatCreditsCount } from "@musicpro/database";
+
 import { memberInitials } from "@/lib/ui/associate-theme";
 
 type MemberProfileHeroProps = {
@@ -86,14 +88,14 @@ export function MemberProfileHero({
         ) : null}
 
         {roomCreditsHours != null ? (
-          <div className="glass-card p-4">
+          <Link href="/dashboard/shop" className="glass-card block p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
               Crediti
             </p>
             <p className="mt-2 text-sm font-medium text-[var(--brand-accent)]">
-              {roomCreditsHours} {roomCreditsHours === 1 ? "ora" : "ore"} sala
+              {formatCreditsCount(roomCreditsHours)} · vai allo shop
             </p>
-          </div>
+          </Link>
         ) : null}
       </div>
 

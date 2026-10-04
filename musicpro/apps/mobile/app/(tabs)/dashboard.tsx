@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Linking,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -17,6 +18,8 @@ import {
   bookingStatusLabel,
   cancelBooking,
   cancelLessonAsSchool,
+  formatCreditsCount,
+  getMemberCreditBalance,
   getRomeMinutesFromMidnight,
   getTeacherProfile,
   hasActiveCourseEnrollment,
@@ -145,6 +148,7 @@ export default function DashboardScreen() {
   const [nextLesson, setNextLesson] = useState<CalendarLesson | null>(null);
   const [nextBooking, setNextBooking] = useState<BookingWithRoom | null>(null);
   const [isAllievo, setIsAllievo] = useState(false);
+  const [creditAvailable, setCreditAvailable] = useState(0);
   const [createOpen, setCreateOpen] = useState(false);
   const [createDate, setCreateDate] = useState<string | undefined>();
   const [createOra, setCreateOra] = useState<string | undefined>();
@@ -163,6 +167,7 @@ export default function DashboardScreen() {
         setNextLesson(null);
         setNextBooking(null);
         setIsAllievo(false);
+        setCreditAvailable(0);
         setLoading(false);
         return;
       }
@@ -175,7 +180,7 @@ export default function DashboardScreen() {
         const salaTo = addRomeDays(salaWeekStart, 7);
         const lezioniTo = addRomeDays(lezioniWeekStart, 7);
 
-        const [bookingRows, lessonRows, profile, allievo, upcomingMine] =
+        const [bookingRows, lessonRows, profile, allievo, upcomingMine, credits] =
           await Promise.all([
           manageSala
             ? listBookingsInRange(supabase, {
@@ -205,6 +210,7 @@ export default function DashboardScreen() {
           isSimpleAssociate
             ? listMyBookings(supabase, member.id, "upcoming")
             : Promise.resolve([] as BookingWithRoom[]),
+          getMemberCreditBalance(supabase, member.id).catch(() => null),
         ]);
 
         const studentLessons =
@@ -219,6 +225,7 @@ export default function DashboardScreen() {
         setBookings(bookingRows);
         setLessons(lessonRows);
         setIsAllievo(allievo);
+        setCreditAvailable(credits?.available ?? 0);
         setNextLesson(studentLessons[0] ?? null);
         setNextBooking(upcomingMine[0] ?? null);
         setCanReschedule(Boolean(profile?.canReschedule) || isStaff);
@@ -578,12 +585,33 @@ export default function DashboardScreen() {
             <View style={styles.actionRow}>
               <Pressable
                 style={styles.actionCard}
+                onPress={() => {
+                  const webUrl = process.env.EXPO_PUBLIC_WEB_URL?.trim();
+                  if (webUrl) {
+                    void Linking.openURL(`${webUrl.replace(/\/$/, "")}/dashboard/shop`);
+                    return;
+                  }
+                  router.push("/impostazioni");
+                }}
+              >
+                <Text style={styles.actionEmoji}>🎟️</Text>
+                <Text style={styles.actionTitle}>Crediti</Text>
+                <Text style={styles.actionHint}>
+                  {creditAvailable > 0
+                    ? `${formatCreditsCount(creditAvailable)} · shop`
+                    : "Acquista per le sale"}
+                </Text>
+              </Pressable>
+              <Pressable
+                style={styles.actionCard}
                 onPress={() => router.push("/(tabs)/prenotazioni")}
               >
                 <Text style={styles.actionEmoji}>📅</Text>
                 <Text style={styles.actionTitle}>Prenota sala</Text>
                 <Text style={styles.actionHint}>Scegli sala e orario</Text>
               </Pressable>
+            </View>
+            <View style={[styles.actionRow, { marginTop: 12 }]}>
               <Pressable
                 style={styles.actionCard}
                 onPress={() => router.push("/mie-prenotazioni")}
@@ -592,19 +620,15 @@ export default function DashboardScreen() {
                 <Text style={styles.actionTitle}>Le mie prenotazioni</Text>
                 <Text style={styles.actionHint}>Prossime prove</Text>
               </Pressable>
+              <Pressable
+                style={styles.actionCard}
+                onPress={() => router.push("/impostazioni")}
+              >
+                <Text style={styles.actionEmoji}>📋</Text>
+                <Text style={styles.actionTitle}>La mia scheda</Text>
+                <Text style={styles.actionHint}>Profilo, band e crediti</Text>
+              </Pressable>
             </View>
-          </View>
-
-          <View style={styles.homeBlock}>
-            <Text style={styles.sectionEyebrow}>ANAGRAFICA</Text>
-            <Pressable
-              style={[styles.actionCard, styles.actionCardFull]}
-              onPress={() => router.push("/impostazioni")}
-            >
-              <Text style={styles.actionEmoji}>📋</Text>
-              <Text style={styles.actionTitle}>La mia scheda</Text>
-              <Text style={styles.actionHint}>Profilo, band e crediti</Text>
-            </Pressable>
           </View>
 
           <Text style={styles.tagline}>
