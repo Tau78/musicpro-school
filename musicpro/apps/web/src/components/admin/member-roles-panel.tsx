@@ -21,6 +21,7 @@ const ASSIGNABLE_ROLES: MemberRoleValue[] = [
   MemberRole.Admin,
   MemberRole.Segreteria,
   MemberRole.Docente,
+  MemberRole.Collaboratore,
 ];
 
 interface MemberRolesPanelProps {

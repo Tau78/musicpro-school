@@ -15,12 +15,14 @@ import {
   type Room,
   type TimeSlot,
   calculateBookingPrice,
+  applyMemberBookingDiscount,
   createBooking,
   durationOptionsForRoom,
   formatDateItalian,
   formatDurationLabel,
   formatEuro,
-  getCurrentMember,
+  getBookingSettings,
+  getCurrentMemberWithRoles,
   getRoomAvailability,
   listRooms,
   peekRoomAvailabilityCache,
@@ -30,6 +32,8 @@ import {
   invalidateRoomAvailabilityCache,
   todayInRome,
 } from "@musicpro/database";
+
+import { MemberRole } from "@musicpro/shared";
 
 import { AssociateGradientBg } from "@/components/associate-gradient-bg";
 import { addRomeDays } from "@/lib/lezioni-dates";
@@ -82,6 +86,8 @@ export default function PrenotazioniScreen() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [stepIndex, setStepIndex] = useState(0);
+  const [collaboratorDiscountPercent, setCollaboratorDiscountPercent] =
+    useState(0);
 
   const currentStep = WIZARD_STEPS[stepIndex]?.key ?? "room";
   const confirmStepIndex = WIZARD_STEPS.findIndex((step) => step.key === "confirm");
@@ -103,11 +109,16 @@ export default function PrenotazioniScreen() {
 
   const previewPrice = useMemo(() => {
     if (!selectedRoom) return null;
-    return (
+    const base =
       selectedSlot?.priceEur ??
-      calculateBookingPrice(selectedRoom, durationMinutes)
-    );
-  }, [durationMinutes, selectedRoom, selectedSlot]);
+      calculateBookingPrice(selectedRoom, durationMinutes);
+    return applyMemberBookingDiscount(base, collaboratorDiscountPercent);
+  }, [
+    collaboratorDiscountPercent,
+    durationMinutes,
+    selectedRoom,
+    selectedSlot,
+  ]);
 
   const loadAvailability = useCallback(async () => {
     if (!selectedRoomId) return;
@@ -156,9 +167,10 @@ export default function PrenotazioniScreen() {
       setError(null);
 
       try {
-        const [roomList, member] = await Promise.all([
+        const [roomList, member, bookingSettings] = await Promise.all([
           listRooms(supabase),
-          getCurrentMember(supabase),
+          getCurrentMemberWithRoles(supabase),
+          getBookingSettings(supabase).catch(() => null),
         ]);
 
         if (cancelled) return;
@@ -169,6 +181,11 @@ export default function PrenotazioniScreen() {
           setDurationMinutes(roomList[0].default_duration_minutes);
         }
         setMemberId(member?.id ?? null);
+        setCollaboratorDiscountPercent(
+          member?.roles.includes(MemberRole.Collaboratore)
+            ? (bookingSettings?.collaboratorDiscountPercent ?? 50)
+            : 0,
+        );
       } catch (err) {
         if (!cancelled) {
           setError(
@@ -581,6 +598,11 @@ export default function PrenotazioniScreen() {
                     {previewPrice != null ? formatEuro(previewPrice) : "—"}
                   </Text>
                 </View>
+                {collaboratorDiscountPercent > 0 ? (
+                  <Text style={styles.approvalHint}>
+                    Sconto collaboratore −{collaboratorDiscountPercent}%
+                  </Text>
+                ) : null}
                 {selectedSlot.leadTimeCategory === "approval" && (
                   <Text style={styles.approvalHint}>
                     Questa fascia richiede approvazione admin.

@@ -16,7 +16,8 @@ export type MemberRoleEnum =
   | "associato"
   | "segreteria"
   | "social"
-  | "tutore";
+  | "tutore"
+  | "collaboratore";
 
 export interface Database {
   __InternalSupabase: {

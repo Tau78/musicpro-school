@@ -177,6 +177,8 @@ export interface BookingSettings {
   bandRequired: boolean;
   locked: boolean;
   lockedMessage: string;
+  /** Sconto % sul totale sala per ruolo Collaboratore (0–100). */
+  collaboratorDiscountPercent: number;
 }
 
 export interface Booking {
@@ -583,6 +585,8 @@ export interface BookingPriceOptions {
   proviDaSoloDiscountEur?: number;
   /** Somma addon selezionati (€) */
   addonTotalEur?: number;
+  /** Sconto % ruolo Collaboratore (0–100) */
+  collaboratorDiscountPercent?: number;
 }
 
 /** Totale sconto PROVI DA SOLO: importo orario × ore. */
@@ -616,7 +620,21 @@ export function calculateBookingPrice(
     ) +
     (options.addonTotalEur ?? 0);
 
-  return Math.round(Math.max(0, total) * 100) / 100;
+  return applyMemberBookingDiscount(
+    Math.max(0, total),
+    options.collaboratorDiscountPercent ?? 0,
+  );
+}
+
+/** Sconto collaboratore sul totale già calcolato (0–100%). */
+export function applyMemberBookingDiscount(
+  priceEur: number,
+  percent: number,
+): number {
+  if (!Number.isFinite(priceEur) || priceEur <= 0) return 0;
+  const clipped = Math.max(0, Math.min(100, Number(percent) || 0));
+  if (clipped <= 0) return Math.round(priceEur * 100) / 100;
+  return Math.round(((priceEur * (100 - clipped)) / 100) * 100) / 100;
 }
 
 export function durationOptionsForRoom(room: Room): number[] {
@@ -658,6 +676,7 @@ export async function getBookingSettings(
     "booking_band_required",
     "booking_locked",
     "booking_locked_message",
+    "booking_collaborator_discount_percent",
   ] as const;
 
   const { data, error } = await client
@@ -696,6 +715,14 @@ export async function getBookingSettings(
     lockedMessage:
       map.get("booking_locked_message")?.trim() ||
       "Le prenotazioni sono temporaneamente chiuse. Riprova più tardi o contatta la segreteria.",
+    collaboratorDiscountPercent: Math.max(
+      0,
+      Math.min(
+        100,
+        parseInt(map.get("booking_collaborator_discount_percent") ?? "50", 10) ||
+          0,
+      ),
+    ),
   };
 }
 

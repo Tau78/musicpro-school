@@ -62,6 +62,7 @@ export default function MiePrenotazioniScreen() {
     bandRequired: false,
     locked: false,
     lockedMessage: "",
+    collaboratorDiscountPercent: 50,
   });
   const [memberId, setMemberId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);

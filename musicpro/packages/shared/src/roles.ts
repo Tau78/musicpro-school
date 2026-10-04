@@ -6,6 +6,7 @@ export enum MemberRole {
   Segreteria = "segreteria",
   Social = "social",
   Tutore = "tutore",
+  Collaboratore = "collaboratore",
 }
 
 export const MEMBER_ROLES = Object.values(MemberRole) as MemberRole[];
@@ -17,4 +18,5 @@ export const MEMBER_ROLE_LABELS: Record<MemberRole, string> = {
   [MemberRole.Segreteria]: "Segreteria",
   [MemberRole.Social]: "Social",
   [MemberRole.Tutore]: "Tutore",
+  [MemberRole.Collaboratore]: "Collaboratore",
 };
