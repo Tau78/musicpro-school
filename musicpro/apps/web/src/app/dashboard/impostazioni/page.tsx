@@ -242,7 +242,7 @@ export default async function DashboardImpostazioniPage() {
           </p>
           <Link
             href="/dashboard/band"
-            className="mt-4 inline-flex rounded-lg bg-[var(--brand)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90"
+            className="btn-brand mt-4 inline-flex rounded-lg px-5 py-2.5 text-sm font-medium hover:opacity-90"
           >
             Vai alle band
           </Link>
@@ -257,7 +257,7 @@ export default async function DashboardImpostazioniPage() {
           </p>
           <Link
             href="/dashboard/shop"
-            className="mt-4 inline-flex rounded-lg bg-[var(--brand)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90"
+            className="btn-brand mt-4 inline-flex rounded-lg px-5 py-2.5 text-sm font-medium hover:opacity-90"
           >
             Vai allo shop
           </Link>
