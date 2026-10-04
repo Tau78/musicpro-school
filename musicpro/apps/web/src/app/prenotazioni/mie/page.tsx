@@ -76,7 +76,7 @@ function MiePrenotazioniContent() {
     bandRequired: false,
     locked: false,
     lockedMessage: "",
-    collaboratorDiscountPercent: 50,
+    collaboratorDiscountPercent: 20,
   });
   const [memberId, setMemberId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);

@@ -183,7 +183,7 @@ export default function PrenotazioniScreen() {
         setMemberId(member?.id ?? null);
         setCollaboratorDiscountPercent(
           member?.roles.includes(MemberRole.Collaboratore)
-            ? (bookingSettings?.collaboratorDiscountPercent ?? 50)
+            ? (bookingSettings?.collaboratorDiscountPercent ?? 20)
             : 0,
         );
       } catch (err) {

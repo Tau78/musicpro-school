@@ -719,7 +719,7 @@ export async function getBookingSettings(
       0,
       Math.min(
         100,
-        parseInt(map.get("booking_collaborator_discount_percent") ?? "50", 10) ||
+        parseInt(map.get("booking_collaborator_discount_percent") ?? "20", 10) ||
           0,
       ),
     ),

@@ -262,7 +262,7 @@ export default function PrenotazioniPage() {
                 bandRequired: false,
                 locked: false,
                 lockedMessage: "",
-                collaboratorDiscountPercent: 50,
+                collaboratorDiscountPercent: 20,
               } as Awaited<ReturnType<typeof getBookingSettings>>),
         ]);
 

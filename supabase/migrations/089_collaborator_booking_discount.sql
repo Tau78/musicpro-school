@@ -1,15 +1,18 @@
 -- Ruolo Collaboratore: sconto sulla prenotazione sala (percentuale in Impostazioni).
--- Default 50%. Assegnato a Facciolo, Petralia, Roberti.
+-- Default 20%. Assegnato a Facciolo, Petralia, Roberti.
 
 ALTER TYPE public.member_role ADD VALUE IF NOT EXISTS 'collaboratore';
 
 INSERT INTO public.app_settings (key, value, description)
 VALUES (
   'booking_collaborator_discount_percent',
-  '50',
+  '20',
   'Sconto % sul totale sala per chi ha il ruolo Collaboratore (0–100).'
 )
-ON CONFLICT (key) DO NOTHING;
+ON CONFLICT (key) DO UPDATE
+SET
+  value = EXCLUDED.value,
+  description = EXCLUDED.description;
 
 CREATE OR REPLACE FUNCTION public.booking_price_after_member_discount(
   p_price NUMERIC,
@@ -44,7 +47,7 @@ BEGIN
 
   v_percent := GREATEST(
     0,
-    LEAST(100, public.get_booking_setting_int('booking_collaborator_discount_percent', 50))
+    LEAST(100, public.get_booking_setting_int('booking_collaborator_discount_percent', 20))
   );
 
   IF v_percent <= 0 THEN
