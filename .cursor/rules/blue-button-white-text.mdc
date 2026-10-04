@@ -1,0 +1,22 @@
+---
+description: Pulsanti blu brand (--brand) devono avere testo bianco leggibile
+alwaysApply: true
+---
+
+# Pulsante blu → testo bianco
+
+I CTA con sfondo `bg-[var(--brand)]` (navy) **devono** avere etichetta **bianca** (`text-white` o classe `btn-brand`). Altrimenti su mobile/WKWebView il testo resta scuro e non si legge.
+
+## Obbligatorio
+
+- `bg-[var(--brand)]` + `text-white` insieme (o sola classe `btn-brand` in `globals.css`)
+- Outline / secondari: bordo brand + testo brand su fondo chiaro — non invertire
+
+## Vietato
+
+- Pulsante navy con `text-[var(--brand)]`, `text-neutral-*`, o senza colore testo
+- Affidarsi solo a `color: inherit` sui link `<a>` per i CTA pieni
+
+## Contesto
+
+C’è già una regola CSS unlayered in `globals.css` / critical fallback in `layout.tsx` che forza `color:#fff` su `a|button.bg-[var(--brand)]`. Non rimuoverla. Nei nuovi componenti continua a mettere `text-white` esplicito.

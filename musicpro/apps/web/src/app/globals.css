@@ -83,6 +83,25 @@ body {
 }
 
 /**
+ * Pulsante pieno brand (--brand navy): testo sempre bianco.
+ * Regola unlayered (fuori da @layer): altrimenti un `a { color: inherit }`
+ * o stili simili battono le utility Tailwind in @layer utilities.
+ */
+a.bg-\[var\(--brand\)\],
+button.bg-\[var\(--brand\)\],
+.btn-brand {
+  color: #fff;
+}
+
+.btn-brand {
+  background-color: var(--brand);
+}
+
+.btn-brand:hover {
+  background-color: color-mix(in srgb, var(--brand) 90%, black);
+}
+
+/**
  * Marker usato da StyleLoadGuard: presente SOLO se il bundle Tailwind
  * è caricato. Non duplicare nel CSS critico inline.
  */

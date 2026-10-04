@@ -30,6 +30,11 @@ const CRITICAL_FALLBACK_CSS = `
 html{-webkit-text-size-adjust:100%}
 body{margin:0;min-height:100vh;background:var(--background);color:var(--foreground);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.5}
 a{color:inherit;text-decoration:none}
+/* Unlayered: batte @layer utilities di Tailwind (senza questo, a{color:inherit}
+   vince su .text-white e i CTA blu restano illeggibili). */
+.text-white{color:#fff}
+.bg-\\[var\\(--brand\\)\\]{background-color:var(--brand);color:#fff}
+a.bg-\\[var\\(--brand\\)\\],button.bg-\\[var\\(--brand\\)\\]{color:#fff}
 img,svg{max-width:100%;height:auto;vertical-align:middle}
 ul{list-style:none;margin:0;padding:0}
 .flex{display:flex}
