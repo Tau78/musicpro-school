@@ -30,6 +30,7 @@ export {
   bookingStatusLabel,
   bookingPaymentMethodLabel,
   calculateBookingPrice,
+  applyMemberBookingDiscount,
   proviDaSoloDiscountTotalEur,
   canCancelBooking,
   canModifyBooking,

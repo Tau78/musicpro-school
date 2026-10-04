@@ -5,6 +5,7 @@ import {
   type AdminBookingListItem,
   bookingStatusLabel,
   formatBookingDateTime,
+  formatCreditsCount,
   getRomeMinutesFromMidnight,
   minutesToTimeLabel,
 } from "@musicpro/database";
@@ -26,6 +27,7 @@ export interface StaffDashboardHubProps {
   arrearsCount: number;
   upcomingBookings: AdminBookingListItem[];
   todayLessons: OggiLesson[];
+  creditAvailable?: number;
 }
 
 function bookingStatusTone(status: AdminBookingListItem["status"]): string {
@@ -167,6 +169,7 @@ export function StaffDashboardHub({
   arrearsCount,
   upcomingBookings,
   todayLessons,
+  creditAvailable = 0,
   embeddedCalendar = null,
 }: StaffDashboardHubProps & {
   embeddedCalendar?: ReactNode;
@@ -310,6 +313,17 @@ export function StaffDashboardHub({
       ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2">
+        <ActionCard
+          href="/dashboard/shop"
+          emoji="🎟️"
+          emojiBg="bg-amber-100"
+          title="Crediti"
+          description={
+            creditAvailable > 0
+              ? `${formatCreditsCount(creditAvailable)} · vai allo shop`
+              : "Saldo e acquisto crediti sala"
+          }
+        />
         {showBookings ? (
           <ActionCard
             href="/admin/prenotazioni/calendario"

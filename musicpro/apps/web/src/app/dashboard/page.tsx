@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import {
   getCurrentMemberWithRoles,
+  getMemberCreditBalance,
   hasActiveCourseEnrollment,
   listLessonsInRange,
   listMyBookings,
@@ -66,7 +67,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
   if (!showOperational) {
     const isAllievo = await hasActiveCourseEnrollment(supabase, member.id);
-    const [associateLessons, upcomingBookings] = await Promise.all([
+    const [associateLessons, upcomingBookings, creditBalance] = await Promise.all([
       isAllievo
         ? listLessonsInRange(supabase, {
             from: today,
@@ -75,6 +76,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
           })
         : Promise.resolve([]),
       listMyBookings(supabase, member.id, "upcoming"),
+      getMemberCreditBalance(supabase, member.id).catch(() => null),
     ]);
     const nextAssociateLesson = associateLessons[0] ?? null;
     const nextAssociateBooking = upcomingBookings[0] ?? null;
@@ -105,6 +107,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                 }
               : null
           }
+          creditAvailable={creditBalance?.available ?? 0}
         />
       </>
     );

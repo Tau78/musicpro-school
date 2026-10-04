@@ -15,6 +15,7 @@ export interface BookingSettingsInput {
   bandRequired: boolean;
   locked: boolean;
   lockedMessage: string;
+  collaboratorDiscountPercent: number;
 }
 
 export interface SettingsMutationResult {
@@ -66,6 +67,7 @@ const BOOKING_SETTING_KEYS = {
   bandRequired: "booking_band_required",
   locked: "booking_locked",
   lockedMessage: "booking_locked_message",
+  collaboratorDiscountPercent: "booking_collaborator_discount_percent",
 } as const;
 
 export async function getAppBookingSettings(
@@ -87,6 +89,16 @@ export async function updateBookingSettings(
     return {
       success: false,
       errorMessage: "Le soglie devono essere maggiori di zero.",
+    };
+  }
+
+  if (
+    input.collaboratorDiscountPercent < 0 ||
+    input.collaboratorDiscountPercent > 100
+  ) {
+    return {
+      success: false,
+      errorMessage: "Lo sconto collaboratore deve essere tra 0 e 100.",
     };
   }
 
@@ -132,6 +144,12 @@ export async function updateBookingSettings(
       value: input.lockedMessage.trim(),
       description:
         "Messaggio mostrato agli associati quando le prenotazioni sono chiuse.",
+    },
+    {
+      key: BOOKING_SETTING_KEYS.collaboratorDiscountPercent,
+      value: String(input.collaboratorDiscountPercent),
+      description:
+        "Sconto % sul totale sala per chi ha il ruolo Collaboratore (0–100).",
     },
   ];
 

@@ -204,7 +204,7 @@ export function buildBookingEmailContent(
   const base = appUrl();
   const myBookingsUrl = `${base}/prenotazioni/mie`;
   const shopUrl = `${base}/dashboard/shop`;
-  const cancelPolicy = `Puoi annullare gratuitamente fino a ${options.cancelPolicyHours} ore prima dell'inizio della prenotazione.`;
+  const cancelPolicy = `Puoi annullare fino a ${options.cancelPolicyHours} ore prima: l'importo torna come crediti sul saldo (meno l'eventuale penale).`;
 
   const subject = paymentUrl
     ? 'Completa il pagamento — prenotazione MusicPro'

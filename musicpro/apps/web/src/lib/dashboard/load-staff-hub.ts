@@ -1,5 +1,6 @@
 import {
   countPendingApprovalBookings,
+  getMemberCreditBalance,
   listAdminBookings,
   listLessonsInRange,
   listLessonsOnDate,
@@ -38,6 +39,7 @@ export async function loadStaffDashboardHub(
     changeRequests,
     todayLessons,
     arrearsRange,
+    creditBalance,
   ] = await Promise.all([
     showBookingsCalendar
       ? countPendingApprovalBookings(supabase)
@@ -66,6 +68,7 @@ export async function loadStaffDashboardHub(
           to: today,
         })
       : Promise.resolve([]),
+    getMemberCreditBalance(supabase, memberId).catch(() => null),
   ]);
 
   const arrearsCount = showStaffLessons
@@ -87,5 +90,6 @@ export async function loadStaffDashboardHub(
     arrearsCount,
     upcomingBookings: upcomingBookingsRaw.slice(0, 4),
     todayLessons,
+    creditAvailable: creditBalance?.available ?? 0,
   };
 }

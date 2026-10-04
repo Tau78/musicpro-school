@@ -11,6 +11,7 @@ import {
   type TimeSlot,
   bookingStatusLabel,
   calculateBookingPrice,
+  applyMemberBookingDiscount,
   proviDaSoloDiscountTotalEur,
   createBooking,
   creditsForBookingPrice,
@@ -19,7 +20,7 @@ import {
   formatDurationLabel,
   formatEuro,
   getBookingSettings,
-  getCurrentMember,
+  getCurrentMemberWithRoles,
   getMemberCreditBalance,
   getRoomAvailability,
   isSlotInProviSchedule,
@@ -35,7 +36,7 @@ import {
   type MemberCreditBalance,
   type ProviScheduleEntry,
 } from "@musicpro/database";
-import { mapUserFacingError } from "@musicpro/shared";
+import { mapUserFacingError, MemberRole } from "@musicpro/shared";
 import { AuthSignInPanel } from "@/components/auth/auth-sign-in-panel";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { SiteHeader } from "@/components/layout/site-header";
@@ -87,6 +88,8 @@ export default function PrenotazioniPage() {
   const [bandRequired, setBandRequired] = useState(false);
   const [bookingLocked, setBookingLocked] = useState(false);
   const [bookingLockedMessage, setBookingLockedMessage] = useState("");
+  const [collaboratorDiscountPercent, setCollaboratorDiscountPercent] =
+    useState(0);
 
   const selectedRoom = useMemo(
     () => rooms.find((r) => r.id === selectedRoomId) ?? null,
@@ -110,6 +113,7 @@ export default function PrenotazioniPage() {
     const base =
       selectedSlot?.priceEur ??
       calculateBookingPrice(selectedRoom, durationMinutes);
+    let total = base;
     if (
       (proviDaSolo || (showBandFlow && sessionType === "provi_da_solo")) &&
       selectedRoom.provi_da_solo_enabled &&
@@ -119,10 +123,18 @@ export default function PrenotazioniPage() {
         selectedRoom.provi_da_solo_discount_eur,
         durationMinutes,
       );
-      return Math.max(0, Math.round((base - discount) * 100) / 100);
+      total = Math.max(0, Math.round((base - discount) * 100) / 100);
     }
-    return base;
-  }, [durationMinutes, proviDaSolo, selectedRoom, selectedSlot, sessionType, showBandFlow]);
+    return applyMemberBookingDiscount(total, collaboratorDiscountPercent);
+  }, [
+    collaboratorDiscountPercent,
+    durationMinutes,
+    proviDaSolo,
+    selectedRoom,
+    selectedSlot,
+    sessionType,
+    showBandFlow,
+  ]);
 
   const slotAllowsProviDaSolo = useMemo(() => {
     if (!selectedRoom?.provi_da_solo_enabled || !selectedSlot) return false;
@@ -242,7 +254,7 @@ export default function PrenotazioniPage() {
 
         const [roomList, member, bands, bookingSettings] = await Promise.all([
           user ? listRooms(supabase) : Promise.resolve([] as Room[]),
-          user ? getCurrentMember(supabase) : Promise.resolve(null),
+          user ? getCurrentMemberWithRoles(supabase) : Promise.resolve(null),
           user ? listMyBands(supabase).catch(() => [] as MyBandSummary[]) : Promise.resolve([] as MyBandSummary[]),
           user
             ? getBookingSettings(supabase)
@@ -250,6 +262,7 @@ export default function PrenotazioniPage() {
                 bandRequired: false,
                 locked: false,
                 lockedMessage: "",
+                collaboratorDiscountPercent: 20,
               } as Awaited<ReturnType<typeof getBookingSettings>>),
         ]);
 
@@ -261,6 +274,11 @@ export default function PrenotazioniPage() {
         setBandRequired(bookingSettings.bandRequired);
         setBookingLocked(bookingSettings.locked);
         setBookingLockedMessage(bookingSettings.lockedMessage);
+        setCollaboratorDiscountPercent(
+          member?.roles.includes(MemberRole.Collaboratore)
+            ? bookingSettings.collaboratorDiscountPercent
+            : 0,
+        );
         if (roomList.length > 0) {
           setSelectedRoomId(roomList[0].id);
           setDurationMinutes(roomList[0].default_duration_minutes);
@@ -949,6 +967,11 @@ export default function PrenotazioniPage() {
                     {previewPrice != null ? formatEuro(previewPrice) : "—"}
                   </dd>
                 </div>
+                {collaboratorDiscountPercent > 0 ? (
+                  <p className="text-sm text-neutral-600">
+                    Sconto collaboratore −{collaboratorDiscountPercent}%
+                  </p>
+                ) : null}
                 {slotAllowsProviDaSolo && !showBandFlow && (
                   <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-3">
                     <label className="flex cursor-pointer items-start gap-3 text-sm">

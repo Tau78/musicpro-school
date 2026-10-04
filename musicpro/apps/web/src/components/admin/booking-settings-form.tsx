@@ -32,6 +32,7 @@ function settingsToInput(settings: BookingSettings): BookingSettingsInput {
     bandRequired: settings.bandRequired,
     locked: settings.locked,
     lockedMessage: settings.lockedMessage,
+    collaboratorDiscountPercent: settings.collaboratorDiscountPercent,
   };
 }
 
@@ -152,8 +153,26 @@ export function BookingSettingsForm({ settings }: BookingSettingsFormProps) {
               className={settingsInputClass}
             />
           </label>
+          <label className="block">
+            <FieldLabel>Sconto collaboratore %</FieldLabel>
+            <input
+              type="number"
+              min={0}
+              max={100}
+              required
+              value={form.collaboratorDiscountPercent}
+              onChange={(e) =>
+                updateField(
+                  "collaboratorDiscountPercent",
+                  Number(e.target.value) || 0,
+                )
+              }
+              className={settingsInputClass}
+            />
+          </label>
           <p className="text-xs text-neutral-500 sm:col-span-2">
-            Ore prima dell&apos;inizio.
+            Ore prima dell&apos;inizio. Lo sconto vale per il ruolo Collaboratore
+            sulla scheda associato.
           </p>
         </div>
       ) : null}

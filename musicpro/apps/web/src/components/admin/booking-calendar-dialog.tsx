@@ -359,7 +359,7 @@ export function BookingCalendarDialog({
         `Pagamento con ${formatCreditsCount(booking.credits_used)}.`,
       );
     } else if (booking.payment_status === "paid") {
-      parts.push("Pagamento con carta.");
+      parts.push("Pagamento con carta: l'importo torna come crediti sul saldo.");
     } else if (booking.credits_held > 0) {
       parts.push(
         `${formatCreditsCount(booking.credits_held)} crediti riservati.`,
@@ -370,7 +370,7 @@ export function BookingCalendarDialog({
       return "La prenotazione verrà annullata.";
     }
 
-    return `${parts.join(" ")} «Elimina» applica le regole di penale; «Elimina e riaccredita» restituisce l'intero importo all'associato.`;
+    return `${parts.join(" ")} «Elimina» applica le regole di penale; «Elimina e riaccredita» restituisce l'intero importo in crediti.`;
   }, [booking]);
 
   const title =
