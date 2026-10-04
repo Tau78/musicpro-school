@@ -1,5 +1,5 @@
 -- Ruolo Collaboratore: sconto sulla prenotazione sala (percentuale in Impostazioni).
--- Default 20%. Assegnato a Facciolo, Petralia, Roberti.
+-- Default 20%. Assegnazione soci in 090 (ADD VALUE non è usabile nella stessa transazione).
 
 ALTER TYPE public.member_role ADD VALUE IF NOT EXISTS 'collaboratore';
 
@@ -36,7 +36,7 @@ BEGIN
     SELECT 1
     FROM public.member_roles r
     WHERE r.member_id = p_member_id
-      AND r.role = 'collaboratore'::public.member_role
+      AND r.role::text = 'collaboratore'
       AND r.revoked_at IS NULL
   )
   INTO v_is_collaborator;
@@ -159,17 +159,5 @@ END;
 $$;
 
 DROP FUNCTION public._wrap_booking_total_price_with_member_discount(TEXT, TEXT);
-
-INSERT INTO public.member_roles (member_id, role, granted_at)
-SELECT m.id, 'collaboratore'::public.member_role, now()
-FROM public.members m
-WHERE m.id IN (
-  'dd097d26-ce62-4d74-86ec-d6e36faab460', -- Marco Facciolo
-  '609412bc-bbfe-4d8b-9718-77b2d5c270e7', -- Alessandro Petralia
-  '8ff30ee4-23fe-4336-934b-a12e7be9a363'  -- Aldo Roberti
-)
-ON CONFLICT (member_id, role) DO UPDATE
-SET revoked_at = NULL,
-    granted_at = COALESCE(public.member_roles.granted_at, EXCLUDED.granted_at);
 
 NOTIFY pgrst, 'reload schema';
