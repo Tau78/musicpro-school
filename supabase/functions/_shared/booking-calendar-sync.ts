@@ -100,7 +100,7 @@ function statusLabel(status: string): string {
 
 function microphoneCountLabel(count: number | null): string {
   const n = Number.isFinite(count) ? Math.max(0, Math.trunc(count as number)) : 0;
-  return String(n);
+  return `Mic: ${n}`;
 }
 
 export function buildEventTitle(
