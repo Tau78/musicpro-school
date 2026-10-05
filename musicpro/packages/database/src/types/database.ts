@@ -408,6 +408,48 @@ export interface Database {
         };
         Relationships: [];
       };
+      booking_companion_invites: {
+        Row: {
+          id: string;
+          invited_by_member_id: string;
+          booking_id: string | null;
+          first_name: string;
+          last_name: string;
+          email: string;
+          path: "existing_member" | "enrollment";
+          matched_member_id: string | null;
+          status: "sent" | "failed";
+          error: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          invited_by_member_id: string;
+          booking_id?: string | null;
+          first_name: string;
+          last_name: string;
+          email: string;
+          path: "existing_member" | "enrollment";
+          matched_member_id?: string | null;
+          status: "sent" | "failed";
+          error?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          invited_by_member_id?: string;
+          booking_id?: string | null;
+          first_name?: string;
+          last_name?: string;
+          email?: string;
+          path?: "existing_member" | "enrollment";
+          matched_member_id?: string | null;
+          status?: "sent" | "failed";
+          error?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       booking_email_log: {
         Row: {
           id: string;

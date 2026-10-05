@@ -47,6 +47,10 @@ import {
 } from "@/components/prenotazioni/session-type-step";
 import { RoomPickerGrid } from "@/components/prenotazioni/room-picker-grid";
 import { PrenotazioniWelcomeHero } from "@/components/prenotazioni/welcome-hero";
+import {
+  BookingCompanionInvite,
+  type CompanionDeclaration,
+} from "@/components/prenotazioni/booking-companion-invite";
 import { createClient } from "@/lib/supabase/client";
 import { requestBookingConfirmationEmail } from "@/lib/booking/send-confirmation-email";
 import { requestBookingCalendarSync } from "@/lib/calendar/sync-booking";
@@ -90,6 +94,9 @@ export default function PrenotazioniPage() {
   const [bookingLockedMessage, setBookingLockedMessage] = useState("");
   const [collaboratorDiscountPercent, setCollaboratorDiscountPercent] =
     useState(0);
+  const [companionDeclaration, setCompanionDeclaration] =
+    useState<CompanionDeclaration>("all_ok");
+  const [companionInviteIds, setCompanionInviteIds] = useState<string[]>([]);
 
   const selectedRoom = useMemo(
     () => rooms.find((r) => r.id === selectedRoomId) ?? null,
@@ -464,6 +471,8 @@ export default function PrenotazioniPage() {
 
     setMessage(successMessage);
     setSelectedSlot(null);
+    setCompanionDeclaration("all_ok");
+    setCompanionInviteIds([]);
     setSessionType("band");
     if (bookableBands.length > 0) {
       setSelectedBandId(bookableBands[0].id);
@@ -472,6 +481,17 @@ export default function PrenotazioniPage() {
     await loadAvailability();
 
     if (result.bookingId) {
+      if (companionInviteIds.length > 0) {
+        void fetch("/api/prenotazioni/companion-invites", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            bookingId: result.bookingId,
+            inviteIds: companionInviteIds,
+          }),
+        });
+      }
       if (result.status === "confirmed") {
         void requestBookingCalendarSync(result.bookingId);
         void requestBookingConfirmationEmail(result.bookingId, { template: "confirm" });
@@ -1011,6 +1031,16 @@ export default function PrenotazioniPage() {
                   </div>
                 )}
               </dl>
+              <BookingCompanionInvite
+                hidden={
+                  (showBandFlow && sessionType === "provi_da_solo") ||
+                  (proviDaSolo && slotAllowsProviDaSolo)
+                }
+                declaration={companionDeclaration}
+                onDeclarationChange={setCompanionDeclaration}
+                inviteIds={companionInviteIds}
+                onInviteIds={setCompanionInviteIds}
+              />
               {selectedSlot.leadTimeCategory === "approval" && (
                 <p className="mt-4 text-sm text-amber-800">
                   Questa fascia richiede approvazione admin (6–12 ore prima
