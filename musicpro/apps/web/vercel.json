@@ -15,10 +15,6 @@
     {
       "path": "/api/lezioni/payroll/job",
       "schedule": "0 8 * * *"
-    },
-    {
-      "path": "/api/cron/supersaas-mirror",
-      "schedule": "5 5 * * *"
     }
   ]
 }

@@ -258,7 +258,7 @@ async function main() {
       console.log(SCHEMA_APPLY_BLOCK);
     } else {
       console.log(
-        "Dopo il primo sync lo specchio va aggiornato almeno ogni 30 minuti (cron /api/cron/supersaas-mirror). Se scade, le nuove occupazioni sala vengono rifiutate.",
+        "Dopo il primo sync lo specchio va aggiornato almeno ogni 30 minuti (GitHub Actions supersaas-mirror). Se scade, le nuove occupazioni sala vengono rifiutate.",
       );
     }
     printSummary(plan.summary);

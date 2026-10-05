@@ -16,7 +16,7 @@ export const SCHEMA_APPLY_BLOCK = [
   "- tabella supersaas_slot_mirrors (sala, inizio, fine, id SuperSaaS) senza member_id;",
   "- trigger che rifiuta le occupazioni sovrapposte a quello specchio;",
   "- la disponibilità sale legge lo specchio;",
-  "- refresh almeno ogni 30 minuti (cron /api/cron/supersaas-mirror) finché SuperSaaS resta attivo.",
+  "- refresh almeno ogni 30 minuti (GitHub Actions supersaas-mirror → /api/cron/supersaas-mirror) finché SuperSaaS resta attivo.",
   "Senza questo, importare un solo associato lascerebbe liberi gli slot degli altri e il doppio booking resterebbe possibile.",
 ].join(" ");
 

@@ -1,0 +1,33 @@
+# Vercel Hobby accetta solo cron giornalieri. Lo specchio sale va aggiornato
+# almeno ogni 30 minuti, quindi lo sveglia GitHub e la route resta su School.
+name: SuperSaaS mirror
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: none
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Aggiorna lo specchio SuperSaaS
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "Manca il secret GitHub CRON_SECRET (lo stesso valore di Vercel)." >&2
+            exit 1
+          fi
+          curl --fail-with-body --silent --show-error \
+            --max-time 120 \
+            --retry 2 \
+            --retry-delay 5 \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            -H "Accept: application/json" \
+            "https://school.musicproeventi.it/api/cron/supersaas-mirror"
+          echo
