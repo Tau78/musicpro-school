@@ -35,12 +35,14 @@ export function BookingCompanionInvite({
   onDeclarationChange,
   inviteIds,
   onInviteIds,
+  onQuotaOkCount,
 }: {
   hidden: boolean;
   declaration: CompanionDeclaration;
   onDeclarationChange: (value: CompanionDeclaration) => void;
   inviteIds: string[];
   onInviteIds: (ids: string[]) => void;
+  onQuotaOkCount: (count: number) => void;
 }) {
   const [rows, setRows] = useState<GuestRow[]>([emptyRow()]);
   const [sending, setSending] = useState(false);
@@ -50,6 +52,11 @@ export function BookingCompanionInvite({
   const nameKey = rows
     .map((row) => `${row.key}:${row.firstName.trim()}:${row.lastName.trim()}`)
     .join("|");
+  const quotaOkCount = rows.filter((row) => row.quota === "ok").length;
+
+  useEffect(() => {
+    onQuotaOkCount(quotaOkCount);
+  }, [onQuotaOkCount, quotaOkCount]);
 
   useEffect(() => {
     if (declaration !== "need_quota") return;
@@ -290,7 +297,9 @@ export function BookingCompanionInvite({
               {sending ? "Invio…" : "Invia"}
             </button>
             <p className="text-xs text-neutral-500">
-              La prenotazione procede anche senza invio.
+              {inviteIds.length === 0 && quotaOkCount === 0
+                ? "Senza INVIA o Ok Quota, alla conferma torna «tutti in regola»."
+                : "La prenotazione non si blocca dopo l'invio."}
             </p>
           </div>
           {error && <p className="text-xs text-red-700">{error}</p>}

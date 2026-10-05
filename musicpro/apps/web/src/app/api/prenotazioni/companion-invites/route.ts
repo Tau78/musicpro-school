@@ -61,6 +61,7 @@ export async function POST(request: Request) {
     guests?: CompanionGuestInput[];
     bookingId?: string;
     inviteIds?: string[];
+    declaration?: "all_ok" | "need_quota";
   };
   try {
     body = (await request.json()) as typeof body;
@@ -73,12 +74,15 @@ export async function POST(request: Request) {
 
   const service = createServiceRoleClient();
 
-  if (body.bookingId && Array.isArray(body.inviteIds)) {
+  if (body.bookingId) {
+    const declaration =
+      body.declaration === "need_quota" ? "need_quota" : "all_ok";
     await attachCompanionInvitesToBooking(
       service,
       current.id,
       body.bookingId.trim(),
-      body.inviteIds,
+      body.inviteIds ?? [],
+      declaration,
     );
     return NextResponse.json({ success: true });
   }

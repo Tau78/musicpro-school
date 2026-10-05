@@ -97,6 +97,7 @@ export default function PrenotazioniPage() {
   const [companionDeclaration, setCompanionDeclaration] =
     useState<CompanionDeclaration>("all_ok");
   const [companionInviteIds, setCompanionInviteIds] = useState<string[]>([]);
+  const [companionQuotaOkCount, setCompanionQuotaOkCount] = useState(0);
 
   const selectedRoom = useMemo(
     () => rooms.find((r) => r.id === selectedRoomId) ?? null,
@@ -473,6 +474,7 @@ export default function PrenotazioniPage() {
     setSelectedSlot(null);
     setCompanionDeclaration("all_ok");
     setCompanionInviteIds([]);
+    setCompanionQuotaOkCount(0);
     setSessionType("band");
     if (bookableBands.length > 0) {
       setSelectedBandId(bookableBands[0].id);
@@ -481,7 +483,15 @@ export default function PrenotazioniPage() {
     await loadAvailability();
 
     if (result.bookingId) {
-      if (companionInviteIds.length > 0) {
+      const isProvi =
+        (showBandFlow && sessionType === "provi_da_solo") ||
+        (proviDaSolo && slotAllowsProviDaSolo);
+      if (!isProvi) {
+        const savedDeclaration: CompanionDeclaration =
+          companionDeclaration === "need_quota" &&
+          (companionInviteIds.length > 0 || companionQuotaOkCount > 0)
+            ? "need_quota"
+            : "all_ok";
         void fetch("/api/prenotazioni/companion-invites", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -489,6 +499,7 @@ export default function PrenotazioniPage() {
           body: JSON.stringify({
             bookingId: result.bookingId,
             inviteIds: companionInviteIds,
+            declaration: savedDeclaration,
           }),
         });
       }
@@ -1040,6 +1051,7 @@ export default function PrenotazioniPage() {
                 onDeclarationChange={setCompanionDeclaration}
                 inviteIds={companionInviteIds}
                 onInviteIds={setCompanionInviteIds}
+                onQuotaOkCount={setCompanionQuotaOkCount}
               />
               {selectedSlot.leadTimeCategory === "approval" && (
                 <p className="mt-4 text-sm text-amber-800">

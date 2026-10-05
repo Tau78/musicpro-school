@@ -43,7 +43,7 @@ type MemberMatch = {
 };
 
 const ENROLLMENT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-const DEDUPE_MS = 30 * 60 * 1000;
+const DEDUPE_MS = 24 * 60 * 60 * 1000;
 
 function escapeHtml(value: string): string {
   return value
@@ -439,7 +439,18 @@ export async function attachCompanionInvitesToBooking(
   invitedByMemberId: string,
   bookingId: string,
   inviteIds: string[],
+  declaration: "all_ok" | "need_quota",
 ): Promise<void> {
+  const { error: declError } = await db
+    .from("bookings")
+    .update({ companion_declaration: declaration })
+    .eq("id", bookingId)
+    .eq("member_id", invitedByMemberId);
+
+  if (declError) {
+    console.error("[companion-invites] declaration", declError.message);
+  }
+
   const ids = inviteIds.filter(Boolean);
   if (ids.length === 0) return;
 
