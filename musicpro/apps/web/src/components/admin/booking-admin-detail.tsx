@@ -98,6 +98,15 @@ export function BookingAdminDetail({ booking, rooms }: BookingAdminDetailProps) 
   const [sendEmail, setSendEmail] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [companions, setCompanions] = useState<
+    Array<{
+      first_name: string;
+      last_name: string;
+      email: string;
+      path: string;
+      status: string;
+    }>
+  >([]);
 
   const selectedRoom = rooms.find((room) => room.id === roomId) ?? initialRoom;
   const durationOptions = selectedRoom
@@ -128,6 +137,15 @@ export function BookingAdminDetail({ booking, rooms }: BookingAdminDetailProps) 
 
   useEffect(() => {
     let cancelled = false;
+
+    void supabase
+      .from("booking_companion_invites")
+      .select("first_name, last_name, email, path, status")
+      .eq("booking_id", booking.id)
+      .order("created_at", { ascending: true })
+      .then(({ data }) => {
+        if (!cancelled) setCompanions(data ?? []);
+      });
 
     void listBookingAuditLog(supabase, booking.id)
       .then((entries) => {
@@ -264,6 +282,31 @@ export function BookingAdminDetail({ booking, rooms }: BookingAdminDetailProps) 
             <div>
               <dt className="text-neutral-500">Da solo</dt>
               <dd className="font-medium">Sì</dd>
+            </div>
+          )}
+          {booking.companion_declaration && (
+            <div className="sm:col-span-2">
+              <dt className="text-neutral-500">Compagni</dt>
+              <dd className="font-medium">
+                {booking.companion_declaration === "need_quota"
+                  ? "Uno o più da iscrivere / quota"
+                  : "Tutti in regola (autodichiarazione)"}
+              </dd>
+              {companions.length > 0 && (
+                <ul className="mt-1 space-y-0.5 text-xs text-neutral-600">
+                  {companions.map((row) => (
+                    <li key={`${row.email}-${row.first_name}`}>
+                      {row.first_name} {row.last_name} · {row.email}
+                      {row.path === "existing_member"
+                        ? " · area associato"
+                        : row.path === "enrollment"
+                          ? " · iscrizione"
+                          : ""}
+                      {row.status === "failed" ? " · invio fallito" : ""}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
           {booking.band?.name && (

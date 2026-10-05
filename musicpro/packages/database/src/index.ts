@@ -20,6 +20,12 @@ export { createBrowserClient } from "./browser";
 export { createServerClient } from "./server";
 export { createMobileClient } from "./mobile";
 export { getSupabaseAnonKey, getSupabaseUrl } from "./env";
+export {
+  emailDomainError,
+  isValidEmailWithDomain,
+  normalizeInviteEmail,
+  normalizePersonName,
+} from "./email-domain";
 export type { Database, MemberRoleEnum } from "./types/database";
 export {
   BOOKING_MICROPHONE_COUNTS,

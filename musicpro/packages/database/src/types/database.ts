@@ -357,6 +357,7 @@ export interface Database {
           band_id: string | null;
           member_snapshot: Json | null;
           microphone_count: number;
+          companion_declaration: "all_ok" | "need_quota" | null;
           source: "booking" | "calendar" | "lesson";
           external_source: "supersaas" | null;
           external_id: string | null;
@@ -392,6 +393,7 @@ export interface Database {
           band_id?: string | null;
           member_snapshot?: Json | null;
           microphone_count?: number;
+          companion_declaration?: "all_ok" | "need_quota" | null;
           payment_method?: "stripe" | "nexi" | "credits" | null;
           credits_held?: number;
           credits_used?: number | null;
@@ -405,6 +407,48 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["bookings"]["Insert"]> & {
           cancelled_at?: string | null;
           cancelled_by?: string | null;
+        };
+        Relationships: [];
+      };
+      booking_companion_invites: {
+        Row: {
+          id: string;
+          invited_by_member_id: string;
+          booking_id: string | null;
+          first_name: string;
+          last_name: string;
+          email: string;
+          path: "existing_member" | "enrollment";
+          matched_member_id: string | null;
+          status: "sent" | "failed";
+          error: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          invited_by_member_id: string;
+          booking_id?: string | null;
+          first_name: string;
+          last_name: string;
+          email: string;
+          path: "existing_member" | "enrollment";
+          matched_member_id?: string | null;
+          status: "sent" | "failed";
+          error?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          invited_by_member_id?: string;
+          booking_id?: string | null;
+          first_name?: string;
+          last_name?: string;
+          email?: string;
+          path?: "existing_member" | "enrollment";
+          matched_member_id?: string | null;
+          status?: "sent" | "failed";
+          error?: string | null;
+          created_at?: string;
         };
         Relationships: [];
       };
