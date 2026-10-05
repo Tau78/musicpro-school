@@ -23,10 +23,16 @@ export type CompanionInviteResult = {
   firstName: string;
   lastName: string;
   email: string;
-  path: "existing_member" | "enrollment" | null;
+  path: "existing_member" | "enrollment" | "quota_ok" | null;
   sent: boolean;
+  skipped?: boolean;
   inviteId?: string;
   message: string;
+};
+
+export type CompanionQuotaLookup = {
+  found: boolean;
+  quotaOk: boolean;
 };
 
 type MemberMatch = {
@@ -76,6 +82,23 @@ async function findMemberByFullName(
         normalizePersonName(row.last_name) === last,
     ) ?? null
   );
+}
+
+export async function lookupCompanionQuota(
+  db: Db,
+  firstName: string,
+  lastName: string,
+): Promise<CompanionQuotaLookup> {
+  const match = await findMemberByFullName(db, firstName, lastName);
+  if (!match) return { found: false, quotaOk: false };
+
+  const { data, error } = await db.rpc("member_quota_ok", {
+    p_member_id: match.id,
+  });
+  if (error) {
+    throw new Error(error.message);
+  }
+  return { found: true, quotaOk: data === true };
 }
 
 async function recentlySent(
@@ -298,6 +321,23 @@ export async function sendCompanionInvites(params: {
       );
 
       if (match) {
+        const { data: quotaOk, error: quotaError } = await params.db.rpc(
+          "member_quota_ok",
+          { p_member_id: match.id },
+        );
+        if (quotaError) {
+          throw new Error(quotaError.message);
+        }
+        if (quotaOk === true) {
+          results.push({
+            ...guest,
+            path: "quota_ok",
+            sent: false,
+            skipped: true,
+            message: "Ok Quota: già in regola, nessuna email inviata.",
+          });
+          continue;
+        }
         const auth = await ensureMemberAuthAccess(params.db, match.id, {
           email: guest.email,
         });
