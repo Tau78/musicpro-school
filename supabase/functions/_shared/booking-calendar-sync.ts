@@ -98,10 +98,20 @@ function statusLabel(status: string): string {
   }
 }
 
-function buildEventTitle(roomName: string, memberFirst: string, memberLast: string): string {
+function microphoneCountLabel(count: number | null): string {
+  const n = Number.isFinite(count) ? Math.max(0, Math.trunc(count as number)) : 0;
+  return String(n);
+}
+
+export function buildEventTitle(
+  roomName: string,
+  memberFirst: string,
+  memberLast: string,
+  microphoneCount: number | null = 0,
+): string {
   const room = roomName.trim().toUpperCase();
   const member = `${memberFirst} ${memberLast}`.trim().toUpperCase();
-  return `${room} - ${member}`;
+  return `${room} - ${member}\n${microphoneCountLabel(microphoneCount)}`;
 }
 
 function buildEventDescription(
@@ -290,8 +300,13 @@ export async function syncBookingToGoogleCalendar(
     throw new Error('Dati sala o associato mancanti.');
   }
 
-  const summary = buildEventTitle(room.name, member.first_name, member.last_name);
-  const location = `MusicPro School — Sala ${room.name}`;
+  const summary = buildEventTitle(
+    room.name,
+    member.first_name,
+    member.last_name,
+    booking.microphone_count,
+  );
+  const location = microphoneCountLabel(booking.microphone_count);
 
   const result = await upsertCalendarEvent(token, {
     summary,
