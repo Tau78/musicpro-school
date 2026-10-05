@@ -26,6 +26,7 @@ Se Google Calendar non è raggiungibile, la disponibilità resta basata solo su 
 | Campo | Regola |
 | :--- | :--- |
 | **Titolo** | `SALA - ASSOCIATO` → es. `ROSSA - MARIO ROSSI` |
+| **Luogo** | `Mic: N` (preview riga 2; niente «MusicPro School») |
 | **Colore** | `colorId` Google per sala (Rossa=11, Verde=10, Arancio=6, Sala 4=7) |
 | **Descrizione** | Note ricche: sala, associato, orari, importo, pagamento, ID, link admin |
 | **Timezone** | `Europe/Rome` |
