@@ -107,11 +107,10 @@ export function buildEventTitle(
   roomName: string,
   memberFirst: string,
   memberLast: string,
-  microphoneCount: number | null = 0,
 ): string {
   const room = roomName.trim().toUpperCase();
   const member = `${memberFirst} ${memberLast}`.trim().toUpperCase();
-  return `${room} - ${member}\n${microphoneCountLabel(microphoneCount)}`;
+  return `${room} - ${member}`;
 }
 
 function buildEventDescription(
@@ -300,12 +299,8 @@ export async function syncBookingToGoogleCalendar(
     throw new Error('Dati sala o associato mancanti.');
   }
 
-  const summary = buildEventTitle(
-    room.name,
-    member.first_name,
-    member.last_name,
-    booking.microphone_count,
-  );
+  // Preview Google Calendar: riga 1 = titolo, riga 2 = luogo.
+  const summary = buildEventTitle(room.name, member.first_name, member.last_name);
   const location = microphoneCountLabel(booking.microphone_count);
 
   const result = await upsertCalendarEvent(token, {
