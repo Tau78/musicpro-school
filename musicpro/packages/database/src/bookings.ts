@@ -219,7 +219,7 @@ export const BOOKING_MICROPHONE_COUNTS = [0, 1, 2, 3, 4] as const;
 export type BookingMicrophoneCount = (typeof BOOKING_MICROPHONE_COUNTS)[number];
 
 export interface BookingWithRoom extends Booking {
-  room?: Pick<Room, "id" | "name" | "slug"> | null;
+  room?: Pick<Room, "id" | "name" | "slug" | "google_calendar_color_id"> | null;
 }
 
 export interface AdminBookingListItem extends BookingWithRoom {
@@ -1345,7 +1345,10 @@ export async function listAdminBookings(
 
   const [{ data: rooms, error: roomsError }, { data: members, error: membersError }] =
     await Promise.all([
-      client.from("rooms").select("id, name, slug").in("id", roomIds),
+      client
+        .from("rooms")
+        .select("id, name, slug, google_calendar_color_id")
+        .in("id", roomIds),
       client
         .from("members")
         .select("id, first_name, last_name, email, phone")
@@ -1360,7 +1363,10 @@ export async function listAdminBookings(
   }
 
   const roomById = new Map(
-    (rooms ?? []).map((room) => [room.id, room as Pick<Room, "id" | "name" | "slug">]),
+    (rooms ?? []).map((room) => [
+      room.id,
+      room as Pick<Room, "id" | "name" | "slug" | "google_calendar_color_id">,
+    ]),
   );
   const memberById = new Map((members ?? []).map((m) => [m.id, m]));
 
@@ -1424,7 +1430,10 @@ export async function listBookingsInRange(
   ];
 
   const [roomsRes, membersRes, bandsRes] = await Promise.all([
-    client.from("rooms").select("id, name, slug").in("id", roomIds),
+    client
+      .from("rooms")
+      .select("id, name, slug, google_calendar_color_id")
+      .in("id", roomIds),
     client
       .from("members")
       .select("id, first_name, last_name, email, phone")
@@ -1449,7 +1458,7 @@ export async function listBookingsInRange(
   const roomById = new Map(
     (roomsRes.data ?? []).map((room) => [
       room.id,
-      room as Pick<Room, "id" | "name" | "slug">,
+      room as Pick<Room, "id" | "name" | "slug" | "google_calendar_color_id">,
     ]),
   );
   const memberById = new Map((membersRes.data ?? []).map((m) => [m.id, m]));

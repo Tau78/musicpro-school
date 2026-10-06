@@ -1236,8 +1236,13 @@ function lessonCardClass(lesson: CalendarLesson): string {
       : "bg-neutral-100 border-neutral-400";
   }
   if (isCalendarBooking(lesson)) {
-    return lesson.bookingStatus === "pending_approval"
-      ? "bg-emerald-50 border-dashed border-emerald-400"
+    if (lesson.bookingStatus === "pending_approval") {
+      return lesson.calendarColorId
+        ? "border border-dashed"
+        : "bg-emerald-50 border-dashed border-emerald-400";
+    }
+    return lesson.calendarColorId
+      ? "border"
       : "bg-emerald-100 border-emerald-300";
   }
   const dashed =

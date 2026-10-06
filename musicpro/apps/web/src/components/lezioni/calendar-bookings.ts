@@ -55,6 +55,7 @@ export function toBookingLesson(booking: AdminBookingListItem): CalendarLesson {
     source: "booking",
     bookingStatus: booking.status,
     proviDaSolo: booking.provi_da_solo,
+    calendarColorId: booking.room?.google_calendar_color_id ?? null,
   };
 }
 
@@ -86,6 +87,15 @@ export function toExternalLesson(event: ExternalCalendarEvent): CalendarLesson {
   };
 }
 
+function rangesOverlap(
+  aStart: string,
+  aEnd: string,
+  bStart: string,
+  bEnd: string,
+): boolean {
+  return Date.parse(aStart) < Date.parse(bEnd) && Date.parse(aEnd) > Date.parse(bStart);
+}
+
 export function mergeCalendarEvents(
   lessons: Array<CalendarLesson & { bookingId?: string | null }>,
   bookings: AdminBookingListItem[],
@@ -96,9 +106,30 @@ export function mergeCalendarEvents(
       .map((lesson) => lesson.bookingId)
       .filter((id): id is string => Boolean(id)),
   );
-  return [
-    ...lessons,
-    ...bookings.filter((row) => !used.has(row.id)).map(toBookingLesson),
-    ...externals.map(toExternalLesson),
+  const bookingLessons = bookings
+    .filter((row) => !used.has(row.id))
+    .map(toBookingLesson);
+  const nativeSlots = [
+    ...lessons.filter(
+      (lesson) =>
+        lesson.source === "booking" || lesson.id.startsWith("booking:"),
+    ),
+    ...bookingLessons,
   ];
+  const uniqueExternals = externals.filter((event) => {
+    if (!event.roomId || !event.startsAt || !event.endsAt) return true;
+    return !nativeSlots.some((booking) => {
+      if (!booking.roomId || !booking.startsAt || !booking.endsAt) return false;
+      return (
+        booking.roomId === event.roomId &&
+        rangesOverlap(
+          booking.startsAt,
+          booking.endsAt,
+          event.startsAt,
+          event.endsAt,
+        )
+      );
+    });
+  });
+  return [...lessons, ...bookingLessons, ...uniqueExternals.map(toExternalLesson)];
 }
