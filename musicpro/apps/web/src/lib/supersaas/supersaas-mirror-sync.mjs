@@ -103,8 +103,14 @@ export async function loadImportedExternalIds(supabase) {
 export async function markSuperSaasMirrorFresh(supabase) {
   const syncedAt = new Date().toISOString();
   await setSetting(supabase, "supersaas_mirror_synced_at", syncedAt);
-  await setSetting(supabase, "supersaas_mirror_enforce", "1");
+  // Non riattivare enforce a ogni sync: se il cron GitHub ritarda oltre 30 minuti,
+  // enforce=1 blocca TUTTE le nuove/modifiche prenotazioni (SUPERSAAS_MIRROR_STALE).
+  // L'enforce va acceso esplicitamente (import --apply / setEnforce).
   return syncedAt;
+}
+
+export async function setSuperSaasMirrorEnforce(supabase, enabled) {
+  await setSetting(supabase, "supersaas_mirror_enforce", enabled ? "1" : "0");
 }
 
 export function roomsForMirror(rooms) {
