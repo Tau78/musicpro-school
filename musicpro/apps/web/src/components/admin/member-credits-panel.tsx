@@ -87,6 +87,7 @@ export function MemberCreditsPanel({
 
   async function handleAdjust(e: React.FormEvent) {
     e.preventDefault();
+    if (saving) return;
     setSaving(true);
     setError(null);
     setSuccess(null);

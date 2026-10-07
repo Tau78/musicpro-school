@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   adminAdjustMemberCredits,
@@ -55,6 +55,8 @@ export function MemberQuickEdit({
   const [email, setEmail] = useState(member.email ?? "");
   const [phone, setPhone] = useState(member.phone ?? "");
   const [credits, setCredits] = useState(String(creditAvailable));
+  /** Baseline usata per il delta: evita doppia rettifica se si salva due volte prima del refresh. */
+  const [knownAvailable, setKnownAvailable] = useState(creditAvailable);
   const [isActive, setIsActive] = useState(member.isActive);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -62,8 +64,14 @@ export function MemberQuickEdit({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  useEffect(() => {
+    setKnownAvailable(creditAvailable);
+    setCredits(String(creditAvailable));
+  }, [creditAvailable, member.id]);
+
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
+    if (saving) return;
     setSaving(true);
     setError(null);
     setSuccess(null);
@@ -97,7 +105,7 @@ export function MemberQuickEdit({
       return;
     }
 
-    const delta = nextCredits - creditAvailable;
+    const delta = nextCredits - knownAvailable;
     let nextBalance: MemberCreditBalance | undefined;
     if (delta !== 0) {
       const adjust = await adminAdjustMemberCredits(
@@ -117,6 +125,9 @@ export function MemberQuickEdit({
         return;
       }
       nextBalance = adjust.balance;
+      const applied = nextBalance?.available ?? nextCredits;
+      setKnownAvailable(applied);
+      setCredits(String(applied));
     }
 
     const auth = await ensureMemberAuthClient({
@@ -238,7 +249,7 @@ export function MemberQuickEdit({
           </QuickField>
         </div>
         <p className="-mt-1 text-[11px] text-neutral-500 sm:text-xs">
-          Disponibili ora: {creditAvailable}. La differenza è una rettifica.
+          Disponibili ora: {knownAvailable}. La differenza è una rettifica.
         </p>
 
         <MemberQuotaSummary
