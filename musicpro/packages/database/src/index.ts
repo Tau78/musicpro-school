@@ -290,6 +290,7 @@ export {
   getCreditPackageById,
   getMemberCreditBalance,
   holdBookingCredits,
+  holdBookingCreditsTowardPayment,
   listMemberAvailableCredits,
   listActiveCreditPackages,
   listCreditPackages,

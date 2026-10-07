@@ -2224,6 +2224,19 @@ export interface Database {
         };
         Returns: Json;
       };
+      hold_booking_credits_toward_payment: {
+        Args: {
+          p_booking_id: string;
+          p_credits?: number | null;
+        };
+        Returns: Json;
+      };
+      finalize_held_credits_on_booking_payment: {
+        Args: {
+          p_booking_id: string;
+        };
+        Returns: Json;
+      };
       debit_booking_credits: {
         Args: {
           p_booking_id: string;

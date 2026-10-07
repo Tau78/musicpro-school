@@ -14,6 +14,19 @@ export interface RoomPaymentSessionResult {
   success: boolean;
   url?: string;
   message?: string;
+  amountCents?: number;
+}
+
+function remainingChargeEur(booking: {
+  total_price_eur: number | null;
+  credits_held?: number | null;
+  credits_used?: number | null;
+}): number {
+  const total = Number(booking.total_price_eur ?? 0);
+  const applied =
+    Number(booking.credits_held ?? 0) + Number(booking.credits_used ?? 0);
+  const remaining = Math.round((total - applied) * 100) / 100;
+  return remaining > 0 ? remaining : 0;
 }
 
 export async function createRoomBookingPaymentSession(
@@ -25,7 +38,7 @@ export async function createRoomBookingPaymentSession(
   const { data: booking, error } = await service
     .from("bookings")
     .select(
-      "id, member_id, room_id, status, payment_status, total_price_eur, payment_link_url",
+      "id, member_id, room_id, status, payment_status, total_price_eur, payment_link_url, credits_held, credits_used",
     )
     .eq("id", bookingId)
     .maybeSingle();
@@ -59,13 +72,30 @@ export async function createRoomBookingPaymentSession(
     return { success: false, message: "Pagamento non disponibile." };
   }
 
-  if (booking.payment_link_url && booking.payment_status === "link_sent") {
-    return { success: true, url: booking.payment_link_url };
+  const chargeEur = remainingChargeEur(booking);
+  if (!Number.isFinite(chargeEur) || chargeEur <= 0) {
+    return {
+      success: false,
+      message:
+        "Nessun importo residuo da pagare con carta (eventuali crediti coprono già tutto).",
+    };
   }
 
-  const totalEur = Number(booking.total_price_eur ?? 0);
-  if (!Number.isFinite(totalEur) || totalEur <= 0) {
-    return { success: false, message: "Importo prenotazione non valido." };
+  const amountCents = eurosToCents(chargeEur);
+
+  // Riusa il link solo se non ci sono crediti applicati (importo pieno invariato).
+  const creditsApplied =
+    Number(booking.credits_held ?? 0) + Number(booking.credits_used ?? 0);
+  if (
+    creditsApplied <= 0 &&
+    booking.payment_link_url &&
+    booking.payment_status === "link_sent"
+  ) {
+    return {
+      success: true,
+      url: booking.payment_link_url,
+      amountCents,
+    };
   }
 
   const [{ data: room }, { data: member }] = await Promise.all([
@@ -81,13 +111,19 @@ export async function createRoomBookingPaymentSession(
     ? `${member.first_name ?? ""} ${member.last_name ?? ""}`.trim()
     : "";
 
+  const roomLabel = room?.name ?? "Sala prova";
+  const description =
+    creditsApplied > 0
+      ? `Prenotazione ${roomLabel} (residuo dopo crediti)`
+      : `Prenotazione ${roomLabel}`;
+
   const linkRes = await createStripePaymentLinkRoomBooking({
     bookingId,
-    roomName: room?.name ?? "Sala prova",
-    importoCentesimi: eurosToCents(totalEur),
+    roomName: description,
+    importoCentesimi: amountCents,
     memberName,
     returnBaseUrl,
-    idempotencyKey: `room-booking-${bookingId}`,
+    idempotencyKey: `room-booking-${bookingId}-${amountCents}`,
   });
 
   if (!linkRes.success || !linkRes.url) {
@@ -116,5 +152,5 @@ export async function createRoomBookingPaymentSession(
     };
   }
 
-  return { success: true, url: linkRes.url };
+  return { success: true, url: linkRes.url, amountCents };
 }

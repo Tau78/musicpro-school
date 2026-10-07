@@ -444,10 +444,13 @@ export function bookingOccupiesSlot(booking: {
 /** Richiede POST /api/prenotazioni/{id}/pay-credits (solo web). */
 export async function requestBookingCreditsPayment(
   bookingId: string,
+  options?: { mode?: "full" | "partial" },
 ): Promise<{
   success: boolean;
   action?: "hold" | "debit";
+  mode?: "full" | "partial";
   status?: string;
+  remainingEur?: number;
   message?: string;
   errorCode?: string;
 }> {
@@ -455,13 +458,17 @@ export async function requestBookingCreditsPayment(
     `/api/prenotazioni/${encodeURIComponent(bookingId)}/pay-credits`,
     {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: options?.mode ?? "full" }),
     },
   );
 
   const data = (await resp.json()) as {
     success?: boolean;
     action?: "hold" | "debit";
+    mode?: "full" | "partial";
     status?: string;
+    remainingEur?: number;
     message?: string;
     errorCode?: string;
   };
@@ -474,7 +481,13 @@ export async function requestBookingCreditsPayment(
     };
   }
 
-  return { success: true, action: data.action, status: data.status };
+  return {
+    success: true,
+    action: data.action,
+    mode: data.mode,
+    status: data.status,
+    remainingEur: data.remainingEur,
+  };
 }
 
 export type RequestRoomBookingPaymentUrlOptions = {

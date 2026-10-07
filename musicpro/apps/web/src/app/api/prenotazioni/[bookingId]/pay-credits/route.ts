@@ -4,14 +4,19 @@ import {
   creditsForBookingPrice,
   debitBookingCredits,
   holdBookingCredits,
+  holdBookingCreditsTowardPayment,
 } from "@musicpro/database";
 
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
+interface PayCreditsBody {
+  mode?: "full" | "partial";
+}
+
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   context: { params: Promise<{ bookingId: string }> },
 ) {
   try {
@@ -27,6 +32,14 @@ export async function POST(
         { status: 401 },
       );
     }
+
+    let body: PayCreditsBody = {};
+    try {
+      body = (await request.json()) as PayCreditsBody;
+    } catch {
+      body = {};
+    }
+    const mode = body.mode === "partial" ? "partial" : "full";
 
     const { data: member, error: memberError } = await supabase
       .from("members")
@@ -61,8 +74,6 @@ export async function POST(
       );
     }
 
-    // Il costo è sempre ricalcolato dal prezzo salvato server-side:
-    // il client non può scegliere quanti crediti addebitare.
     const credits = creditsForBookingPrice(
       Number(booking.total_price_eur ?? 0),
     );
@@ -72,6 +83,47 @@ export async function POST(
         { success: false, message: "Numero crediti non valido." },
         { status: 400 },
       );
+    }
+
+    if (mode === "partial") {
+      if (
+        booking.status !== "pending" &&
+        booking.status !== "pending_approval"
+      ) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Pagamento misto non disponibile per questo stato.",
+          },
+          { status: 400 },
+        );
+      }
+
+      const result = await holdBookingCreditsTowardPayment(supabase, bookingId);
+      if (!result.success) {
+        return NextResponse.json(
+          {
+            success: false,
+            message:
+              result.errorMessage ??
+              "Impossibile riservare i crediti per il pagamento misto.",
+            errorCode: result.errorCode,
+          },
+          { status: 400 },
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        action: "hold",
+        mode: "partial",
+        status: result.status ?? booking.status,
+        paymentStatus: result.paymentStatus,
+        creditsHeld: result.creditsHeld,
+        creditsUsed: result.creditsUsed,
+        remainingEur: result.remainingEur,
+        duplicate: result.duplicate ?? false,
+      });
     }
 
     let result;
@@ -107,6 +159,7 @@ export async function POST(
     return NextResponse.json({
       success: true,
       action: result.action,
+      mode: "full",
       status: result.status,
       paymentStatus: result.paymentStatus,
       creditsHeld: result.creditsHeld,

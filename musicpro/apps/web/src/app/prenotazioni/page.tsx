@@ -158,8 +158,22 @@ export default function PrenotazioniPage() {
     [previewPrice],
   );
 
+  const availableCredits = creditBalance?.available ?? 0;
+
   const canPayWithCredits =
-    creditBalance != null && creditBalance.available >= creditCost;
+    creditBalance != null && availableCredits >= creditCost && creditCost > 0;
+
+  const partialCredits =
+    creditBalance != null && availableCredits > 0 && availableCredits < creditCost
+      ? Math.round(availableCredits * 100) / 100
+      : 0;
+
+  const canPayPartialCredits = partialCredits > 0;
+
+  const cardRemainderEur =
+    canPayPartialCredits && previewPrice != null
+      ? Math.round((previewPrice - partialCredits) * 100) / 100
+      : 0;
 
   const wizardSteps = useMemo(() => {
     const steps: { key: WizardStepKey; label: string }[] = [];
@@ -519,7 +533,7 @@ export default function PrenotazioniPage() {
     return "done";
   }
 
-  async function handleConfirm(payWithCredits = false) {
+  async function handleConfirm(payMode: "card" | "credits_full" | "credits_partial" = "card") {
     if (!memberId || !selectedSlot) {
       setError("Seleziona uno slot disponibile.");
       return;
@@ -527,7 +541,7 @@ export default function PrenotazioniPage() {
 
     if (submitting || payingWithCredits) return;
 
-    if (payWithCredits && !canPayWithCredits) {
+    if (payMode === "credits_full" && !canPayWithCredits) {
       setError(
         creditBalance != null
           ? `Saldo crediti insufficiente: servono ${creditCost}, disponibili ${creditBalance.available}.`
@@ -536,7 +550,12 @@ export default function PrenotazioniPage() {
       return;
     }
 
-    if (payWithCredits) {
+    if (payMode === "credits_partial" && !canPayPartialCredits) {
+      setError("Non ci sono crediti da applicare in modo parziale.");
+      return;
+    }
+
+    if (payMode === "credits_full" || payMode === "credits_partial") {
       setPayingWithCredits(true);
     } else {
       setSubmitting(true);
@@ -569,9 +588,10 @@ export default function PrenotazioniPage() {
         return;
       }
 
-      if (payWithCredits && result.bookingId) {
+      if (payMode === "credits_full" && result.bookingId) {
         const creditPayment = await requestBookingCreditsPayment(
           result.bookingId,
+          { mode: "full" },
         );
 
         if (!creditPayment.success) {
@@ -600,6 +620,32 @@ export default function PrenotazioniPage() {
             requiresPayment: false,
           },
           true,
+        );
+        return;
+      }
+
+      if (payMode === "credits_partial" && result.bookingId) {
+        const creditPayment = await requestBookingCreditsPayment(
+          result.bookingId,
+          { mode: "partial" },
+        );
+
+        if (!creditPayment.success) {
+          setError(
+            mapUserFacingError(
+              creditPayment.message ?? "",
+              "Prenotazione registrata ma non è stato possibile usare i crediti. Puoi pagare tutto con carta da «Le mie prenotazioni».",
+            ),
+          );
+          return;
+        }
+
+        outcome = await finalizeBooking(
+          {
+            ...result,
+            requiresPayment: true,
+          },
+          false,
         );
         return;
       }
@@ -1038,6 +1084,12 @@ export default function PrenotazioniPage() {
                         {creditCost === 1 ? "credito" : "crediti"} (
                         {formatDurationLabel(durationMinutes)})
                       </span>
+                      {canPayPartialCredits ? (
+                        <span className="mt-0.5 block text-neutral-600">
+                          Con i tuoi crediti: −{formatEuro(partialCredits)}, resta{" "}
+                          {formatEuro(cardRemainderEur)} con carta
+                        </span>
+                      ) : null}
                     </dd>
                   </div>
                 )}
@@ -1065,16 +1117,32 @@ export default function PrenotazioniPage() {
               <button
                 type="button"
                 disabled={submitting || payingWithCredits}
-                onClick={() => void handleConfirm(false)}
+                onClick={() => void handleConfirm("card")}
                 className="rounded-lg bg-[var(--brand)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-60"
               >
-                {submitting ? "Reindirizzamento…" : "Procedi al pagamento"}
+                {submitting
+                  ? "Reindirizzamento…"
+                  : canPayPartialCredits
+                    ? `Paga tutto con carta (${formatEuro(previewPrice ?? 0)})`
+                    : "Procedi al pagamento"}
               </button>
+              {canPayPartialCredits && (
+                <button
+                  type="button"
+                  disabled={submitting || payingWithCredits}
+                  onClick={() => void handleConfirm("credits_partial")}
+                  className="rounded-lg border border-[var(--brand)] bg-white px-5 py-2.5 text-sm font-medium text-[var(--brand)] hover:bg-[var(--brand)]/5 disabled:opacity-60"
+                >
+                  {payingWithCredits
+                    ? "Preparazione…"
+                    : `Usa ${partialCredits} crediti + carta (${formatEuro(cardRemainderEur)})`}
+                </button>
+              )}
               {canPayWithCredits && (
                 <button
                   type="button"
                   disabled={submitting || payingWithCredits}
-                  onClick={() => void handleConfirm(true)}
+                  onClick={() => void handleConfirm("credits_full")}
                   className="rounded-lg border border-[var(--brand)] bg-white px-5 py-2.5 text-sm font-medium text-[var(--brand)] hover:bg-[var(--brand)]/5 disabled:opacity-60"
                 >
                   {payingWithCredits
