@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Linking,
   Pressable,
   RefreshControl,
@@ -389,24 +390,20 @@ export default function DashboardScreen() {
     }
   }
 
-  async function handleMoveLesson(
-    event: TimeGridEvent,
-    next: { date: string; startMinute: number },
+  async function commitMoveLesson(
+    lesson: CalendarLesson,
+    startLocal: string,
+    scope: "this" | "future",
   ) {
     if (!member?.id) return;
-    const lessonId = event.id.replace(/^lesson:/, "");
-    const lesson = lessons.find((row) => row.id === lessonId);
-    if (!lesson) return;
-
-    const startLocal = `${next.date}T${minutesToTimeLabel(next.startMinute)}`;
-    setBusyId(lessonId);
+    setBusyId(lesson.id);
     setError(null);
     setMessage(null);
     try {
-      const result = await moveLesson(supabase, lessonId, {
+      const result = await moveLesson(supabase, lesson.id, {
         startsAt: romeLocalInputToUtcIso(startLocal),
         roomId: lesson.roomId,
-        scope: "this",
+        scope,
         actor: {
           memberId: member.id,
           isStaff,
@@ -417,7 +414,11 @@ export default function DashboardScreen() {
         setError(result.errorMessage ?? "Spostamento non riuscito.");
         return;
       }
-      setMessage("Lezione spostata.");
+      setMessage(
+        scope === "future"
+          ? "Lezione e successive spostate."
+          : "Lezione spostata.",
+      );
       await load("refresh");
     } catch (err) {
       setError(
@@ -426,6 +427,38 @@ export default function DashboardScreen() {
     } finally {
       setBusyId(null);
     }
+  }
+
+  function handleMoveLesson(
+    event: TimeGridEvent,
+    next: { date: string; startMinute: number },
+  ) {
+    if (!member?.id) return;
+    const lessonId = event.id.replace(/^lesson:/, "");
+    const lesson = lessons.find((row) => row.id === lessonId);
+    if (!lesson) return;
+
+    const startLocal = `${next.date}T${minutesToTimeLabel(next.startMinute)}`;
+    if (lesson.courseStatus !== "attivo") {
+      void commitMoveLesson(lesson, startLocal, "this");
+      return;
+    }
+
+    Alert.alert(
+      "Sposta lezione",
+      "Sposto solo questa o tutte le successive?",
+      [
+        { text: "Annulla", style: "cancel" },
+        {
+          text: "Solo questa",
+          onPress: () => void commitMoveLesson(lesson, startLocal, "this"),
+        },
+        {
+          text: "Tutte le successive",
+          onPress: () => void commitMoveLesson(lesson, startLocal, "future"),
+        },
+      ],
+    );
   }
 
   async function handleCancelLesson(lessonId: string) {

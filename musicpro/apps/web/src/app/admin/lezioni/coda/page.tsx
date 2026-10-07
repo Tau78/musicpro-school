@@ -70,8 +70,8 @@ const PARKED_REASON_LABELS: Record<LessonParkedReason, string> = {
 };
 
 const SCOPE_LABELS = {
-  this: "Solo questa lezione",
-  future: "Questa e le future",
+  this: "Solo questa",
+  future: "Tutte le successive",
 } as const;
 
 function roomLabel(

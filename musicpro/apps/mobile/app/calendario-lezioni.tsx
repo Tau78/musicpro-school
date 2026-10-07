@@ -287,7 +287,7 @@ export default function LezioniCalendarioScreen() {
     await loadSelectedDay(date);
   }
 
-  async function submitMove() {
+  async function submitMove(scope: "this" | "future") {
     if (!selectedLesson || !member) return;
     if (!isValidDate(moveDate)) {
       setMoveMessage("Inserisci una data nel formato AAAA-MM-GG.");
@@ -304,7 +304,7 @@ export default function LezioniCalendarioScreen() {
       const result = await moveLesson(supabase, selectedLesson.id, {
         startsAt: romeLocalInputToUtcIso(`${moveDate}T${moveTime}`),
         roomId: moveRoomId,
-        scope: "this",
+        scope,
         actor: {
           memberId: member.id,
           isStaff: false,
@@ -319,7 +319,9 @@ export default function LezioniCalendarioScreen() {
         result.warnings && result.warnings.length > 0
           ? ` ${result.warnings.join(" ")}`
           : "";
-      setMoveMessage(`Lezione spostata.${extra}`);
+      setMoveMessage(
+        `${scope === "future" ? "Lezione e successive spostate." : "Lezione spostata."}${extra}`,
+      );
       setMoving(false);
       setSelectedLesson(null);
       await loadRange();
@@ -627,7 +629,8 @@ export default function LezioniCalendarioScreen() {
                 {moveMessage ? (
                   <Text
                     style={
-                      moveMessage.startsWith("Lezione spostata")
+                      moveMessage.startsWith("Lezione spostata") ||
+                      moveMessage.startsWith("Lezione e successive")
                         ? styles.successText
                         : styles.errorText
                     }
@@ -636,23 +639,52 @@ export default function LezioniCalendarioScreen() {
                   </Text>
                 ) : null}
 
+                {selectedLesson.courseStatus === "attivo" ? (
+                  <Text style={styles.scopeQuestion}>
+                    Sposto solo questa o tutte le successive?
+                  </Text>
+                ) : null}
+
                 <View style={styles.moveActions}>
                   <Pressable
-                    style={styles.secondaryBtn}
+                    style={[styles.secondaryBtn, styles.moveBtn]}
                     onPress={closeMove}
                     disabled={savingMove}
                   >
                     <Text style={styles.secondaryBtnText}>Annulla</Text>
                   </Pressable>
-                  <Pressable
-                    style={styles.primaryBtn}
-                    onPress={() => void submitMove()}
-                    disabled={savingMove}
-                  >
-                    <Text style={styles.primaryBtnText}>
-                      {savingMove ? "Spostamento…" : "Conferma"}
-                    </Text>
-                  </Pressable>
+                  {selectedLesson.courseStatus === "attivo" ? (
+                    <>
+                      <Pressable
+                        style={[styles.secondaryBtn, styles.moveBtn]}
+                        onPress={() => void submitMove("this")}
+                        disabled={savingMove}
+                      >
+                        <Text style={styles.secondaryBtnText}>
+                          {savingMove ? "Spostamento…" : "Solo questa"}
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        style={[styles.primaryBtn, styles.moveBtn]}
+                        onPress={() => void submitMove("future")}
+                        disabled={savingMove}
+                      >
+                        <Text style={styles.primaryBtnText}>
+                          {savingMove ? "Spostamento…" : "Tutte le successive"}
+                        </Text>
+                      </Pressable>
+                    </>
+                  ) : (
+                    <Pressable
+                      style={[styles.primaryBtn, styles.moveBtn]}
+                      onPress={() => void submitMove("this")}
+                      disabled={savingMove}
+                    >
+                      <Text style={styles.primaryBtnText}>
+                        {savingMove ? "Spostamento…" : "Conferma"}
+                      </Text>
+                    </Pressable>
+                  )}
                 </View>
               </View>
             ) : null}
@@ -949,8 +981,18 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "600",
   },
+  scopeQuestion: {
+    marginTop: 12,
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1e3a5f",
+  },
+  moveBtn: {
+    marginTop: 8,
+  },
   moveActions: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     gap: 8,
   },

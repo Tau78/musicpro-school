@@ -67,7 +67,7 @@ export interface LessonsCalendarProps {
   canDrag: boolean;
   /** Consente trascinamento eventi prenotazione (calendario sale admin). */
   canDragBookings?: boolean;
-  /** Nasconde «questa e le future» nel modal spostamento. */
+  /** Prenotazioni: conferma senza chiedere se spostare anche le successive. */
   moveSingleScope?: boolean;
   showTeacherName: boolean;
   rooms: { id: string; name: string }[];
@@ -1043,6 +1043,10 @@ function MoveLessonModal({
 }) {
   const online = pending.lesson.courseKind === "online";
   const isBooking = isCalendarBooking(pending.lesson);
+  const seriesMove =
+    !singleScope &&
+    !isBooking &&
+    pending.lesson.courseStatus === "attivo";
   const timeLabel = minutesToTimeLabel(pending.startMinute);
   const dateLabel = formatDayLong(pending.date);
 
@@ -1099,7 +1103,13 @@ function MoveLessonModal({
           </p>
         ) : null}
 
-        <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+        {seriesMove ? (
+          <p className="mt-4 text-sm font-medium text-neutral-800">
+            Sposto solo questa o tutte le successive?
+          </p>
+        ) : null}
+
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
           <button
             type="button"
             disabled={moving}
@@ -1113,25 +1123,25 @@ function MoveLessonModal({
             disabled={moving}
             onClick={() => onConfirm("this")}
             className={
-              singleScope
-                ? "rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
-                : "rounded-lg border border-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand)] hover:bg-[var(--brand)]/5 disabled:opacity-50"
+              seriesMove
+                ? "rounded-lg border border-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand)] hover:bg-[var(--brand)]/5 disabled:opacity-50"
+                : "rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
             }
           >
             {moving
               ? "Spostamento…"
-              : singleScope
-                ? "Conferma spostamento"
-                : "Solo questa lezione"}
+              : seriesMove
+                ? "Solo questa"
+                : "Conferma spostamento"}
           </button>
-          {!singleScope ? (
+          {seriesMove ? (
             <button
               type="button"
               disabled={moving}
               onClick={() => onConfirm("future")}
               className="rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
             >
-              {moving ? "Spostamento…" : "Questa e le future"}
+              {moving ? "Spostamento…" : "Tutte le successive"}
             </button>
           ) : null}
         </div>
