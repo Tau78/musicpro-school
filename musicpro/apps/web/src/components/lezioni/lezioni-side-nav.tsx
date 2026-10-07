@@ -46,6 +46,7 @@ export const TEACHER_LEZIONI_NAV: readonly LessonsNavGroup[] = [
   {
     label: "Giorno",
     items: [
+      { href: "/lezioni", label: "Home" },
       { href: "/lezioni/oggi", label: "Oggi" },
       { href: "/lezioni/calendario", label: "Calendario" },
     ],
