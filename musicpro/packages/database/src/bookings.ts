@@ -219,7 +219,7 @@ export const BOOKING_MICROPHONE_COUNTS = [0, 1, 2, 3, 4] as const;
 export type BookingMicrophoneCount = (typeof BOOKING_MICROPHONE_COUNTS)[number];
 
 export interface BookingWithRoom extends Booking {
-  room?: Pick<Room, "id" | "name" | "slug"> | null;
+  room?: Pick<Room, "id" | "name" | "slug" | "google_calendar_color_id"> | null;
 }
 
 export interface AdminBookingListItem extends BookingWithRoom {
@@ -444,10 +444,13 @@ export function bookingOccupiesSlot(booking: {
 /** Richiede POST /api/prenotazioni/{id}/pay-credits (solo web). */
 export async function requestBookingCreditsPayment(
   bookingId: string,
+  options?: { mode?: "full" | "partial" },
 ): Promise<{
   success: boolean;
   action?: "hold" | "debit";
+  mode?: "full" | "partial";
   status?: string;
+  remainingEur?: number;
   message?: string;
   errorCode?: string;
 }> {
@@ -455,13 +458,17 @@ export async function requestBookingCreditsPayment(
     `/api/prenotazioni/${encodeURIComponent(bookingId)}/pay-credits`,
     {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: options?.mode ?? "full" }),
     },
   );
 
   const data = (await resp.json()) as {
     success?: boolean;
     action?: "hold" | "debit";
+    mode?: "full" | "partial";
     status?: string;
+    remainingEur?: number;
     message?: string;
     errorCode?: string;
   };
@@ -474,7 +481,13 @@ export async function requestBookingCreditsPayment(
     };
   }
 
-  return { success: true, action: data.action, status: data.status };
+  return {
+    success: true,
+    action: data.action,
+    mode: data.mode,
+    status: data.status,
+    remainingEur: data.remainingEur,
+  };
 }
 
 export type RequestRoomBookingPaymentUrlOptions = {
@@ -1345,7 +1358,10 @@ export async function listAdminBookings(
 
   const [{ data: rooms, error: roomsError }, { data: members, error: membersError }] =
     await Promise.all([
-      client.from("rooms").select("id, name, slug").in("id", roomIds),
+      client
+        .from("rooms")
+        .select("id, name, slug, google_calendar_color_id")
+        .in("id", roomIds),
       client
         .from("members")
         .select("id, first_name, last_name, email, phone")
@@ -1360,7 +1376,10 @@ export async function listAdminBookings(
   }
 
   const roomById = new Map(
-    (rooms ?? []).map((room) => [room.id, room as Pick<Room, "id" | "name" | "slug">]),
+    (rooms ?? []).map((room) => [
+      room.id,
+      room as Pick<Room, "id" | "name" | "slug" | "google_calendar_color_id">,
+    ]),
   );
   const memberById = new Map((members ?? []).map((m) => [m.id, m]));
 
@@ -1424,7 +1443,10 @@ export async function listBookingsInRange(
   ];
 
   const [roomsRes, membersRes, bandsRes] = await Promise.all([
-    client.from("rooms").select("id, name, slug").in("id", roomIds),
+    client
+      .from("rooms")
+      .select("id, name, slug, google_calendar_color_id")
+      .in("id", roomIds),
     client
       .from("members")
       .select("id, first_name, last_name, email, phone")
@@ -1449,7 +1471,7 @@ export async function listBookingsInRange(
   const roomById = new Map(
     (roomsRes.data ?? []).map((room) => [
       room.id,
-      room as Pick<Room, "id" | "name" | "slug">,
+      room as Pick<Room, "id" | "name" | "slug" | "google_calendar_color_id">,
     ]),
   );
   const memberById = new Map((membersRes.data ?? []).map((m) => [m.id, m]));

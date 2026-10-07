@@ -410,6 +410,35 @@ export async function holdBookingCredits(
   return mapBookingCreditsRpcResult(data as BookingCreditsRpcResponse | null, "hold");
 }
 
+export async function holdBookingCreditsTowardPayment(
+  client: CreditsClient,
+  bookingId: string,
+  credits?: number,
+): Promise<BookingCreditsPaymentResult & { remainingEur?: number }> {
+  const { data, error } = await client.rpc(
+    "hold_booking_credits_toward_payment",
+    {
+      p_booking_id: bookingId,
+      p_credits: credits ?? undefined,
+    },
+  );
+
+  if (error) {
+    return { success: false, errorMessage: error.message };
+  }
+
+  const result = data as (BookingCreditsRpcResponse & {
+    remaining_eur?: number;
+  }) | null;
+  const mapped = mapBookingCreditsRpcResult(result, "hold");
+  if (!mapped.success) return mapped;
+  return {
+    ...mapped,
+    remainingEur:
+      result?.remaining_eur != null ? Number(result.remaining_eur) : undefined,
+  };
+}
+
 export async function debitBookingCredits(
   client: CreditsClient,
   bookingId: string,
