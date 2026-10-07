@@ -35,6 +35,7 @@ import {
   LessonsCalendar,
   type CalendarLesson,
   type CalendarView,
+  type MoveNotifyFlags,
   type MoveScope,
 } from "@/components/lezioni/lessons-calendar";
 import { lessonCourseId } from "@/components/lezioni/lessons-oggi";
@@ -439,6 +440,7 @@ export function LessonsCalendarPage({
     startsAtIso: string,
     nextRoomId: string | null,
     scope: MoveScope,
+    notify: MoveNotifyFlags,
   ) {
     const bookingId = parseBookingId(lessonId);
     if (bookingId && canManageBookingEvents) {
@@ -486,6 +488,8 @@ export function LessonsCalendarPage({
       startsAt: startsAtIso,
       roomId: nextRoomId,
       scope,
+      notifyTeacher: notify.teacher,
+      notifyFamily: notify.family,
       actor: {
         memberId,
         isStaff,

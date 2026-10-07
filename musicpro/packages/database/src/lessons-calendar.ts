@@ -51,6 +51,10 @@ export type MoveLessonInput = {
   scope: "this" | "future";
   forceTeacherOverlap?: boolean;
   actor?: LessonScheduleActor;
+  /** Se omesso: sì solo quando agisce lo staff. */
+  notifyTeacher?: boolean;
+  /** Se omesso: sì. Il fallimento dell'email non annulla lo spostamento. */
+  notifyFamily?: boolean;
 };
 
 export type RequestLessonMoveInput = {
@@ -976,6 +980,7 @@ export async function moveLesson(
     return fail(updateError.message || "Impossibile aggiornare la lezione.");
   }
 
+  let followingMoved = 0;
   for (const future of futureLessons) {
     if (!future.startsAt) continue;
     const futureStart = new Date(
@@ -1066,14 +1071,23 @@ export async function moveLesson(
           `Lezione #${future.sequenceNumber}: ${unplaceError.message}`,
         );
       }
+    } else {
+      followingMoved += 1;
     }
   }
 
-  void notifyLessonScheduleChange(client, {
-    lessonId,
-    kind: "moved",
-    notifyTeachers: Boolean(input.actor?.isStaff),
-  }).catch(() => undefined);
+  const notifyFamily = input.notifyFamily ?? true;
+  const notifyTeacher =
+    input.notifyTeacher ?? Boolean(input.actor?.isStaff);
+  if (notifyFamily || notifyTeacher) {
+    void notifyLessonScheduleChange(client, {
+      lessonId,
+      kind: "moved",
+      notifyFamily,
+      notifyTeachers: notifyTeacher,
+      alsoFollowing: followingMoved > 0,
+    }).catch(() => undefined);
+  }
 
   return ok(lessonId, warnings);
 }

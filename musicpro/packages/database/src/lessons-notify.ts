@@ -125,14 +125,21 @@ function scheduleBody(params: {
   courseName: string;
   when: string;
   room: string;
+  alsoFollowing?: boolean;
 }): string {
-  return [
+  const lines = [
     "Ciao,",
     "",
     `la lezione di ${params.courseName} del ${params.when} in ${params.room} ${params.lead}`,
-    "",
-    "MusicPro School",
-  ].join("\n");
+  ];
+  if (params.alsoFollowing) {
+    lines.push(
+      "",
+      "Anche le lezioni successive sono state spostate dello stesso intervallo.",
+    );
+  }
+  lines.push("", "MusicPro School");
+  return lines.join("\n");
 }
 
 async function loadRoomName(
@@ -207,7 +214,10 @@ export async function notifyLessonScheduleChange(
   input: {
     lessonId: string;
     kind: LessonScheduleNotifyKind;
+    /** Default sì. false = nessuna email a allievo/tutore. */
+    notifyFamily?: boolean;
     notifyTeachers?: boolean;
+    alsoFollowing?: boolean;
   },
 ): Promise<void> {
   const { data: lesson, error: lessonError } = await client
@@ -233,15 +243,19 @@ export async function notifyLessonScheduleChange(
   const room = roomLabel(roomName, course.course_kind);
   const copy = scheduleCopy(input.kind);
   const subject = `${copy.subjectPrefix} — ${course.name}`;
+  const alsoFollowing = input.kind === "moved" && input.alsoFollowing;
   const familyBody = scheduleBody({
     lead: copy.familyLead,
     courseName: course.name,
     when,
     room,
+    alsoFollowing,
   });
 
-  const memberIds = await familyMemberIdsForLesson(client, lesson);
-  await notifyFamilies(client, memberIds, subject, familyBody);
+  if (input.notifyFamily !== false) {
+    const memberIds = await familyMemberIdsForLesson(client, lesson);
+    await notifyFamilies(client, memberIds, subject, familyBody);
+  }
 
   if (!input.notifyTeachers) return;
 
@@ -254,6 +268,7 @@ export async function notifyLessonScheduleChange(
     courseName: course.name,
     when,
     room,
+    alsoFollowing,
   });
   for (const to of teacherEmails) {
     await sendSingleEmail(client, { to, subject, body: teacherBody });

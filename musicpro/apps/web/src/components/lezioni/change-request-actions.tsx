@@ -24,6 +24,8 @@ export function ChangeRequestActions({
 
   const [busy, setBusy] = useState<"approve" | "reject" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notifyTeacher, setNotifyTeacher] = useState(true);
+  const [notifyFamily, setNotifyFamily] = useState(true);
 
   async function run(approve: boolean) {
     setBusy(approve ? "approve" : "reject");
@@ -32,6 +34,8 @@ export function ChangeRequestActions({
     const result = await reviewLessonChangeRequest(supabase, requestId, {
       approve,
       actorMemberId,
+      notifyTeacher,
+      notifyFamily,
     });
     setBusy(null);
 
@@ -51,7 +55,25 @@ export function ChangeRequestActions({
         </p>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <label className="inline-flex items-center gap-1.5 text-sm text-neutral-800">
+          <input
+            type="checkbox"
+            checked={notifyTeacher}
+            disabled={busy != null}
+            onChange={(event) => setNotifyTeacher(event.target.checked)}
+          />
+          Avvisa il docente
+        </label>
+        <label className="inline-flex items-center gap-1.5 text-sm text-neutral-800">
+          <input
+            type="checkbox"
+            checked={notifyFamily}
+            disabled={busy != null}
+            onChange={(event) => setNotifyFamily(event.target.checked)}
+          />
+          Avvisa l&apos;allievo/tutore
+        </label>
         <button
           type="button"
           disabled={busy != null}

@@ -139,6 +139,8 @@ export default function LezioniCalendarioScreen() {
   const [moveDate, setMoveDate] = useState("");
   const [moveTime, setMoveTime] = useState("");
   const [moveRoomId, setMoveRoomId] = useState<string | null>(null);
+  const [notifyTeacher, setNotifyTeacher] = useState(true);
+  const [notifyFamily, setNotifyFamily] = useState(true);
   const [savingMove, setSavingMove] = useState(false);
   const [moveMessage, setMoveMessage] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -275,6 +277,8 @@ export default function LezioniCalendarioScreen() {
     const time = formatRomeTime(lesson.startsAt);
     setMoveTime(time === "—" ? "09:00" : time);
     setMoveRoomId(lesson.roomId);
+    setNotifyTeacher(true);
+    setNotifyFamily(true);
     setMoveMessage(null);
     setMoving(true);
   }
@@ -305,6 +309,8 @@ export default function LezioniCalendarioScreen() {
         startsAt: romeLocalInputToUtcIso(`${moveDate}T${moveTime}`),
         roomId: moveRoomId,
         scope,
+        notifyTeacher,
+        notifyFamily,
         actor: {
           memberId: member.id,
           isStaff: false,
@@ -644,6 +650,37 @@ export default function LezioniCalendarioScreen() {
                     Sposto solo questa o tutte le successive?
                   </Text>
                 ) : null}
+
+                <View style={styles.flagRow}>
+                  <Pressable
+                    style={styles.flag}
+                    disabled={savingMove}
+                    onPress={() => setNotifyTeacher((value) => !value)}
+                  >
+                    <View
+                      style={[styles.flagBox, notifyTeacher && styles.flagBoxOn]}
+                    >
+                      {notifyTeacher ? (
+                        <Text style={styles.flagTick}>✓</Text>
+                      ) : null}
+                    </View>
+                    <Text style={styles.flagLabel}>Avvisa il docente</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.flag}
+                    disabled={savingMove}
+                    onPress={() => setNotifyFamily((value) => !value)}
+                  >
+                    <View
+                      style={[styles.flagBox, notifyFamily && styles.flagBoxOn]}
+                    >
+                      {notifyFamily ? (
+                        <Text style={styles.flagTick}>✓</Text>
+                      ) : null}
+                    </View>
+                    <Text style={styles.flagLabel}>Avvisa l{"'"}allievo/tutore</Text>
+                  </Pressable>
+                </View>
 
                 <View style={styles.moveActions}>
                   <Pressable
@@ -987,6 +1024,25 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#1e3a5f",
   },
+  flagRow: {
+    marginTop: 10,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  flag: { flexDirection: "row", alignItems: "center", gap: 6 },
+  flagBox: {
+    width: 16,
+    height: 16,
+    borderRadius: 3,
+    borderWidth: 1,
+    borderColor: "#1e3a5f",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  flagBoxOn: { backgroundColor: "#1e3a5f" },
+  flagTick: { color: "#fff", fontSize: 11, fontWeight: "700" },
+  flagLabel: { fontSize: 13, color: "#222" },
   moveBtn: {
     marginTop: 8,
   },

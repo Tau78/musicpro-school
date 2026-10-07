@@ -169,7 +169,12 @@ export async function listPendingLessonChangeRequests(
 export async function reviewLessonChangeRequest(
   client: RequestsClient,
   requestId: string,
-  input: { approve: boolean; actorMemberId: string },
+  input: {
+    approve: boolean;
+    actorMemberId: string;
+    notifyTeacher?: boolean;
+    notifyFamily?: boolean;
+  },
 ): Promise<CourseMutationResult> {
   if (!input.actorMemberId.trim()) {
     return fail("Autore della revisione mancante.");
@@ -206,6 +211,8 @@ export async function reviewLessonChangeRequest(
       startsAt: request.requestedStartsAt,
       roomId: request.requestedRoomId,
       scope: request.scope,
+      notifyTeacher: input.notifyTeacher,
+      notifyFamily: input.notifyFamily,
       actor: {
         memberId: input.actorMemberId,
         isStaff: true,
@@ -228,6 +235,8 @@ export async function reviewLessonChangeRequest(
           startsAt: original.starts_at,
           roomId: original.room_id,
           scope: "this",
+          notifyTeacher: false,
+          notifyFamily: false,
           actor: {
             memberId: input.actorMemberId,
             isStaff: true,
