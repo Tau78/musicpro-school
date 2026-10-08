@@ -23,6 +23,17 @@ import {
 } from "@musicpro/database";
 
 import {
+  LONG_PRESS_MOVE_PX,
+  LONG_PRESS_MS,
+  PINCH_RATIO,
+  SWIPE_MIN_PX,
+  SWIPE_RATIO,
+  nextCalendarView,
+  prevCalendarView,
+  touchHorizontalSpan,
+  vibrateLight,
+} from "@/components/lezioni/calendar-gestures";
+import {
   LessonsCalendarToolbar,
   type CalendarView,
 } from "@/components/lezioni/lessons-calendar-toolbar";
@@ -235,6 +246,13 @@ export function LessonsCalendar({
   const [moveError, setMoveError] = useState<string | null>(null);
   const [dragDuration, setDragDuration] = useState<number | null>(null);
   const dragLessonRef = useRef<PlacedLesson | null>(null);
+  /** Blocca swipe/pinch mentre si crea uno slot con long-press. */
+  const navGestureBlockedRef = useRef(false);
+  const swipeStartRef = useRef<{ x: number; y: number; active: boolean } | null>(
+    null,
+  );
+  const pinchStartSpanRef = useRef<number | null>(null);
+  const pinchHandledRef = useRef(false);
 
   function goToday() {
     onAnchorDateChange?.(todayInRome());
@@ -324,6 +342,83 @@ export function LessonsCalendar({
     }
   }
 
+  function handleTouchStart(event: React.TouchEvent<HTMLDivElement>) {
+    if (navGestureBlockedRef.current) return;
+    if (event.touches.length === 2) {
+      const a = event.touches[0]!;
+      const b = event.touches[1]!;
+      pinchStartSpanRef.current = touchHorizontalSpan(a, b);
+      pinchHandledRef.current = false;
+      swipeStartRef.current = null;
+      return;
+    }
+    if (event.touches.length === 1) {
+      const t = event.touches[0]!;
+      swipeStartRef.current = { x: t.clientX, y: t.clientY, active: true };
+      pinchStartSpanRef.current = null;
+    }
+  }
+
+  function handleTouchMove(event: React.TouchEvent<HTMLDivElement>) {
+    if (navGestureBlockedRef.current) return;
+    if (
+      event.touches.length === 2 &&
+      pinchStartSpanRef.current != null &&
+      !pinchHandledRef.current &&
+      onViewChange
+    ) {
+      const span = touchHorizontalSpan(event.touches[0]!, event.touches[1]!);
+      const start = pinchStartSpanRef.current;
+      if (start < 24) return;
+      const ratio = span / start;
+      if (ratio >= PINCH_RATIO) {
+        const next = nextCalendarView(view);
+        if (next) {
+          pinchHandledRef.current = true;
+          vibrateLight();
+          onViewChange(next);
+        }
+      } else if (ratio <= 1 / PINCH_RATIO) {
+        const prev = prevCalendarView(view);
+        if (prev) {
+          pinchHandledRef.current = true;
+          vibrateLight();
+          onViewChange(prev);
+        }
+      }
+      return;
+    }
+    if (event.touches.length !== 1 || !swipeStartRef.current?.active) return;
+    const t = event.touches[0]!;
+    const dx = t.clientX - swipeStartRef.current.x;
+    const dy = t.clientY - swipeStartRef.current.y;
+    if (Math.abs(dy) > Math.abs(dx) * 0.9 && Math.abs(dy) > 24) {
+      swipeStartRef.current.active = false;
+    }
+  }
+
+  function handleTouchEnd(event: React.TouchEvent<HTMLDivElement>) {
+    if (event.touches.length > 0) return;
+    const pinchDone = pinchHandledRef.current;
+    pinchStartSpanRef.current = null;
+    pinchHandledRef.current = false;
+    if (navGestureBlockedRef.current || pinchDone) {
+      swipeStartRef.current = null;
+      return;
+    }
+    const start = swipeStartRef.current;
+    swipeStartRef.current = null;
+    if (!start?.active || !onAnchorDateChange) return;
+    const t = event.changedTouches[0];
+    if (!t) return;
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+    if (Math.abs(dx) < SWIPE_MIN_PX) return;
+    if (Math.abs(dx) < Math.abs(dy) * SWIPE_RATIO) return;
+    if (dx < 0) goNext();
+    else goPrev();
+  }
+
   return (
     <div className="space-y-1">
       <LessonsCalendarToolbar
@@ -337,7 +432,17 @@ export function LessonsCalendar({
         onViewChange={onViewChange}
       />
 
-      <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
+      <div
+        className="overflow-hidden rounded-lg border border-neutral-200 bg-white touch-pan-y"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={() => {
+          swipeStartRef.current = null;
+          pinchStartSpanRef.current = null;
+          pinchHandledRef.current = false;
+        }}
+      >
         {isTimeGrid ? (
           <WeekGrid
             dates={gridDates}
@@ -358,6 +463,9 @@ export function LessonsCalendar({
             onOpenLesson={onOpenLesson}
             onSlotDoubleClick={onSlotDoubleClick}
             onSlotRangeSelect={onSlotRangeSelect}
+            onRangeGestureActiveChange={(active) => {
+              navGestureBlockedRef.current = active;
+            }}
           />
         ) : (
           <MonthGrid
@@ -413,6 +521,7 @@ function WeekGrid({
   onOpenLesson,
   onSlotDoubleClick,
   onSlotRangeSelect,
+  onRangeGestureActiveChange,
 }: {
   dates: string[];
   lessons: PlacedLesson[];
@@ -436,6 +545,7 @@ function WeekGrid({
     startMinute: number,
     durationMinutes: number,
   ) => void;
+  onRangeGestureActiveChange?: (active: boolean) => void;
 }) {
   const today = useTodayRome();
   const nowMinute = useNowMinute();
@@ -532,6 +642,7 @@ function WeekGrid({
             onOpenLesson={onOpenLesson}
             onSlotDoubleClick={onSlotDoubleClick}
             onSlotRangeSelect={onSlotRangeSelect}
+            onRangeGestureActiveChange={onRangeGestureActiveChange}
           />
         ))}
       </div>
@@ -564,6 +675,7 @@ function DayColumn({
   onOpenLesson,
   onSlotDoubleClick,
   onSlotRangeSelect,
+  onRangeGestureActiveChange,
 }: {
   date: string;
   lessons: PlacedLesson[];
@@ -593,13 +705,45 @@ function DayColumn({
     startMinute: number,
     durationMinutes: number,
   ) => void;
+  onRangeGestureActiveChange?: (active: boolean) => void;
 }) {
   const layouts = useMemo(() => layoutOverlaps(lessons), [lessons]);
   const columnRef = useRef<HTMLDivElement>(null);
+  const longPressTimerRef = useRef<number | null>(null);
+  const pressStartRef = useRef<{
+    x: number;
+    y: number;
+    pointerId: number;
+    anchorMinute: number;
+  } | null>(null);
   const [rangeSelect, setRangeSelect] = useState<{
     anchorMinute: number;
     currentMinute: number;
   } | null>(null);
+  const [pressArmed, setPressArmed] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      if (longPressTimerRef.current != null) {
+        window.clearTimeout(longPressTimerRef.current);
+      }
+    };
+  }, []);
+
+  function clearLongPressTimer() {
+    if (longPressTimerRef.current != null) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }
+
+  function endRangeGesture() {
+    clearLongPressTimer();
+    pressStartRef.current = null;
+    setPressArmed(false);
+    setRangeSelect(null);
+    onRangeGestureActiveChange?.(false);
+  }
 
   function minuteFromPointer(clientY: number): number {
     const el = columnRef.current;
@@ -656,18 +800,48 @@ function DayColumn({
           : isHighlight
             ? "bg-[var(--brand-accent)]/[0.08]"
             : ""
-      } ${rangeSelect ? "select-none touch-none" : ""}`}
+      } ${rangeSelect || pressArmed ? "select-none touch-none" : ""}`}
       style={{ height }}
       onPointerDown={(event) => {
         if (!onSlotRangeSelect || event.button !== 0) return;
         const target = event.target as HTMLElement;
         if (target.closest("[data-lesson-card]")) return;
         const anchorMinute = minuteFromPointer(event.clientY);
-        setRangeSelect({ anchorMinute, currentMinute: anchorMinute });
-        event.currentTarget.setPointerCapture(event.pointerId);
+        pressStartRef.current = {
+          x: event.clientX,
+          y: event.clientY,
+          pointerId: event.pointerId,
+          anchorMinute,
+        };
+        setPressArmed(true);
+        clearLongPressTimer();
+        longPressTimerRef.current = window.setTimeout(() => {
+          const press = pressStartRef.current;
+          if (!press || press.pointerId !== event.pointerId) return;
+          vibrateLight();
+          onRangeGestureActiveChange?.(true);
+          setRangeSelect({
+            anchorMinute: press.anchorMinute,
+            currentMinute: press.anchorMinute,
+          });
+          columnRef.current?.setPointerCapture(event.pointerId);
+        }, LONG_PRESS_MS);
       }}
       onPointerMove={(event) => {
-        if (!rangeSelect) return;
+        const press = pressStartRef.current;
+        if (!press || press.pointerId !== event.pointerId) return;
+
+        if (!rangeSelect) {
+          const moved = Math.hypot(
+            event.clientX - press.x,
+            event.clientY - press.y,
+          );
+          if (moved > LONG_PRESS_MOVE_PX) {
+            endRangeGesture();
+          }
+          return;
+        }
+
         setRangeSelect((current) =>
           current
             ? { ...current, currentMinute: minuteFromPointer(event.clientY) }
@@ -675,7 +849,14 @@ function DayColumn({
         );
       }}
       onPointerUp={(event) => {
-        if (!rangeSelect || !onSlotRangeSelect) return;
+        const press = pressStartRef.current;
+        if (!press || press.pointerId !== event.pointerId) return;
+
+        if (!rangeSelect || !onSlotRangeSelect) {
+          endRangeGesture();
+          return;
+        }
+
         const currentMinute = minuteFromPointer(event.clientY);
         const moved =
           Math.abs(currentMinute - rangeSelect.anchorMinute) >= slotMinutes / 2;
@@ -683,14 +864,14 @@ function DayColumn({
           rangeSelect.anchorMinute,
           currentMinute,
         );
-        setRangeSelect(null);
         if (event.currentTarget.hasPointerCapture(event.pointerId)) {
           event.currentTarget.releasePointerCapture(event.pointerId);
         }
+        endRangeGesture();
         if (!moved) return;
         onSlotRangeSelect(date, startMinute, durationMinutes);
       }}
-      onPointerCancel={() => setRangeSelect(null)}
+      onPointerCancel={() => endRangeGesture()}
       onDragOver={(event) => {
         if (!canDrag || rangeSelect) return;
         event.preventDefault();
@@ -738,6 +919,27 @@ function DayColumn({
           style={{ top: minuteToPx(minute, openMinute, pxPerHour) }}
         />
       ))}
+
+      {pressArmed && !rangePreview ? (
+        <div
+          className="pointer-events-none absolute inset-x-1 z-[4] rounded-sm border border-dashed border-[var(--brand)]/50 bg-[var(--brand)]/5"
+          style={{
+            top: minuteToPx(
+              snapMinute(
+                pressStartRef.current?.anchorMinute ?? openMinute,
+                openMinute,
+                closeMinute,
+                slotMinutes,
+                slotMinutes,
+              ),
+              openMinute,
+              pxPerHour,
+            ),
+            height: Math.max(12, (slotMinutes / 60) * pxPerHour),
+          }}
+          aria-hidden
+        />
+      ) : null}
 
       {rangePreview ? (
         <div
