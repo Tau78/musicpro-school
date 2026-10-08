@@ -1,10 +1,10 @@
 import {
   countPendingApprovalBookings,
+  getCreditsCirculationSummary,
   getMemberCreditBalance,
   listAdminBookings,
   listLessonsInRange,
   listLessonsOnDate,
-  listMemberAvailableCredits,
   listPendingCourses,
   listPendingLessonChangeRequests,
   listUnplacedLessons,
@@ -47,7 +47,7 @@ export async function loadStaffDashboardHub(
     todayLessons,
     arrearsRange,
     creditBalance,
-    memberCredits,
+    circulation,
   ] = await Promise.all([
     showBookingsCalendar
       ? countPendingApprovalBookings(supabase)
@@ -78,7 +78,7 @@ export async function loadStaffDashboardHub(
       : Promise.resolve([]),
     getMemberCreditBalance(supabase, memberId).catch(() => null),
     loadCreditsInCirculation
-      ? listMemberAvailableCredits(supabase).catch(() => null)
+      ? getCreditsCirculationSummary(supabase).catch(() => null)
       : Promise.resolve(null),
   ]);
 
@@ -92,12 +92,7 @@ export async function loadStaffDashboardHub(
     : 0;
 
   const creditsInCirculation =
-    memberCredits == null
-      ? null
-      : Object.values(memberCredits).reduce(
-          (sum, value) => sum + Math.max(0, value),
-          0,
-        );
+    circulation == null ? null : circulation.totalAvailable;
 
   return {
     showBookings: showBookingsCalendar,

@@ -194,6 +194,7 @@ if (!memberId) {
       gdpr_consent_at: new Date().toISOString(),
       is_active: true,
       is_enrollment_draft: false,
+      is_test_account: true,
     })
     .select("id")
     .single();
@@ -212,6 +213,7 @@ if (!memberId) {
       gdpr_consent: true,
       gdpr_consent_at: new Date().toISOString(),
       is_enrollment_draft: false,
+      is_test_account: true,
     })
     .eq("id", memberId);
   if (error) throw new Error(`members update: ${error.message}`);

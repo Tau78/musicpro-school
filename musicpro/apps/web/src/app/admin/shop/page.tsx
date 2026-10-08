@@ -3,8 +3,8 @@ import { redirect } from "next/navigation";
 
 import {
   formatCreditsCount,
+  getCreditsCirculationSummary,
   listCreditPackages,
-  listMemberAvailableCredits,
 } from "@musicpro/database";
 
 import { CreditPackageList } from "@/components/admin/credit-package-list";
@@ -29,18 +29,16 @@ export default async function AdminShopPage({ searchParams }: PageProps) {
 
   const { sezione } = await searchParams;
   const section = sezione === "storico" ? "storico" : "pacchetti";
-  const [packages, memberCredits] = await Promise.all([
+  const [packages, circulation] = await Promise.all([
     listCreditPackages(supabase),
-    listMemberAvailableCredits(supabase).catch(() => ({}) as Record<string, number>),
+    getCreditsCirculationSummary(supabase).catch(() => ({
+      totalAvailable: 0,
+      holdersWithBalance: 0,
+    })),
   ]);
 
-  const creditsInCirculation = Object.values(memberCredits).reduce(
-    (sum, value) => sum + Math.max(0, value),
-    0,
-  );
-  const holdersWithBalance = Object.values(memberCredits).filter(
-    (value) => value > 0,
-  ).length;
+  const creditsInCirculation = circulation.totalAvailable;
+  const holdersWithBalance = circulation.holdersWithBalance;
 
   return (
     <div>
