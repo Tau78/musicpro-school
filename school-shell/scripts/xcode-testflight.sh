@@ -74,16 +74,17 @@ if [[ "$BUMP" == "1" ]]; then
   python3 - <<PY
 from pathlib import Path
 import re
-p = Path("$ROOT/$PROJECT/project.pbxproj")
+build = "${BUILD_NUM}"
+p = Path("${ROOT}/${PROJECT}/project.pbxproj")
 text = p.read_text()
 text2, n = re.subn(
     r"CURRENT_PROJECT_VERSION = [^;]+;",
-    f"CURRENT_PROJECT_VERSION = {BUILD_NUM};",
+    f"CURRENT_PROJECT_VERSION = {build};",
     text,
 )
 if n:
     p.write_text(text2)
-    print(f"pbxproj build → {BUILD_NUM} ({n} occ)")
+    print(f"pbxproj build → {build} ({n} occ)")
 PY
 fi
 
