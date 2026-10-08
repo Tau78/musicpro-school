@@ -108,23 +108,25 @@ export default async function AdminLayout({
   });
 
   return (
-    <div className="min-h-screen bg-[var(--background)] pb-20 md:pb-0">
+    <div className="min-h-screen bg-[var(--background)] pb-[calc(4.25rem+max(0.625rem,env(safe-area-inset-bottom,0.625rem)))] md:pb-0">
       <header className="bg-[var(--brand)] text-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-[var(--brand-accent)]">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-2 sm:px-6 sm:py-2.5">
+          <div className="min-w-0">
+            <p className="text-[10px] font-medium uppercase tracking-wide text-[var(--brand-accent)]">
               {APP_NAME}
             </p>
-            <h1 className="text-xl font-semibold">Amministrazione</h1>
+            <h1 className="truncate text-base font-semibold sm:text-lg">
+              Amministrazione
+            </h1>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <Link
               href="/dashboard"
               className="hidden text-sm text-white/80 hover:text-white sm:inline"
             >
               Dashboard
             </Link>
-            <SettingsGearLink className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-white/80 hover:bg-white/10 hover:text-white" />
+            <SettingsGearLink className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-white/80 hover:bg-white/10 hover:text-white" />
           </div>
         </div>
         <AdminNav
@@ -140,7 +142,7 @@ export default async function AdminLayout({
         />
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
+      <main className="mx-auto max-w-6xl px-4 py-3 sm:px-6 sm:py-5">
         <Suspense fallback={children}>
           <SettingsSubNav
             showQuote={showQuote}
