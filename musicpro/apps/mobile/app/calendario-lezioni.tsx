@@ -139,6 +139,8 @@ export default function LezioniCalendarioScreen() {
   const [moveDate, setMoveDate] = useState("");
   const [moveTime, setMoveTime] = useState("");
   const [moveRoomId, setMoveRoomId] = useState<string | null>(null);
+  const [notifyTeacher, setNotifyTeacher] = useState(true);
+  const [notifyFamily, setNotifyFamily] = useState(true);
   const [savingMove, setSavingMove] = useState(false);
   const [moveMessage, setMoveMessage] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -275,6 +277,8 @@ export default function LezioniCalendarioScreen() {
     const time = formatRomeTime(lesson.startsAt);
     setMoveTime(time === "—" ? "09:00" : time);
     setMoveRoomId(lesson.roomId);
+    setNotifyTeacher(true);
+    setNotifyFamily(true);
     setMoveMessage(null);
     setMoving(true);
   }
@@ -287,7 +291,7 @@ export default function LezioniCalendarioScreen() {
     await loadSelectedDay(date);
   }
 
-  async function submitMove() {
+  async function submitMove(scope: "this" | "future") {
     if (!selectedLesson || !member) return;
     if (!isValidDate(moveDate)) {
       setMoveMessage("Inserisci una data nel formato AAAA-MM-GG.");
@@ -304,7 +308,9 @@ export default function LezioniCalendarioScreen() {
       const result = await moveLesson(supabase, selectedLesson.id, {
         startsAt: romeLocalInputToUtcIso(`${moveDate}T${moveTime}`),
         roomId: moveRoomId,
-        scope: "this",
+        scope,
+        notifyTeacher,
+        notifyFamily,
         actor: {
           memberId: member.id,
           isStaff: false,
@@ -319,7 +325,9 @@ export default function LezioniCalendarioScreen() {
         result.warnings && result.warnings.length > 0
           ? ` ${result.warnings.join(" ")}`
           : "";
-      setMoveMessage(`Lezione spostata.${extra}`);
+      setMoveMessage(
+        `${scope === "future" ? "Lezione e successive spostate." : "Lezione spostata."}${extra}`,
+      );
       setMoving(false);
       setSelectedLesson(null);
       await loadRange();
@@ -627,7 +635,8 @@ export default function LezioniCalendarioScreen() {
                 {moveMessage ? (
                   <Text
                     style={
-                      moveMessage.startsWith("Lezione spostata")
+                      moveMessage.startsWith("Lezione spostata") ||
+                      moveMessage.startsWith("Lezione e successive")
                         ? styles.successText
                         : styles.errorText
                     }
@@ -636,23 +645,83 @@ export default function LezioniCalendarioScreen() {
                   </Text>
                 ) : null}
 
+                {selectedLesson.courseStatus === "attivo" ? (
+                  <Text style={styles.scopeQuestion}>
+                    Sposto solo questa o tutte le successive?
+                  </Text>
+                ) : null}
+
+                <View style={styles.flagRow}>
+                  <Pressable
+                    style={styles.flag}
+                    disabled={savingMove}
+                    onPress={() => setNotifyTeacher((value) => !value)}
+                  >
+                    <View
+                      style={[styles.flagBox, notifyTeacher && styles.flagBoxOn]}
+                    >
+                      {notifyTeacher ? (
+                        <Text style={styles.flagTick}>✓</Text>
+                      ) : null}
+                    </View>
+                    <Text style={styles.flagLabel}>Avvisa il docente</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.flag}
+                    disabled={savingMove}
+                    onPress={() => setNotifyFamily((value) => !value)}
+                  >
+                    <View
+                      style={[styles.flagBox, notifyFamily && styles.flagBoxOn]}
+                    >
+                      {notifyFamily ? (
+                        <Text style={styles.flagTick}>✓</Text>
+                      ) : null}
+                    </View>
+                    <Text style={styles.flagLabel}>Avvisa l{"'"}allievo/tutore</Text>
+                  </Pressable>
+                </View>
+
                 <View style={styles.moveActions}>
                   <Pressable
-                    style={styles.secondaryBtn}
+                    style={[styles.secondaryBtn, styles.moveBtn]}
                     onPress={closeMove}
                     disabled={savingMove}
                   >
                     <Text style={styles.secondaryBtnText}>Annulla</Text>
                   </Pressable>
-                  <Pressable
-                    style={styles.primaryBtn}
-                    onPress={() => void submitMove()}
-                    disabled={savingMove}
-                  >
-                    <Text style={styles.primaryBtnText}>
-                      {savingMove ? "Spostamento…" : "Conferma"}
-                    </Text>
-                  </Pressable>
+                  {selectedLesson.courseStatus === "attivo" ? (
+                    <>
+                      <Pressable
+                        style={[styles.secondaryBtn, styles.moveBtn]}
+                        onPress={() => void submitMove("this")}
+                        disabled={savingMove}
+                      >
+                        <Text style={styles.secondaryBtnText}>
+                          {savingMove ? "Spostamento…" : "Solo questa"}
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        style={[styles.primaryBtn, styles.moveBtn]}
+                        onPress={() => void submitMove("future")}
+                        disabled={savingMove}
+                      >
+                        <Text style={styles.primaryBtnText}>
+                          {savingMove ? "Spostamento…" : "Tutte le successive"}
+                        </Text>
+                      </Pressable>
+                    </>
+                  ) : (
+                    <Pressable
+                      style={[styles.primaryBtn, styles.moveBtn]}
+                      onPress={() => void submitMove("this")}
+                      disabled={savingMove}
+                    >
+                      <Text style={styles.primaryBtnText}>
+                        {savingMove ? "Spostamento…" : "Conferma"}
+                      </Text>
+                    </Pressable>
+                  )}
                 </View>
               </View>
             ) : null}
@@ -949,8 +1018,37 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "600",
   },
+  scopeQuestion: {
+    marginTop: 12,
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1e3a5f",
+  },
+  flagRow: {
+    marginTop: 10,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  flag: { flexDirection: "row", alignItems: "center", gap: 6 },
+  flagBox: {
+    width: 16,
+    height: 16,
+    borderRadius: 3,
+    borderWidth: 1,
+    borderColor: "#1e3a5f",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  flagBoxOn: { backgroundColor: "#1e3a5f" },
+  flagTick: { color: "#fff", fontSize: 11, fontWeight: "700" },
+  flagLabel: { fontSize: 13, color: "#222" },
+  moveBtn: {
+    marginTop: 8,
+  },
   moveActions: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     gap: 8,
   },

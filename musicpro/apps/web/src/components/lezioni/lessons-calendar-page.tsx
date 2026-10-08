@@ -35,6 +35,7 @@ import {
   LessonsCalendar,
   type CalendarLesson,
   type CalendarView,
+  type MoveNotifyFlags,
   type MoveScope,
 } from "@/components/lezioni/lessons-calendar";
 import { lessonCourseId } from "@/components/lezioni/lessons-oggi";
@@ -84,7 +85,6 @@ type RequestForm = {
   startsLocal: string;
   roomId: string;
   note: string;
-  scope: MoveScope;
 };
 
 export function LessonsCalendarPage({
@@ -408,7 +408,6 @@ export function LessonsCalendarPage({
         : `${today}T10:00`,
       roomId: lesson.roomId ?? "",
       note: "",
-      scope: "this",
     });
   }
 
@@ -441,6 +440,7 @@ export function LessonsCalendarPage({
     startsAtIso: string,
     nextRoomId: string | null,
     scope: MoveScope,
+    notify: MoveNotifyFlags,
   ) {
     const bookingId = parseBookingId(lessonId);
     if (bookingId && canManageBookingEvents) {
@@ -488,6 +488,8 @@ export function LessonsCalendarPage({
       startsAt: startsAtIso,
       roomId: nextRoomId,
       scope,
+      notifyTeacher: notify.teacher,
+      notifyFamily: notify.family,
       actor: {
         memberId,
         isStaff,
@@ -503,7 +505,7 @@ export function LessonsCalendarPage({
     await reloadLessons();
   }
 
-  async function submitRequest() {
+  async function submitRequest(scope: MoveScope) {
     if (!requestForm) return;
     setRequestBusy(true);
     setRequestError(null);
@@ -530,7 +532,7 @@ export function LessonsCalendarPage({
         lessonId: requestForm.lesson.id,
         startsAt,
         roomId: requestForm.roomId || null,
-        scope: requestForm.scope,
+        scope,
         note: requestForm.note,
         createdBy,
       });
@@ -914,49 +916,19 @@ export function LessonsCalendarPage({
             />
           </label>
 
-          <fieldset className="mt-3">
-            <legend className="text-xs font-medium text-neutral-600">
-              Ambito
-            </legend>
-            <div className="mt-1 flex flex-wrap gap-3 text-sm">
-              <label className="inline-flex items-center gap-1.5">
-                <input
-                  type="radio"
-                  name="request-scope"
-                  checked={requestForm.scope === "this"}
-                  disabled={requestBusy}
-                  onChange={() =>
-                    setRequestForm((current) =>
-                      current ? { ...current, scope: "this" } : current,
-                    )
-                  }
-                />
-                Solo questa lezione
-              </label>
-              <label className="inline-flex items-center gap-1.5">
-                <input
-                  type="radio"
-                  name="request-scope"
-                  checked={requestForm.scope === "future"}
-                  disabled={requestBusy}
-                  onChange={() =>
-                    setRequestForm((current) =>
-                      current ? { ...current, scope: "future" } : current,
-                    )
-                  }
-                />
-                Questa e le future
-              </label>
-            </div>
-          </fieldset>
-
           {requestError ? (
             <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
               {requestError}
             </p>
           ) : null}
 
-          <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
+          {requestForm.lesson.courseStatus === "attivo" ? (
+            <p className="mt-4 text-sm font-medium text-neutral-800">
+              Sposto solo questa o tutte le successive?
+            </p>
+          ) : null}
+
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
             <button
               type="button"
               disabled={requestBusy}
@@ -968,14 +940,35 @@ export function LessonsCalendarPage({
             >
               Annulla
             </button>
-            <button
-              type="button"
-              disabled={requestBusy}
-              onClick={() => void submitRequest()}
-              className="rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
-            >
-              {requestBusy ? "Invio…" : "Invia richiesta"}
-            </button>
+            {requestForm.lesson.courseStatus === "attivo" ? (
+              <>
+                <button
+                  type="button"
+                  disabled={requestBusy}
+                  onClick={() => void submitRequest("this")}
+                  className="rounded-lg border border-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand)] hover:bg-[var(--brand)]/5 disabled:opacity-50"
+                >
+                  {requestBusy ? "Invio…" : "Solo questa"}
+                </button>
+                <button
+                  type="button"
+                  disabled={requestBusy}
+                  onClick={() => void submitRequest("future")}
+                  className="rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
+                >
+                  {requestBusy ? "Invio…" : "Tutte le successive"}
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                disabled={requestBusy}
+                onClick={() => void submitRequest("this")}
+                className="rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
+              >
+                {requestBusy ? "Invio…" : "Invia richiesta"}
+              </button>
+            )}
           </div>
         </Dialog>
       ) : null}

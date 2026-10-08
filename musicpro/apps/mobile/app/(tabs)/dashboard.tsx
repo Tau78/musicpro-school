@@ -142,6 +142,12 @@ export default function DashboardScreen() {
   const [selectedLesson, setSelectedLesson] = useState<CalendarLesson | null>(
     null,
   );
+  const [pendingLessonMove, setPendingLessonMove] = useState<{
+    lesson: CalendarLesson;
+    startLocal: string;
+    notifyTeacher: boolean;
+    notifyFamily: boolean;
+  } | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -389,24 +395,23 @@ export default function DashboardScreen() {
     }
   }
 
-  async function handleMoveLesson(
-    event: TimeGridEvent,
-    next: { date: string; startMinute: number },
+  async function commitMoveLesson(
+    lesson: CalendarLesson,
+    startLocal: string,
+    scope: "this" | "future",
+    notify: { teacher: boolean; family: boolean },
   ) {
     if (!member?.id) return;
-    const lessonId = event.id.replace(/^lesson:/, "");
-    const lesson = lessons.find((row) => row.id === lessonId);
-    if (!lesson) return;
-
-    const startLocal = `${next.date}T${minutesToTimeLabel(next.startMinute)}`;
-    setBusyId(lessonId);
+    setBusyId(lesson.id);
     setError(null);
     setMessage(null);
     try {
-      const result = await moveLesson(supabase, lessonId, {
+      const result = await moveLesson(supabase, lesson.id, {
         startsAt: romeLocalInputToUtcIso(startLocal),
         roomId: lesson.roomId,
-        scope: "this",
+        scope,
+        notifyTeacher: notify.teacher,
+        notifyFamily: notify.family,
         actor: {
           memberId: member.id,
           isStaff,
@@ -417,7 +422,12 @@ export default function DashboardScreen() {
         setError(result.errorMessage ?? "Spostamento non riuscito.");
         return;
       }
-      setMessage("Lezione spostata.");
+      setMessage(
+        scope === "future"
+          ? "Lezione e successive spostate."
+          : "Lezione spostata.",
+      );
+      setPendingLessonMove(null);
       await load("refresh");
     } catch (err) {
       setError(
@@ -426,6 +436,24 @@ export default function DashboardScreen() {
     } finally {
       setBusyId(null);
     }
+  }
+
+  function handleMoveLesson(
+    event: TimeGridEvent,
+    next: { date: string; startMinute: number },
+  ) {
+    if (!member?.id) return;
+    const lessonId = event.id.replace(/^lesson:/, "");
+    const lesson = lessons.find((row) => row.id === lessonId);
+    if (!lesson) return;
+
+    const startLocal = `${next.date}T${minutesToTimeLabel(next.startMinute)}`;
+    setPendingLessonMove({
+      lesson,
+      startLocal,
+      notifyTeacher: true,
+      notifyFamily: true,
+    });
   }
 
   async function handleCancelLesson(lessonId: string) {
@@ -769,6 +797,134 @@ export default function DashboardScreen() {
             />
           ) : null}
 
+          {pendingLessonMove ? (
+            <View style={styles.detailCard}>
+              <Text style={styles.detailTitle}>
+                Sposta {pendingLessonMove.lesson.courseName || "lezione"}
+              </Text>
+              {pendingLessonMove.lesson.courseStatus === "attivo" ? (
+                <Text style={styles.scopeQuestion}>
+                  Sposto solo questa o tutte le successive?
+                </Text>
+              ) : null}
+              <View style={styles.flagRow}>
+                <Pressable
+                  style={styles.flag}
+                  disabled={busyId === pendingLessonMove.lesson.id}
+                  onPress={() =>
+                    setPendingLessonMove((current) =>
+                      current
+                        ? { ...current, notifyTeacher: !current.notifyTeacher }
+                        : current,
+                    )
+                  }
+                >
+                  <View
+                    style={[
+                      styles.flagBox,
+                      pendingLessonMove.notifyTeacher && styles.flagBoxOn,
+                    ]}
+                  >
+                    {pendingLessonMove.notifyTeacher ? (
+                      <Text style={styles.flagTick}>✓</Text>
+                    ) : null}
+                  </View>
+                  <Text style={styles.flagLabel}>Avvisa il docente</Text>
+                </Pressable>
+                <Pressable
+                  style={styles.flag}
+                  disabled={busyId === pendingLessonMove.lesson.id}
+                  onPress={() =>
+                    setPendingLessonMove((current) =>
+                      current
+                        ? { ...current, notifyFamily: !current.notifyFamily }
+                        : current,
+                    )
+                  }
+                >
+                  <View
+                    style={[
+                      styles.flagBox,
+                      pendingLessonMove.notifyFamily && styles.flagBoxOn,
+                    ]}
+                  >
+                    {pendingLessonMove.notifyFamily ? (
+                      <Text style={styles.flagTick}>✓</Text>
+                    ) : null}
+                  </View>
+                  <Text style={styles.flagLabel}>Avvisa l{"'"}allievo/tutore</Text>
+                </Pressable>
+              </View>
+              <View style={styles.cardActions}>
+                <Pressable
+                  style={styles.ghostBtn}
+                  disabled={busyId === pendingLessonMove.lesson.id}
+                  onPress={() => setPendingLessonMove(null)}
+                >
+                  <Text style={styles.ghostBtnText}>Annulla</Text>
+                </Pressable>
+                {pendingLessonMove.lesson.courseStatus === "attivo" ? (
+                  <>
+                    <Pressable
+                      style={styles.secondaryBtn}
+                      disabled={busyId === pendingLessonMove.lesson.id}
+                      onPress={() =>
+                        void commitMoveLesson(
+                          pendingLessonMove.lesson,
+                          pendingLessonMove.startLocal,
+                          "this",
+                          {
+                            teacher: pendingLessonMove.notifyTeacher,
+                            family: pendingLessonMove.notifyFamily,
+                          },
+                        )
+                      }
+                    >
+                      <Text style={styles.secondaryBtnText}>Solo questa</Text>
+                    </Pressable>
+                    <Pressable
+                      style={styles.primaryBtn}
+                      disabled={busyId === pendingLessonMove.lesson.id}
+                      onPress={() =>
+                        void commitMoveLesson(
+                          pendingLessonMove.lesson,
+                          pendingLessonMove.startLocal,
+                          "future",
+                          {
+                            teacher: pendingLessonMove.notifyTeacher,
+                            family: pendingLessonMove.notifyFamily,
+                          },
+                        )
+                      }
+                    >
+                      <Text style={styles.primaryBtnText}>
+                        Tutte le successive
+                      </Text>
+                    </Pressable>
+                  </>
+                ) : (
+                  <Pressable
+                    style={styles.primaryBtn}
+                    disabled={busyId === pendingLessonMove.lesson.id}
+                    onPress={() =>
+                      void commitMoveLesson(
+                        pendingLessonMove.lesson,
+                        pendingLessonMove.startLocal,
+                        "this",
+                        {
+                          teacher: pendingLessonMove.notifyTeacher,
+                          family: pendingLessonMove.notifyFamily,
+                        },
+                      )
+                    }
+                  >
+                    <Text style={styles.primaryBtnText}>Conferma</Text>
+                  </Pressable>
+                )}
+              </View>
+            </View>
+          ) : null}
+
           {selectedLesson ? (
             <View style={styles.detailCard}>
               <Text style={styles.detailTitle}>
@@ -987,6 +1143,38 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   ghostBtnText: { color: "#666", fontSize: 13, fontWeight: "500" },
+  primaryBtn: {
+    borderRadius: 8,
+    backgroundColor: "#1e3a5f",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  primaryBtnText: { color: "#fff", fontSize: 13, fontWeight: "600" },
+  scopeQuestion: {
+    marginTop: 8,
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1e3a5f",
+  },
+  flagRow: {
+    marginTop: 10,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  flag: { flexDirection: "row", alignItems: "center", gap: 6 },
+  flagBox: {
+    width: 16,
+    height: 16,
+    borderRadius: 3,
+    borderWidth: 1,
+    borderColor: "#1e3a5f",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  flagBoxOn: { backgroundColor: "#1e3a5f" },
+  flagTick: { color: "#fff", fontSize: 11, fontWeight: "700" },
+  flagLabel: { fontSize: 13, color: "#222" },
   alertError: {
     marginTop: 16,
     padding: 12,

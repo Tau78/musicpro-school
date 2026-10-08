@@ -31,6 +31,11 @@ export type { CalendarView };
 
 export type MoveScope = "this" | "future";
 
+export type MoveNotifyFlags = {
+  teacher: boolean;
+  family: boolean;
+};
+
 /** Allineata a CalendarLesson di @musicpro/database (quando verrà esportata). */
 export interface CalendarLesson {
   id: string;
@@ -67,7 +72,7 @@ export interface LessonsCalendarProps {
   canDrag: boolean;
   /** Consente trascinamento eventi prenotazione (calendario sale admin). */
   canDragBookings?: boolean;
-  /** Nasconde «questa e le future» nel modal spostamento. */
+  /** Prenotazioni: conferma senza chiedere se spostare anche le successive. */
   moveSingleScope?: boolean;
   showTeacherName: boolean;
   rooms: { id: string; name: string }[];
@@ -76,6 +81,7 @@ export interface LessonsCalendarProps {
     startsAtIso: string,
     roomId: string | null,
     scope: MoveScope,
+    notify: MoveNotifyFlags,
   ) => Promise<void>;
   onOpenLesson?: (lessonId: string) => void;
   /** Doppio click su slot vuoto (solo vista settimana). */
@@ -306,12 +312,18 @@ export function LessonsCalendar({
     endDrag();
   }
 
-  async function confirmMove(scope: MoveScope) {
+  async function confirmMove(scope: MoveScope, notify: MoveNotifyFlags) {
     if (!pending) return;
     setMoving(true);
     setMoveError(null);
     try {
-      await onMove(pending.lesson.id, pending.startsAtIso, pending.roomId, scope);
+      await onMove(
+        pending.lesson.id,
+        pending.startsAtIso,
+        pending.roomId,
+        scope,
+        notify,
+      );
       setPending(null);
     } catch (error) {
       setMoveError(
@@ -373,6 +385,7 @@ export function LessonsCalendar({
 
       {pending ? (
         <MoveLessonModal
+          key={`${pending.lesson.id}:${pending.startsAtIso}`}
           pending={pending}
           rooms={rooms}
           moving={moving}
@@ -381,7 +394,7 @@ export function LessonsCalendar({
           onRoomChange={(roomId) =>
             setPending((current) => (current ? { ...current, roomId } : current))
           }
-          onConfirm={(scope) => void confirmMove(scope)}
+          onConfirm={(scope, notify) => void confirmMove(scope, notify)}
           onClose={() => {
             if (!moving) {
               setPending(null);
@@ -1038,11 +1051,20 @@ function MoveLessonModal({
   error: string | null;
   singleScope?: boolean;
   onRoomChange: (roomId: string | null) => void;
-  onConfirm: (scope: MoveScope) => void;
+  onConfirm: (scope: MoveScope, notify: MoveNotifyFlags) => void;
   onClose: () => void;
 }) {
+  const [notifyTeacher, setNotifyTeacher] = useState(true);
+  const [notifyFamily, setNotifyFamily] = useState(true);
   const online = pending.lesson.courseKind === "online";
   const isBooking = isCalendarBooking(pending.lesson);
+  const notify: MoveNotifyFlags = isBooking
+    ? { teacher: false, family: false }
+    : { teacher: notifyTeacher, family: notifyFamily };
+  const seriesMove =
+    !singleScope &&
+    !isBooking &&
+    pending.lesson.courseStatus === "attivo";
   const timeLabel = minutesToTimeLabel(pending.startMinute);
   const dateLabel = formatDayLong(pending.date);
 
@@ -1099,7 +1121,36 @@ function MoveLessonModal({
           </p>
         ) : null}
 
-        <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+        {seriesMove ? (
+          <p className="mt-4 text-sm font-medium text-neutral-800">
+            Sposto solo questa o tutte le successive?
+          </p>
+        ) : null}
+
+        {!isBooking ? (
+          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
+            <label className="inline-flex items-center gap-1.5 text-sm text-neutral-800">
+              <input
+                type="checkbox"
+                checked={notifyTeacher}
+                disabled={moving}
+                onChange={(event) => setNotifyTeacher(event.target.checked)}
+              />
+              Avvisa il docente
+            </label>
+            <label className="inline-flex items-center gap-1.5 text-sm text-neutral-800">
+              <input
+                type="checkbox"
+                checked={notifyFamily}
+                disabled={moving}
+                onChange={(event) => setNotifyFamily(event.target.checked)}
+              />
+              Avvisa l&apos;allievo/tutore
+            </label>
+          </div>
+        ) : null}
+
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
           <button
             type="button"
             disabled={moving}
@@ -1111,27 +1162,27 @@ function MoveLessonModal({
           <button
             type="button"
             disabled={moving}
-            onClick={() => onConfirm("this")}
+            onClick={() => onConfirm("this", notify)}
             className={
-              singleScope
-                ? "rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
-                : "rounded-lg border border-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand)] hover:bg-[var(--brand)]/5 disabled:opacity-50"
+              seriesMove
+                ? "rounded-lg border border-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand)] hover:bg-[var(--brand)]/5 disabled:opacity-50"
+                : "rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
             }
           >
             {moving
               ? "Spostamento…"
-              : singleScope
-                ? "Conferma spostamento"
-                : "Solo questa lezione"}
+              : seriesMove
+                ? "Solo questa"
+                : "Conferma spostamento"}
           </button>
-          {!singleScope ? (
+          {seriesMove ? (
             <button
               type="button"
               disabled={moving}
-              onClick={() => onConfirm("future")}
+              onClick={() => onConfirm("future", notify)}
               className="rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
             >
-              {moving ? "Spostamento…" : "Questa e le future"}
+              {moving ? "Spostamento…" : "Tutte le successive"}
             </button>
           ) : null}
         </div>
