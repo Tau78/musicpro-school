@@ -23,8 +23,11 @@ export default async function DashboardLayout({
     return children;
   }
 
+  const firstName = member.firstName.trim();
+  const title = firstName ? `Ciao, ${firstName}` : "Dashboard";
+
   return (
-    <AdminShell nav={nav} title="Dashboard" wide>
+    <AdminShell nav={nav} title={title} wide>
       {children}
     </AdminShell>
   );

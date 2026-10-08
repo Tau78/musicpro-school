@@ -4,6 +4,7 @@ import {
   listAdminBookings,
   listLessonsInRange,
   listLessonsOnDate,
+  listMemberAvailableCredits,
   listPendingCourses,
   listPendingLessonChangeRequests,
   listUnplacedLessons,
@@ -26,9 +27,15 @@ export async function loadStaffDashboardHub(
     showBookingsCalendar: boolean;
     showStaffLessons: boolean;
     showTeacherLessons: boolean;
+    loadCreditsInCirculation?: boolean;
   },
 ) {
-  const { showBookingsCalendar, showStaffLessons, showTeacherLessons } = flags;
+  const {
+    showBookingsCalendar,
+    showStaffLessons,
+    showTeacherLessons,
+    loadCreditsInCirculation = false,
+  } = flags;
   const showLessons = showStaffLessons || showTeacherLessons;
 
   const [
@@ -40,6 +47,7 @@ export async function loadStaffDashboardHub(
     todayLessons,
     arrearsRange,
     creditBalance,
+    memberCredits,
   ] = await Promise.all([
     showBookingsCalendar
       ? countPendingApprovalBookings(supabase)
@@ -69,6 +77,9 @@ export async function loadStaffDashboardHub(
         })
       : Promise.resolve([]),
     getMemberCreditBalance(supabase, memberId).catch(() => null),
+    loadCreditsInCirculation
+      ? listMemberAvailableCredits(supabase).catch(() => null)
+      : Promise.resolve(null),
   ]);
 
   const arrearsCount = showStaffLessons
@@ -79,6 +90,14 @@ export async function loadStaffDashboardHub(
           lesson.courseStatus !== "in_attesa",
       ).length
     : 0;
+
+  const creditsInCirculation =
+    memberCredits == null
+      ? null
+      : Object.values(memberCredits).reduce(
+          (sum, value) => sum + Math.max(0, value),
+          0,
+        );
 
   return {
     showBookings: showBookingsCalendar,
@@ -91,5 +110,6 @@ export async function loadStaffDashboardHub(
     upcomingBookings: upcomingBookingsRaw.slice(0, 4),
     todayLessons,
     creditAvailable: creditBalance?.available ?? 0,
+    creditsInCirculation,
   };
 }

@@ -3,7 +3,6 @@ import type { ReactNode } from "react";
 
 import {
   type AdminBookingListItem,
-  bookingStatusLabel,
   formatBookingDateTime,
   formatCreditsCount,
   getRomeMinutesFromMidnight,
@@ -21,6 +20,7 @@ export interface StaffDashboardHubProps {
   showBookings: boolean;
   showStaffLessons: boolean;
   showTeacherLessons: boolean;
+  canManageShop?: boolean;
   pendingApprovalCount: number;
   unplacedCount: number;
   codaCount: number;
@@ -28,12 +28,7 @@ export interface StaffDashboardHubProps {
   upcomingBookings: AdminBookingListItem[];
   todayLessons: OggiLesson[];
   creditAvailable?: number;
-}
-
-function bookingStatusTone(status: AdminBookingListItem["status"]): string {
-  if (status === "pending_approval") return "bg-amber-100 text-amber-900";
-  if (status === "confirmed") return "bg-green-100 text-green-800";
-  return "bg-neutral-100 text-neutral-700";
+  creditsInCirculation?: number | null;
 }
 
 function TodoPill({ href, label }: { href: string; label: string }) {
@@ -47,7 +42,7 @@ function TodoPill({ href, label }: { href: string; label: string }) {
   );
 }
 
-function ActionCard({
+function ActionChip({
   href,
   emoji,
   emojiBg,
@@ -65,58 +60,27 @@ function ActionCard({
   return (
     <Link
       href={href}
-      className="glass-card group relative block p-4 transition hover:border-[var(--brand)]/20 sm:p-5"
+      className="glass-card group relative flex min-h-[4.5rem] items-start gap-2.5 p-3 transition hover:border-[var(--brand)]/20"
     >
       {badge ? (
-        <span className="absolute right-3 top-3 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-900">
+        <span className="absolute right-2 top-2 max-w-[46%] truncate rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900">
           {badge}
         </span>
       ) : null}
-      <div className="flex items-start gap-3">
-        <span
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg ${emojiBg}`}
-        >
-          {emoji}
-        </span>
-        <div className="min-w-0 pr-6">
-          <p className="font-medium text-[var(--brand)] group-hover:underline">
-            {title}
-          </p>
-          <p className="mt-0.5 text-sm text-neutral-600">{description}</p>
-        </div>
-      </div>
-    </Link>
-  );
-}
-
-function HeroShell({
-  label,
-  children,
-  icon,
-  iconBg,
-}: {
-  label: string;
-  children: ReactNode;
-  icon: string;
-  iconBg: string;
-}) {
-  return (
-    <section className="glass-card overflow-hidden p-0">
-      <div className="border-b border-white/60 bg-gradient-to-br from-[var(--brand)]/[0.06] to-transparent px-4 py-3 sm:px-5">
-        <p className="text-xs font-semibold uppercase tracking-wider text-[var(--brand-accent)]">
-          {label}
+      <span
+        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-base ${emojiBg}`}
+      >
+        {emoji}
+      </span>
+      <div className={`min-w-0 ${badge ? "pr-14" : ""}`}>
+        <p className="text-sm font-semibold text-[var(--brand)] group-hover:underline">
+          {title}
+        </p>
+        <p className="mt-0.5 text-xs leading-snug text-neutral-600">
+          {description}
         </p>
       </div>
-      <div className="flex items-start justify-between gap-3 px-4 py-4 sm:gap-4 sm:px-5 sm:py-5">
-        <div className="min-w-0 flex-1">{children}</div>
-        <div
-          aria-hidden
-          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-xl sm:h-14 sm:w-14 sm:text-2xl ${iconBg}`}
-        >
-          {icon}
-        </div>
-      </div>
-    </section>
+    </Link>
   );
 }
 
@@ -159,10 +123,10 @@ function CompactRow({
 }
 
 export function StaffDashboardHub({
-  firstName,
   showBookings,
   showStaffLessons,
   showTeacherLessons,
+  canManageShop = false,
   pendingApprovalCount,
   unplacedCount,
   codaCount,
@@ -170,25 +134,26 @@ export function StaffDashboardHub({
   upcomingBookings,
   todayLessons,
   creditAvailable = 0,
+  creditsInCirculation = null,
   embeddedCalendar = null,
 }: StaffDashboardHubProps & {
   embeddedCalendar?: ReactNode;
 }) {
   const showLessons = showStaffLessons || showTeacherLessons;
-  const lessonsCalendarHref = showStaffLessons
-    ? "/admin/lezioni/calendario"
-    : "/lezioni/calendario";
   const lessonsTodayHref = showStaffLessons
     ? "/admin/lezioni/oggi"
+    : "/lezioni/oggi";
+  const lessonsHubHref = showStaffLessons
+    ? codaCount > 0
+      ? "/admin/lezioni/coda"
+      : "/admin/lezioni/oggi"
     : "/lezioni/oggi";
   const courseDetailBasePath = showStaffLessons
     ? "/admin/lezioni/corsi"
     : "/lezioni/corsi";
 
-  const nextBooking = upcomingBookings[0] ?? null;
-  const moreBookings = upcomingBookings.slice(1, 4);
-  const nextLesson = todayLessons[0] ?? null;
-  const moreLessons = todayLessons.slice(1, 4);
+  const moreBookings = upcomingBookings.slice(0, 4);
+  const moreLessons = todayLessons.slice(0, 4);
 
   const todoItems: { href: string; label: string }[] = [];
   if (showBookings && pendingApprovalCount > 0) {
@@ -216,125 +181,38 @@ export function StaffDashboardHub({
     });
   }
 
-  const heroIsBooking =
-    !embeddedCalendar && Boolean(showBookings && nextBooking);
-  const heroIsLesson =
-    !embeddedCalendar && !heroIsBooking && Boolean(showLessons && nextLesson);
-  const showEmptyHero = !embeddedCalendar && !heroIsBooking && !heroIsLesson;
+  const lessonsBadgeParts: string[] = [];
+  if (showStaffLessons && codaCount > 0) {
+    lessonsBadgeParts.push(`${codaCount} coda`);
+  }
+  if (arrearsCount > 0) {
+    lessonsBadgeParts.push(`${arrearsCount} da segnare`);
+  }
+  if (todayLessons.length > 0 && lessonsBadgeParts.length === 0) {
+    lessonsBadgeParts.push(`${todayLessons.length} oggi`);
+  }
+
+  const creditsHref = canManageShop ? "/admin/shop" : "/dashboard/shop";
+  const creditsDescription = canManageShop
+    ? creditsInCirculation != null && creditsInCirculation > 0
+      ? `${formatCreditsCount(creditsInCirculation)} in circolazione · shop e storico`
+      : "Totale, shop, promozioni e storico"
+    : creditAvailable > 0
+      ? `${formatCreditsCount(creditAvailable)} · vai allo shop`
+      : "Saldo e acquisto crediti sala";
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="font-display text-2xl font-semibold tracking-tight text-[var(--brand)] sm:text-3xl">
-          Ciao, {firstName}
-        </h1>
-        <p className="mt-1 text-sm text-neutral-600">
-          {embeddedCalendar
-            ? "Calendario unificato: filtra per sala, docente, lezioni o prenotazioni."
-            : "Plancia operativa — accedi ai calendari e alle code dal menu o dalle scorciatoie sotto."}
-        </p>
-      </div>
-
-      {todoItems.length > 0 ? (
-        <div className="flex flex-wrap gap-2">{todoItems.map((item) => (
-            <TodoPill key={item.href} href={item.href} label={item.label} />
-          ))}</div>
-      ) : null}
-
-      {embeddedCalendar ? (
-        <div className="min-w-0">{embeddedCalendar}</div>
-      ) : null}
-
-      {heroIsBooking && nextBooking ? (
-        <Link href={`/admin/prenotazioni/${nextBooking.id}`} className="block">
-          <HeroShell
-            label="Prossima prenotazione"
-            icon="📅"
-            iconBg="bg-[#38764B]/15"
-          >
-            <p className="font-display text-lg font-semibold text-[var(--brand)] sm:text-xl">
-              {nextBooking.room?.name ?? "Sala"}
-            </p>
-            <p className="mt-1 text-sm text-neutral-600">
-              {formatBookingDateTime(nextBooking.start_at, nextBooking.end_at)}
-            </p>
-            <p className="mt-0.5 truncate text-sm text-neutral-600">
-              {nextBooking.member
-                ? `${nextBooking.member.first_name} ${nextBooking.member.last_name}`.trim()
-                : "Associato"}
-            </p>
-            <span
-              className={`mt-2 inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${bookingStatusTone(nextBooking.status)}`}
-            >
-              {bookingStatusLabel(
-                nextBooking.status,
-                nextBooking.payment_status,
-              )}
-            </span>
-          </HeroShell>
-        </Link>
-      ) : null}
-
-      {heroIsLesson && nextLesson ? (
-        <Link
-          href={`${courseDetailBasePath}/${lessonCourseId(nextLesson)}`}
-          className="block"
-        >
-          <HeroShell label="Prossima lezione oggi" icon="🎸" iconBg="bg-[var(--brand-accent)]/15">
-            <p className="font-display text-lg font-semibold text-[var(--brand)] sm:text-xl">
-              {lessonTitle(nextLesson)}
-            </p>
-            <p className="mt-1 text-sm text-neutral-600">
-              {lessonTimeLabel(nextLesson)}
-              {nextLesson.roomName ? ` · ${nextLesson.roomName}` : ""}
-            </p>
-            {nextLesson.studentNames.length > 0 ? (
-              <p className="mt-0.5 truncate text-sm text-neutral-600">
-                {nextLesson.studentNames.join(", ")}
-              </p>
-            ) : null}
-          </HeroShell>
-        </Link>
-      ) : null}
-
-      {showEmptyHero ? (
-        <HeroShell
-          label="Oggi in scuola"
-          icon="✨"
-          iconBg="bg-[var(--brand)]/10"
-        >
-          <p className="font-display text-lg font-semibold text-[var(--brand)] sm:text-xl">
-            Nessuna attività imminente
-          </p>
-          <p className="mt-1 text-sm text-neutral-600">
-            Prenotazioni e lezioni compariranno qui appena programmate.
-          </p>
-        </HeroShell>
-      ) : null}
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        <ActionCard
-          href="/dashboard/shop"
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-2.5">
+        <ActionChip
+          href={creditsHref}
           emoji="🎟️"
           emojiBg="bg-amber-100"
           title="Crediti"
-          description={
-            creditAvailable > 0
-              ? `${formatCreditsCount(creditAvailable)} · vai allo shop`
-              : "Saldo e acquisto crediti sala"
-          }
+          description={creditsDescription}
         />
         {showBookings ? (
-          <ActionCard
-            href="/admin/prenotazioni/calendario"
-            emoji="📅"
-            emojiBg="bg-[#38764B]/15"
-            title="Calendario sale"
-            description="Prenotazioni e occupazioni"
-          />
-        ) : null}
-        {showBookings ? (
-          <ActionCard
+          <ActionChip
             href="/admin/prenotazioni/lista"
             emoji="📋"
             emojiBg="bg-[var(--brand-accent)]/15"
@@ -348,49 +226,38 @@ export function StaffDashboardHub({
           />
         ) : null}
         {showLessons ? (
-          <ActionCard
-            href={lessonsTodayHref}
+          <ActionChip
+            href={lessonsHubHref}
             emoji="🎓"
             emojiBg="bg-sky-100"
-            title="Lezioni oggi"
+            title={showStaffLessons ? "Lezioni" : "Lezioni oggi"}
             description={
-              todayLessons.length > 0
-                ? `${todayLessons.length} in programma`
-                : "Registro e presenze"
+              showStaffLessons
+                ? "Oggi, registro, coda e richieste"
+                : todayLessons.length > 0
+                  ? `${todayLessons.length} in programma`
+                  : "Registro e presenze"
             }
-            badge={arrearsCount > 0 ? `${arrearsCount} da segnare` : undefined}
-          />
-        ) : null}
-        {showLessons ? (
-          <ActionCard
-            href={lessonsCalendarHref}
-            emoji="🗓️"
-            emojiBg="bg-violet-100"
-            title="Calendario lezioni"
-            description="Modifica e sposta al volo"
-            badge={unplacedCount > 0 ? `${unplacedCount} da piazzare` : undefined}
-          />
-        ) : null}
-        {showStaffLessons ? (
-          <ActionCard
-            href="/admin/associati"
-            emoji="👥"
-            emojiBg="bg-[var(--brand)]/10"
-            title="Rubrica"
-            description="Anagrafica associati"
-          />
-        ) : null}
-        {showStaffLessons ? (
-          <ActionCard
-            href="/admin/lezioni/coda"
-            emoji="⏳"
-            emojiBg="bg-amber-100"
-            title="Coda lezioni"
-            description="Approvazioni e richieste"
-            badge={codaCount > 0 ? `${codaCount} in coda` : undefined}
+            badge={
+              lessonsBadgeParts.length > 0
+                ? lessonsBadgeParts.join(" · ")
+                : undefined
+            }
           />
         ) : null}
       </div>
+
+      {todoItems.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {todoItems.map((item) => (
+            <TodoPill key={item.href} href={item.href} label={item.label} />
+          ))}
+        </div>
+      ) : null}
+
+      {embeddedCalendar ? (
+        <div className="min-w-0">{embeddedCalendar}</div>
+      ) : null}
 
       {moreBookings.length > 0 || moreLessons.length > 0 ? (
         <div className="grid gap-3 sm:grid-cols-2">
@@ -398,7 +265,7 @@ export function StaffDashboardHub({
             <section className="glass-card p-3 sm:p-4">
               <div className="mb-1 flex items-center justify-between gap-2">
                 <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
-                  Altre prenotazioni
+                  Prenotazioni
                 </h2>
                 <Link
                   href="/admin/prenotazioni/lista"
@@ -438,7 +305,7 @@ export function StaffDashboardHub({
             <section className="glass-card p-3 sm:p-4">
               <div className="mb-1 flex items-center justify-between gap-2">
                 <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
-                  Altre lezioni oggi
+                  Lezioni oggi
                 </h2>
                 <Link
                   href={lessonsTodayHref}
@@ -461,7 +328,6 @@ export function StaffDashboardHub({
           ) : null}
         </div>
       ) : null}
-
     </div>
   );
 }
