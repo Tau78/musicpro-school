@@ -141,7 +141,8 @@ async function nextMemberNumber(supabase) {
 /** Spelling / ordine nome già in anagrafica School (chiave = normalizeWhitespace lower). */
 const ALIASES = new Map(
   Object.entries({
-    "viktoria gandolfo": "vittoria Gandolfo",
+    "viktoria gandolfo": "Viktoria Gandolfo",
+    "vittoria gandolfo": "Viktoria Gandolfo",
     "aldo de roberti": "Aldo Roberti",
     "nicoli filippo": "Filippo Nicoli",
     "simone dimeglio": "Simone Di Meglio",
