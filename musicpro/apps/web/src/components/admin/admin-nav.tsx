@@ -8,9 +8,9 @@ import {
   NavIconCalendar,
   NavIconDocumenti,
   NavIconHome,
-  NavIconNotes,
   NavIconRimborsi,
   NavIconRubrica,
+  NavIconStats,
 } from "@/components/admin/admin-nav-icons";
 interface AdminNavProps {
   showRubrica: boolean;
@@ -27,7 +27,7 @@ interface AdminNavProps {
 type NavKey =
   | "home"
   | "rubrica"
-  | "lezioni"
+  | "stats"
   | "prenotazioni"
   | "documenti"
   | "rimborsi";
@@ -58,11 +58,11 @@ const NAV_DEFS: NavDef[] = [
     mobileIcon: <NavIconCalendar />,
   },
   {
-    key: "lezioni",
-    label: "Lezioni",
-    mobileLabel: "Note",
-    href: "/admin/lezioni/calendario",
-    mobileIcon: <NavIconNotes />,
+    key: "stats",
+    label: "Stats",
+    mobileLabel: "Stats",
+    href: "/admin/stats",
+    mobileIcon: <NavIconStats />,
   },
   {
     key: "rubrica",
@@ -89,7 +89,6 @@ const NAV_DEFS: NavDef[] = [
 
 export function AdminNav({
   showRubrica,
-  showLezioni,
   showPrenotazioni,
   showDocumenti,
   showRimborsi,
@@ -103,7 +102,8 @@ export function AdminNav({
     return NAV_DEFS.filter((item) => {
       if (item.key === "home") return true;
       if (item.key === "rubrica") return showRubrica;
-      if (item.key === "lezioni") return showLezioni;
+      // Stats al posto di Note: serve gestione prenotazioni (sale / incassi).
+      if (item.key === "stats") return showPrenotazioni;
       if (item.key === "prenotazioni") return showPrenotazioni;
       if (item.key === "documenti") return showDocumenti;
       if (item.key === "rimborsi") return showRimborsi;
@@ -115,7 +115,6 @@ export function AdminNav({
   }, [
     documentiHref,
     showDocumenti,
-    showLezioni,
     showPrenotazioni,
     showRimborsi,
     showRubrica,
@@ -209,7 +208,7 @@ function isNavItemActive(
     );
   }
   if (key === "documenti") return pathname.startsWith("/admin/documenti");
-  if (key === "lezioni") return pathname.startsWith("/admin/lezioni");
+  if (key === "stats") return pathname.startsWith("/admin/stats");
   if (key === "prenotazioni") return pathname.startsWith("/admin/prenotazioni");
   return pathname.startsWith(href);
 }

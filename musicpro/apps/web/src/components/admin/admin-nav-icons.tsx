@@ -56,6 +56,24 @@ export function NavIconNotes({ className = "h-5 w-5" }: IconProps) {
   );
 }
 
+export function NavIconStats({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      <path d="M4 19V9M10 19V5M16 19v-7M22 19H2" />
+    </svg>
+  );
+}
+
 export function NavIconRubrica({ className = "h-5 w-5" }: IconProps) {
   return (
     <svg
