@@ -291,19 +291,27 @@ done
 
 # --- 11 Vercel production ---------------------------------------------------
 step "Deploy Vercel production"
+# Il progetto Vercel linkato sta in musicpro/apps/web (non nella root del repo).
+VERCEL_DIR="musicpro/apps/web"
 if [[ "$DRY_RUN" -eq 1 ]]; then
-  note "dry-run: npx vercel deploy --prod --yes"
+  note "dry-run: (cd $VERCEL_DIR && npx vercel deploy --prod --yes)"
   VERCEL_URL="https://${PRODUCTION_HOST}"
 else
-  VERCEL_OUT="$(npx vercel deploy --prod --non-interactive)"
+  [[ -d "$VERCEL_DIR/.vercel" ]] || die "Manca $VERCEL_DIR/.vercel — linka il progetto Vercel lì"
+  VERCEL_OUT="$(
+    cd "$VERCEL_DIR"
+    npx vercel deploy --prod --yes
+  )"
   printf '%s\n' "$VERCEL_OUT"
   VERCEL_URL="$(printf '%s\n' "$VERCEL_OUT" | grep -oE 'https://[a-zA-Z0-9._-]+\.vercel\.app' | tail -1)"
   if [[ -z "$VERCEL_URL" ]]; then
     VERCEL_URL="https://${PRODUCTION_HOST}"
     warn "URL Vercel non in output; --prod ha già aliasato $PRODUCTION_HOST"
   else
-    npx vercel alias set "$VERCEL_URL" "$PRODUCTION_HOST" \
-      || warn "alias $PRODUCTION_HOST non impostato (forse già attivo)"
+    (
+      cd "$VERCEL_DIR"
+      npx vercel alias set "$VERCEL_URL" "$PRODUCTION_HOST"
+    ) || warn "alias $PRODUCTION_HOST non impostato (forse già attivo)"
   fi
 fi
 ok "Vercel $VERCEL_URL → https://$PRODUCTION_HOST"
