@@ -13,10 +13,12 @@ import { MemberRole } from "@musicpro/shared";
 import { StaffDashboardHub } from "@/components/admin/staff-dashboard-hub";
 import { AssociatePageShell } from "@/components/associate/associate-page-shell";
 import { MemberHome } from "@/components/associate/member-home";
+import { LessonsUnavailableNotice } from "@/components/lezioni/lessons-unavailable-notice";
 import {
   loadTeacherHomeData,
   TeacherHome,
 } from "@/components/lezioni/teacher-home";
+import { isLessonsModuleEnabled } from "@/lib/lessons-module";
 import { StaffUnifiedCalendar } from "@/components/dashboard/staff-unified-calendar";
 import { SettingsGearLink } from "@/components/dashboard/settings-gear-link";
 import { BookingPaymentReturnNotice } from "@/components/prenotazioni/booking-payment-return";
@@ -40,6 +42,7 @@ interface PageProps {
     hl?: string;
     dopoPagamento?: string;
     bookingId?: string;
+    info?: string;
   }>;
 }
 
@@ -57,10 +60,19 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const paymentBookingId = params.bookingId?.trim() || null;
   const inAdminShell = canAccessAdmin(member.roles);
 
+  const lessonsEnabled = isLessonsModuleEnabled();
   const isDocente = member.roles.includes(MemberRole.Docente);
   const showBookingsCalendar = canManageBookings(member.roles);
-  const showStaffLessons = canManageMembers(member.roles);
-  const showTeacherLessons = isDocente;
+  const showStaffLessons = lessonsEnabled && canManageMembers(member.roles);
+  const showTeacherLessons = lessonsEnabled && isDocente;
+  const showLessonsOffNotice =
+    !lessonsEnabled &&
+    (canManageMembers(member.roles) || isDocente);
+  const lessonsOffNotice =
+    !lessonsEnabled &&
+    (showLessonsOffNotice || params.info === "lessons_sandbox") ? (
+      <LessonsUnavailableNotice />
+    ) : null;
   const showOperational =
     showBookingsCalendar || showTeacherLessons || showStaffLessons;
   const showUnifiedCalendar =
@@ -70,10 +82,16 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     <BookingPaymentReturnNotice bookingId={paymentBookingId} />
   ) : null;
 
-  if (showTeacherLessons && !showStaffLessons && !showBookingsCalendar) {
+  if (
+    lessonsEnabled &&
+    showTeacherLessons &&
+    !showStaffLessons &&
+    !showBookingsCalendar
+  ) {
     const teacherHome = (
       <>
         {paymentNotice}
+        {lessonsOffNotice}
         <TeacherHome
           firstName={member.firstName}
           data={await loadTeacherHomeData(member.id)}
@@ -91,7 +109,9 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   }
 
   if (!showOperational) {
-    const isAllievo = await hasActiveCourseEnrollment(supabase, member.id);
+    const isAllievo =
+      lessonsEnabled &&
+      (await hasActiveCourseEnrollment(supabase, member.id));
     const [associateLessons, upcomingBookings, creditBalance] = await Promise.all([
       isAllievo
         ? listLessonsInRange(supabase, {
@@ -109,6 +129,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     const home = (
       <>
         {paymentNotice}
+        {lessonsOffNotice}
         <MemberHome
           firstName={member.firstName}
           showNextLesson={isAllievo}
@@ -166,6 +187,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   return (
     <div className="space-y-4 sm:space-y-5">
       {paymentNotice}
+      {lessonsOffNotice}
       <StaffDashboardHub
         {...hubProps}
         firstName={member.firstName}

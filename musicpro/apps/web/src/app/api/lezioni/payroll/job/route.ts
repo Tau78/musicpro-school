@@ -13,6 +13,11 @@ import {
   type Database,
 } from "@musicpro/database";
 
+import {
+  isLessonsModuleEnabled,
+  lessonsModuleApiDisabledBody,
+} from "@/lib/lessons-module";
+
 function isAuthorized(request: Request): boolean {
   const cronSecret = process.env.CRON_SECRET?.trim();
   if (!cronSecret) return false;
@@ -22,6 +27,10 @@ function isAuthorized(request: Request): boolean {
 }
 
 export async function GET(request: Request) {
+  if (!isLessonsModuleEnabled()) {
+    return NextResponse.json(lessonsModuleApiDisabledBody(), { status: 503 });
+  }
+
   if (!isAuthorized(request)) {
     return NextResponse.json(
       { success: false, generated: 0, reminded: 0, errors: ["Non autorizzato"] },

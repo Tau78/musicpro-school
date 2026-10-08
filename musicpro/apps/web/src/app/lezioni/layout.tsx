@@ -5,7 +5,9 @@ import { getCurrentMemberWithRoles } from "@musicpro/database";
 import { APP_NAME, MemberRole } from "@musicpro/shared";
 
 import { SettingsGearLink } from "@/components/dashboard/settings-gear-link";
+import { LessonsSandboxBanner } from "@/components/lezioni/lessons-sandbox-banner";
 import { LezioniSubNav } from "@/components/lezioni/lezioni-sub-nav";
+import { isLessonsModuleEnabled } from "@/lib/lessons-module";
 import { canManageMembers } from "@/lib/admin/roles";
 import { createClient } from "@/lib/supabase/server";
 
@@ -18,6 +20,10 @@ export default async function LezioniLayout({
 }) {
   const supabase = await createClient();
   const member = await getCurrentMemberWithRoles(supabase);
+
+  if (!isLessonsModuleEnabled()) {
+    redirect("/dashboard?info=lessons_sandbox");
+  }
 
   if (!member) {
     redirect("/login?error=member_not_linked&redirect=/lezioni");
@@ -58,6 +64,7 @@ export default async function LezioniLayout({
 
       <main className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
         <div className="space-y-5 sm:space-y-6">
+          <LessonsSandboxBanner />
           <LezioniSubNav />
           <div className="min-w-0">{children}</div>
         </div>

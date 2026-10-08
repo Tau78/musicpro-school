@@ -12,6 +12,10 @@ import { canManageMembers } from "@/lib/admin/roles";
 import { authPublicOrigin, isLocalDevOrigin } from "@/lib/auth/redirect-url";
 import { QUOTA_ASSOCIATIVA_CENTESIMI, eurosToCents } from "@/lib/nexi/cod-trans";
 import { createLessonPackPaymentLink } from "@/lib/stripe/lesson-pack-payment-link";
+import {
+  isLessonsModuleEnabled,
+  lessonsModuleApiDisabledBody,
+} from "@/lib/lessons-module";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -82,6 +86,10 @@ async function ensureOpenQuotaFee(
 }
 
 export async function POST(request: NextRequest) {
+  if (!isLessonsModuleEnabled()) {
+    return NextResponse.json(lessonsModuleApiDisabledBody(), { status: 503 });
+  }
+
   try {
     const supabase = await createClient();
     const actor = await getCurrentMemberWithRoles(supabase);
