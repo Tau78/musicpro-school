@@ -15,7 +15,7 @@ export function ShopSettingsTabs({
     <div className="mb-6">
       <SettingsSectionTabs
         tabs={[
-          { id: "pacchetti", label: "Pacchetti" },
+          { id: "pacchetti", label: "Shop e promozioni" },
           { id: "storico", label: "Storico acquisti" },
         ]}
         value={section}

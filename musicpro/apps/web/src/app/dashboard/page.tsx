@@ -24,6 +24,7 @@ import {
   canAccessAdmin,
   canManageBookings,
   canManageMembers,
+  canManageShop,
 } from "@/lib/admin/roles";
 import { loadStaffDashboardHub } from "@/lib/dashboard/load-staff-hub";
 import { createClient } from "@/lib/supabase/server";
@@ -145,10 +146,12 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     );
   }
 
+  const manageShop = canManageShop(member.roles);
   const hubProps = await loadStaffDashboardHub(supabase, member.id, today, {
     showBookingsCalendar,
     showStaffLessons,
     showTeacherLessons,
+    loadCreditsInCirculation: manageShop,
   });
 
   const calendarParams = {
@@ -166,6 +169,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       <StaffDashboardHub
         {...hubProps}
         firstName={member.firstName}
+        canManageShop={manageShop}
         embeddedCalendar={
           showUnifiedCalendar ? (
             <StaffUnifiedCalendar
