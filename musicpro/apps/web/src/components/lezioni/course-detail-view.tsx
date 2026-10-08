@@ -78,32 +78,32 @@ export function CourseDetailView({
   const [expandedLessonId, setExpandedLessonId] = useState<string | null>(null);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 pb-2">
       <div>
         <Link
           href={backHref}
-          className="text-sm text-[var(--brand)] hover:underline"
+          className="text-xs font-medium text-[var(--brand)] hover:underline"
         >
           ← Torna ai corsi
         </Link>
-        <div className="mt-2 flex flex-wrap items-center gap-3">
-          <h2 className="text-2xl font-semibold text-[var(--brand)]">
+        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+          <h2 className="text-xl font-semibold leading-tight text-[var(--brand)] sm:text-2xl">
             {course.name}
           </h2>
           {readOnly ? (
-            <span className="rounded-full bg-violet-50 px-2.5 py-0.5 text-xs font-medium text-violet-800">
+            <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-medium text-violet-800">
               Che coordino
             </span>
           ) : null}
           {course.isTrial ? (
             <span
-              className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${courseTrialBadgeClass()}`}
+              className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${courseTrialBadgeClass()}`}
             >
               {courseTrialLabel()}
             </span>
           ) : null}
           <span
-            className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${courseStatusClass(course.status)}`}
+            className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${courseStatusClass(course.status)}`}
           >
             {courseStatusLabel(course.status)}
           </span>
@@ -111,16 +111,16 @@ export function CourseDetailView({
       </div>
 
       {pendingNote && course.status === "in_attesa" ? (
-        <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 shadow-sm ring-1 ring-amber-100">
           Approva dalla Coda
         </p>
       ) : null}
 
-      <fieldset className="space-y-3 rounded-xl border border-neutral-200 bg-white p-6">
-        <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
+      <section className="rounded-xl bg-white px-3.5 py-3 shadow-sm ring-1 ring-black/5">
+        <h3 className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-[var(--brand)]">
           Dettaglio
-        </legend>
-        <dl className="grid gap-3 text-sm sm:grid-cols-2">
+        </h3>
+        <dl className="grid grid-cols-2 gap-3">
           <Row label="Materia" value={course.subjectName ?? "—"} />
           <Row label="Tipo" value={courseKindLabel(course.courseKind)} />
           <Row label="Titolare" value={titularLabel} />
@@ -137,7 +137,7 @@ export function CourseDetailView({
             <Row label="Chiuso il" value={course.closedOn} />
           ) : null}
         </dl>
-      </fieldset>
+      </section>
 
       {canMutate && actorMemberId && !course.isTrial ? (
         <CourseLifecycleActions
@@ -149,7 +149,7 @@ export function CourseDetailView({
       ) : null}
 
       {readOnly ? (
-        <p className="rounded-lg border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900">
+        <p className="rounded-lg bg-violet-50 px-3 py-2 text-sm text-violet-900 shadow-sm ring-1 ring-violet-100">
           Vista coordinatore: puoi consultare il corso, non modificare nulla.
         </p>
       ) : null}
@@ -171,10 +171,10 @@ export function CourseDetailView({
       !course.isTrial &&
       actorMemberId &&
       (course.status === "attivo" || course.status === "in_pausa") ? (
-        <fieldset className="space-y-3 rounded-xl border border-neutral-200 bg-white p-6">
-          <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
+        <section className="rounded-xl bg-white px-3.5 py-3 shadow-sm ring-1 ring-black/5">
+          <h3 className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-[var(--brand)]">
             Cambio titolare
-          </legend>
+          </h3>
           <TransferTitularForm
             key={course.titularMemberId}
             courseId={course.id}
@@ -182,13 +182,13 @@ export function CourseDetailView({
             actorMemberId={actorMemberId}
             teachers={teachers}
           />
-        </fieldset>
+        </section>
       ) : null}
 
-      <fieldset className="space-y-3 rounded-xl border border-neutral-200 bg-white p-6">
-        <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
+      <section className="rounded-xl bg-white px-3.5 py-3 shadow-sm ring-1 ring-black/5">
+        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--brand)]">
           Iscritti
-        </legend>
+        </h3>
         {course.enrollments.length === 0 ? (
           <p className="text-sm text-neutral-500">Nessun iscritto.</p>
         ) : (
@@ -198,14 +198,16 @@ export function CourseDetailView({
                 key={enrollment.id}
                 className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"
               >
-                <span className="font-medium text-neutral-900">
+                <span className="font-semibold text-neutral-900">
                   {`${enrollment.lastName} ${enrollment.firstName}`.trim()}
                 </span>
                 {enrollment.email ? (
-                  <span className="text-neutral-500">{enrollment.email}</span>
+                  <span className="text-xs text-neutral-500">
+                    {enrollment.email}
+                  </span>
                 ) : null}
                 {enrollment.leftAt ? (
-                  <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600">
+                  <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-600">
                     Uscito
                   </span>
                 ) : null}
@@ -214,7 +216,7 @@ export function CourseDetailView({
                 !course.isTrial &&
                 !enrollment.leftAt &&
                 course.status === "attivo" ? (
-                  <div className="w-full pt-2">
+                  <div className="w-full pt-1.5">
                     <CashCollectionForm
                       enrollmentId={enrollment.id}
                       actorMemberId={actorMemberId}
@@ -226,12 +228,12 @@ export function CourseDetailView({
             ))}
           </ul>
         )}
-      </fieldset>
+      </section>
 
-      <fieldset className="space-y-3 rounded-xl border border-neutral-200 bg-white p-6">
-        <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
+      <section className="rounded-xl bg-white px-3.5 py-3 shadow-sm ring-1 ring-black/5">
+        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--brand)]">
           Lezioni
-        </legend>
+        </h3>
         {lessons.length === 0 ? (
           <p className="text-sm text-neutral-500">Nessuna lezione.</p>
         ) : (
@@ -266,17 +268,17 @@ export function CourseDetailView({
                   </span>
                   <span className="text-neutral-500">{sala}</span>
                   {lesson.placement === "da_piazzare" ? (
-                    <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">
+                    <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800">
                       Da piazzare
                     </span>
                   ) : null}
                   {isRecovery ? (
-                    <span className="rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800">
+                    <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-800">
                       Da recuperare
                     </span>
                   ) : null}
                   {lesson.cancelledAt ? (
-                    <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600">
+                    <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-600">
                       Annullata
                     </span>
                   ) : null}
@@ -309,7 +311,7 @@ export function CourseDetailView({
                           current === lesson.id ? null : lesson.id,
                         )
                       }
-                      className="-mx-2 flex w-[calc(100%+1rem)] flex-wrap items-center gap-2 rounded-lg px-2 py-1 text-left hover:bg-neutral-50"
+                      className="-mx-1.5 flex w-[calc(100%+0.75rem)] flex-wrap items-center gap-2 rounded-lg px-1.5 py-1 text-left hover:bg-neutral-50"
                     >
                       {rowInner}
                     </button>
@@ -319,7 +321,7 @@ export function CourseDetailView({
                     </div>
                   )}
                   {canOpenAttendance && expanded && actorMemberId ? (
-                    <div className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-3">
+                    <div className="rounded-lg bg-neutral-50 px-3 py-2.5 ring-1 ring-black/5">
                       <LessonAttendancePanel
                         lessonId={lesson.id}
                         actorMemberId={actorMemberId}
@@ -348,16 +350,18 @@ export function CourseDetailView({
             })}
           </ul>
         )}
-      </fieldset>
+      </section>
     </div>
   );
 }
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div>
-      <dt className="text-neutral-500">{label}</dt>
-      <dd className="font-medium text-neutral-900">{value}</dd>
+    <div className="min-w-0">
+      <dt className="text-xs text-neutral-500">{label}</dt>
+      <dd className="truncate text-sm font-semibold text-neutral-900">
+        {value}
+      </dd>
     </div>
   );
 }

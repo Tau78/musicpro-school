@@ -18,16 +18,16 @@ export function AdminShell({
   wide?: boolean;
 }) {
   return (
-    <div className="min-h-screen bg-[var(--background)] pb-[calc(3.75rem+max(0.625rem,env(safe-area-inset-bottom,0.625rem)))] md:pb-0">
+    <div className="min-h-screen bg-[var(--background)] pb-[calc(4.25rem+max(0.625rem,env(safe-area-inset-bottom,0.625rem)))] md:pb-0">
       <header className="bg-[var(--brand)] text-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 sm:py-4">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-2 sm:px-6 sm:py-2.5">
           <div className="min-w-0">
-            <p className="text-[10px] font-medium uppercase tracking-wide text-[var(--brand-accent)] sm:text-xs">
+            <p className="text-[10px] font-medium uppercase tracking-wide text-[var(--brand-accent)]">
               {APP_NAME}
             </p>
-            <h1 className="truncate text-lg font-semibold sm:text-xl">{title}</h1>
+            <h1 className="truncate text-base font-semibold sm:text-lg">{title}</h1>
           </div>
-          <SettingsGearLink className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white/80 hover:bg-white/10 hover:text-white" />
+          <SettingsGearLink className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white/80 hover:bg-white/10 hover:text-white" />
         </div>
         <AdminNav {...nav} />
       </header>
