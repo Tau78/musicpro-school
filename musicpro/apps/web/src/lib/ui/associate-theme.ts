@@ -1,6 +1,7 @@
 export function roomVisualFromName(name: string) {
   const lower = name.toLowerCase();
-  if (lower.includes("verde")) {
+  if (lower.includes("verde") || lower.includes("blu")) {
+    // Verde = ex Blu
     return { key: "verde" as const, color: "#38764B" };
   }
   if (lower.includes("rossa")) {
