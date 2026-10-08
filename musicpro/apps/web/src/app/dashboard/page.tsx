@@ -13,6 +13,10 @@ import { MemberRole } from "@musicpro/shared";
 import { StaffDashboardHub } from "@/components/admin/staff-dashboard-hub";
 import { AssociatePageShell } from "@/components/associate/associate-page-shell";
 import { MemberHome } from "@/components/associate/member-home";
+import {
+  loadTeacherHomeData,
+  TeacherHome,
+} from "@/components/lezioni/teacher-home";
 import { StaffUnifiedCalendar } from "@/components/dashboard/staff-unified-calendar";
 import { SettingsGearLink } from "@/components/dashboard/settings-gear-link";
 import { BookingPaymentReturnNotice } from "@/components/prenotazioni/booking-payment-return";
@@ -20,6 +24,7 @@ import {
   canAccessAdmin,
   canManageBookings,
   canManageMembers,
+  canManageShop,
 } from "@/lib/admin/roles";
 import { loadStaffDashboardHub } from "@/lib/dashboard/load-staff-hub";
 import { createClient } from "@/lib/supabase/server";
@@ -64,6 +69,26 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const paymentNotice = paymentComplete ? (
     <BookingPaymentReturnNotice bookingId={paymentBookingId} />
   ) : null;
+
+  if (showTeacherLessons && !showStaffLessons && !showBookingsCalendar) {
+    const teacherHome = (
+      <>
+        {paymentNotice}
+        <TeacherHome
+          firstName={member.firstName}
+          data={await loadTeacherHomeData(member.id)}
+        />
+      </>
+    );
+    if (inAdminShell) {
+      return <div className="space-y-4">{teacherHome}</div>;
+    }
+    return (
+      <AssociatePageShell actions={<SettingsGearLink />}>
+        {teacherHome}
+      </AssociatePageShell>
+    );
+  }
 
   if (!showOperational) {
     const isAllievo = await hasActiveCourseEnrollment(supabase, member.id);
@@ -121,10 +146,12 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     );
   }
 
+  const manageShop = canManageShop(member.roles);
   const hubProps = await loadStaffDashboardHub(supabase, member.id, today, {
     showBookingsCalendar,
     showStaffLessons,
     showTeacherLessons,
+    loadCreditsInCirculation: manageShop,
   });
 
   const calendarParams = {
@@ -142,6 +169,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       <StaffDashboardHub
         {...hubProps}
         firstName={member.firstName}
+        canManageShop={manageShop}
         embeddedCalendar={
           showUnifiedCalendar ? (
             <StaffUnifiedCalendar
