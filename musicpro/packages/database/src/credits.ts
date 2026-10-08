@@ -372,6 +372,46 @@ export async function getMemberCreditBalance(
   return mapMemberCreditBalance(result);
 }
 
+export interface CreditsCirculationSummary {
+  totalAvailable: number;
+  holdersWithBalance: number;
+}
+
+/** Somma saldi disponibili, esclusi associati con is_test_account. */
+export function sumCreditsInCirculation(
+  totals: Record<string, number>,
+  excludeMemberIds: ReadonlySet<string>,
+): CreditsCirculationSummary {
+  let totalAvailable = 0;
+  let holdersWithBalance = 0;
+  for (const [memberId, value] of Object.entries(totals)) {
+    if (excludeMemberIds.has(memberId)) continue;
+    const available = Math.max(0, value);
+    if (available <= 0) continue;
+    totalAvailable += available;
+    holdersWithBalance += 1;
+  }
+  return { totalAvailable, holdersWithBalance };
+}
+
+export async function getCreditsCirculationSummary(
+  client: CreditsClient,
+): Promise<CreditsCirculationSummary> {
+  const [totals, testMembers] = await Promise.all([
+    listMemberAvailableCredits(client),
+    client.from("members").select("id").eq("is_test_account", true),
+  ]);
+
+  if (testMembers.error) {
+    throw new Error(
+      `Impossibile caricare gli associati test: ${testMembers.error.message}`,
+    );
+  }
+
+  const exclude = new Set((testMembers.data ?? []).map((row) => row.id));
+  return sumCreditsInCirculation(totals, exclude);
+}
+
 /** Available credits for every member, one query instead of N RPCs. */
 export async function listMemberAvailableCredits(
   client: CreditsClient,

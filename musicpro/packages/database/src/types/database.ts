@@ -59,6 +59,7 @@ export interface Database {
           mailing_opt_in_at: string | null;
           is_active: boolean;
           is_enrollment_draft: boolean;
+          is_test_account: boolean;
           draft_expires_at: string | null;
           membership_card_picked_up_at: string | null;
           gadgets_picked_up_at: string | null;
@@ -98,6 +99,7 @@ export interface Database {
           mailing_opt_in_at?: string | null;
           is_active?: boolean;
           is_enrollment_draft?: boolean;
+          is_test_account?: boolean;
           draft_expires_at?: string | null;
           membership_card_picked_up_at?: string | null;
           gadgets_picked_up_at?: string | null;
