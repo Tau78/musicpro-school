@@ -62,8 +62,13 @@ node scripts/verify-quota-import.mjs   # se ancora allineato a sheet GAS
 # oppure query ad-hoc: count member_annual_quotas per fiscal_year in (2023..2026)
 ```
 
-## Elenco ricevute (non quote)
+## Altri export (non quote) — archivio 2026-10-09
 
-Export SS «Elenco ricevute»: audit 2026-10-09 in [`docs/scuola-semplice/RICEVUTE_IMPORT.md`](../../../docs/scuola-semplice/RICEVUTE_IMPORT.md).  
-File locale: `docs/scuola-semplice/archivio/Elenco_ricevute_2023-01-01-2026-10-09.xls` (gitignored).  
-**Non** usare per backfill `member_annual_quotas`; eventuale futuro `ss_receipts` (storico fiscale / metodo pagamento).
+| Export | Doc | Archivio locale | Backfill? |
+| --- | --- | --- | --- |
+| Ordini (quota) | [`ORDINI_IMPORT.md`](../../../docs/scuola-semplice/ORDINI_IMPORT.md) | `Ordini_2023-2026.xls` | Già fatto (254/254); re-run dry-run = 0 insert |
+| Elenco ricevute | [`RICEVUTE_IMPORT.md`](../../../docs/scuola-semplice/RICEVUTE_IMPORT.md) | `Elenco_ricevute_….xls` | No → futuro `ss_receipts` |
+| Rette studenti | [`RETTE_IMPORT.md`](../../../docs/scuola-semplice/RETTE_IMPORT.md) | `Rette_studenti.xls` | No → futuro `ss_tuition_installments` |
+| MusicPro.xls (SuperSaaS) | [`MUSICPRO_SUPERSAAS_EXPORT.md`](../../../docs/scuola-semplice/MUSICPRO_SUPERSAAS_EXPORT.md) | `MusicPro_supersaas.xls` | No storico massivo; live = mirror SuperSaaS |
+
+Tutti gli xls sotto `docs/scuola-semplice/archivio/` sono **gitignored** (PII); in git restano doc + `*.sha256`.
