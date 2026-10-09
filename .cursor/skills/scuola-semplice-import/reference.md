@@ -61,3 +61,9 @@ Più ordini quota stesso anno → tieni `paid_at` minimo; notes possono citare `
 node scripts/verify-quota-import.mjs   # se ancora allineato a sheet GAS
 # oppure query ad-hoc: count member_annual_quotas per fiscal_year in (2023..2026)
 ```
+
+## Elenco ricevute (non quote)
+
+Export SS «Elenco ricevute»: audit 2026-10-09 in [`docs/scuola-semplice/RICEVUTE_IMPORT.md`](../../../docs/scuola-semplice/RICEVUTE_IMPORT.md).  
+File locale: `docs/scuola-semplice/archivio/Elenco_ricevute_2023-01-01-2026-10-09.xls` (gitignored).  
+**Non** usare per backfill `member_annual_quotas`; eventuale futuro `ss_receipts` (storico fiscale / metodo pagamento).

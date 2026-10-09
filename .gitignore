@@ -51,6 +51,11 @@ supabase/.temp/
 # ScuolaSemplice import local venv / reports
 scripts/scuola-semplice/.venv/
 tmp/
+# Export SS con PII (doc + hash sì; binari no)
+docs/scuola-semplice/archivio/*.xls
+docs/scuola-semplice/archivio/*.xlsx
+docs/scuola-semplice/archivio/*.csv
+
 
 # Android local
 school-shell-android/local.properties
