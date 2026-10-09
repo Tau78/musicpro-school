@@ -233,12 +233,16 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   gh pr list --base main --state open
   note "dry-run: avrei mergiato le PR aperte"
 else
-  OPEN_PRS="$(gh pr list --base main --state open --json number,title,mergeable --jq '.[] | "\(.number)\t\(.mergeable)\t\(.title)"')"
+  OPEN_PRS="$(gh pr list --base main --state open --json number,title,mergeable,isDraft --jq '.[] | "\(.number)\t\(.mergeable)\t\(.isDraft)\t\(.title)"')"
   if [[ -z "$OPEN_PRS" ]]; then
     ok "nessuna PR aperta"
   else
-    while IFS=$'\t' read -r num mergeable title; do
+    while IFS=$'\t' read -r num mergeable is_draft title; do
       [[ -z "$num" ]] && continue
+      if [[ "$is_draft" == "true" ]]; then
+        note "Skip PR #$num (draft) — $title"
+        continue
+      fi
       if [[ "$mergeable" == "CONFLICTING" ]]; then
         die "PR #$num in conflitto: $title"
       fi
