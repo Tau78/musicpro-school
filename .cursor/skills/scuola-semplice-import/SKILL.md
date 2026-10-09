@@ -79,3 +79,7 @@ XLS corrotti ScuolaSemplice: il parser Python usa `xlrd` con `ignore_workbook_co
 ## File nuovi / più colonne
 
 Se l’export ha colonne extra (CF allievo separato, CF tutore, indirizzi, anni 2023–2026): mappa le nuove header in `scripts/scuola-semplice/parse_ordini.py` + aggiorna [reference.md](reference.md). Non rompere i nomi header già noti.
+
+## Altri export SS / SuperSaaS
+
+Ricevute, Rette, MusicPro.xls (calendario SuperSaaS): **archivio + doc** sotto `docs/scuola-semplice/` — non backfill quote. Dettaglio in [reference.md](reference.md).
