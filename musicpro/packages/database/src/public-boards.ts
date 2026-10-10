@@ -1,6 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { getRomeDayBoundsUtc, listRooms, todayInRome } from "./bookings";
+import {
+  getRomeDayBoundsUtc,
+  listRoomsForLessons,
+  todayInRome,
+} from "./bookings";
 import { listLessonsOnDate, type CalendarLesson } from "./lessons-calendar";
 import type { Database, Json } from "./types/database";
 
@@ -958,7 +962,7 @@ export async function loadPublicOccupancy(
 ): Promise<PublicOccupancyView> {
   const [lessonRows, rooms] = await Promise.all([
     listLessonsOnDate(client, date, { includePendingHold: true }),
-    listRooms(client),
+    listRoomsForLessons(client),
   ]);
   const lessons = visibleLessons(lessonRows, board, false);
   const students = await studentsByCourse(

@@ -891,7 +891,7 @@ export function isSlotInProviSchedule(
   );
 }
 
-/** Slug sala fittizia per account test — non occupa le sale reali. */
+/** Slug sala fittizia per prove didattica — esclusa dalle prenotazioni associati. */
 export const SANDBOX_ROOM_SLUG = "sandbox-test";
 
 export async function listRooms(
@@ -915,6 +915,13 @@ export async function listRooms(
   }
 
   return (data ?? []) as Room[];
+}
+
+/** Sale in area lezioni (include {@link SANDBOX_ROOM_SLUG}). */
+export async function listRoomsForLessons(
+  client: BookingsClient,
+): Promise<Room[]> {
+  return listRooms(client, { includeSandbox: true });
 }
 
 export async function getRoomById(

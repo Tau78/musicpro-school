@@ -6,7 +6,7 @@ import {
   listLessonSubjects,
   listMemberIdsWithRole,
   listMembers,
-  listRooms,
+  listRoomsForLessons,
   type Database,
   type Lesson,
 } from "@musicpro/database";
@@ -61,7 +61,7 @@ export async function loadCourseCreateData(client: Client, includeTeachers: bool
   const [subjects, rooms, members, settings, currentTerm, docenteIds] =
     await Promise.all([
       listLessonSubjects(client),
-      listRooms(client),
+      listRoomsForLessons(client),
       listMembers(client),
       getLessonSchoolSettings(client),
       getCurrentSchoolCourseTerm(client),
