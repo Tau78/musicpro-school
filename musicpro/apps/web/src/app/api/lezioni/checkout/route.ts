@@ -11,7 +11,7 @@ import {
 import { canManageMembers } from "@/lib/admin/roles";
 import { authPublicOrigin, isLocalDevOrigin } from "@/lib/auth/redirect-url";
 import { QUOTA_ASSOCIATIVA_CENTESIMI, eurosToCents } from "@/lib/nexi/cod-trans";
-import { createLessonPackPaymentLink } from "@/lib/stripe/lesson-pack-payment-link";
+import { createLessonPackPaymentLink } from "@/lib/nexi/lesson-pack-payment-link";
 import {
   isLessonsModuleEnabled,
   lessonsModuleApiDisabledBody,

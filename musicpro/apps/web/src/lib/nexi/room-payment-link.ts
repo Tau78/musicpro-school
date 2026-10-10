@@ -13,7 +13,7 @@ export interface RoomPaymentLinkResult {
   message?: string;
 }
 
-export async function createStripePaymentLinkRoomBooking(opts: {
+export async function createNexiRoomBookingPaymentLink(opts: {
   bookingId: string;
   roomName: string;
   importoCentesimi: number;

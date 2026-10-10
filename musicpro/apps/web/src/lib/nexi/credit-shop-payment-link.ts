@@ -11,7 +11,7 @@ export interface CreditShopPaymentLinkResult {
   message?: string;
 }
 
-export async function createStripePaymentLinkCreditShop(opts: {
+export async function createNexiCreditShopPaymentLink(opts: {
   memberId: string;
   packageId: string;
   packageName: string;

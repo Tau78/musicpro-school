@@ -4,9 +4,9 @@ import type { Database } from "@musicpro/database";
 import { mapUserFacingError } from "@musicpro/shared";
 
 import {
-  createStripePaymentLinkRoomBooking,
+  createNexiRoomBookingPaymentLink,
   eurosToCents,
-} from "@/lib/stripe/room-payment-link";
+} from "@/lib/nexi/room-payment-link";
 
 type ServiceClient = SupabaseClient<Database>;
 
@@ -29,7 +29,7 @@ function remainingChargeEur(booking: {
   return remaining > 0 ? remaining : 0;
 }
 
-export async function createRoomBookingPaymentSession(
+export async function createNexiRoomBookingPaymentSession(
   service: ServiceClient,
   bookingId: string,
   memberId: string,
@@ -117,7 +117,7 @@ export async function createRoomBookingPaymentSession(
       ? `Prenotazione ${roomLabel} (residuo dopo crediti)`
       : `Prenotazione ${roomLabel}`;
 
-  const linkRes = await createStripePaymentLinkRoomBooking({
+  const linkRes = await createNexiRoomBookingPaymentLink({
     bookingId,
     roomName: description,
     importoCentesimi: amountCents,

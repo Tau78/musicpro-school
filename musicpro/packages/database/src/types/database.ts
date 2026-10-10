@@ -1594,11 +1594,20 @@ export interface Database {
         >;
         Relationships: [];
       };
+      fiscal_receipt_counters_v2: {
+        Row: { year: number; section: string; next_n: number };
+        Insert: { year: number; section?: string; next_n?: number };
+        Update: Partial<
+          Database["public"]["Tables"]["fiscal_receipt_counters_v2"]["Insert"]
+        >;
+        Relationships: [];
+      };
       fiscal_receipts: {
         Row: {
           id: string;
           number_n: number;
           year: number;
+          section: string;
           code: string;
           issued_on: string;
           status: "emessa" | "sostituita";
@@ -1620,6 +1629,7 @@ export interface Database {
           id?: string;
           number_n: number;
           year: number;
+          section?: string;
           code: string;
           issued_on: string;
           status?: "emessa" | "sostituita";
@@ -1795,6 +1805,7 @@ export interface Database {
           teacher_member_id: string;
           year: number;
           month: number;
+          document_series: string;
           status: "draft" | "signed" | "closed";
           gross_eur: number;
           advances_eur: number;
@@ -1824,6 +1835,7 @@ export interface Database {
           teacher_member_id: string;
           year: number;
           month: number;
+          document_series?: string;
           status?: "draft" | "signed" | "closed";
           gross_eur?: number;
           advances_eur?: number;
@@ -2346,7 +2358,7 @@ export interface Database {
         Returns: { email: string; label: string }[];
       };
       next_fiscal_receipt_number: {
-        Args: { p_year: number };
+        Args: { p_year: number; p_section?: string };
         Returns: number;
       };
       apply_stripe_lesson_pack_payment: {

@@ -17,7 +17,7 @@ import {
   getTeacherProfile,
   listLessonsInRange,
   listLessonsOnDate,
-  listRooms,
+  listRoomsForLessons,
   minutesToTimeLabel,
   moveLesson,
   romeLocalInputToUtcIso,
@@ -186,7 +186,7 @@ export default function LezioniCalendarioScreen() {
     try {
       const [profile, roomRows] = await Promise.all([
         getTeacherProfile(supabase, member.id),
-        listRooms(supabase),
+        listRoomsForLessons(supabase),
       ]);
       setCanReschedule(Boolean(profile?.canReschedule));
       setRooms(roomRows);

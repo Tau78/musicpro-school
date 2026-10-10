@@ -2,6 +2,7 @@ import {
   getLessonSchoolSettings,
   listMemberLabelsWithRole,
   listRooms,
+  listRoomsForLessons,
   todayInRome,
 } from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
@@ -63,9 +64,11 @@ export async function StaffUnifiedCalendar({
 
   const [settings, rooms, teachers] = await Promise.all([
     getLessonSchoolSettings(supabase),
-    showBookingsCalendar || showStaffLessons
-      ? listRooms(supabase)
-      : Promise.resolve([]),
+    showStaffLessons
+      ? listRoomsForLessons(supabase)
+      : showBookingsCalendar
+        ? listRooms(supabase)
+        : Promise.resolve([]),
     showStaffLessons
       ? listMemberLabelsWithRole(supabase, MemberRole.Docente)
       : Promise.resolve([]),

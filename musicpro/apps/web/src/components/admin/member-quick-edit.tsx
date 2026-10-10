@@ -58,6 +58,7 @@ export function MemberQuickEdit({
   /** Baseline usata per il delta: evita doppia rettifica se si salva due volte prima del refresh. */
   const [knownAvailable, setKnownAvailable] = useState(creditAvailable);
   const [isActive, setIsActive] = useState(member.isActive);
+  const [isTestAccount, setIsTestAccount] = useState(member.isTestAccount);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -96,6 +97,7 @@ export function MemberQuickEdit({
       email: email.trim() || null,
       phone: phone.trim() || null,
       isActive,
+      isTestAccount,
     };
 
     const result = await updateMember(supabase, member.id, input);
@@ -258,6 +260,15 @@ export function MemberQuickEdit({
           enrolledAt={member.enrolledAt}
           onManage={onOpenFull}
         />
+
+        <label className="flex items-center gap-2 text-sm text-neutral-800">
+          <input
+            type="checkbox"
+            checked={isTestAccount}
+            onChange={(e) => setIsTestAccount(e.target.checked)}
+          />
+          Account test (crediti in circolazione, ricevute/notule serie TEST)
+        </label>
 
         <fieldset>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">

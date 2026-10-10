@@ -7,7 +7,7 @@ import {
 
 import { canManageQuotas } from "@/lib/admin/roles";
 import { authPublicOrigin, isLocalDevOrigin } from "@/lib/auth/redirect-url";
-import { createStripePaymentLinkQuotaMultiPay } from "@/lib/stripe/quota-multi-payment-link";
+import { createNexiQuotaMultiPaymentLink } from "@/lib/nexi/quota-multi-payment-link";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
         : authPublicOrigin(process.env);
     const returnBase = `${origin.replace(/\/$/, "")}/dashboard`;
 
-    const linkRes = await createStripePaymentLinkQuotaMultiPay({
+    const linkRes = await createNexiQuotaMultiPaymentLink({
       quotaPaymentId: checkout.quotaPaymentId,
       paidByMemberId: current.id,
       memberIds: [memberId],

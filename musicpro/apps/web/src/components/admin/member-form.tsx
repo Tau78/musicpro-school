@@ -101,6 +101,7 @@ function emptyMemberInput(defaultMemberNumber?: number): MemberInput {
     mailingOptIn: true,
     mailingOptInAt: null,
     isActive: true,
+    isTestAccount: false,
     membershipCardPickedUpAt: null,
     gadgetsPickedUpAt: null,
   };

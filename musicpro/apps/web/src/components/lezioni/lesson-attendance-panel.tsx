@@ -131,7 +131,27 @@ export function LessonAttendancePanel({
       return;
     }
 
-    setSuccess("Presenze salvate.");
+    const opened = result.packOpenedEnrollmentIds ?? [];
+    if (opened.length > 0) {
+      for (const enrollmentId of opened) {
+        try {
+          await fetch("/api/lezioni/pack-payment/request", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({ enrollmentId, notify: true }),
+          });
+        } catch {
+          /* link rette resta disponibile in admin */
+        }
+      }
+    }
+
+    setSuccess(
+      opened.length > 0
+        ? "Presenze salvate. Richiesta pagamento pacchetto inviata all'allievo."
+        : "Presenze salvate.",
+    );
     await loadRoster();
     onSaved?.();
     router.refresh();
