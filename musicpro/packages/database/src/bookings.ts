@@ -917,6 +917,13 @@ export async function listRooms(
   return (data ?? []) as Room[];
 }
 
+/** Sale in area lezioni (include {@link SANDBOX_ROOM_SLUG}). */
+export async function listRoomsForLessons(
+  client: BookingsClient,
+): Promise<Room[]> {
+  return listRooms(client, { includeSandbox: true });
+}
+
 export async function getRoomById(
   client: BookingsClient,
   roomId: string,

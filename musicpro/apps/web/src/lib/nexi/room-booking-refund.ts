@@ -39,7 +39,7 @@ async function insertRefundReceipt(row: RefundRow): Promise<boolean> {
  * V1 Nexi: registra il rimborso in locale.
  * Il movimento carta va eseguito dal back office Nexi (Classic XPay non ha refund API nel mint).
  */
-export async function executeStripeRoomBookingRefund(
+export async function executeNexiRoomBookingRefundRecord(
   service: ServiceClient,
   plan: BookingStripeRefundPlan,
 ): Promise<{ success: boolean; message?: string }> {

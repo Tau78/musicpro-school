@@ -4,7 +4,7 @@ import { getCurrentMemberWithRoles } from "@musicpro/database";
 
 import { canManageBookings } from "@/lib/admin/roles";
 import { authPublicOrigin, isLocalDevOrigin } from "@/lib/auth/redirect-url";
-import { createRoomBookingPaymentSession } from "@/lib/stripe/room-payment-service";
+import { createNexiRoomBookingPaymentSession } from "@/lib/nexi/room-payment-service";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -100,7 +100,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       : authPublicOrigin(process.env);
   const returnBase = `${origin.replace(/\/$/, "")}/prenotazioni/mie`;
 
-  const paymentResult = await createRoomBookingPaymentSession(
+  const paymentResult = await createNexiRoomBookingPaymentSession(
     service,
     bookingId,
     booking.member_id,

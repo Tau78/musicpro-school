@@ -23,6 +23,7 @@
     "smoke:prenotazioni": "node scripts/smoke-phase2.mjs && node scripts/smoke-phase3.mjs && node scripts/smoke-calendar-booking.mjs && node scripts/smoke-credit-shop.mjs",
     "smoke:nexi": "node scripts/smoke-nexi-xpay.mjs",
     "smoke:nexi:live": "node scripts/smoke-nexi-xpay.mjs --live",
+    "smoke:payments": "node scripts/smoke-nexi-xpay.mjs && node scripts/smoke-lessons-pack-wallet.mjs",
     "smoke:booking-email": "node scripts/smoke-booking-email.mjs",
     "test:e2e:prenotazioni": "npm run test:e2e -w @musicpro/web",
     "setup:playwright-associato": "node scripts/setup-playwright-associato.mjs",
@@ -36,6 +37,8 @@
     "test:supersaas": "node --test scripts/lib/supersaas-bookings.test.mjs scripts/lib/supersaas-users.test.mjs",
     "smoke:credit-refund-cancel": "node scripts/smoke-credit-refund-cancel.mjs",
     "smoke:credit-shop-nexi": "node scripts/smoke-credit-shop-nexi-e2e.mjs",
+    "smoke:lezioni": "node scripts/smoke-lessons-pack-wallet.mjs",
+    "smoke:lezioni:live": "node scripts/smoke-lessons-pack-wallet.mjs --live",
     "asc:prepare-unlisted": "node scripts/asc-prepare-unlisted-resubmit.mjs",
     "android:aab": "bash school-shell-android/scripts/build-aab.sh"
   },

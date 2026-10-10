@@ -706,12 +706,20 @@ async function persistGenerated(
       .update({ payroll_id: null })
       .eq("payroll_id", payrollId);
   } else {
+    const { data: teacherRow } = await client
+      .from("members")
+      .select("is_test_account")
+      .eq("id", preview.teacherMemberId)
+      .maybeSingle();
+    const documentSeries = teacherRow?.is_test_account ? "TEST" : "S";
+
     const { data: inserted, error } = await client
       .from("lesson_payrolls")
       .insert({
         teacher_member_id: preview.teacherMemberId,
         year: preview.year,
         month: preview.month,
+        document_series: documentSeries,
         status: "draft",
         gross_eur: preview.grossEur,
         advances_eur: preview.advancesEur,

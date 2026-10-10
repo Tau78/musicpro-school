@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCreditPackageById } from "@musicpro/database";
 
 import { authPublicOrigin, isLocalDevOrigin } from "@/lib/auth/redirect-url";
-import { createStripePaymentLinkCreditShop } from "@/lib/stripe/credit-shop-payment-link";
+import { createNexiCreditShopPaymentLink } from "@/lib/nexi/credit-shop-payment-link";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
     const returnBase = `${origin.replace(/\/$/, "")}/dashboard/shop`;
     const memberName = `${member.first_name ?? ""} ${member.last_name ?? ""}`.trim();
 
-    const linkRes = await createStripePaymentLinkCreditShop({
+    const linkRes = await createNexiCreditShopPaymentLink({
       memberId: member.id,
       packageId: creditPackage.id,
       packageName: creditPackage.name,

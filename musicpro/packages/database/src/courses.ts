@@ -84,6 +84,8 @@ export interface CourseMutationResult {
   id?: string;
   errorMessage?: string;
   warnings?: string[];
+  /** Iscrizioni per cui è stata aperta una retta pacchetto (sync wallet). */
+  packOpenedEnrollmentIds?: string[];
 }
 
 export interface Course {

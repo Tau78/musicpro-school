@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import {
   getLessonSchoolSettings,
   listMemberLabelsWithRole,
-  listRooms,
+  listRoomsForLessons,
   todayInRome,
 } from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
@@ -54,7 +54,7 @@ export default async function AdminLezioniCalendarioPage({
 
   const [settings, rooms, teachers] = await Promise.all([
     getLessonSchoolSettings(supabase),
-    listRooms(supabase),
+    listRoomsForLessons(supabase),
     listMemberLabelsWithRole(supabase, MemberRole.Docente),
   ]);
 

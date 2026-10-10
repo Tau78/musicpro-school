@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import {
   getPublicBoard,
   getPublicDisplaySettings,
-  listRooms,
+  listRoomsForLessons,
 } from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
 
@@ -32,7 +32,7 @@ export default async function AdminTabellonePage({ params }: PageProps) {
   const [board, settings, rooms] = await Promise.all([
     getPublicBoard(supabase, id),
     getPublicDisplaySettings(supabase),
-    listRooms(supabase),
+    listRoomsForLessons(supabase),
   ]);
   if (!board) notFound();
 

@@ -6,9 +6,9 @@ import { currentFiscalYear, listAnnualQuotaSettings } from "@musicpro/database";
 
 import { authPublicOrigin, isLocalDevOrigin } from "@/lib/auth/redirect-url";
 import {
-  createStripePaymentLinkQuotaAssociativa,
+  createNexiQuotaAssociativaPaymentLink,
   QUOTA_ASSOCIATIVA_CENTESIMI,
-} from "@/lib/iscrizione/stripe-payment-link";
+} from "@/lib/iscrizione/nexi-quota-payment-link";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const linkRes = await createStripePaymentLinkQuotaAssociativa({
+    const linkRes = await createNexiQuotaAssociativaPaymentLink({
       idIscrizione,
       memberId: member.id,
       nome: member.first_name,

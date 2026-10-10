@@ -31,7 +31,7 @@ const nextConfig: NextConfig = {
       "musicpro/apps/web/src/lib/reimbursements/assets/**/*",
     ],
   },
-  serverExternalPackages: ["stripe", "nodemailer"],
+  serverExternalPackages: ["nodemailer"],
   // Evita HTML “stale” che punta a CSS/_next già purgati dopo un deploy.
   async headers() {
     // Ordine conta: la prima regola che matcha vince.
