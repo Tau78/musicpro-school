@@ -30,6 +30,7 @@ import {
   hasAnyDocumentiSubsection,
 } from "@/lib/admin/documenti-permissions";
 import { firstSettingsHref } from "@/lib/admin/settings-nav";
+import { isLessonsModuleEnabled } from "@/lib/lessons-module";
 import { createClient } from "@/lib/supabase/server";
 import { MemberRole } from "@musicpro/shared";
 
@@ -131,7 +132,7 @@ export default async function AdminLayout({
         </div>
         <AdminNav
           showRubrica={showRubrica}
-          showLezioni={showRubrica}
+          showLezioni={showRubrica && isLessonsModuleEnabled()}
           showPrenotazioni={showPrenotazioni}
           showDocumenti={showDocumentiSection}
           showRimborsi={showRimborsi}

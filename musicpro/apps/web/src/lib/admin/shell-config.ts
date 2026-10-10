@@ -22,6 +22,7 @@ import {
   type DocumentiSegreteriaFlags,
 } from "@/lib/admin/documenti-permissions";
 import { firstSettingsHref } from "@/lib/admin/settings-nav";
+import { isLessonsModuleEnabled } from "@/lib/lessons-module";
 import { createClient } from "@/lib/supabase/server";
 
 export type AdminShellNavConfig = {
@@ -95,7 +96,7 @@ export async function getAdminShellNavConfig(
 
   return {
     showRubrica,
-    showLezioni: showRubrica,
+    showLezioni: showRubrica && isLessonsModuleEnabled(),
     showPrenotazioni,
     showDocumenti: showDocumentiSection,
     showRimborsi,

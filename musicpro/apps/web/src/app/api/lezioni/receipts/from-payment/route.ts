@@ -4,6 +4,10 @@ import { NextResponse } from "next/server";
 import { type Database } from "@musicpro/database";
 
 import { issueAndEmailReceiptCopy } from "@/lib/lezioni/issue-receipt-copy";
+import {
+  isLessonsModuleEnabled,
+  lessonsModuleApiDisabledBody,
+} from "@/lib/lessons-module";
 
 function isAuthorized(request: Request): boolean {
   const cronSecret = process.env.CRON_SECRET?.trim();
@@ -12,6 +16,10 @@ function isAuthorized(request: Request): boolean {
 }
 
 export async function POST(request: Request) {
+  if (!isLessonsModuleEnabled()) {
+    return NextResponse.json(lessonsModuleApiDisabledBody(), { status: 503 });
+  }
+
   if (!isAuthorized(request)) {
     return NextResponse.json(
       { success: false, message: "Non autorizzato" },
