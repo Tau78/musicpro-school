@@ -6,7 +6,7 @@ import {
   getLessonSchoolSettings,
   listMemberIdsWithRole,
   listMembers,
-  listRooms,
+  listRoomsForLessons,
 } from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
 
@@ -41,7 +41,7 @@ export default async function AdminCorsoDetailPage({ params }: PageProps) {
     await Promise.all([
       getCourse(supabase, id),
       loadCourseLessons(supabase, id),
-      listRooms(supabase),
+      listRoomsForLessons(supabase),
       listMemberIdsWithRole(supabase, MemberRole.Docente),
       listMembers(supabase),
       getActiveCourseCoordinator(supabase, id),

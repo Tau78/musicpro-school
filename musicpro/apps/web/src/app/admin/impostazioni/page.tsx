@@ -44,7 +44,7 @@ export default async function ImpostazioniPage({
   const [settings, rules, rooms] = await Promise.all([
     getAppBookingSettings(supabase),
     listCancellationPenaltyRules(supabase).catch(() => []),
-    listRooms(supabase),
+    listRooms(supabase, { includeSandbox: true }),
   ]);
 
   const today = todayInRome();

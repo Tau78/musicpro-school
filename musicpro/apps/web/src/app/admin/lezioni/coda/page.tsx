@@ -7,7 +7,7 @@ import {
   listPendingCourseCloseRequests,
   listPendingCourses,
   listPendingLessonChangeRequests,
-  listRooms,
+  listRoomsForLessons,
   listTeacherCashAdvances,
   listUnplacedLessons,
   minutesToTimeLabel,
@@ -117,7 +117,7 @@ export default async function AdminLezioniCodaPage() {
   let changeRequests: Awaited<
     ReturnType<typeof listPendingLessonChangeRequests>
   > = [];
-  let rooms: Awaited<ReturnType<typeof listRooms>> = [];
+  let rooms: Awaited<ReturnType<typeof listRoomsForLessons>> = [];
   let settings: Awaited<ReturnType<typeof getLessonSchoolSettings>> = null;
   let cashAdvances: Awaited<ReturnType<typeof listTeacherCashAdvances>> = [];
   let closeRequests: Awaited<
@@ -140,7 +140,7 @@ export default async function AdminLezioniCodaPage() {
         listPendingCourses(supabase),
         listUnplacedLessons(supabase),
         listPendingLessonChangeRequests(supabase),
-        listRooms(supabase),
+        listRoomsForLessons(supabase),
         getLessonSchoolSettings(supabase),
         listTeacherCashAdvances(supabase, { status: "pending" }),
         listPendingCourseCloseRequests(supabase),

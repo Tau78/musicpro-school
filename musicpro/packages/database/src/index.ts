@@ -85,6 +85,7 @@ export {
   listMyBookings,
   listBookableBands,
   listRooms,
+  listRoomsForLessons,
   SANDBOX_ROOM_SLUG,
   reviewBooking,
   romeLocalInputToUtcIso,
