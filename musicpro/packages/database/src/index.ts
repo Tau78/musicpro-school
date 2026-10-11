@@ -387,9 +387,12 @@ export {
   deleteAnnualQuotaSetting,
   formatQuotaDateItalian,
   formatQuotaEuro,
+  isMemberQuotaPaidForYear,
   listAnnualQuotaSettings,
   listMemberAnnualQuotas,
   recordMemberQuotaDunning,
+  resolveOnlineQuotaFiscalYear,
+  resolveOnlineQuotaFiscalYearFromState,
   updateAnnualQuotaSetting,
   upsertMemberAnnualQuotas,
 } from "./quotas";
