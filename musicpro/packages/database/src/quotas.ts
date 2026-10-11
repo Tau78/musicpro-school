@@ -134,6 +134,86 @@ export function currentFiscalYear(): number {
   return year ? Number(year) : new Date().getFullYear();
 }
 
+/**
+ * Anno da addebitare per rinnovo/pagamento online.
+ * Se l'anno corrente è già versato e esiste l'importo per l'anno successivo,
+ * si passa all'anno successivo (es. 2026 versata → rinnovo online su 2027).
+ */
+export function resolveOnlineQuotaFiscalYearFromState(input: {
+  currentYear: number;
+  currentYearPaid: boolean;
+  nextYearConfigured: boolean;
+  nextYearPaid: boolean;
+}): { fiscalYear: number; alreadyPaid: boolean } {
+  const currentYear = input.currentYear;
+  if (!input.currentYearPaid) {
+    return { fiscalYear: currentYear, alreadyPaid: false };
+  }
+  if (!input.nextYearConfigured) {
+    return { fiscalYear: currentYear, alreadyPaid: true };
+  }
+  const nextYear = currentYear + 1;
+  return {
+    fiscalYear: nextYear,
+    alreadyPaid: input.nextYearPaid,
+  };
+}
+
+export async function isMemberQuotaPaidForYear(
+  client: QuotasClient,
+  memberId: string,
+  fiscalYear: number,
+): Promise<boolean> {
+  const id = String(memberId || "").trim();
+  if (!id || !Number.isInteger(fiscalYear)) return false;
+
+  const { data, error } = await client
+    .from("member_annual_quotas")
+    .select("paid_at")
+    .eq("member_id", id)
+    .eq("fiscal_year", fiscalYear)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `Impossibile verificare la quota ${fiscalYear}: ${error.message}`,
+    );
+  }
+
+  return Boolean(data?.paid_at);
+}
+
+/** Anno target + se risulta già pagato, per rinnovo/iscrizione online. */
+export async function resolveOnlineQuotaFiscalYear(
+  client: QuotasClient,
+  memberId: string | null | undefined,
+): Promise<{ fiscalYear: number; alreadyPaid: boolean }> {
+  const currentYear = currentFiscalYear();
+  const id = String(memberId || "").trim();
+  if (!id) {
+    return { fiscalYear: currentYear, alreadyPaid: false };
+  }
+
+  const settings = await listAnnualQuotaSettings(client);
+  const nextYear = currentYear + 1;
+  const nextYearConfigured = settings.some(
+    (row) => row.fiscalYear === nextYear,
+  );
+  const [currentYearPaid, nextYearPaid] = await Promise.all([
+    isMemberQuotaPaidForYear(client, id, currentYear),
+    nextYearConfigured
+      ? isMemberQuotaPaidForYear(client, id, nextYear)
+      : Promise.resolve(false),
+  ]);
+
+  return resolveOnlineQuotaFiscalYearFromState({
+    currentYear,
+    currentYearPaid,
+    nextYearConfigured,
+    nextYearPaid,
+  });
+}
+
 export function formatQuotaEuro(amount: number): string {
   return new Intl.NumberFormat("it-IT", {
     style: "currency",

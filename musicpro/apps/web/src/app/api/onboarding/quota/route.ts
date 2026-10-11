@@ -2,7 +2,10 @@ import { randomUUID } from "crypto";
 
 import { NextRequest, NextResponse } from "next/server";
 
-import { currentFiscalYear, listAnnualQuotaSettings } from "@musicpro/database";
+import {
+  listAnnualQuotaSettings,
+  resolveOnlineQuotaFiscalYear,
+} from "@musicpro/database";
 
 import { authPublicOrigin, isLocalDevOrigin } from "@/lib/auth/redirect-url";
 import {
@@ -41,8 +44,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const fiscalYear = currentFiscalYear();
-    const settings = await listAnnualQuotaSettings(supabase);
+    const service = createServiceRoleClient();
+    const target = await resolveOnlineQuotaFiscalYear(service, member.id);
+    if (target.alreadyPaid) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: `La quota associativa ${target.fiscalYear} risulta già pagata.`,
+        },
+        { status: 400 },
+      );
+    }
+
+    const fiscalYear = target.fiscalYear;
+    const settings = await listAnnualQuotaSettings(service);
     const setting = settings.find((entry) => entry.fiscalYear === fiscalYear);
     const importoCentesimi = setting
       ? Math.round(setting.amountEur * 100)
@@ -60,7 +75,6 @@ export async function POST(request: NextRequest) {
     // L'associato è già stato autenticato e collegato al proprio member sopra.
     // Le scritture su enrollments sono server-side: la RLS permette la gestione
     // solo allo staff, quindi il client di sessione causerebbe un 42501.
-    const service = createServiceRoleClient();
     const { error: enrollmentError } = await service.from("enrollments").insert({
       id: idIscrizione,
       legacy_enrollment_id: idIscrizione,
@@ -122,7 +136,11 @@ export async function POST(request: NextRequest) {
       })
       .eq("id", idIscrizione);
 
-    return NextResponse.json({ success: true, url: linkRes.url });
+    return NextResponse.json({
+      success: true,
+      url: linkRes.url,
+      fiscalYear,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ success: false, message }, { status: 500 });
