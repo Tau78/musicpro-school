@@ -2305,6 +2305,19 @@ export interface Database {
         };
         Returns: Json;
       };
+      save_my_band_name_safe: {
+        Args: {
+          p_name: string;
+        };
+        Returns: Json;
+      };
+      sync_member_band_on_bookings: {
+        Args: {
+          p_band_id: string;
+          p_member_id: string;
+        };
+        Returns: number;
+      };
       accept_band_invite: {
         Args: {
           p_token: string;
