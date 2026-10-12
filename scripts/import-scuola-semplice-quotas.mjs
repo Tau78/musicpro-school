@@ -213,6 +213,18 @@ async function createMinimalMember(supabase, fullName, extras, dryRun, memberNum
 /** Riempie solo campi vuoti sull'associato già matchato (no overwrite). */
 async function mergeAnagraficaIfEmpty(supabase, memberId, extras, dryRun) {
   if (!memberId || String(memberId).startsWith("dry-run")) return null;
+  const extrasBlank = [
+    extras.email,
+    extras.phone,
+    extras.tax_code,
+    extras.birth_date,
+    extras.address_street,
+    extras.address_city,
+    extras.address_postal_code,
+    extras.address_province,
+    extras.birth_place,
+  ].every(isBlank);
+  if (extrasBlank) return null;
   const { data: cur, error } = await supabase
     .from("members")
     .select(
@@ -524,7 +536,7 @@ async function main() {
       fiscal_year: q.fiscal_year,
       paid_at: q.paid_at ? `${q.paid_at}T12:00:00+01:00` : null,
       amount_paid_eur: q.quota_amount_eur,
-      notes: `ScuolaSemplice Ordini row ${q.source_row}${q.bundled_with_lessons ? " (bundled)" : ""}`,
+      notes: `${parsed.format === "prima_nota" ? "ScuolaSemplice Prima nota" : "ScuolaSemplice Ordini"} row ${q.source_row}${q.bundled_with_lessons ? " (bundled)" : ""}`,
     };
 
     if (existing.has(key)) {

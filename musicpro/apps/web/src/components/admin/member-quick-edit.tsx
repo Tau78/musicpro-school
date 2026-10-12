@@ -14,6 +14,7 @@ import {
   type MemberInput,
 } from "@musicpro/database";
 
+import { MemberQuotaInline } from "@/components/admin/member-quota-inline";
 import { MemberQuotaSummary } from "@/components/admin/member-quota-summary";
 import { ensureMemberAuthClient } from "@/lib/admin/ensure-member-auth-client";
 import { createClient } from "@/lib/supabase/client";
@@ -24,6 +25,8 @@ interface MemberQuickEditProps {
   quotas: MemberAnnualQuota[];
   quotaSettings: AnnualQuotaSetting[];
   canDelete: boolean;
+  /** Sportello collaboratore: solo crediti e quota, senza anagrafica. */
+  creditsOnly?: boolean;
   onCancel: () => void;
   onDeleted: () => void;
   onOpenFull: () => void;
@@ -42,6 +45,7 @@ export function MemberQuickEdit({
   quotas,
   quotaSettings,
   canDelete,
+  creditsOnly = false,
   onCancel,
   onDeleted,
   onOpenFull,
@@ -77,7 +81,7 @@ export function MemberQuickEdit({
     setError(null);
     setSuccess(null);
 
-    if (!firstName.trim() || !lastName.trim()) {
+    if (!creditsOnly && (!firstName.trim() || !lastName.trim())) {
       setError("Nome e cognome sono obbligatori.");
       setSaving(false);
       return;
@@ -87,6 +91,33 @@ export function MemberQuickEdit({
     if (!Number.isFinite(nextCredits) || nextCredits < 0) {
       setError("I crediti devono essere un numero maggiore o uguale a zero.");
       setSaving(false);
+      return;
+    }
+
+    if (creditsOnly) {
+      const delta = nextCredits - knownAvailable;
+      if (delta === 0) {
+        setSaving(false);
+        setSuccess("Crediti invariati.");
+        return;
+      }
+      const adjust = await adminAdjustMemberCredits(
+        supabase,
+        member.id,
+        delta,
+        "Rettifica da sportello",
+      );
+      setSaving(false);
+      if (!adjust.success) {
+        setError(adjust.errorMessage ?? "Impossibile aggiornare i crediti.");
+        return;
+      }
+      const applied = adjust.balance?.available ?? nextCredits;
+      setKnownAvailable(applied);
+      setCredits(String(applied));
+      setSuccess("Crediti aggiornati.");
+      onSaved(member, adjust.balance);
+      router.refresh();
       return;
     }
 
@@ -195,6 +226,14 @@ export function MemberQuickEdit({
           </p>
         ) : null}
 
+        {creditsOnly ? (
+          <p className="text-sm font-medium text-neutral-900">
+            {member.lastName} {member.firstName}
+          </p>
+        ) : null}
+
+        {creditsOnly ? null : (
+        <>
         <QuickField label="Email">
           <input
             type="email"
@@ -228,17 +267,23 @@ export function MemberQuickEdit({
             />
           </QuickField>
         </div>
+        </>
+        )}
 
-        <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-          <QuickField label="Cellulare">
-            <input
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              className={inputClass}
-              autoComplete="tel"
-            />
-          </QuickField>
+        <div
+          className={`grid min-w-0 gap-2 ${creditsOnly ? "" : "sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end"}`}
+        >
+          {creditsOnly ? null : (
+            <QuickField label="Cellulare">
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className={inputClass}
+                autoComplete="tel"
+              />
+            </QuickField>
+          )}
           <QuickField label="Crediti sala">
             <input
               type="number"
@@ -254,56 +299,73 @@ export function MemberQuickEdit({
           Disponibili ora: {knownAvailable}. La differenza è una rettifica.
         </p>
 
-        <MemberQuotaSummary
-          quotas={quotas}
-          quotaSettings={quotaSettings}
-          enrolledAt={member.enrolledAt}
-          onManage={onOpenFull}
-        />
-
-        <label className="flex items-center gap-2 text-sm text-neutral-800">
-          <input
-            type="checkbox"
-            checked={isTestAccount}
-            onChange={(e) => setIsTestAccount(e.target.checked)}
+        {creditsOnly ? (
+          <MemberQuotaInline
+            memberId={member.id}
+            memberFirstName={member.firstName}
+            memberEmail={member.email}
+            quotas={quotas}
+            quotaSettings={quotaSettings}
+            enrolledAt={member.enrolledAt}
           />
-          Account test (crediti in circolazione, ricevute/notule serie TEST)
-        </label>
+        ) : (
+          <MemberQuotaSummary
+            quotas={quotas}
+            quotaSettings={quotaSettings}
+            enrolledAt={member.enrolledAt}
+            onManage={onOpenFull}
+          />
+        )}
 
-        <fieldset>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-            <legend className="sr-only">Stato</legend>
-            <span className="text-xs text-neutral-600 sm:text-sm">Stato</span>
-            <label className="inline-flex items-center gap-1.5 text-sm">
+        {creditsOnly ? null : (
+          <>
+            <label className="flex items-center gap-2 text-sm text-neutral-800">
               <input
-                type="radio"
-                name="member-status"
-                checked={isActive}
-                onChange={() => setIsActive(true)}
+                type="checkbox"
+                checked={isTestAccount}
+                onChange={(e) => setIsTestAccount(e.target.checked)}
               />
-              Attivo
+              Account test (crediti in circolazione, ricevute/notule serie TEST)
             </label>
-            <label className="inline-flex items-center gap-1.5 text-sm">
-              <input
-                type="radio"
-                name="member-status"
-                checked={!isActive}
-                onChange={() => setIsActive(false)}
-              />
-              Bloccato
-            </label>
-          </div>
-        </fieldset>
+
+            <fieldset>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                <legend className="sr-only">Stato</legend>
+                <span className="text-xs text-neutral-600 sm:text-sm">Stato</span>
+                <label className="inline-flex items-center gap-1.5 text-sm">
+                  <input
+                    type="radio"
+                    name="member-status"
+                    checked={isActive}
+                    onChange={() => setIsActive(true)}
+                  />
+                  Attivo
+                </label>
+                <label className="inline-flex items-center gap-1.5 text-sm">
+                  <input
+                    type="radio"
+                    name="member-status"
+                    checked={!isActive}
+                    onChange={() => setIsActive(false)}
+                  />
+                  Bloccato
+                </label>
+              </div>
+            </fieldset>
+          </>
+        )}
       </div>
 
       <div className="shrink-0 border-t border-neutral-200 bg-white px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5">
-        <button
-          type="button"
-          onClick={onOpenFull}
-          className="mb-2 w-full text-center text-xs font-medium text-[var(--brand)] hover:underline sm:mb-3 sm:w-auto sm:text-left sm:text-sm"
-        >
-          Anagrafica completa
-        </button>
+        {creditsOnly ? null : (
+          <button
+            type="button"
+            onClick={onOpenFull}
+            className="mb-2 w-full text-center text-xs font-medium text-[var(--brand)] hover:underline sm:mb-3 sm:w-auto sm:text-left sm:text-sm"
+          >
+            Anagrafica completa
+          </button>
+        )}
 
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
           <button
@@ -311,7 +373,11 @@ export function MemberQuickEdit({
             disabled={saving}
             className="order-1 w-full rounded-lg bg-[var(--brand)] px-4 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50 sm:order-3 sm:w-auto sm:py-2"
           >
-            {saving ? "Salvataggio…" : "Aggiorna associato"}
+            {saving
+              ? "Salvataggio…"
+              : creditsOnly
+                ? "Aggiorna crediti"
+                : "Aggiorna associato"}
           </button>
           <div className="order-2 grid grid-cols-2 gap-2 sm:order-1 sm:flex sm:gap-2">
             <button

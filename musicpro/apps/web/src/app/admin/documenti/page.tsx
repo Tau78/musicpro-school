@@ -17,7 +17,7 @@ export default async function DocumentiPage() {
     redirect("/login?error=member_not_linked&redirect=/admin/documenti");
   }
 
-  const flags = await getDocumentiSegreteriaFlags(supabase);
+  const flags = await getDocumentiSegreteriaFlags();
 
   redirect(
     firstDocumentiHref({

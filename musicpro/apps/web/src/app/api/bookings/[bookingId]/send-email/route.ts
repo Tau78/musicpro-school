@@ -107,14 +107,19 @@ export async function POST(request: Request, context: RouteContext) {
         .eq("member_id", memberId)
         .is("revoked_at", null);
       isStaff = (roleRows ?? []).some(
-        (row) => row.role === "admin" || row.role === "segreteria",
+        (row) =>
+          row.role === "admin" ||
+          row.role === "segreteria" ||
+          row.role === "collaboratore",
       );
     }
   } else {
     const currentMember = await getCurrentMemberWithRoles(supabase);
     memberId = currentMember?.id ?? null;
     isStaff = Boolean(
-      currentMember?.roles.some((r) => r === "admin" || r === "segreteria"),
+      currentMember?.roles.some(
+        (r) => r === "admin" || r === "segreteria" || r === "collaboratore",
+      ),
     );
   }
 

@@ -16,7 +16,7 @@ import { createClient } from "@/lib/supabase/server";
 export default async function DocumentiLibroCespitiPage() {
   const supabase = await createClient();
   const member = await getAdminMember();
-  const flags = await getDocumentiSegreteriaFlags(supabase);
+  const flags = await getDocumentiSegreteriaFlags();
 
   if (
     !member ||

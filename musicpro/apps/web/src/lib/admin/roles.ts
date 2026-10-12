@@ -1,11 +1,21 @@
 import { MemberRole, type MemberRoleValue } from "@musicpro/shared";
 
-export function canAccessAdmin(roles: MemberRoleValue[]): boolean {
+/** Admin, segreteria, o collaboratore allo sportello (prenotazioni + cespiti). */
+export function isFrontDesk(roles: MemberRoleValue[]): boolean {
   return (
     roles.includes(MemberRole.Admin) ||
     roles.includes(MemberRole.Segreteria) ||
-    roles.includes(MemberRole.Docente)
+    roles.includes(MemberRole.Collaboratore)
   );
+}
+
+export function canAccessAdmin(roles: MemberRoleValue[]): boolean {
+  return isFrontDesk(roles) || roles.includes(MemberRole.Docente);
+}
+
+/** Rubrica per crediti, link quota e iscrizione. Non include lezioni né anagrafica completa. */
+export function canAccessMemberDesk(roles: MemberRoleValue[]): boolean {
+  return isFrontDesk(roles);
 }
 
 export function canManageMembers(roles: MemberRoleValue[]): boolean {
@@ -27,10 +37,7 @@ export function canManageReimbursements(roles: MemberRoleValue[]): boolean {
 }
 
 export function canManageBookings(roles: MemberRoleValue[]): boolean {
-  return (
-    roles.includes(MemberRole.Admin) ||
-    roles.includes(MemberRole.Segreteria)
-  );
+  return isFrontDesk(roles);
 }
 
 export function canDeleteReimbursements(roles: MemberRoleValue[]): boolean {

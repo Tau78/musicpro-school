@@ -65,7 +65,7 @@ export default async function AdminShopPage({ searchParams }: PageProps) {
       <p className="mb-4 text-xs text-neutral-500">
         Utilizzo sale e report:{" "}
         <Link
-          href="/admin/prenotazioni/report"
+          href="/admin/stats/utilizzo"
           className="font-medium text-[var(--brand)] hover:underline"
         >
           Report prenotazioni

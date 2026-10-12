@@ -40,7 +40,8 @@ function shouldSkipOnboardingCheck(roles: MemberRoleValue[]): boolean {
   return (
     roles.includes(MemberRole.Admin) ||
     roles.includes(MemberRole.Docente) ||
-    roles.includes(MemberRole.Segreteria)
+    roles.includes(MemberRole.Segreteria) ||
+    roles.includes(MemberRole.Collaboratore)
   );
 }
 

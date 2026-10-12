@@ -1,7 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import {
+  useEffect,
+  useMemo,
+  useOptimistic,
+  useState,
+  useTransition,
+  type ReactNode,
+} from "react";
 
 export type AdminWorkspaceNavGroup = {
   label: string;
@@ -67,6 +75,10 @@ export function AdminWorkspaceNav({
   const activeGroup =
     groups.find((group) => group.label === selectedGroup) ?? groups[0];
 
+  const router = useRouter();
+  const [, startTransition] = useTransition();
+  const [optimisticHref, setOptimisticHref] = useOptimistic(activeHref);
+
   return (
     <header className="rounded-xl bg-white/90 shadow-sm ring-1 ring-black/5">
       <div className="flex items-center gap-2 px-3 pt-2 pb-1.5">
@@ -101,7 +113,7 @@ export function AdminWorkspaceNav({
         aria-label={activeGroup ? `Azioni ${activeGroup.label}` : "Azioni"}
       >
         {(activeGroup?.items ?? []).map((item) => {
-          const active = item.href === activeHref;
+          const active = item.href === optimisticHref;
           return (
             <Link
               key={item.href}
@@ -109,6 +121,12 @@ export function AdminWorkspaceNav({
               prefetch
               scroll={false}
               aria-current={active ? "page" : undefined}
+              onPointerEnter={() => router.prefetch(item.href)}
+              onClick={() => {
+                startTransition(() => {
+                  setOptimisticHref(item.href);
+                });
+              }}
               className={actionClass(active)}
             >
               {itemIcons?.[item.label] ?? null}

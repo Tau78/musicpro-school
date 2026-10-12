@@ -15,6 +15,7 @@ import { MemberRole } from "@musicpro/shared";
 import { AssociatiWorkspace } from "@/components/admin/associati-workspace";
 import { getAdminMember } from "@/lib/admin/current-member";
 import {
+  canAccessMemberDesk,
   canDeleteMembers,
   canManageMembers,
   canMergeDuplicates,
@@ -25,9 +26,11 @@ export default async function AssociatiPage() {
   const supabase = await createClient();
   const member = await getAdminMember();
 
-  if (!member || !canManageMembers(member.roles)) {
+  if (!member || !canAccessMemberDesk(member.roles)) {
     redirect("/admin/rimborsi");
   }
+
+  const fullMemberAdmin = canManageMembers(member.roles);
 
   const fiscalYear = currentFiscalYear();
 
@@ -74,17 +77,20 @@ export default async function AssociatiPage() {
             Anagrafica completa degli associati MusicPro School.
           </p>
         </div>
-        <Link
-          href="/admin/associati/nuovo"
-          className="inline-flex shrink-0 items-center justify-center rounded-lg bg-[var(--brand)] px-3 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 sm:px-4"
-        >
-          + Nuovo
-        </Link>
+        {fullMemberAdmin ? (
+          <Link
+            href="/admin/associati/nuovo"
+            className="inline-flex shrink-0 items-center justify-center rounded-lg bg-[var(--brand)] px-3 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 sm:px-4"
+          >
+            + Nuovo
+          </Link>
+        ) : null}
       </div>
 
       <AssociatiWorkspace
         memberDetails={memberDetails}
         showMerge={showMerge}
+        showTools={fullMemberAdmin}
         listProps={{
           members,
           creditBalances,

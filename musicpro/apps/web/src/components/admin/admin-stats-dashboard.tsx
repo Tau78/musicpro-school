@@ -414,14 +414,9 @@ export function AdminStatsDashboard() {
 
   return (
     <div className="space-y-3 pb-2">
-      <div>
-        <h2 className="text-lg font-semibold text-[var(--brand)] sm:text-xl">
-          Stats
-        </h2>
-        <p className="mt-0.5 text-xs text-neutral-600">
-          {periodLabel}: {range.from} → {range.to}
-        </p>
-      </div>
+      <p className="text-xs text-neutral-500">
+        {periodLabel}: {range.from} → {range.to}
+      </p>
 
       <div
         className="flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"

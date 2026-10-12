@@ -5,7 +5,7 @@ import {
   getCurrentMemberWithRoles,
 } from "@musicpro/database";
 
-import { canManageQuotas } from "@/lib/admin/roles";
+import { isFrontDesk } from "@/lib/admin/roles";
 import { authPublicOrigin, isLocalDevOrigin } from "@/lib/auth/redirect-url";
 import { createNexiQuotaMultiPaymentLink } from "@/lib/nexi/quota-multi-payment-link";
 import { createClient } from "@/lib/supabase/server";
@@ -19,14 +19,14 @@ interface Body {
 
 /**
  * Crea un link di pagamento quota (Nexi) per un associato (staff only).
- * Estende create_quota_payment_checkout (admin/segreteria autorizzati via migration 071).
+ * Estende create_quota_payment_checkout (sportello: admin, segreteria, collaboratore).
  */
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
     const current = await getCurrentMemberWithRoles(supabase);
 
-    if (!current || !canManageQuotas(current.roles)) {
+    if (!current || !isFrontDesk(current.roles)) {
       return NextResponse.json(
         { success: false, message: "Non autorizzato." },
         { status: 403 },

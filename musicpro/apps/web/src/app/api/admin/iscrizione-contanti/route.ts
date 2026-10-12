@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getCurrentMemberWithRoles } from "@musicpro/database";
 
-import { canManageMembers } from "@/lib/admin/roles";
+import { isFrontDesk } from "@/lib/admin/roles";
 import { creaIscrizioneContantiEInvia } from "@/lib/iscrizione/enrollment-service";
 import { createClient } from "@/lib/supabase/server";
 
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
   }
 
   const currentMember = await getCurrentMemberWithRoles(supabase);
-  if (!currentMember || !canManageMembers(currentMember.roles)) {
+  if (!currentMember || !isFrontDesk(currentMember.roles)) {
     return NextResponse.json(
       { success: false, message: "Non autorizzato" },
       { status: 403 },

@@ -1,8 +1,10 @@
+import { cache } from "react";
+
 import { listAppSettings } from "@musicpro/database";
 import { MemberRole, type MemberRoleValue } from "@musicpro/shared";
-import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { canManageSettings } from "@/lib/admin/roles";
+import { createClient } from "@/lib/supabase/server";
 
 export type DocumentiSubsection =
   | "libro_associati"
@@ -28,24 +30,26 @@ function parseBool(value: string | undefined, defaultValue: boolean): boolean {
   return value === "true" || value === "1";
 }
 
-export async function getDocumentiSegreteriaFlags(
-  supabase: SupabaseClient,
-): Promise<DocumentiSegreteriaFlags> {
-  const settings = await listAppSettings(supabase, Object.values(FLAG_KEYS));
-  const byKey = new Map(settings.map((s) => [s.key, s.value]));
+/** Una lettura impostazioni documenti per richiesta (layout + pagine). */
+export const getDocumentiSegreteriaFlags = cache(
+  async (): Promise<DocumentiSegreteriaFlags> => {
+    const supabase = await createClient();
+    const settings = await listAppSettings(supabase, Object.values(FLAG_KEYS));
+    const byKey = new Map(settings.map((s) => [s.key, s.value]));
 
-  return {
-    libro_associati: parseBool(
-      byKey.get(FLAG_KEYS.libro_associati),
-      DEFAULT_FLAGS.libro_associati,
-    ),
-    verbali: parseBool(byKey.get(FLAG_KEYS.verbali), DEFAULT_FLAGS.verbali),
-    libro_cespiti: parseBool(
-      byKey.get(FLAG_KEYS.libro_cespiti),
-      DEFAULT_FLAGS.libro_cespiti,
-    ),
-  };
-}
+    return {
+      libro_associati: parseBool(
+        byKey.get(FLAG_KEYS.libro_associati),
+        DEFAULT_FLAGS.libro_associati,
+      ),
+      verbali: parseBool(byKey.get(FLAG_KEYS.verbali), DEFAULT_FLAGS.verbali),
+      libro_cespiti: parseBool(
+        byKey.get(FLAG_KEYS.libro_cespiti),
+        DEFAULT_FLAGS.libro_cespiti,
+      ),
+    };
+  },
+);
 
 export function canAccessDocumentiSubsection(
   roles: MemberRoleValue[],
@@ -53,6 +57,12 @@ export function canAccessDocumentiSubsection(
   flags: DocumentiSegreteriaFlags,
 ): boolean {
   if (roles.includes(MemberRole.Admin)) return true;
+  if (
+    roles.includes(MemberRole.Collaboratore) &&
+    subsection === "libro_cespiti"
+  ) {
+    return true;
+  }
   if (!canManageSettings(roles)) return false;
   if (roles.includes(MemberRole.Segreteria)) return flags[subsection];
   return false;
@@ -69,6 +79,7 @@ export function hasAnyDocumentiSubsection(
   flags: DocumentiSegreteriaFlags,
 ): boolean {
   if (roles.includes(MemberRole.Admin)) return true;
+  if (roles.includes(MemberRole.Collaboratore)) return true;
   if (!canManageSettings(roles)) return false;
   return flags.libro_associati || flags.verbali || flags.libro_cespiti;
 }

@@ -11,6 +11,7 @@ import { HeaderSettingsActions } from "@/components/dashboard/header-settings-ac
 import { getAdminMember } from "@/lib/admin/current-member";
 import {
   canAccessAdmin,
+  canAccessMemberDesk,
   canManageBookings,
   canManageMembers,
   canManagePenalties,
@@ -31,8 +32,8 @@ import {
 } from "@/lib/admin/documenti-permissions";
 import { firstSettingsHref } from "@/lib/admin/settings-nav";
 import { isLessonsModuleEnabled } from "@/lib/lessons-module";
-import { createClient } from "@/lib/supabase/server";
-import { MemberRole } from "@musicpro/shared";
+
+import { AdminPageLoading } from "@/components/admin/admin-page-loading";
 
 export const dynamic = "force-dynamic";
 
@@ -51,7 +52,7 @@ export default async function AdminLayout({
     redirect("/dashboard?error=unauthorized");
   }
 
-  const showRubrica = canManageMembers(member.roles);
+  const showRubrica = canAccessMemberDesk(member.roles);
   const showQuote = canManageQuotas(member.roles);
   const showRimborsi = canManageReimbursements(member.roles);
   const showPrenotazioni = canManageBookings(member.roles);
@@ -78,13 +79,11 @@ export default async function AdminLayout({
     showUtenti,
   });
 
-  const supabase = await createClient();
-  const documentiFlags = await getDocumentiSegreteriaFlags(supabase);
-  const isAdmin = member.roles.includes(MemberRole.Admin);
-  const showDocumentiSection =
-    isAdmin ||
-    (canManageSettings(member.roles) &&
-      hasAnyDocumentiSubsection(member.roles, documentiFlags));
+  const documentiFlags = await getDocumentiSegreteriaFlags();
+  const showDocumentiSection = hasAnyDocumentiSubsection(
+    member.roles,
+    documentiFlags,
+  );
   const showDocumentiAssociati = canAccessDocumentiSubsection(
     member.roles,
     "libro_associati",
@@ -132,7 +131,9 @@ export default async function AdminLayout({
         </div>
         <AdminNav
           showRubrica={showRubrica}
-          showLezioni={showRubrica && isLessonsModuleEnabled()}
+          showLezioni={
+            canManageMembers(member.roles) && isLessonsModuleEnabled()
+          }
           showPrenotazioni={showPrenotazioni}
           showDocumenti={showDocumentiSection}
           showRimborsi={showRimborsi}
@@ -144,7 +145,7 @@ export default async function AdminLayout({
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-3 sm:px-6 sm:py-5">
-        <Suspense fallback={children}>
+        <Suspense fallback={<AdminPageLoading />}>
           <SettingsSubNav
             showQuote={showQuote}
             showSale={showSale}

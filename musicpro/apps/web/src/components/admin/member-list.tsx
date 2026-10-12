@@ -219,7 +219,9 @@ export function MemberList({
               Sollecita ({unpaidQuotaIdSet.size})
             </button>
           ) : null}
-          {selectedIds.size > 0 ? (
+          {selectedIds.size > 0 &&
+          (currentStaffRoles.includes("admin") ||
+            currentStaffRoles.includes("segreteria")) ? (
             <button
               type="button"
               onClick={() => {

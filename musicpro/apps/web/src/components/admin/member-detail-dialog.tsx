@@ -208,6 +208,10 @@ export function MemberDetailDialog({
               quotas={data.quotas}
               quotaSettings={data.quotaSettings}
               canDelete={canDelete}
+              creditsOnly={
+                !currentStaffRoles.includes("admin") &&
+                !currentStaffRoles.includes("segreteria")
+              }
               onCancel={onClose}
               onDeleted={onClose}
               onOpenFull={() => setView("full")}

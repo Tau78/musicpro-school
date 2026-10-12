@@ -48,7 +48,9 @@ export async function POST(request: Request, context: RouteContext) {
   const currentMember = await getCurrentMemberWithRoles(supabase);
 
   const isStaff = Boolean(
-    currentMember?.roles.some((r) => r === "admin" || r === "segreteria"),
+    currentMember?.roles.some(
+      (r) => r === "admin" || r === "segreteria" || r === "collaboratore",
+    ),
   );
 
   const isOwner = currentMember?.id === booking.member_id;
