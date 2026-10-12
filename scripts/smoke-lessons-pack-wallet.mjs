@@ -50,9 +50,9 @@ console.log("Smoke — lezioni pacchetto / wallet / Nexi\n");
 
 const staticChecks = [
   "supabase/migrations/095_member_test_account_flag.sql",
-  "supabase/migrations/096_sandbox_lesson_room.sql",
-  "supabase/migrations/097_lesson_wallet_pack_at_zero.sql",
-  "supabase/migrations/098_fiscal_receipt_test_section.sql",
+  "supabase/migrations/099_sandbox_lesson_room.sql",
+  "supabase/migrations/100_lesson_wallet_pack_at_zero.sql",
+  "supabase/migrations/101_fiscal_receipt_test_section.sql",
   "musicpro/apps/web/src/lib/nexi/lesson-pack-payment-link.ts",
   "musicpro/apps/web/src/app/api/lezioni/pack-payment/request/route.ts",
   "musicpro/apps/web/src/app/api/lezioni/checkout/route.ts",
@@ -65,7 +65,7 @@ for (const rel of staticChecks) {
 }
 
 const syncSql = readFileSync(
-  join(root, "supabase/migrations/097_lesson_wallet_pack_at_zero.sql"),
+  join(root, "supabase/migrations/100_lesson_wallet_pack_at_zero.sql"),
   "utf8",
 );
 if (
@@ -74,7 +74,7 @@ if (
 ) {
   ok("sync wallet: retta a saldo 0 + enrollment ids");
 } else {
-  fail("sync wallet incompleto in 097");
+  fail("sync wallet incompleto in 100");
 }
 
 const checkoutSrc = readFileSync(
