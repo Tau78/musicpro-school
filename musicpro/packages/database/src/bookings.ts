@@ -1002,7 +1002,7 @@ export async function getRoomAvailability(
 
   const { startUtc, endUtc } = getRomeDayBoundsUtc(date);
 
-  const [settings, bookingsRes, weekly, specials, externalEvents, mirrorsRes] =
+  const [settings, bookingsRes, weekly, specials, externalEvents, supersaasImportRes, mirrorsRes] =
     await Promise.all([
       getBookingSettings(client),
       client
@@ -1020,12 +1020,22 @@ export async function getRoomAvailability(
         roomId,
       }).catch(() => []),
       client
+        .from("app_settings")
+        .select("value")
+        .eq("key", "supersaas_import_enabled")
+        .maybeSingle(),
+      client
         .from("supersaas_slot_mirrors")
         .select("external_id, start_at, end_at")
         .eq("room_id", roomId)
         .lt("start_at", endUtc)
         .gt("end_at", startUtc),
     ]);
+  const supersaasImportOn = ["1", "true", "yes", "on"].includes(
+    String(supersaasImportRes.data?.value ?? "0")
+      .trim()
+      .toLowerCase(),
+  );
 
   if (bookingsRes.error) {
     throw new Error(
@@ -1044,20 +1054,24 @@ export async function getRoomAvailability(
     .filter((booking) => !excludeBookingId || booking.id !== excludeBookingId)
     .filter((booking) => bookingOccupiesSlot(booking));
 
-  if (mirrorsRes.error && !isMissingSupersaasMirrorTable(mirrorsRes.error)) {
+  if (
+    supersaasImportOn &&
+    mirrorsRes.error &&
+    !isMissingSupersaasMirrorTable(mirrorsRes.error)
+  ) {
     throw new Error(
       `Impossibile leggere lo specchio SuperSaaS: ${mirrorsRes.error.message}`,
     );
   }
 
-  const mirrorBusy: BusyInterval[] = (mirrorsRes.error ? [] : (mirrorsRes.data ?? [])).map(
-    (row) => ({
-      id: `supersaas:${row.external_id}`,
-      start_at: row.start_at,
-      end_at: row.end_at,
-      source: "calendar" as const,
-    }),
-  );
+  const mirrorBusy: BusyInterval[] = (
+    !supersaasImportOn || mirrorsRes.error ? [] : (mirrorsRes.data ?? [])
+  ).map((row) => ({
+    id: `supersaas:${row.external_id}`,
+    start_at: row.start_at,
+    end_at: row.end_at,
+    source: "calendar" as const,
+  }));
 
   const calendarBusy: BusyInterval[] = [
     ...externalEvents

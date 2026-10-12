@@ -113,6 +113,21 @@ export async function setSuperSaasMirrorEnforce(supabase, enabled) {
   await setSetting(supabase, "supersaas_mirror_enforce", enabled ? "1" : "0");
 }
 
+/** Post-cutover SuperSaaS: default spento se la setting manca. */
+export async function isSuperSaasImportEnabled(supabase) {
+  const { data, error } = await supabase
+    .from("app_settings")
+    .select("value")
+    .eq("key", "supersaas_import_enabled")
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  const raw = String(data?.value ?? "0").trim().toLowerCase();
+  return raw === "1" || raw === "true" || raw === "yes";
+}
+
+export const SUPERSAAS_CUTOVER_BLOCK =
+  "Import SuperSaaS disabilitato (cutover MusicPro). ScuolaSemplice resta attivo fino al suo cutover.";
+
 export function roomsForMirror(rooms) {
   const active = (rooms ?? []).filter((room) => room.is_active !== false);
   const indexed = indexRoomsByCanonical(active);
@@ -125,6 +140,10 @@ export function roomsForMirror(rooms) {
 }
 
 export async function syncSuperSaasMirror(supabase, { apiKey, account, now = new Date() }) {
+  if (!(await isSuperSaasImportEnabled(supabase))) {
+    throw new Error(SUPERSAAS_CUTOVER_BLOCK);
+  }
+
   const schema = await probeSuperSaasSchema(supabase);
   if (!schema.ready) {
     throw new Error(schema.missing ? SCHEMA_APPLY_BLOCK : schema.error?.message || SCHEMA_APPLY_BLOCK);
