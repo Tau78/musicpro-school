@@ -26,6 +26,7 @@ import {
   isSlotInProviSchedule,
   listMyBands,
   listProviSchedule,
+  resolveDefaultBookingBandId,
   listRooms,
   peekRoomAvailabilityCache,
   requestBookingCreditsPayment,
@@ -111,6 +112,11 @@ export default function PrenotazioniPage() {
 
   const bookableBands = useMemo(
     () => myBands.filter((band) => band.myStatus === "active" && band.allQuotaOk),
+    [myBands],
+  );
+
+  const defaultBookingBandId = useMemo(
+    () => resolveDefaultBookingBandId(myBands),
     [myBands],
   );
 
@@ -577,10 +583,17 @@ export default function PrenotazioniPage() {
         startAt: selectedSlot.startAt,
         endAt: selectedSlot.endAt,
         proviDaSolo: isProviBooking,
-        bandId:
-          showBandFlow && sessionType === "band" && selectedBandId
-            ? selectedBandId
-            : undefined,
+        bandId: (() => {
+          if (isProviBooking) return undefined;
+          if (
+            showBandFlow &&
+            sessionType === "band" &&
+            selectedBandId
+          ) {
+            return selectedBandId;
+          }
+          return defaultBookingBandId ?? undefined;
+        })(),
       });
 
       if (!result.success) {

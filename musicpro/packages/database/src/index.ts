@@ -360,6 +360,8 @@ export {
   leaveBand,
   listBandMembers,
   listMyBands,
+  resolveDefaultBookingBandId,
+  saveMyBandName,
 } from "./bands";
 export type {
   AcceptBandInviteResult,
@@ -375,6 +377,7 @@ export type {
   CreateBandInviteResult,
   LeaveBandResult,
   MyBandSummary,
+  SaveMyBandNameResult,
   QuotaPayment,
   QuotaPaymentItem,
   QuotaPaymentItemStatus,
