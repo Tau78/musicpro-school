@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 
 import { MemberRole } from "@musicpro/shared";
 
-import { DocumentiSideNav } from "@/components/admin/documenti-side-nav";
+import { DocumentiWorkspaceNav } from "@/components/admin/documenti-workspace-nav";
 import { getAdminMember } from "@/lib/admin/current-member";
 import {
   canAccessDocumentiSubsection,
@@ -51,16 +51,16 @@ export default async function DocumentiLayout({
   }
 
   return (
-    <div className="flex flex-col gap-4 md:flex-row md:items-start">
+    <div className="space-y-3 sm:space-y-4">
       <Suspense fallback={null}>
-        <DocumentiSideNav
+        <DocumentiWorkspaceNav
           showAssociati={showAssociati}
           showVerbali={showVerbali}
           showCespiti={showCespiti}
           showPermessi={showPermessi}
         />
       </Suspense>
-      <div className="min-w-0 flex-1">{children}</div>
+      <div className="min-w-0">{children}</div>
     </div>
   );
 }
