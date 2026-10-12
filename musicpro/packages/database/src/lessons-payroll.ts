@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { getRomeDayBoundsUtc, todayInRome } from "./bookings";
+import { getRomeDayBoundsUtc, hourInRome, todayInRome } from "./bookings";
 import type { CourseMutationResult } from "./courses";
 import { getLessonSchoolSettings } from "./lessons-settings";
 import type { Database } from "./types/database";
@@ -1044,8 +1044,13 @@ export async function generateDueLessonPayrollDrafts(
   const target = addMonths(cy, cm, -1);
   const settings = await getLessonSchoolSettings(client);
   const jobDay = settings?.notulaJobDay ?? 8;
+  const jobHour = settings?.notulaJobHour ?? 8;
   const day = Number(today.slice(8, 10));
+  const hour = hourInRome();
   if (day < 1) {
+    return { generated: 0, errors: [] };
+  }
+  if (day < jobDay || (day === jobDay && hour < jobHour)) {
     return { generated: 0, errors: [] };
   }
 

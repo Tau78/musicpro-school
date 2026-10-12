@@ -117,6 +117,27 @@ export function MemberHome({
       ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2">
+        {showNextLesson ? (
+          <Link
+            href="/dashboard/rette"
+            className="glass-card group block p-5 transition hover:border-[var(--brand)]/20"
+          >
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--brand)]/10 text-lg">
+                💳
+              </span>
+              <div>
+                <p className="font-medium text-[var(--brand)] group-hover:underline">
+                  Le mie rette
+                </p>
+                <p className="mt-1 text-sm text-neutral-600">
+                  Paga retta lezioni e quota
+                </p>
+              </div>
+            </div>
+          </Link>
+        ) : null}
+
         <Link
           href="/dashboard/shop"
           className="glass-card group block p-5 transition hover:border-[var(--brand)]/20"

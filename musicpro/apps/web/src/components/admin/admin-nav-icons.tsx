@@ -74,6 +74,26 @@ export function NavIconStats({ className = "h-5 w-5" }: IconProps) {
   );
 }
 
+export function NavIconLezioni({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      <path d="M4 19.5V6.8a1 1 0 0 1 .55-.9l7-3.5a1 1 0 0 1 .9 0l7 3.5a1 1 0 0 1 .55.9v12.7" />
+      <path d="M12 22V10" />
+      <path d="M4 6.8 12 10l8-3.2" />
+    </svg>
+  );
+}
+
 export function NavIconRubrica({ className = "h-5 w-5" }: IconProps) {
   return (
     <svg

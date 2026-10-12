@@ -8,6 +8,7 @@ import {
   NavIconCalendar,
   NavIconDocumenti,
   NavIconHome,
+  NavIconLezioni,
   NavIconRimborsi,
   NavIconRubrica,
   NavIconStats,
@@ -27,6 +28,7 @@ interface AdminNavProps {
 type NavKey =
   | "home"
   | "rubrica"
+  | "lezioni"
   | "stats"
   | "prenotazioni"
   | "documenti"
@@ -72,6 +74,14 @@ const NAV_DEFS: NavDef[] = [
     mobileIcon: <NavIconRubrica />,
   },
   {
+    key: "lezioni",
+    label: "Lezioni",
+    mobileLabel: "Lezioni",
+    href: "/admin/lezioni/rette",
+    mobileHref: "/admin/lezioni/oggi",
+    mobileIcon: <NavIconLezioni />,
+  },
+  {
     key: "documenti",
     label: "Documenti",
     mobileLabel: "Documenti",
@@ -89,6 +99,7 @@ const NAV_DEFS: NavDef[] = [
 
 export function AdminNav({
   showRubrica,
+  showLezioni,
   showPrenotazioni,
   showDocumenti,
   showRimborsi,
@@ -102,6 +113,7 @@ export function AdminNav({
     return NAV_DEFS.filter((item) => {
       if (item.key === "home") return true;
       if (item.key === "rubrica") return showRubrica;
+      if (item.key === "lezioni") return showLezioni;
       // Stats al posto di Note: serve gestione prenotazioni (sale / incassi).
       if (item.key === "stats") return showPrenotazioni;
       if (item.key === "prenotazioni") return showPrenotazioni;
@@ -115,6 +127,7 @@ export function AdminNav({
   }, [
     documentiHref,
     showDocumenti,
+    showLezioni,
     showPrenotazioni,
     showRimborsi,
     showRubrica,
@@ -210,5 +223,6 @@ function isNavItemActive(
   if (key === "documenti") return pathname.startsWith("/admin/documenti");
   if (key === "stats") return pathname.startsWith("/admin/stats");
   if (key === "prenotazioni") return pathname.startsWith("/admin/prenotazioni");
+  if (key === "lezioni") return pathname.startsWith("/admin/lezioni");
   return pathname.startsWith(href);
 }

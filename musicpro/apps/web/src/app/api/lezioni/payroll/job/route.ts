@@ -5,6 +5,7 @@ import {
   addMonths,
   generateDueLessonPayrollDrafts,
   getLessonSchoolSettings,
+  hourInRome,
   listLessonPayrolls,
   notifyLessonPayrollDraft,
   sendDuePayrollSignReminders,
@@ -60,16 +61,16 @@ export async function GET(request: Request) {
   try {
     const settings = await getLessonSchoolSettings(service);
     const jobDay = settings?.notulaJobDay ?? 8;
+    const jobHour = settings?.notulaJobHour ?? 8;
     const today = todayInRome();
     const day = Number(today.slice(8, 10));
+    const hour = hourInRome();
 
-    // Il cron Vercel è già una volta al giorno (UTC). Non richiedere
-    // anche l'ora Rome: 08:00 UTC ≠ 08:00 Europe/Rome (CET/CEST).
-    if (day === jobDay) {
-      const due = await generateDueLessonPayrollDrafts(service);
-      generated = due.generated;
-      errors.push(...due.errors);
+    const due = await generateDueLessonPayrollDrafts(service);
+    generated = due.generated;
+    errors.push(...due.errors);
 
+    if (day === jobDay && hour === jobHour) {
       const current = yearMonthFromRomeDate(today);
       const prev = addMonths(current.year, current.month, -1);
       const drafts = await listLessonPayrolls(service, {

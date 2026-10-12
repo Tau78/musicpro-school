@@ -1558,6 +1558,35 @@ async function familyMemberIds(
   return [...ids];
 }
 
+/** Rette aperte/parziali per l'associato e i minori della stessa famiglia (RLS own/ward). */
+export async function listMyOpenLessonFees(
+  client: WalletClient,
+  memberId: string,
+): Promise<LessonFeeRow[]> {
+  const id = memberId.trim();
+  if (!id) return [];
+
+  const memberIds = await familyMemberIds(client, id);
+  const feeById = new Map<string, LessonFeeRow>();
+
+  for (const mid of memberIds) {
+    const list = await listLessonFees(client, {
+      mode: "all",
+      status: ["aperta", "parziale"],
+      memberId: mid,
+    });
+    for (const fee of list) {
+      feeById.set(fee.id, fee);
+    }
+  }
+
+  return [...feeById.values()].sort((a, b) => {
+    const byDue = a.dueOn.localeCompare(b.dueOn);
+    if (byDue !== 0) return byDue;
+    return a.studentLabel.localeCompare(b.studentLabel, "it");
+  });
+}
+
 export async function getMemberLessonPaymentHistory(
   client: WalletClient,
   memberId: string,
