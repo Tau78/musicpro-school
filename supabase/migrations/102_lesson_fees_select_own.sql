@@ -1,4 +1,7 @@
 -- Studente / tutore: SELECT rette lezioni (own / ward), come lesson_credit_ledger.
+-- Idempotent: policy may already exist from an earlier partial apply under 096.
+
+DROP POLICY IF EXISTS "lesson_fees_select_own" ON public.lesson_fees;
 
 CREATE POLICY "lesson_fees_select_own"
   ON public.lesson_fees FOR SELECT
