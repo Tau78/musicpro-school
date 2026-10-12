@@ -29,6 +29,8 @@ import {
   summarize,
 } from "./lib/supersaas-bookings.mjs";
 import {
+  SUPERSAAS_CUTOVER_BLOCK,
+  isSuperSaasImportEnabled,
   loadImportedExternalIds,
   markSuperSaasMirrorFresh,
   probeSuperSaasSchema,
@@ -160,6 +162,10 @@ async function main() {
     const supabase = createClient(supabaseUrl, serviceKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
+
+    if (!(await isSuperSaasImportEnabled(supabase))) {
+      throw new Error(SUPERSAAS_CUTOVER_BLOCK);
+    }
 
     const now = new Date();
     const member = await loadMember(supabase, email);

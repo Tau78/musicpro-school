@@ -2,7 +2,10 @@ import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
 import { redactSecrets } from "@/lib/supersaas/supersaas-bookings.mjs";
-import { syncSuperSaasMirror } from "@/lib/supersaas/supersaas-mirror-sync.mjs";
+import {
+  isSuperSaasImportEnabled,
+  syncSuperSaasMirror,
+} from "@/lib/supersaas/supersaas-mirror-sync.mjs";
 
 export const runtime = "nodejs";
 
@@ -25,12 +28,6 @@ export async function GET(request: Request) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (!apiKey) {
-    return NextResponse.json(
-      { success: false, message: "SUPERSAAS_API_KEY mancante" },
-      { status: 500 },
-    );
-  }
   if (!supabaseUrl || !serviceKey) {
     return NextResponse.json(
       { success: false, message: "Config Supabase mancante" },
@@ -43,6 +40,23 @@ export async function GET(request: Request) {
   });
 
   try {
+    if (!(await isSuperSaasImportEnabled(supabase))) {
+      return NextResponse.json({
+        success: true,
+        disabled: true,
+        mirrored: 0,
+        message:
+          "Import SuperSaaS disabilitato (cutover). Specchio non aggiornato.",
+      });
+    }
+
+    if (!apiKey) {
+      return NextResponse.json(
+        { success: false, message: "SUPERSAAS_API_KEY mancante" },
+        { status: 500 },
+      );
+    }
+
     const result = await syncSuperSaasMirror(supabase, { apiKey, account });
     return NextResponse.json({
       success: true,
