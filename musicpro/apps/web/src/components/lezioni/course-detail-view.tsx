@@ -25,10 +25,24 @@ import { LessonAttendancePanel } from "@/components/lezioni/lesson-attendance-pa
 import { PlaceLessonForm } from "@/components/lezioni/place-lesson-form";
 import { TransferTitularForm } from "@/components/lezioni/transfer-titular-form";
 import { TrialActions } from "@/components/lezioni/trial-actions";
+import { CourseProgrammingPanel } from "@/components/lezioni/course-programming-panel";
+import type { CourseLessonProgrammingHint } from "@/components/lezioni/load-course-page-data";
+
+type CourseDetailTab = "panoramica" | "programmazione";
+
+function courseDetailTabClass(active: boolean): string {
+  return [
+    "min-w-0 flex-1 rounded-md px-2 py-1 text-xs font-medium transition-colors",
+    active
+      ? "bg-white text-[var(--brand)] shadow-sm"
+      : "text-neutral-600 hover:text-neutral-900",
+  ].join(" ");
+}
 
 export function CourseDetailView({
   course,
   lessons,
+  programmingHintsByLessonId = {},
   roomsById,
   rooms = [],
   backHref,
@@ -45,6 +59,7 @@ export function CourseDetailView({
 }: {
   course: CourseDetail;
   lessons: Lesson[];
+  programmingHintsByLessonId?: Record<string, CourseLessonProgrammingHint>;
   roomsById: Record<string, string>;
   rooms?: { id: string; name: string }[];
   backHref: string;
@@ -76,6 +91,8 @@ export function CourseDetailView({
     course.status === "attivo";
   const today = todayInRome();
   const [expandedLessonId, setExpandedLessonId] = useState<string | null>(null);
+  const [detailTab, setDetailTab] = useState<CourseDetailTab>("panoramica");
+  const showProgrammingTab = !course.isTrial;
 
   return (
     <div className="space-y-4 pb-2">
@@ -108,6 +125,32 @@ export function CourseDetailView({
             {courseStatusLabel(course.status)}
           </span>
         </div>
+        {showProgrammingTab ? (
+          <div
+            className="mt-2 flex rounded-lg bg-neutral-100/90 p-0.5"
+            role="tablist"
+            aria-label="Sezioni corso"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={detailTab === "panoramica"}
+              className={courseDetailTabClass(detailTab === "panoramica")}
+              onClick={() => setDetailTab("panoramica")}
+            >
+              Panoramica
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={detailTab === "programmazione"}
+              className={courseDetailTabClass(detailTab === "programmazione")}
+              onClick={() => setDetailTab("programmazione")}
+            >
+              Programmazione
+            </button>
+          </div>
+        ) : null}
       </div>
 
       {pendingNote && course.status === "in_attesa" ? (
@@ -116,6 +159,22 @@ export function CourseDetailView({
         </p>
       ) : null}
 
+      {detailTab === "programmazione" && showProgrammingTab ? (
+        <section className="rounded-xl bg-white px-3.5 py-3 shadow-sm ring-1 ring-black/5">
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--brand)]">
+            Programmazione
+          </h3>
+          <CourseProgrammingPanel
+            lessons={lessons}
+            hintsByLessonId={programmingHintsByLessonId}
+            courseKind={course.courseKind}
+            roomsById={roomsById}
+          />
+        </section>
+      ) : null}
+
+      {detailTab === "panoramica" ? (
+        <>
       <section className="rounded-xl bg-white px-3.5 py-3 shadow-sm ring-1 ring-black/5">
         <h3 className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-[var(--brand)]">
           Dettaglio
@@ -351,6 +410,8 @@ export function CourseDetailView({
           </ul>
         )}
       </section>
+        </>
+      ) : null}
     </div>
   );
 }

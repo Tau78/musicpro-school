@@ -5,7 +5,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   getNextMemberNumber,
   grantMemberRole,
+  isMemberQuotaPaidForYear,
   listAnnualQuotaSettings,
+  resolveOnlineQuotaFiscalYear,
   upsertMemberAnnualQuotas,
   type Database,
 } from "@musicpro/database";
@@ -219,43 +221,58 @@ async function findMemberByIdentifier(
 async function hasQuotaPaidForMember(
   db: Db,
   memberId: string,
+  fiscalYear?: number,
 ): Promise<boolean> {
   const id = String(memberId || "").trim();
   if (!id) return false;
-
-  const anno = currentFiscalYear();
-  const { data: quota } = await db
-    .from("member_annual_quotas")
-    .select("paid_at")
-    .eq("member_id", id)
-    .eq("fiscal_year", anno)
-    .maybeSingle();
-
-  return !!quota?.paid_at;
+  const anno = fiscalYear ?? currentFiscalYear();
+  return isMemberQuotaPaidForYear(db, id, anno);
 }
 
-async function hasQuotaPaidThisYear(db: Db, cf: string): Promise<boolean> {
+async function hasPaidEnrollmentForYear(
+  db: Db,
+  cf: string,
+  fiscalYear: number,
+): Promise<boolean> {
   const target = String(cf || "").toUpperCase().trim();
   if (!target) return false;
-
-  const anno = currentFiscalYear();
 
   const { data: enrollments } = await db
     .from("enrollments")
     .select("payment_status")
-    .eq("fiscal_year", anno)
+    .eq("fiscal_year", fiscalYear)
     .ilike("tax_code", target);
 
-  if (
-    enrollments?.some((row) => isPaidStatus(row.payment_status))
-  ) {
-    return true;
+  return Boolean(
+    enrollments?.some((row) => isPaidStatus(row.payment_status)),
+  );
+}
+
+async function resolveMemberOnlineQuotaYear(
+  db: Db,
+  memberId: string | null | undefined,
+  cf?: string | null,
+): Promise<{ fiscalYear: number; alreadyPaid: boolean }> {
+  const resolved = await resolveOnlineQuotaFiscalYear(db, memberId);
+  if (resolved.alreadyPaid) return resolved;
+
+  const taxCode = String(cf || "").toUpperCase().trim();
+  if (!taxCode) return resolved;
+
+  if (await hasPaidEnrollmentForYear(db, taxCode, resolved.fiscalYear)) {
+    return { fiscalYear: resolved.fiscalYear, alreadyPaid: true };
   }
+  return resolved;
+}
 
-  const member = await findMemberByCf(db, target);
-  if (!member) return false;
-
-  return hasQuotaPaidForMember(db, member.id);
+async function quotaAmountCentsForYear(
+  db: Db,
+  fiscalYear: number,
+): Promise<number> {
+  const settings = await listAnnualQuotaSettings(db);
+  const setting = settings.find((row) => row.fiscalYear === fiscalYear);
+  if (setting) return Math.round(setting.amountEur * 100);
+  return QUOTA_ASSOCIATIVA_CENTESIMI;
 }
 
 async function findMemberById(
@@ -951,15 +968,22 @@ export async function validateIscrizioneToken(token: string) {
   }
 
   const fields = memberToFormFields(member);
-  const quotaByMember = await hasQuotaPaidForMember(db, member.id);
-  const quotaByCf = await hasQuotaPaidThisYear(db, String(fields.cf || ""));
-  const quotaGiaPagata =
-    Boolean(loaded.info.cashQuotaPaid) || quotaByMember || quotaByCf;
+  // Contanti sportello: quota già presa → solo anagrafica.
+  // Online: se 2026 versata ma 2027 libera → non è «già pagata», si rinnova sul 2027.
+  const target = Boolean(loaded.info.cashQuotaPaid)
+    ? { fiscalYear: currentFiscalYear(), alreadyPaid: true }
+    : await resolveMemberOnlineQuotaYear(
+        db,
+        member.id,
+        String(fields.cf || ""),
+      );
+  const quotaGiaPagata = target.alreadyPaid;
 
   return {
     found: true,
     rinnovo: true,
     quotaGiaPagata,
+    fiscalYear: target.fiscalYear,
     nome: fields.nome,
     cognome: fields.cognome,
     fields,
@@ -1277,22 +1301,21 @@ async function valutaDuplicatoIscrizione(
   data: EnrollmentFormData,
 ): Promise<{ blocked: boolean; code?: string; message?: string }> {
   const cf = String(data.cf || "").toUpperCase().trim();
+  const tokenMember = await memberFromIscrizioneToken(db, tokenFromForm(data));
+  const member = tokenMember ?? (await findMemberByCf(db, cf));
+  const target = await resolveMemberOnlineQuotaYear(db, member?.id, cf);
 
-  if (await hasQuotaPaidThisYear(db, cf)) {
+  if (target.alreadyPaid) {
     return {
       blocked: true,
       code: "QUOTA_GIA_PAGATA",
-      message:
-        "La quota associativa risulta già pagata per quest'anno. Controlla la email o scrivi a musicproeventi@gmail.com.",
+      message: `La quota associativa ${target.fiscalYear} risulta già pagata. Controlla la email o scrivi a musicproeventi@gmail.com.`,
     };
   }
 
   if (isRinnovo(data)) return { blocked: false };
-
-  const tokenMember = await memberFromIscrizioneToken(db, tokenFromForm(data));
   if (tokenMember) return { blocked: false };
 
-  const member = await findMemberByCf(db, cf);
   if (member) {
     try {
       await createAndSendMagicLink(db, member);
@@ -1313,17 +1336,23 @@ async function valutaDuplicatoIscrizione(
 async function findPendingEnrollmentByCf(
   db: Db,
   cf: string,
+  fiscalYear?: number,
 ): Promise<EnrollmentRow | null> {
   const target = String(cf || "").toUpperCase().trim();
   if (!target) return null;
 
-  const { data } = await db
+  let query = db
     .from("enrollments")
     .select("*")
     .eq("tax_code", target)
     .neq("payment_status", "PAGATO")
     .order("created_at", { ascending: false })
     .limit(1);
+  if (fiscalYear != null) {
+    query = query.eq("fiscal_year", fiscalYear);
+  }
+
+  const { data } = await query;
 
   return data && data.length > 0 ? data[0] : null;
 }
@@ -1365,9 +1394,17 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
     }
   }
 
-  const anno = currentFiscalYear();
-  const importoCents = QUOTA_ASSOCIATIVA_CENTESIMI;
   const cf = String(data.cf || "").toUpperCase().trim();
+  const target = await resolveMemberOnlineQuotaYear(db, member.id, cf);
+  if (target.alreadyPaid) {
+    return {
+      success: false,
+      code: "QUOTA_GIA_PAGATA",
+      message: `La quota associativa ${target.fiscalYear} risulta già pagata. Controlla la email o scrivi a musicproeventi@gmail.com.`,
+    };
+  }
+  const anno = target.fiscalYear;
+  const importoCents = await quotaAmountCentsForYear(db, anno);
   const payload = {
     ...data,
     metodo_pagamento: "Nexi",
@@ -1376,9 +1413,13 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
   const resumeId = String(data.idIscrizione || data.id || "").trim();
   let pending =
     (resumeId ? await getEnrollmentById(db, resumeId) : null) ||
-    (await findPendingEnrollmentByCf(db, cf));
+    (await findPendingEnrollmentByCf(db, cf, anno));
 
   if (pending && isPaidStatus(pending.payment_status)) {
+    pending = null;
+  }
+  // Bozza di un altro anno (es. 2026) non va riusata per un rinnovo 2027.
+  if (pending && pending.fiscal_year != null && pending.fiscal_year !== anno) {
     pending = null;
   }
 
@@ -1388,6 +1429,9 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
     const existingStato = String(pending.payment_status || "")
       .toUpperCase()
       .trim();
+    const sameYearLink =
+      pending.fiscal_year === anno &&
+      pending.amount_centesimi === importoCents;
 
     await db
       .from("enrollments")
@@ -1405,7 +1449,7 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
       })
       .eq("id", pending.id);
 
-    if (existingUrl && existingStato !== "ERRORE") {
+    if (existingUrl && existingStato !== "ERRORE" && sameYearLink) {
       await db
         .from("enrollments")
         .update({ payment_status: "INVIATO" })
@@ -1739,10 +1783,10 @@ async function promoteMemberAfterPaidEnrollment(
     );
   }
 
-  // Quota: idempotente se webhook ha già scritto.
-  if (!(await hasQuotaPaidForMember(db, updated.id))) {
+  // Quota: idempotente se webhook ha già scritto (usa l'anno dell'enrollment).
+  const anno = enrollment.fiscal_year || currentFiscalYear();
+  if (!(await hasQuotaPaidForMember(db, updated.id, anno))) {
     try {
-      const anno = enrollment.fiscal_year || currentFiscalYear();
       const settings = await listAnnualQuotaSettings(db);
       const setting = settings.find((row) => row.fiscalYear === anno);
       const amountEur =
@@ -2160,10 +2204,12 @@ export async function salvaAggiornamentoAssociatoIscrizione(
   }
 
   const cf = formText(data.cf).toUpperCase();
+  // Solo anagrafica senza pagamento: serve almeno la quota dell'anno corrente
+  // (o contanti sportello). Il rinnovo anticipato 2027 passa da pagamento.
   const quotaOk =
     Boolean(loaded?.info.cashQuotaPaid) ||
-    (await hasQuotaPaidForMember(db, member.id)) ||
-    (await hasQuotaPaidThisYear(db, cf));
+    (await hasQuotaPaidForMember(db, member.id, currentFiscalYear())) ||
+    (await hasPaidEnrollmentForYear(db, cf, currentFiscalYear()));
 
   if (!quotaOk) {
     return {

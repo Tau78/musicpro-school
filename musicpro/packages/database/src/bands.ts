@@ -203,6 +203,20 @@ interface CreateBandSafeResponse {
   error_message?: string;
 }
 
+interface SaveMyBandNameSafeResponse {
+  success: boolean;
+  band_id?: string;
+  name?: string;
+  bookings_synced?: number;
+  error_code?: BandErrorCode;
+  error_message?: string;
+}
+
+export interface SaveMyBandNameResult extends BandMutationResult {
+  name?: string;
+  bookingsSynced?: number;
+}
+
 interface AcceptBandInviteSafeResponse {
   success: boolean;
   band_id?: string;
@@ -340,6 +354,60 @@ export async function getBand(
   if (!data) return null;
 
   return mapBand(data as BandRow);
+}
+
+/** Band da usare in prenotazione quando il flusso band admin è disattivo. */
+export function resolveDefaultBookingBandId(
+  bands: MyBandSummary[],
+): string | null {
+  const active = bands.filter((band) => band.myStatus === "active");
+  if (active.length === 0) return null;
+
+  const bookable = active.filter((band) => band.allQuotaOk);
+  const pool = bookable.length > 0 ? bookable : active;
+
+  const founder = pool.filter((band) => band.myRole === "founder");
+  if (founder.length === 1) return founder[0].id;
+  if (pool.length === 1) return pool[0].id;
+
+  return null;
+}
+
+export async function saveMyBandName(
+  client: BandsClient,
+  name: string,
+): Promise<SaveMyBandNameResult> {
+  const { data, error } = await client.rpc("save_my_band_name_safe", {
+    p_name: name.trim(),
+  });
+
+  if (error) {
+    return {
+      success: false,
+      errorMessage: error.message,
+    };
+  }
+
+  const result = data as SaveMyBandNameSafeResponse | null;
+
+  if (!result?.success) {
+    const code = result?.error_code ?? "UNKNOWN";
+    return {
+      success: false,
+      errorCode: code,
+      errorMessage:
+        result?.error_message ??
+        BAND_ERROR_MESSAGES_IT[code] ??
+        BAND_ERROR_MESSAGES_IT.UNKNOWN,
+    };
+  }
+
+  return {
+    success: true,
+    bandId: result.band_id,
+    name: result.name,
+    bookingsSynced: result.bookings_synced ?? 0,
+  };
 }
 
 export async function createBand(

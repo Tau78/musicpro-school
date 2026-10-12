@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 
-import { PrenotazioniSideNav } from "@/components/admin/prenotazioni-side-nav";
+import { PrenotazioniWorkspaceNav } from "@/components/admin/prenotazioni-workspace-nav";
 
 export default function AdminPrenotazioniLayout({
   children,
@@ -8,11 +8,11 @@ export default function AdminPrenotazioniLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-4 md:flex-row md:items-start">
+    <div className="space-y-3 sm:space-y-4">
       <Suspense fallback={null}>
-        <PrenotazioniSideNav />
+        <PrenotazioniWorkspaceNav />
       </Suspense>
-      <div className="min-w-0 flex-1">{children}</div>
+      <div className="min-w-0">{children}</div>
     </div>
   );
 }

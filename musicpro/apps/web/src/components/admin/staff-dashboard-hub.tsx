@@ -7,8 +7,10 @@ import {
   formatCreditsCount,
   getRomeMinutesFromMidnight,
   minutesToTimeLabel,
+  type Room,
 } from "@musicpro/database";
 
+import { StaffQuickBookingAction } from "@/components/admin/staff-quick-booking-action";
 import {
   lessonCourseId,
   type OggiLesson,
@@ -26,9 +28,11 @@ export interface StaffDashboardHubProps {
   codaCount: number;
   arrearsCount: number;
   upcomingBookings: AdminBookingListItem[];
+  bookingRooms?: Room[];
   todayLessons: OggiLesson[];
   creditAvailable?: number;
   creditsInCirculation?: number | null;
+  today?: string;
 }
 
 function TodoPill({ href, label }: { href: string; label: string }) {
@@ -132,9 +136,11 @@ export function StaffDashboardHub({
   codaCount,
   arrearsCount,
   upcomingBookings,
+  bookingRooms = [],
   todayLessons,
   creditAvailable = 0,
   creditsInCirculation = null,
+  today = "",
   embeddedCalendar = null,
 }: StaffDashboardHubProps & {
   embeddedCalendar?: ReactNode;
@@ -212,18 +218,23 @@ export function StaffDashboardHub({
           description={creditsDescription}
         />
         {showBookings ? (
-          <ActionChip
-            href="/admin/prenotazioni/lista"
-            emoji="📋"
-            emojiBg="bg-[var(--brand-accent)]/15"
-            title="Lista prenotazioni"
-            description="Approva, modifica, cerca"
-            badge={
-              pendingApprovalCount > 0
-                ? `${pendingApprovalCount} da approvare`
-                : undefined
-            }
-          />
+          <div className="flex flex-col gap-2.5">
+            <ActionChip
+              href="/admin/prenotazioni/lista"
+              emoji="📋"
+              emojiBg="bg-[var(--brand-accent)]/15"
+              title="Lista prenotazioni"
+              description="Approva, modifica, cerca"
+              badge={
+                pendingApprovalCount > 0
+                  ? `${pendingApprovalCount} da approvare`
+                  : undefined
+              }
+            />
+            {today ? (
+              <StaffQuickBookingAction rooms={bookingRooms} today={today} />
+            ) : null}
+          </div>
         ) : null}
         {showLessons ? (
           <ActionChip

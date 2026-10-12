@@ -91,6 +91,7 @@ export {
   romeLocalInputToUtcIso,
   settlementMethodLabel,
   subscribeToBookings,
+  hourInRome,
   todayInRome,
   utcIsoToRomeLocalInput,
 } from "./bookings";
@@ -360,6 +361,8 @@ export {
   leaveBand,
   listBandMembers,
   listMyBands,
+  resolveDefaultBookingBandId,
+  saveMyBandName,
 } from "./bands";
 export type {
   AcceptBandInviteResult,
@@ -375,6 +378,7 @@ export type {
   CreateBandInviteResult,
   LeaveBandResult,
   MyBandSummary,
+  SaveMyBandNameResult,
   QuotaPayment,
   QuotaPaymentItem,
   QuotaPaymentItemStatus,
@@ -388,9 +392,12 @@ export {
   deleteAnnualQuotaSetting,
   formatQuotaDateItalian,
   formatQuotaEuro,
+  isMemberQuotaPaidForYear,
   listAnnualQuotaSettings,
   listMemberAnnualQuotas,
   recordMemberQuotaDunning,
+  resolveOnlineQuotaFiscalYear,
+  resolveOnlineQuotaFiscalYearFromState,
   updateAnnualQuotaSetting,
   upsertMemberAnnualQuotas,
 } from "./quotas";
@@ -561,6 +568,7 @@ export {
   listEnrollmentWalletsForCourse,
   listLessonFees,
   listMyEnrollmentWallets,
+  listMyOpenLessonFees,
   maybeSendPackReminders,
   registerFamilyCollection,
   seedOpeningPrepaidCredits,

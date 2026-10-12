@@ -99,7 +99,21 @@ Note:
 2. Non promuovere in `bookings` senza filtro date + dedup su `external_id`.
 3. Quota gruppo nel file è informativa; fonte quote resta Ordini.
 
+## Cutover (2026-10)
+
+SuperSaaS **non** è più la fonte live delle sale:
+
+- `app_settings.supersaas_import_enabled = 0`
+- cron GitHub `supersaas-mirror` spento (solo `workflow_dispatch` di emergenza)
+- feed Google Import (`@import.calendar.google.com`) delle sale disabilitati
+- lo specchio `supersaas_slot_mirrors` resta vuoto; il trigger di overlap è no-op
+
+**ScuolaSemplice** (quote / Ordini) resta attivo fino al suo cutover.
+
+Per riabilitare in emergenza: setting `supersaas_import_enabled=1`, riattivare i calendari Import e lo schedule del workflow.
+
 ## Riferimenti
 
-- Import live SuperSaaS: `scripts/import-supersaas-bookings.mjs`, `scripts/lib/supersaas-mirror-sync.mjs`
-- Migration: `supabase/migrations/086_supersaas_booking_import.sql`
+- Import live SuperSaaS (disabilitato): `scripts/import-supersaas-bookings.mjs`, `scripts/lib/supersaas-mirror-sync.mjs`
+- Migration cutover: `supabase/migrations/098_supersaas_cutover_disable.sql`
+- Migration storica: `supabase/migrations/086_supersaas_booking_import.sql`

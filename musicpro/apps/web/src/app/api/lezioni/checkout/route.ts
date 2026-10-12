@@ -40,6 +40,38 @@ function jsonError(message: string, status: number) {
   return NextResponse.json({ success: false, message }, { status });
 }
 
+/** Allievo o tutore (email famiglia, come incasso famiglia in wallet). */
+async function canActorPayLessonFeesForMember(
+  client: UserClient,
+  actorMemberId: string,
+  studentMemberId: string,
+): Promise<boolean> {
+  if (actorMemberId === studentMemberId) return true;
+
+  const { data: student, error: studentError } = await client
+    .from("members")
+    .select("manual_tutor_email")
+    .eq("id", studentMemberId)
+    .maybeSingle();
+  if (studentError || !student?.manual_tutor_email?.trim()) {
+    return false;
+  }
+
+  const { data: actor, error: actorError } = await client
+    .from("members")
+    .select("email")
+    .eq("id", actorMemberId)
+    .maybeSingle();
+  if (actorError || !actor?.email?.trim()) {
+    return false;
+  }
+
+  return (
+    actor.email.trim().toLowerCase() ===
+    student.manual_tutor_email.trim().toLowerCase()
+  );
+}
+
 async function ensureOpenQuotaFee(
   client: DbClient,
   opts: {
@@ -144,7 +176,15 @@ export async function POST(request: NextRequest) {
 
     const isStaff = canManageMembers(actor.roles);
     const isTitular = actor.id === course.titular_member_id;
-    if (!isStaff && !isTitular) {
+    const isStudent = actor.id === enrollment.member_id;
+    const isFamilyPayer =
+      isStudent ||
+      (await canActorPayLessonFeesForMember(
+        supabase,
+        actor.id,
+        enrollment.member_id,
+      ));
+    if (!isStaff && !isTitular && !isFamilyPayer) {
       return jsonError("Non autorizzato a generare il link di pagamento.", 403);
     }
 
@@ -240,7 +280,11 @@ export async function POST(request: NextRequest) {
       requestOrigin && !isLocalDevOrigin(requestOrigin)
         ? requestOrigin.replace(/\/$/, "")
         : authPublicOrigin(process.env);
-    const returnUrl = `${origin.replace(/\/$/, "")}/admin/lezioni/rette?pagato=1`;
+    const returnPath =
+      isStaff || isTitular
+        ? "/admin/lezioni/rette?pagato=1"
+        : "/dashboard/rette?pagato=1";
+    const returnUrl = `${origin.replace(/\/$/, "")}${returnPath}`;
 
     const studentName = `${student.first_name ?? ""} ${student.last_name ?? ""}`.trim();
     const linkRes = await createLessonPackPaymentLink({

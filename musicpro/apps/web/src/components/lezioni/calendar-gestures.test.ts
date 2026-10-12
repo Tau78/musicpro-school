@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  extendGridCloseMinute,
   nextCalendarView,
   prevCalendarView,
+  resolvePlacedEndMinute,
   touchHorizontalSpan,
 } from "./calendar-gestures";
 
@@ -26,4 +28,16 @@ test("touchHorizontalSpan", () => {
     touchHorizontalSpan({ clientX: 10 }, { clientX: 40 }),
     30,
   );
+});
+
+test("resolvePlacedEndMinute gestisce 22:00→mezzanotte", () => {
+  assert.equal(resolvePlacedEndMinute(22 * 60, 0, 15), 24 * 60);
+  assert.equal(resolvePlacedEndMinute(22 * 60, 23 * 60, 15), 23 * 60);
+  assert.equal(resolvePlacedEndMinute(22 * 60, 22 * 60, 15), 22 * 60 + 15);
+});
+
+test("extendGridCloseMinute allunga oltre le 22", () => {
+  assert.equal(extendGridCloseMinute(22 * 60, [{ endMinute: 24 * 60 }]), 24 * 60);
+  assert.equal(extendGridCloseMinute(22 * 60, [{ endMinute: 22 * 60 + 30 }]), 23 * 60);
+  assert.equal(extendGridCloseMinute(22 * 60, []), 22 * 60);
 });

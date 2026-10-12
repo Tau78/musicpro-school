@@ -25,6 +25,7 @@ import { PasskeySettings } from "@/components/auth/passkey-settings";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { MailingOptInToggle } from "@/components/dashboard/mailing-opt-in-toggle";
 import { MyReimbursements } from "@/components/dashboard/my-reimbursements";
+import { MemberBandNameForm } from "@/components/dashboard/member-band-name-form";
 import { ProfileSettingsForm } from "@/components/dashboard/profile-settings-form";
 import { canAccessAdmin } from "@/lib/admin/roles";
 import {
@@ -65,7 +66,14 @@ export default async function DashboardImpostazioniPage() {
   const showAdminLink = canAccessAdmin(member.roles);
   const detail = profile ?? null;
 
-  const primaryBand = myBands[0]?.name ?? null;
+  const founderBands = myBands.filter((band) => band.myRole === "founder");
+  const editableFounderBand =
+    founderBands.length === 1 ? founderBands[0] : null;
+  const memberOnlyBand =
+    !editableFounderBand && myBands.length === 1 ? myBands[0] : null;
+  const primaryBand =
+    editableFounderBand?.name ?? memberOnlyBand?.name ?? myBands[0]?.name ?? null;
+  const canEditBandName = Boolean(editableFounderBand);
   const roomCredits =
     creditBalance && creditBalance.available > 0
       ? creditBalance.available
@@ -234,17 +242,22 @@ export default async function DashboardImpostazioniPage() {
 
         <section className="glass-card p-6">
           <h2 className="text-lg font-medium text-[var(--brand)]">
-            Le mie band
+            La mia band
           </h2>
           <p className="mt-2 text-sm text-neutral-600">
-            Crea o gestisci le band a cui appartieni, invita nuovi membri e
-            preparati alle prenotazioni di gruppo.
+            Il nome compare in calendario sulle prenotazioni sale (al posto del
+            tuo nome). Fase intermedia: salvi solo nome e legame; inviti e
+            quote di gruppo arriveranno dopo.
           </p>
+          <MemberBandNameForm
+            initialName={primaryBand}
+            canEdit={canEditBandName || founderBands.length === 0}
+          />
           <Link
             href="/dashboard/band"
-            className="btn-brand mt-4 inline-flex rounded-lg px-5 py-2.5 text-sm font-medium hover:opacity-90"
+            className="mt-4 inline-flex text-sm font-medium text-[var(--brand)] underline-offset-2 hover:underline"
           >
-            Vai alle band
+            Gestione band avanzata
           </Link>
         </section>
 

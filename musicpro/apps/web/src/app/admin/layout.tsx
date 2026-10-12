@@ -7,7 +7,7 @@ import { APP_NAME } from "@musicpro/shared";
 import { AdminNav } from "@/components/admin/admin-nav";
 import { DocumentiSubNav } from "@/components/admin/documenti-sub-nav";
 import { SettingsSubNav } from "@/components/admin/settings-sub-nav";
-import { SettingsGearLink } from "@/components/dashboard/settings-gear-link";
+import { HeaderSettingsActions } from "@/components/dashboard/header-settings-actions";
 import { getAdminMember } from "@/lib/admin/current-member";
 import {
   canAccessAdmin,
@@ -127,7 +127,7 @@ export default async function AdminLayout({
             >
               Dashboard
             </Link>
-            <SettingsGearLink className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-white/80 hover:bg-white/10 hover:text-white" />
+            <HeaderSettingsActions variant="onBrand" />
           </div>
         </div>
         <AdminNav

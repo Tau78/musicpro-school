@@ -1,64 +1,13 @@
 "use client";
 
-import { usePathname, useSearchParams } from "next/navigation";
+export type { PrenotazioniLista } from "@/lib/admin/prenotazioni-nav";
+export { parsePrenotazioniLista } from "@/lib/admin/prenotazioni-nav";
 
-import { AdminSideNav } from "@/components/admin/admin-side-nav";
-import {
-  parsePrenotazioniLista,
-  type PrenotazioniLista,
-} from "@/lib/admin/prenotazioni-nav";
+export {
+  ADMIN_PRENOTAZIONI_NAV,
+  PrenotazioniWorkspaceNav,
+  type PrenotazioniNavGroup,
+} from "@/components/admin/prenotazioni-workspace-nav";
 
-export type { PrenotazioniLista };
-export { parsePrenotazioniLista };
-
-export function PrenotazioniSideNav() {
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const onCalendar = pathname === "/admin/prenotazioni/calendario";
-  const onReport = pathname === "/admin/prenotazioni/report";
-  const onList = pathname === "/admin/prenotazioni/lista";
-  const lista = parsePrenotazioniLista(searchParams.get("lista"));
-
-  return (
-    <AdminSideNav
-      label="Prenotazioni"
-      groups={[
-        {
-          label: "Prove",
-          items: [
-            {
-              href: "/admin/prenotazioni/calendario",
-              label: "Calendario",
-              active: onCalendar,
-            },
-            {
-              href: "/admin/prenotazioni/lista",
-              label: "Da approvare",
-              active: onList && lista === "da-approvare",
-            },
-            {
-              href: "/admin/prenotazioni/lista?lista=prossime",
-              label: "Prossime",
-              active: onList && lista === "prossime",
-            },
-            {
-              href: "/admin/prenotazioni/lista?lista=tutte",
-              label: "Tutte",
-              active: onList && lista === "tutte",
-            },
-            {
-              href: "/admin/prenotazioni/lista?lista=cestino",
-              label: "Cestino",
-              active: onList && lista === "cestino",
-            },
-            {
-              href: "/admin/prenotazioni/report",
-              label: "Report",
-              active: onReport,
-            },
-          ],
-        },
-      ]}
-    />
-  );
-}
+/** @deprecated Usa PrenotazioniWorkspaceNav */
+export { PrenotazioniWorkspaceNav as PrenotazioniSideNav } from "@/components/admin/prenotazioni-workspace-nav";

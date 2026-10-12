@@ -73,18 +73,11 @@ export default async function AdminPrenotazioniCalendarioPage({
   ]);
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="text-2xl font-semibold text-[var(--brand)]">
-          Prenotazioni sale
-        </h2>
-        <p className="mt-1 text-sm text-neutral-600">
-          Calendario prenotazioni e occupazioni esterne. Tieni premuto e
-          trascina su uno slot vuoto per creare (durata dal trascinamento);
-          swipe per cambiare data; pinch in ampiezza per la vista. Clicca un
-          evento per modificarlo.
-        </p>
-      </div>
+    <div className="space-y-3">
+      <p className="text-xs text-neutral-500">
+        Sale e occupazioni esterne — trascina su slot vuoto per creare, clic
+        per modificare.
+      </p>
 
       <LessonsCalendarPage
         initialLessons={mergeCalendarEvents([], bookings, externals)}

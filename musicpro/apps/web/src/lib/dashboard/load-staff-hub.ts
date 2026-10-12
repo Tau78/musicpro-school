@@ -7,7 +7,9 @@ import {
   listLessonsOnDate,
   listPendingCourses,
   listPendingLessonChangeRequests,
+  listRooms,
   listUnplacedLessons,
+  type Room,
 } from "@musicpro/database";
 
 import { createClient } from "@/lib/supabase/server";
@@ -41,6 +43,7 @@ export async function loadStaffDashboardHub(
   const [
     pendingApprovalCount,
     upcomingBookingsRaw,
+    bookingRooms,
     unplacedLessons,
     pendingCourses,
     changeRequests,
@@ -55,6 +58,9 @@ export async function loadStaffDashboardHub(
     showBookingsCalendar
       ? listAdminBookings(supabase, "upcoming")
       : Promise.resolve([]),
+    showBookingsCalendar
+      ? listRooms(supabase)
+      : Promise.resolve([] as Room[]),
     showStaffLessons
       ? listUnplacedLessons(supabase)
       : Promise.resolve([]),
@@ -103,6 +109,7 @@ export async function loadStaffDashboardHub(
     codaCount: pendingCourses.length + changeRequests.length,
     arrearsCount,
     upcomingBookings: upcomingBookingsRaw.slice(0, 4),
+    bookingRooms,
     todayLessons,
     creditAvailable: creditBalance?.available ?? 0,
     creditsInCirculation,

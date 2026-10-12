@@ -69,6 +69,6 @@ node scripts/verify-quota-import.mjs   # se ancora allineato a sheet GAS
 | Ordini (quota) | [`ORDINI_IMPORT.md`](../../../docs/scuola-semplice/ORDINI_IMPORT.md) | `Ordini_2023-2026.xls` | Già fatto (254/254); re-run dry-run = 0 insert |
 | Elenco ricevute | [`RICEVUTE_IMPORT.md`](../../../docs/scuola-semplice/RICEVUTE_IMPORT.md) | `Elenco_ricevute_….xls` | No → futuro `ss_receipts` |
 | Rette studenti | [`RETTE_IMPORT.md`](../../../docs/scuola-semplice/RETTE_IMPORT.md) | `Rette_studenti.xls` | No → futuro `ss_tuition_installments` |
-| MusicPro.xls (SuperSaaS) | [`MUSICPRO_SUPERSAAS_EXPORT.md`](../../../docs/scuola-semplice/MUSICPRO_SUPERSAAS_EXPORT.md) | `MusicPro_supersaas.xls` | No storico massivo; live = mirror SuperSaaS |
+| MusicPro.xls (SuperSaaS) | [`MUSICPRO_SUPERSAAS_EXPORT.md`](../../../docs/scuola-semplice/MUSICPRO_SUPERSAAS_EXPORT.md) | `MusicPro_supersaas.xls` | Cutover fatto: import/specchio SuperSaaS spento; non usare per live |
 
 Tutti gli xls sotto `docs/scuola-semplice/archivio/` sono **gitignored** (PII); in git restano doc + `*.sha256`.
