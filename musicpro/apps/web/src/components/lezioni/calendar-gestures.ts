@@ -76,3 +76,36 @@ export function vibrateLight(): void {
     // ignore
   }
 }
+
+/** Fine evento sul giorno di inizio: mezzanotte / giorno dopo → +1440. */
+export function resolvePlacedEndMinute(
+  startMinute: number,
+  endMinute: number,
+  slotMinutes: number,
+): number {
+  if (!Number.isFinite(startMinute) || !Number.isFinite(endMinute)) {
+    return startMinute + Math.max(1, slotMinutes);
+  }
+  if (endMinute > startMinute) return endMinute;
+  if (endMinute === startMinute) return startMinute + Math.max(1, slotMinutes);
+  // es. 22:00→00:00: endMinute=0 → 1440
+  return endMinute + 24 * 60;
+}
+
+/** Allunga la chiusura griglia per eventi oltre l’orario impostato (es. 22–24). */
+export function extendGridCloseMinute(
+  configuredCloseMinute: number,
+  lessons: Array<{ endMinute: number }>,
+): number {
+  let close = configuredCloseMinute;
+  for (const lesson of lessons) {
+    if (Number.isFinite(lesson.endMinute) && lesson.endMinute > close) {
+      close = lesson.endMinute;
+    }
+  }
+  if (close % 60 !== 0) {
+    close = Math.ceil(close / 60) * 60;
+  }
+  // Massimo: giorno + 6h (eventi che sconfinano oltre mezzanotte).
+  return Math.min(close, 30 * 60);
+}

@@ -30,9 +30,11 @@ import {
   PINCH_RATIO,
   SWIPE_MIN_PX,
   SWIPE_RATIO,
+  extendGridCloseMinute,
   hitTestDayColumn,
   nextCalendarView,
   prevCalendarView,
+  resolvePlacedEndMinute,
   touchHorizontalSpan,
   vibrateLight,
 } from "@/components/lezioni/calendar-gestures";
@@ -195,7 +197,7 @@ export function LessonsCalendar({
   highlightDay,
 }: LessonsCalendarProps) {
   const openMinute = Number.isFinite(gridOpenMinute) ? gridOpenMinute : 600;
-  const closeMinute =
+  const configuredCloseMinute =
     Number.isFinite(gridCloseMinute) && gridCloseMinute > openMinute
       ? gridCloseMinute
       : 1380;
@@ -231,6 +233,12 @@ export function LessonsCalendar({
     const prefix = anchorDate.slice(0, 7);
     return placed.filter((lesson) => lesson.date.startsWith(prefix));
   }, [isTimeGrid, placed, gridDates, anchorDate]);
+
+  /** Estendi la griglia se ci sono eventi oltre l’orario di chiusura (es. 22–24). */
+  const closeMinute = useMemo(
+    () => extendGridCloseMinute(configuredCloseMinute, visibleLessons),
+    [configuredCloseMinute, visibleLessons],
+  );
 
   const hoursLabel = formatOreLabel(
     visibleLessons.reduce((sum, lesson) => {
@@ -1617,7 +1625,7 @@ function placeLessons(
       endsAt: lesson.endsAt,
       date: romeDateFromIso(lesson.startsAt),
       startMinute,
-      endMinute: endMinute > startMinute ? endMinute : startMinute + slotMinutes,
+      endMinute: resolvePlacedEndMinute(startMinute, endMinute, slotMinutes),
     });
   }
   return rows;
