@@ -57,7 +57,7 @@ export async function requireCespitiAccess(): Promise<CespitiAccess> {
   }
 
   const member = await getAdminMember();
-  const flags = await getDocumentiSegreteriaFlags(supabase);
+  const flags = await getDocumentiSegreteriaFlags();
 
   if (
     !member ||

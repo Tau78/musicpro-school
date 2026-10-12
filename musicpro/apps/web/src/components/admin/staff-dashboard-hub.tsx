@@ -18,7 +18,6 @@ import {
 import { roomVisualFromName } from "@/lib/ui/associate-theme";
 
 export interface StaffDashboardHubProps {
-  firstName: string;
   showBookings: boolean;
   showStaffLessons: boolean;
   showTeacherLessons: boolean;
@@ -207,6 +206,45 @@ export function StaffDashboardHub({
       ? `${formatCreditsCount(creditAvailable)} · vai allo shop`
       : "Saldo e acquisto crediti sala";
 
+  const bookingListChip = showBookings ? (
+    <ActionChip
+      href="/admin/prenotazioni/lista"
+      emoji="📋"
+      emojiBg="bg-[var(--brand-accent)]/15"
+      title="Lista prenotazioni"
+      description="Approva, modifica, cerca"
+      badge={
+        pendingApprovalCount > 0
+          ? `${pendingApprovalCount} da approvare`
+          : undefined
+      }
+    />
+  ) : null;
+
+  const lessonsChip = showLessons ? (
+    <ActionChip
+      href={lessonsHubHref}
+      emoji="🎓"
+      emojiBg="bg-sky-100"
+      title={showStaffLessons ? "Lezioni" : "Lezioni oggi"}
+      description={
+        showStaffLessons
+          ? "Oggi, registro, coda e richieste"
+          : todayLessons.length > 0
+            ? `${todayLessons.length} in programma`
+            : "Registro e presenze"
+      }
+      badge={
+        lessonsBadgeParts.length > 0
+          ? lessonsBadgeParts.join(" · ")
+          : undefined
+      }
+    />
+  ) : null;
+
+  /** Griglia 2×2: evita colonna prenotazioni doppia che spinge Lezioni fuori riquadro. */
+  const actionGridFlat = showBookings && showLessons;
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-2.5">
@@ -218,43 +256,22 @@ export function StaffDashboardHub({
           description={creditsDescription}
         />
         {showBookings ? (
-          <div className="flex flex-col gap-2.5">
-            <ActionChip
-              href="/admin/prenotazioni/lista"
-              emoji="📋"
-              emojiBg="bg-[var(--brand-accent)]/15"
-              title="Lista prenotazioni"
-              description="Approva, modifica, cerca"
-              badge={
-                pendingApprovalCount > 0
-                  ? `${pendingApprovalCount} da approvare`
-                  : undefined
-              }
-            />
-            {today ? (
-              <StaffQuickBookingAction rooms={bookingRooms} today={today} />
-            ) : null}
-          </div>
-        ) : null}
-        {showLessons ? (
-          <ActionChip
-            href={lessonsHubHref}
-            emoji="🎓"
-            emojiBg="bg-sky-100"
-            title={showStaffLessons ? "Lezioni" : "Lezioni oggi"}
-            description={
-              showStaffLessons
-                ? "Oggi, registro, coda e richieste"
-                : todayLessons.length > 0
-                  ? `${todayLessons.length} in programma`
-                  : "Registro e presenze"
-            }
-            badge={
-              lessonsBadgeParts.length > 0
-                ? lessonsBadgeParts.join(" · ")
-                : undefined
-            }
-          />
+          actionGridFlat ? (
+            bookingListChip
+          ) : (
+            <div className="flex flex-col gap-2.5">
+              {bookingListChip}
+              {today ? (
+                <StaffQuickBookingAction rooms={bookingRooms} today={today} />
+              ) : null}
+            </div>
+          )
+        ) : (
+          lessonsChip
+        )}
+        {actionGridFlat ? lessonsChip : null}
+        {actionGridFlat && today ? (
+          <StaffQuickBookingAction rooms={bookingRooms} today={today} />
         ) : null}
       </div>
 

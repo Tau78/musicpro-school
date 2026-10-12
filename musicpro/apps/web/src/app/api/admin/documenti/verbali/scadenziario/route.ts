@@ -36,7 +36,7 @@ async function requireVerbaliAccess() {
   }
 
   const member = await getCurrentMemberWithRoles(supabase);
-  const flags = await getDocumentiSegreteriaFlags(supabase);
+  const flags = await getDocumentiSegreteriaFlags();
   if (
     !member ||
     !canAccessDocumentiSubsection(member.roles, "verbali", flags)

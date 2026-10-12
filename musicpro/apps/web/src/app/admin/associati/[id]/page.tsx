@@ -23,11 +23,13 @@ import { MemberRole } from "@musicpro/shared";
 
 import { MemberCreditsPanel } from "@/components/admin/member-credits-panel";
 import { MemberForm } from "@/components/admin/member-form";
+import { MemberQuotaInline } from "@/components/admin/member-quota-inline";
 import { MemberRolesPanel } from "@/components/admin/member-roles-panel";
 import { TeacherDidacticPanel } from "@/components/admin/teacher-didactic-panel";
 import { TeacherAvailabilityPanel } from "@/components/lezioni/teacher-availability-panel";
 import { getAdminMember } from "@/lib/admin/current-member";
 import {
+  canAccessMemberDesk,
   canDeleteMembers,
   canManageMembers,
 } from "@/lib/admin/roles";
@@ -42,9 +44,11 @@ export default async function AssociatoDetailPage({ params }: PageProps) {
   const supabase = await createClient();
   const currentMember = await getAdminMember();
 
-  if (!currentMember || !canManageMembers(currentMember.roles)) {
-    redirect("/admin/rimborsi");
+  if (!currentMember || !canAccessMemberDesk(currentMember.roles)) {
+    redirect("/admin/prenotazioni/calendario");
   }
+
+  const fullMemberAdmin = canManageMembers(currentMember.roles);
 
   const member = await getMemberById(supabase, id);
 
@@ -52,31 +56,28 @@ export default async function AssociatoDetailPage({ params }: PageProps) {
     notFound();
   }
 
-  const [
-    creditBalance,
-    creditTransactions,
-    quotas,
-    quotaSettings,
-    roles,
-    teacherProfile,
-    teacherSubjects,
-    teacherRates,
-    subjects,
-    payRateTypes,
-  ] = await Promise.all([
-    getMemberCreditBalance(supabase, id),
-    listMemberCreditTransactions(supabase, id),
-    listMemberAnnualQuotas(supabase, { memberId: id }),
-    listAnnualQuotaSettings(supabase),
-    getMemberRoles(supabase, id),
-    getTeacherProfile(supabase, id),
-    listTeacherSubjects(supabase, id),
-    listTeacherPayRates(supabase, id),
-    listLessonSubjects(supabase),
-    listPayRateTypes(supabase),
-  ]);
+  const [creditBalance, creditTransactions, quotas, quotaSettings, roles] =
+    await Promise.all([
+      getMemberCreditBalance(supabase, id),
+      listMemberCreditTransactions(supabase, id),
+      listMemberAnnualQuotas(supabase, { memberId: id }),
+      listAnnualQuotaSettings(supabase),
+      fullMemberAdmin ? getMemberRoles(supabase, id) : Promise.resolve([]),
+    ]);
 
-  const hasDocenteRole = roles.includes(MemberRole.Docente);
+  const hasDocenteRole =
+    fullMemberAdmin && roles.includes(MemberRole.Docente);
+
+  const [teacherProfile, teacherSubjects, teacherRates, subjects, payRateTypes] =
+    hasDocenteRole
+      ? await Promise.all([
+          getTeacherProfile(supabase, id),
+          listTeacherSubjects(supabase, id),
+          listTeacherPayRates(supabase, id),
+          listLessonSubjects(supabase),
+          listPayRateTypes(supabase),
+        ])
+      : [null, [], [], [], []];
 
   const [availabilitySlots, timeOff, lessonSettings, tutorChoices, initialTutorId] =
     hasDocenteRole
@@ -117,19 +118,32 @@ export default async function AssociatoDetailPage({ params }: PageProps) {
         ) : null}
       </div>
 
-      <MemberRolesPanel
-        memberId={member.id}
-        initialRoles={roles}
-        currentStaffMemberId={currentMember.id}
-        currentStaffRoles={currentMember.roles}
-      />
+      {fullMemberAdmin ? (
+        <>
+          <MemberRolesPanel
+            memberId={member.id}
+            initialRoles={roles}
+            currentStaffMemberId={currentMember.id}
+            currentStaffRoles={currentMember.roles}
+          />
 
-      <MemberForm
-        member={member}
-        canDelete={canDeleteMembers(currentMember.roles)}
-        quotas={quotas}
-        quotaSettings={quotaSettings}
-      />
+          <MemberForm
+            member={member}
+            canDelete={canDeleteMembers(currentMember.roles)}
+            quotas={quotas}
+            quotaSettings={quotaSettings}
+          />
+        </>
+      ) : (
+        <MemberQuotaInline
+          memberId={member.id}
+          memberFirstName={member.firstName}
+          memberEmail={member.email}
+          quotas={quotas}
+          quotaSettings={quotaSettings}
+          enrolledAt={member.enrolledAt}
+        />
+      )}
 
       {hasDocenteRole ? (
         <TeacherDidacticPanel

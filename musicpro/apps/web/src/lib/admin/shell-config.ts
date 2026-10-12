@@ -1,7 +1,8 @@
-import { MemberRole, type MemberRoleValue } from "@musicpro/shared";
+import { type MemberRoleValue } from "@musicpro/shared";
 
 import {
   canAccessAdmin,
+  canAccessMemberDesk,
   canManageBookings,
   canManageMembers,
   canManagePenalties,
@@ -23,8 +24,6 @@ import {
 } from "@/lib/admin/documenti-permissions";
 import { firstSettingsHref } from "@/lib/admin/settings-nav";
 import { isLessonsModuleEnabled } from "@/lib/lessons-module";
-import { createClient } from "@/lib/supabase/server";
-
 export type AdminShellNavConfig = {
   showRubrica: boolean;
   showLezioni: boolean;
@@ -44,7 +43,7 @@ export async function getAdminShellNavConfig(
     return null;
   }
 
-  const showRubrica = canManageMembers(roles);
+  const showRubrica = canAccessMemberDesk(roles);
   const showQuote = canManageQuotas(roles);
   const showRimborsi = canManageReimbursements(roles);
   const showPrenotazioni = canManageBookings(roles);
@@ -72,8 +71,7 @@ export async function getAdminShellNavConfig(
     showUtenti,
   });
 
-  const supabase = await createClient();
-  const documentiFlags = await getDocumentiSegreteriaFlags(supabase);
+  const documentiFlags = await getDocumentiSegreteriaFlags();
   const showDocumentiSection = buildShowDocumenti(roles, documentiFlags);
   const documentiHref = firstDocumentiHref({
     showAssociati: canAccessDocumentiSubsection(
@@ -96,7 +94,7 @@ export async function getAdminShellNavConfig(
 
   return {
     showRubrica,
-    showLezioni: showRubrica && isLessonsModuleEnabled(),
+    showLezioni: canManageMembers(roles) && isLessonsModuleEnabled(),
     showPrenotazioni,
     showDocumenti: showDocumentiSection,
     showRimborsi,
@@ -111,10 +109,5 @@ function buildShowDocumenti(
   roles: MemberRoleValue[],
   documentiFlags: DocumentiSegreteriaFlags,
 ): boolean {
-  const isAdmin = roles.includes(MemberRole.Admin);
-  return (
-    isAdmin ||
-    (canManageSettings(roles) &&
-      hasAnyDocumentiSubsection(roles, documentiFlags))
-  );
+  return hasAnyDocumentiSubsection(roles, documentiFlags);
 }

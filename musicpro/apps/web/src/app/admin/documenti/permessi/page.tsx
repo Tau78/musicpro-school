@@ -13,7 +13,7 @@ import { createClient } from "@/lib/supabase/server";
 export default async function DocumentiPermessiPage() {
   const supabase = await createClient();
   const member = await getAdminMember();
-  const flags = await getDocumentiSegreteriaFlags(supabase);
+  const flags = await getDocumentiSegreteriaFlags();
 
   if (!member || !canManageDocumentiPermissions(member.roles)) {
     redirect(

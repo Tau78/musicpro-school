@@ -10,21 +10,18 @@ import {
   canManageDocumentiPermissions,
   getDocumentiSegreteriaFlags,
 } from "@/lib/admin/documenti-permissions";
-import { createClient } from "@/lib/supabase/server";
-
 export default async function DocumentiLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
   const member = await getAdminMember();
 
   if (!member) {
     redirect("/login?error=member_not_linked&redirect=/admin/documenti");
   }
 
-  const flags = await getDocumentiSegreteriaFlags(supabase);
+  const flags = await getDocumentiSegreteriaFlags();
   const showAssociati = canAccessDocumentiSubsection(
     member.roles,
     "libro_associati",

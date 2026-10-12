@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 
 import {
@@ -10,7 +11,6 @@ import {
 } from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
 
-import { StaffDashboardHub } from "@/components/admin/staff-dashboard-hub";
 import { AssociatePageShell } from "@/components/associate/associate-page-shell";
 import { MemberHome } from "@/components/associate/member-home";
 import { LessonsUnavailableNotice } from "@/components/lezioni/lessons-unavailable-notice";
@@ -19,16 +19,15 @@ import {
   TeacherHome,
 } from "@/components/lezioni/teacher-home";
 import { isLessonsModuleEnabled } from "@/lib/lessons-module";
-import { StaffUnifiedCalendar } from "@/components/dashboard/staff-unified-calendar";
+import { StaffDashboardLoading } from "@/components/admin/admin-page-loading";
+import { StaffDashboardLoader } from "@/components/dashboard/staff-dashboard-loader";
 import { HeaderSettingsActions } from "@/components/dashboard/header-settings-actions";
 import { BookingPaymentReturnNotice } from "@/components/prenotazioni/booking-payment-return";
 import {
   canAccessAdmin,
   canManageBookings,
   canManageMembers,
-  canManageShop,
 } from "@/lib/admin/roles";
-import { loadStaffDashboardHub } from "@/lib/dashboard/load-staff-hub";
 import { createClient } from "@/lib/supabase/server";
 import { formatBookingWhen } from "@/lib/ui/associate-theme";
 
@@ -167,14 +166,6 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     );
   }
 
-  const manageShop = canManageShop(member.roles);
-  const hubProps = await loadStaffDashboardHub(supabase, member.id, today, {
-    showBookingsCalendar,
-    showStaffLessons,
-    showTeacherLessons,
-    loadCreditsInCirculation: manageShop,
-  });
-
   const calendarParams = {
     view: params.view,
     date: params.date,
@@ -188,26 +179,17 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     <div className="space-y-4 sm:space-y-5">
       {paymentNotice}
       {lessonsOffNotice}
-      <StaffDashboardHub
-        {...hubProps}
-        firstName={member.firstName}
-        canManageShop={manageShop}
-        today={today}
-        embeddedCalendar={
-          showUnifiedCalendar ? (
-            <StaffUnifiedCalendar
-              memberId={member.id}
-              searchParams={calendarParams}
-              showStaffLessons={showStaffLessons}
-              showBookingsCalendar={showBookingsCalendar}
-              showTeacherLessons={showTeacherLessons}
-              lockTeacherId={
-                showTeacherLessons && !showStaffLessons ? member.id : null
-              }
-            />
-          ) : null
-        }
-      />
+      <Suspense fallback={<StaffDashboardLoading />}>
+        <StaffDashboardLoader
+          memberId={member.id}
+          roles={member.roles}
+          searchParams={calendarParams}
+          showBookingsCalendar={showBookingsCalendar}
+          showStaffLessons={showStaffLessons}
+          showTeacherLessons={showTeacherLessons}
+          showUnifiedCalendar={showUnifiedCalendar}
+        />
+      </Suspense>
     </div>
   );
 }

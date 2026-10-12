@@ -27,10 +27,6 @@ export const ADMIN_PRENOTAZIONI_NAV: readonly PrenotazioniNavGroup[] = [
       { href: "/admin/prenotazioni/lista?lista=cestino", label: "Cestino" },
     ],
   },
-  {
-    label: "Report",
-    items: [{ href: "/admin/prenotazioni/report", label: "Report" }],
-  },
 ] as const;
 
 function IconCalendar({ className = "h-3.5 w-3.5" }: { className?: string }) {
@@ -107,31 +103,12 @@ function IconTrash({ className = "h-3.5 w-3.5" }: { className?: string }) {
   );
 }
 
-function IconChart({ className = "h-3.5 w-3.5" }: { className?: string }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.75"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden
-    >
-      <path d="M4 19V5M4 19h16M8 17V9M12 17V7M16 17v-4" />
-    </svg>
-  );
-}
-
 const ITEM_ICONS: Record<string, ReactNode> = {
   Calendario: <IconCalendar />,
   "Da approvare": <IconInbox />,
   Prossime: <IconList />,
   Tutte: <IconList />,
   Cestino: <IconTrash />,
-  Report: <IconChart />,
 };
 
 function resolvePrenotazioniActiveHref(
@@ -140,9 +117,6 @@ function resolvePrenotazioniActiveHref(
 ): string | null {
   if (pathname === "/admin/prenotazioni/calendario") {
     return "/admin/prenotazioni/calendario";
-  }
-  if (pathname === "/admin/prenotazioni/report") {
-    return "/admin/prenotazioni/report";
   }
   if (pathname === "/admin/prenotazioni/lista") {
     if (lista === "da-approvare") return "/admin/prenotazioni/lista";

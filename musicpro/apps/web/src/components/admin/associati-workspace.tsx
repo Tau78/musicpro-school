@@ -20,13 +20,16 @@ const TABS: { id: TabId; label: string }[] = [
 export function AssociatiWorkspace({
   memberDetails,
   showMerge,
+  showTools = true,
   listProps,
 }: {
   memberDetails: MemberDetail[];
   showMerge: boolean;
+  showTools?: boolean;
   listProps: Omit<MemberListProps, "canAdd">;
 }) {
   const [tab, setTab] = useState<TabId>("rubrica");
+  const tabs = TABS.filter((item) => showTools || item.id !== "strumenti");
 
   return (
     <div className="space-y-3">
@@ -35,7 +38,7 @@ export function AssociatiWorkspace({
         role="tablist"
         aria-label="Sezioni rubrica"
       >
-        {TABS.map((item) => (
+        {tabs.map((item) => (
           <button
             key={item.id}
             type="button"
