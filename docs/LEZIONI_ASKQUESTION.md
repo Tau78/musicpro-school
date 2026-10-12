@@ -58,7 +58,7 @@ Ordine suggerito: `1 → 2 → 3 → 4 → 6 → 8 → 5` (poi `7`, `9`).
 
 - Specifica V1: [`PIANO_LEZIONI.md`](./PIANO_LEZIONI.md) (§41 = scrittura chiusa, VAI = cutover).
 - Sandbox: [`LEZIONI_SANDBOX.md`](./LEZIONI_SANDBOX.md).
-- Pagamenti: Nexi Classic XPay ([`NEXI_MIGRATION.md`](./NEXI_MIGRATION.md)); pack lezioni allineati a RPC apply Nexi.
+- Pagamenti: Nexi Classic XPay ([`NEXI_MIGRATION.md`](./NEXI_MIGRATION.md)); pack lezioni allineati a RPC apply Nexi. Smoke: `npm run smoke:lesson-pack` (static + probe RPC; `--live` / `smoke:lesson-pack:live` con Supabase).
 
 ---
 

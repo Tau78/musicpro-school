@@ -23,11 +23,14 @@ import {
 } from "@musicpro/database";
 
 import {
+  EVENT_DRAG_ARM_MS,
+  EVENT_DRAG_MOVE_PX,
   LONG_PRESS_MOVE_PX,
   LONG_PRESS_MS,
   PINCH_RATIO,
   SWIPE_MIN_PX,
   SWIPE_RATIO,
+  hitTestDayColumn,
   nextCalendarView,
   prevCalendarView,
   touchHorizontalSpan,
@@ -251,8 +254,12 @@ export function LessonsCalendar({
   const [moving, setMoving] = useState(false);
   const [moveError, setMoveError] = useState<string | null>(null);
   const [dragDuration, setDragDuration] = useState<number | null>(null);
+  const [pointerDragLessonId, setPointerDragLessonId] = useState<string | null>(
+    null,
+  );
   const dragLessonRef = useRef<PlacedLesson | null>(null);
-  /** Blocca swipe/pinch mentre si crea uno slot con long-press. */
+  const pointerDragActiveRef = useRef(false);
+  /** Blocca swipe/pinch mentre si crea/sposta con touch. */
   const navGestureBlockedRef = useRef(false);
   const swipeStartRef = useRef<{ x: number; y: number; active: boolean } | null>(
     null,
@@ -294,8 +301,56 @@ export function LessonsCalendar({
 
   function endDrag() {
     dragLessonRef.current = null;
+    pointerDragActiveRef.current = false;
+    setPointerDragLessonId(null);
     setDragDuration(null);
     setHover(null);
+    navGestureBlockedRef.current = false;
+  }
+
+  function updatePointerDragHover(clientX: number, clientY: number) {
+    const lesson = dragLessonRef.current;
+    if (!lesson) return;
+    const hit = hitTestDayColumn(clientX, clientY);
+    if (!hit) return;
+    const duration = Math.max(
+      slotMinutes,
+      lesson.endMinute - lesson.startMinute,
+    );
+    const startMinute = snapMinute(
+      hit.minute,
+      openMinute,
+      closeMinute,
+      duration,
+      slotMinutes,
+    );
+    setHover({
+      date: hit.date,
+      startMinute,
+      durationMinutes: duration,
+    });
+  }
+
+  function beginPointerDrag(lesson: PlacedLesson) {
+    beginDrag(lesson);
+    pointerDragActiveRef.current = true;
+    setPointerDragLessonId(lesson.id);
+    navGestureBlockedRef.current = true;
+    vibrateLight();
+  }
+
+  function finishPointerDrag(clientX: number, clientY: number) {
+    const lesson = dragLessonRef.current;
+    if (!lesson || !pointerDragActiveRef.current) {
+      endDrag();
+      return;
+    }
+    const hit = hitTestDayColumn(clientX, clientY);
+    if (!hit) {
+      endDrag();
+      return;
+    }
+    proposeMove(hit.date, hit.minute, lesson.id);
   }
 
   function proposeMove(date: string, startMinute: number, lessonId?: string) {
@@ -468,9 +523,13 @@ export function LessonsCalendar({
             highlightDay={highlightDay}
             hover={hover}
             dragDuration={dragDuration}
+            pointerDragLessonId={pointerDragLessonId}
             onHover={setHover}
             onBeginDrag={beginDrag}
             onEndDrag={endDrag}
+            onBeginPointerDrag={beginPointerDrag}
+            onPointerDragMove={updatePointerDragHover}
+            onPointerDragEnd={finishPointerDrag}
             onProposeMove={proposeMove}
             onOpenLesson={onOpenLesson}
             onSlotDoubleClick={onSlotDoubleClick}
@@ -527,9 +586,13 @@ function WeekGrid({
   highlightDay,
   hover,
   dragDuration,
+  pointerDragLessonId,
   onHover,
   onBeginDrag,
   onEndDrag,
+  onBeginPointerDrag,
+  onPointerDragMove,
+  onPointerDragEnd,
   onProposeMove,
   onOpenLesson,
   onSlotDoubleClick,
@@ -547,9 +610,13 @@ function WeekGrid({
   highlightDay?: string | null;
   hover: HoverSlot | null;
   dragDuration: number | null;
+  pointerDragLessonId: string | null;
   onHover: (slot: HoverSlot | null) => void;
   onBeginDrag: (lesson: PlacedLesson) => void;
   onEndDrag: () => void;
+  onBeginPointerDrag: (lesson: PlacedLesson) => void;
+  onPointerDragMove: (clientX: number, clientY: number) => void;
+  onPointerDragEnd: (clientX: number, clientY: number) => void;
   onProposeMove: (date: string, startMinute: number, lessonId?: string) => void;
   onOpenLesson?: (lessonId: string) => void;
   onSlotDoubleClick?: (date: string, startMinute: number) => void;
@@ -648,9 +715,13 @@ function WeekGrid({
             showTeacherName={showTeacherName}
             hover={hover?.date === date ? hover : null}
             dragDuration={dragDuration}
+            pointerDragLessonId={pointerDragLessonId}
             onHover={onHover}
             onBeginDrag={onBeginDrag}
             onEndDrag={onEndDrag}
+            onBeginPointerDrag={onBeginPointerDrag}
+            onPointerDragMove={onPointerDragMove}
+            onPointerDragEnd={onPointerDragEnd}
             onProposeMove={onProposeMove}
             onOpenLesson={onOpenLesson}
             onSlotDoubleClick={onSlotDoubleClick}
@@ -681,9 +752,13 @@ function DayColumn({
   showTeacherName,
   hover,
   dragDuration,
+  pointerDragLessonId,
   onHover,
   onBeginDrag,
   onEndDrag,
+  onBeginPointerDrag,
+  onPointerDragMove,
+  onPointerDragEnd,
   onProposeMove,
   onOpenLesson,
   onSlotDoubleClick,
@@ -707,9 +782,13 @@ function DayColumn({
   showTeacherName: boolean;
   hover: HoverSlot | null;
   dragDuration: number | null;
+  pointerDragLessonId: string | null;
   onHover: (slot: HoverSlot | null) => void;
   onBeginDrag: (lesson: PlacedLesson) => void;
   onEndDrag: () => void;
+  onBeginPointerDrag: (lesson: PlacedLesson) => void;
+  onPointerDragMove: (clientX: number, clientY: number) => void;
+  onPointerDragEnd: (clientX: number, clientY: number) => void;
   onProposeMove: (date: string, startMinute: number, lessonId?: string) => void;
   onOpenLesson?: (lessonId: string) => void;
   onSlotDoubleClick?: (date: string, startMinute: number) => void;
@@ -807,6 +886,10 @@ function DayColumn({
   return (
     <div
       ref={columnRef}
+      data-day-column
+      data-date={date}
+      data-open-minute={openMinute}
+      data-close-minute={closeMinute}
       className={`relative border-l border-neutral-200 ${
         isToday
           ? "bg-[var(--brand)]/[0.03]"
@@ -817,6 +900,7 @@ function DayColumn({
       style={{ height }}
       onPointerDown={(event) => {
         if (!onSlotRangeSelect || event.button !== 0) return;
+        if (pointerDragLessonId) return;
         const target = event.target as HTMLElement;
         if (target.closest("[data-lesson-card]")) return;
         const anchorMinute = minuteFromPointer(event.clientY);
@@ -828,6 +912,8 @@ function DayColumn({
         };
         setPressArmed(true);
         clearLongPressTimer();
+        // Mouse: parte subito il range al primo movimento (sotto).
+        // Touch: long-press arma lo slot; oppure touch+trascina (vedi onPointerMove).
         longPressTimerRef.current = window.setTimeout(() => {
           const press = pressStartRef.current;
           if (!press || press.pointerId !== event.pointerId) return;
@@ -845,12 +931,24 @@ function DayColumn({
         if (!press || press.pointerId !== event.pointerId) return;
 
         if (!rangeSelect) {
-          const moved = Math.hypot(
-            event.clientX - press.x,
-            event.clientY - press.y,
-          );
+          const dx = event.clientX - press.x;
+          const dy = event.clientY - press.y;
+          const moved = Math.hypot(dx, dy);
           if (moved > LONG_PRESS_MOVE_PX) {
-            endRangeGesture();
+            // Touch/mouse + trascina su vuoto → crea range (non annullare).
+            // Preferisci gesto verticale; se è quasi solo swipe orizzontale, lascia al nav.
+            if (Math.abs(dy) < Math.abs(dx) * 0.85) {
+              endRangeGesture();
+              return;
+            }
+            clearLongPressTimer();
+            vibrateLight();
+            onRangeGestureActiveChange?.(true);
+            setRangeSelect({
+              anchorMinute: press.anchorMinute,
+              currentMinute: minuteFromPointer(event.clientY),
+            });
+            columnRef.current?.setPointerCapture(event.pointerId);
           }
           return;
         }
@@ -871,8 +969,6 @@ function DayColumn({
         }
 
         const currentMinute = minuteFromPointer(event.clientY);
-        const moved =
-          Math.abs(currentMinute - rangeSelect.anchorMinute) >= slotMinutes / 2;
         const { startMinute, durationMinutes } = rangeFromSelection(
           rangeSelect.anchorMinute,
           currentMinute,
@@ -881,7 +977,6 @@ function DayColumn({
           event.currentTarget.releasePointerCapture(event.pointerId);
         }
         endRangeGesture();
-        if (!moved) return;
         onSlotRangeSelect(date, startMinute, durationMinutes);
       }}
       onPointerCancel={() => endRangeGesture()}
@@ -993,6 +1088,7 @@ function DayColumn({
             canDrag={canDrag}
             canDragBookings={canDragBookings}
             showTeacherName={showTeacherName}
+            isPointerDragging={pointerDragLessonId === lesson.id}
             style={{
               top,
               height: heightPx,
@@ -1001,6 +1097,9 @@ function DayColumn({
             }}
             onBeginDrag={onBeginDrag}
             onEndDrag={onEndDrag}
+            onBeginPointerDrag={onBeginPointerDrag}
+            onPointerDragMove={onPointerDragMove}
+            onPointerDragEnd={onPointerDragEnd}
             onOpenLesson={onOpenLesson}
           />
         );
@@ -1024,21 +1123,38 @@ function LessonCard({
   canDrag,
   canDragBookings,
   showTeacherName,
+  isPointerDragging,
   style,
   onBeginDrag,
   onEndDrag,
+  onBeginPointerDrag,
+  onPointerDragMove,
+  onPointerDragEnd,
   onOpenLesson,
 }: {
   lesson: PlacedLesson;
   canDrag: boolean;
   canDragBookings: boolean;
   showTeacherName: boolean;
+  isPointerDragging: boolean;
   style: React.CSSProperties;
   onBeginDrag: (lesson: PlacedLesson) => void;
   onEndDrag: () => void;
+  onBeginPointerDrag: (lesson: PlacedLesson) => void;
+  onPointerDragMove: (clientX: number, clientY: number) => void;
+  onPointerDragEnd: (clientX: number, clientY: number) => void;
   onOpenLesson?: (lessonId: string) => void;
 }) {
   const dragged = useRef(false);
+  const pointerDragRef = useRef<{
+    pointerId: number;
+    x: number;
+    y: number;
+    armed: boolean;
+    active: boolean;
+    timer: number | null;
+  } | null>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
   const teacher = teacherLabel(lesson);
   const title = lessonTitle(lesson);
   const time = `${minutesToTimeLabel(lesson.startMinute)}–${minutesToTimeLabel(lesson.endMinute)}`;
@@ -1053,20 +1169,110 @@ function LessonCard({
       ? canDragBookings
       : !lesson.hasAttendance && lesson.courseStatus === "attivo");
 
+  useEffect(() => {
+    return () => {
+      const press = pointerDragRef.current;
+      if (press?.timer != null) window.clearTimeout(press.timer);
+    };
+  }, []);
+
+  function clearPointerDragTimer() {
+    const press = pointerDragRef.current;
+    if (press?.timer != null) {
+      window.clearTimeout(press.timer);
+      press.timer = null;
+    }
+  }
+
+  function endPointerPress() {
+    clearPointerDragTimer();
+    pointerDragRef.current = null;
+  }
+
   function open() {
-    if (dragged.current) return;
+    if (dragged.current || isPointerDragging) return;
     onOpenLesson?.(lesson.id);
   }
 
   return (
     <div
+      ref={cardRef}
       role="button"
       tabIndex={0}
       data-lesson-card
       draggable={draggable}
       title={`${title} · ${time}${lesson.roomName ? ` · ${lesson.roomName}` : ""}`}
+      onPointerDown={(event) => {
+        if (!draggable || event.button !== 0) return;
+        // Mouse: HTML5 DnD. Touch/pen: long-press poi trascina.
+        if (event.pointerType === "mouse") return;
+        event.stopPropagation();
+        clearPointerDragTimer();
+        const pointerId = event.pointerId;
+        pointerDragRef.current = {
+          pointerId,
+          x: event.clientX,
+          y: event.clientY,
+          armed: false,
+          active: false,
+          timer: window.setTimeout(() => {
+            const press = pointerDragRef.current;
+            if (!press || press.pointerId !== pointerId) return;
+            press.armed = true;
+            press.active = true;
+            dragged.current = true;
+            onBeginPointerDrag(lesson);
+            cardRef.current?.setPointerCapture(pointerId);
+          }, EVENT_DRAG_ARM_MS),
+        };
+      }}
+      onPointerMove={(event) => {
+        const press = pointerDragRef.current;
+        if (!press || press.pointerId !== event.pointerId) return;
+        if (press.active) {
+          event.preventDefault();
+          onPointerDragMove(event.clientX, event.clientY);
+          return;
+        }
+        const moved = Math.hypot(
+          event.clientX - press.x,
+          event.clientY - press.y,
+        );
+        if (moved > EVENT_DRAG_MOVE_PX) {
+          // Scroll/gesto nav: non armare lo spostamento.
+          endPointerPress();
+        }
+      }}
+      onPointerUp={(event) => {
+        const press = pointerDragRef.current;
+        if (!press || press.pointerId !== event.pointerId) return;
+        if (press.active) {
+          if (cardRef.current?.hasPointerCapture(event.pointerId)) {
+            cardRef.current.releasePointerCapture(event.pointerId);
+          }
+          onPointerDragEnd(event.clientX, event.clientY);
+          endPointerPress();
+          window.setTimeout(() => {
+            dragged.current = false;
+          }, 0);
+          return;
+        }
+        endPointerPress();
+      }}
+      onPointerCancel={() => {
+        if (pointerDragRef.current?.active) {
+          onEndDrag();
+        }
+        endPointerPress();
+        dragged.current = false;
+      }}
       onDragStart={(event) => {
         if (!draggable) {
+          event.preventDefault();
+          return;
+        }
+        // Evita HTML5 DnD durante un drag touch già attivo.
+        if (pointerDragRef.current?.active) {
           event.preventDefault();
           return;
         }
@@ -1095,7 +1301,9 @@ function LessonCard({
       }}
       className={`absolute z-10 overflow-hidden rounded-sm border px-1 py-px text-left leading-tight ${lessonCardClass(lesson)} ${
         draggable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
-      } ${lesson.hasAttendance && !isHold ? "opacity-80" : ""}`}
+      } ${lesson.hasAttendance && !isHold ? "opacity-80" : ""} ${
+        isPointerDragging ? "opacity-40 touch-none z-30" : ""
+      }`}
       style={{ ...style, ...calendarColorCss(lesson) }}
     >
       <p className="truncate text-[10px] font-semibold text-neutral-900">

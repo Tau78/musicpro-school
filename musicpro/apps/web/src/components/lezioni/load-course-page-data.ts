@@ -14,6 +14,11 @@ import { MemberRole } from "@musicpro/shared";
 
 type Client = SupabaseClient<Database>;
 
+/** Consumi wallet per riga tab Programmazione. */
+export type CourseLessonProgrammingHint = {
+  hasCreditConsumption: boolean;
+};
+
 export async function loadCourseLessons(
   client: Client,
   courseId: string,
@@ -49,6 +54,35 @@ export async function loadCourseLessons(
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }));
+}
+
+/** Consumi wallet per lezione (tab Programmazione, verde). */
+export async function loadCourseProgrammingHints(
+  client: Client,
+  lessonIds: string[],
+): Promise<Record<string, CourseLessonProgrammingHint>> {
+  if (lessonIds.length === 0) {
+    return {};
+  }
+
+  const { data, error } = await client
+    .from("lesson_credit_ledger")
+    .select("lesson_id")
+    .in("lesson_id", lessonIds)
+    .eq("kind", "consumo");
+
+  if (error) {
+    throw new Error(
+      `Impossibile caricare la programmazione: ${error.message}`,
+    );
+  }
+
+  const hints: Record<string, CourseLessonProgrammingHint> = {};
+  for (const row of data ?? []) {
+    if (!row.lesson_id) continue;
+    hints[row.lesson_id] = { hasCreditConsumption: true };
+  }
+  return hints;
 }
 
 export function roomsByIdFromList(

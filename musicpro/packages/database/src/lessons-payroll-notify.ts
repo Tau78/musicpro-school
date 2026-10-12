@@ -122,11 +122,9 @@ export async function sendDuePayrollSignReminders(
   let reminded = 0;
 
   let deadlineDays = 10;
-  let jobDay = 8;
   try {
     const settings = await getLessonSchoolSettings(client);
     deadlineDays = settings?.notulaSignDeadlineDays ?? 10;
-    jobDay = settings?.notulaJobDay ?? 8;
   } catch (err) {
     errors.push(
       err instanceof Error
@@ -137,9 +135,6 @@ export async function sendDuePayrollSignReminders(
   }
 
   const today = todayInRome();
-  if (Number(today.slice(8, 10)) !== jobDay) {
-    return { reminded, errors };
-  }
   const drafts = await listLessonPayrolls(client, { status: "draft" });
 
   for (const payroll of drafts) {

@@ -14,6 +14,7 @@ import { AssignCoordinatorForm } from "@/components/lezioni/assign-coordinator-f
 import { CourseDetailView } from "@/components/lezioni/course-detail-view";
 import {
   loadCourseLessons,
+  loadCourseProgrammingHints,
   roomsByIdFromList,
 } from "@/components/lezioni/load-course-page-data";
 import { getAdminMember } from "@/lib/admin/current-member";
@@ -52,6 +53,11 @@ export default async function AdminCorsoDetailPage({ params }: PageProps) {
     notFound();
   }
 
+  const programmingHintsByLessonId = await loadCourseProgrammingHints(
+    supabase,
+    lessons.map((lesson) => lesson.id),
+  );
+
   const docenteIdSet = new Set(docenteIds);
   const teachers = members
     .filter((row) => docenteIdSet.has(row.id))
@@ -65,6 +71,7 @@ export default async function AdminCorsoDetailPage({ params }: PageProps) {
       <CourseDetailView
         course={course}
         lessons={lessons}
+        programmingHintsByLessonId={programmingHintsByLessonId}
         roomsById={roomsByIdFromList(rooms)}
         rooms={rooms.map((room) => ({ id: room.id, name: room.name }))}
         backHref="/admin/lezioni/corsi"

@@ -9,9 +9,36 @@ export const CALENDAR_VIEW_ORDER: CalendarView[] = [
 
 export const LONG_PRESS_MS = 420;
 export const LONG_PRESS_MOVE_PX = 10;
+/** Long-press su un evento prima di poterlo trascinare (touch). */
+export const EVENT_DRAG_ARM_MS = 280;
+export const EVENT_DRAG_MOVE_PX = 8;
 export const SWIPE_MIN_PX = 56;
 export const SWIPE_RATIO = 1.35;
 export const PINCH_RATIO = 1.18;
+
+/** Hit-test colonna giorno sotto il dito/cursore (usa data-* sulla colonna). */
+export function hitTestDayColumn(
+  clientX: number,
+  clientY: number,
+): { date: string; minute: number } | null {
+  if (typeof document === "undefined") return null;
+  const el = document.elementFromPoint(clientX, clientY);
+  const col = el?.closest("[data-day-column]") as HTMLElement | null;
+  if (!col) return null;
+  const date = col.dataset.date;
+  const openMinute = Number(col.dataset.openMinute);
+  const closeMinute = Number(col.dataset.closeMinute);
+  if (!date || !Number.isFinite(openMinute) || !Number.isFinite(closeMinute)) {
+    return null;
+  }
+  const rect = col.getBoundingClientRect();
+  if (rect.height <= 0) return null;
+  const ratio = Math.min(1, Math.max(0, (clientY - rect.top) / rect.height));
+  return {
+    date,
+    minute: openMinute + ratio * (closeMinute - openMinute),
+  };
+}
 
 export function nextCalendarView(view: CalendarView): CalendarView | null {
   const index = CALENDAR_VIEW_ORDER.indexOf(view);

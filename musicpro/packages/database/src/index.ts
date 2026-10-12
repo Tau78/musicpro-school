@@ -90,6 +90,7 @@ export {
   romeLocalInputToUtcIso,
   settlementMethodLabel,
   subscribeToBookings,
+  hourInRome,
   todayInRome,
   utcIsoToRomeLocalInput,
 } from "./bookings";
@@ -563,6 +564,7 @@ export {
   listEnrollmentWalletsForCourse,
   listLessonFees,
   listMyEnrollmentWallets,
+  listMyOpenLessonFees,
   maybeSendPackReminders,
   registerFamilyCollection,
   seedOpeningPrepaidCredits,

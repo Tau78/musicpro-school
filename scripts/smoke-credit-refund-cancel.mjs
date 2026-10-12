@@ -484,7 +484,7 @@ ok("login buyer (associato test)");
   }
 
   const syncSrc = readFileSync(
-    join(root, "supabase/migrations/050_stripe_apply_retry_and_receipt_unique.sql"),
+    join(root, "supabase/migrations/097_absence_wallet_assente_consumes.sql"),
     "utf8",
   );
   if (

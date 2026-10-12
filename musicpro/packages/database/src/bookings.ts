@@ -1980,6 +1980,18 @@ export function todayInRome(): string {
   }).format(new Date());
 }
 
+/** Ora locale 0–23 in Europe/Rome (cron Vercel = UTC). */
+export function hourInRome(now: Date = new Date()): number {
+  const hour = new Intl.DateTimeFormat("en-GB", {
+    timeZone: BOOKING_TIMEZONE,
+    hour: "numeric",
+    hour12: false,
+    hourCycle: "h23",
+  }).format(now);
+  const n = Number(hour);
+  return n === 24 ? 0 : n;
+}
+
 export type SettlementMethod = "credits" | "cash" | "original_method";
 
 export interface AdminBookingDetail extends AdminBookingListItem {}

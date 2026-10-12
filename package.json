@@ -36,6 +36,8 @@
     "test:supersaas": "node --test scripts/lib/supersaas-bookings.test.mjs scripts/lib/supersaas-users.test.mjs",
     "smoke:credit-refund-cancel": "node scripts/smoke-credit-refund-cancel.mjs",
     "smoke:credit-shop-nexi": "node scripts/smoke-credit-shop-nexi-e2e.mjs",
+    "smoke:lesson-pack": "node scripts/smoke-lesson-pack-nexi.mjs",
+    "smoke:lesson-pack:live": "node scripts/smoke-lesson-pack-nexi.mjs --live",
     "asc:prepare-unlisted": "node scripts/asc-prepare-unlisted-resubmit.mjs",
     "android:aab": "bash school-shell-android/scripts/build-aab.sh"
   },

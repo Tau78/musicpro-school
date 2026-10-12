@@ -13,6 +13,7 @@ import { MemberRole } from "@musicpro/shared";
 import { CourseDetailView } from "@/components/lezioni/course-detail-view";
 import {
   loadCourseLessons,
+  loadCourseProgrammingHints,
   roomsByIdFromList,
 } from "@/components/lezioni/load-course-page-data";
 import { createClient } from "@/lib/supabase/server";
@@ -42,6 +43,11 @@ export default async function CorsoDocenteDetailPage({ params }: PageProps) {
     notFound();
   }
 
+  const programmingHintsByLessonId = await loadCourseProgrammingHints(
+    supabase,
+    lessons.map((lesson) => lesson.id),
+  );
+
   const isTitular = course.titularMemberId === member.id;
   const isCoordinator = isTitular
     ? false
@@ -57,6 +63,7 @@ export default async function CorsoDocenteDetailPage({ params }: PageProps) {
     <CourseDetailView
       course={course}
       lessons={lessons}
+      programmingHintsByLessonId={programmingHintsByLessonId}
       roomsById={roomsByIdFromList(rooms)}
       rooms={rooms.map((room) => ({ id: room.id, name: room.name }))}
       backHref="/lezioni/corsi"
