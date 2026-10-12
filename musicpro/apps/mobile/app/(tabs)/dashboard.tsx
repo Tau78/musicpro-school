@@ -283,7 +283,12 @@ export default function DashboardScreen() {
           id: `booking:${booking.id}`,
           date: dateInRome(booking.start_at),
           startMinute,
-          endMinute: endMinute > startMinute ? endMinute : startMinute + 60,
+          endMinute:
+            endMinute > startMinute
+              ? endMinute
+              : endMinute === startMinute
+                ? startMinute + 60
+                : endMinute + 24 * 60,
           title: booking.room?.name ?? "Sala",
           subtitle: booking.title || bookingStatusLabel(booking.status),
           color: {
@@ -314,7 +319,12 @@ export default function DashboardScreen() {
             id: `lesson:${lesson.id}`,
             date: dateInRome(lesson.startsAt!),
             startMinute,
-            endMinute: endMinute > startMinute ? endMinute : startMinute + 60,
+            endMinute:
+              endMinute > startMinute
+                ? endMinute
+                : endMinute === startMinute
+                  ? startMinute + 60
+                  : endMinute + 24 * 60,
             title: lesson.courseName || "Lezione",
             subtitle: lesson.studentNames.join(", ") || lesson.roomName || undefined,
             color: {
