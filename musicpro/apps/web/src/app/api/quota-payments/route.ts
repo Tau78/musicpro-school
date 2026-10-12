@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createQuotaPaymentCheckout } from "@musicpro/database";
 
 import { authPublicOrigin, isLocalDevOrigin } from "@/lib/auth/redirect-url";
-import { createStripePaymentLinkQuotaMultiPay } from "@/lib/stripe/quota-multi-payment-link";
+import { createNexiQuotaMultiPaymentLink } from "@/lib/nexi/quota-multi-payment-link";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
       ? `${origin.replace(/\/$/, "")}/dashboard/band/${bandId}`
       : `${origin.replace(/\/$/, "")}/dashboard/band`;
 
-    const linkRes = await createStripePaymentLinkQuotaMultiPay({
+    const linkRes = await createNexiQuotaMultiPaymentLink({
       quotaPaymentId: checkout.quotaPaymentId,
       paidByMemberId: member.id,
       memberIds,

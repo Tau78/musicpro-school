@@ -20,7 +20,7 @@ import {
 } from "@/components/lezioni/teacher-home";
 import { isLessonsModuleEnabled } from "@/lib/lessons-module";
 import { StaffUnifiedCalendar } from "@/components/dashboard/staff-unified-calendar";
-import { SettingsGearLink } from "@/components/dashboard/settings-gear-link";
+import { HeaderSettingsActions } from "@/components/dashboard/header-settings-actions";
 import { BookingPaymentReturnNotice } from "@/components/prenotazioni/booking-payment-return";
 import {
   canAccessAdmin,
@@ -102,7 +102,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       return <div className="space-y-4">{teacherHome}</div>;
     }
     return (
-      <AssociatePageShell actions={<SettingsGearLink />}>
+      <AssociatePageShell actions={<HeaderSettingsActions />}>
         {teacherHome}
       </AssociatePageShell>
     );
@@ -163,7 +163,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     }
 
     return (
-      <AssociatePageShell actions={<SettingsGearLink />}>{home}</AssociatePageShell>
+      <AssociatePageShell actions={<HeaderSettingsActions />}>{home}</AssociatePageShell>
     );
   }
 

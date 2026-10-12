@@ -2,7 +2,7 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 
 import { authPublicOrigin, isLocalDevOrigin } from "@/lib/auth/redirect-url";
-import { createRoomBookingPaymentSession } from "@/lib/stripe/room-payment-service";
+import { createNexiRoomBookingPaymentSession } from "@/lib/nexi/room-payment-service";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -75,7 +75,7 @@ export async function POST(
     const returnBase = `${origin.replace(/\/$/, "")}/dashboard`;
 
     const service = createServiceRoleClient();
-    const result = await createRoomBookingPaymentSession(
+    const result = await createNexiRoomBookingPaymentSession(
       service,
       bookingId,
       member.id,

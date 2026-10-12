@@ -536,6 +536,7 @@ export async function saveLessonAttendance(
   );
 
   const warnings: string[] = [];
+  let walletSync: unknown = null;
 
   if (input.rows.length > 0) {
     const markedAt = new Date().toISOString();
@@ -553,10 +554,11 @@ export async function saveLessonAttendance(
       return fail(upsertError.message || "Impossibile salvare le presenze.");
     }
 
-    const { data: walletSync, error: walletError } = await client.rpc(
+    const { data: syncResult, error: walletError } = await client.rpc(
       "sync_lesson_wallet_after_attendance",
       { p_lesson_id: input.lessonId },
     );
+    walletSync = syncResult;
     if (walletError) {
       warnings.push(
         walletError.message || "Impossibile aggiornare i crediti lezione.",
@@ -565,9 +567,9 @@ export async function saveLessonAttendance(
       walletSync &&
       typeof walletSync === "object" &&
       !Array.isArray(walletSync) &&
-      walletSync.success === false
+      (walletSync as { success?: boolean }).success === false
     ) {
-      const message = walletSync.message;
+      const message = (walletSync as { message?: unknown }).message;
       warnings.push(
         typeof message === "string" && message.trim()
           ? message
@@ -575,6 +577,8 @@ export async function saveLessonAttendance(
       );
     }
   }
+
+  const packOpenedEnrollmentIds = parsePackOpenedEnrollmentIds(walletSync);
 
   const loaded = await loadLesson(client, input.lessonId);
   if (loaded.errorMessage) return fail(loaded.errorMessage);
@@ -652,7 +656,20 @@ export async function saveLessonAttendance(
     }
   }
 
-  return ok(input.lessonId, warnings);
+  return {
+    ...ok(input.lessonId, warnings),
+    packOpenedEnrollmentIds,
+  };
+}
+
+function parsePackOpenedEnrollmentIds(walletSync: unknown): string[] {
+  if (!walletSync || typeof walletSync !== "object" || Array.isArray(walletSync)) {
+    return [];
+  }
+  const raw = (walletSync as { pack_opened_enrollment_ids?: unknown })
+    .pack_opened_enrollment_ids;
+  if (!Array.isArray(raw)) return [];
+  return raw.map((id) => String(id ?? "").trim()).filter(Boolean);
 }
 
 /** Solo staff. Cancella le righe presenza e riallinea i consumi wallet. La notula NON si sblocca qui. */

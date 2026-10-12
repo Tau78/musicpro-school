@@ -8,7 +8,7 @@ import {
 } from "@musicpro/database";
 import { APP_NAME } from "@musicpro/shared";
 
-import { SettingsGearLink } from "@/components/dashboard/settings-gear-link";
+import { HeaderSettingsActions } from "@/components/dashboard/header-settings-actions";
 import { CreditShopPackages } from "@/components/shop/credit-shop-packages";
 import { createClient } from "@/lib/supabase/server";
 
@@ -51,7 +51,7 @@ export default async function DashboardShopPage({ searchParams }: ShopPageProps)
             >
               Impostazioni
             </Link>
-            <SettingsGearLink />
+            <HeaderSettingsActions />
           </div>
         </div>
       </header>

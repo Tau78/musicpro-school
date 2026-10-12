@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import {
   getPublicDisplaySettings,
   listPublicBoards,
-  listRooms,
+  listRoomsForLessons,
 } from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
 
@@ -26,12 +26,12 @@ export default async function AdminTabelloniPage() {
 
   let settings: Awaited<ReturnType<typeof getPublicDisplaySettings>> = null;
   let boards: Awaited<ReturnType<typeof listPublicBoards>> = [];
-  let rooms: Awaited<ReturnType<typeof listRooms>> = [];
+  let rooms: Awaited<ReturnType<typeof listRoomsForLessons>> = [];
   try {
     [settings, boards, rooms] = await Promise.all([
       getPublicDisplaySettings(supabase),
       listPublicBoards(supabase),
-      listRooms(supabase),
+      listRoomsForLessons(supabase),
     ]);
   } catch (error) {
     console.error(error);

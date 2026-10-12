@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { getCurrentMemberWithRoles } from "@musicpro/database";
 import { APP_NAME, MemberRole } from "@musicpro/shared";
 
-import { SettingsGearLink } from "@/components/dashboard/settings-gear-link";
+import { HeaderSettingsActions } from "@/components/dashboard/header-settings-actions";
 import { LessonsSandboxBanner } from "@/components/lezioni/lessons-sandbox-banner";
 import { LezioniSubNav } from "@/components/lezioni/lezioni-sub-nav";
 import { isLessonsModuleEnabled } from "@/lib/lessons-module";
@@ -57,7 +57,7 @@ export default async function LezioniLayout({
             >
               Dashboard
             </Link>
-            <SettingsGearLink className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-white/80 hover:bg-white/10 hover:text-white" />
+            <HeaderSettingsActions variant="onBrand" />
           </div>
         </div>
       </header>

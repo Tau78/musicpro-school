@@ -22,10 +22,10 @@ import {
 } from "./enrollment-pdf";
 import { sendEnrollmentEmail } from "./email-transport";
 import {
-  createStripePaymentLinkQuotaAssociativa,
+  createNexiQuotaAssociativaPaymentLink,
   QUOTA_ASSOCIATIVA_CENTESIMI,
-  syncStripePaymentForEnrollment,
-} from "./stripe-payment-link";
+  syncNexiPaymentForEnrollment,
+} from "./nexi-quota-payment-link";
 
 type Db = SupabaseClient<Database>;
 type EnrollmentRow = Database["public"]["Tables"]["enrollments"]["Row"];
@@ -421,8 +421,7 @@ export async function sincronizzaPagamento(idIscrizione: string) {
   }
 
   try {
-    const sync = await syncStripePaymentForEnrollment(
-      null,
+    const sync = await syncNexiPaymentForEnrollment(
       rec.legacy_enrollment_id || rec.id,
       plId,
     );
@@ -1466,7 +1465,7 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
       };
     }
 
-    const linkResReuse = await createStripePaymentLinkQuotaAssociativa({
+    const linkResReuse = await createNexiQuotaAssociativaPaymentLink({
       idIscrizione,
       memberId: member.id,
       nome: String(data.nome || ""),
@@ -1535,7 +1534,7 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
     throw new Error(insertErr?.message || "Impossibile salvare l'iscrizione.");
   }
 
-  const linkRes = await createStripePaymentLinkQuotaAssociativa({
+  const linkRes = await createNexiQuotaAssociativaPaymentLink({
     idIscrizione,
     memberId: member.id,
     nome: String(data.nome || ""),

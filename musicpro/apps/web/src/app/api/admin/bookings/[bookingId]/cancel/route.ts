@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { cancelBooking, getCurrentMemberWithRoles } from "@musicpro/database";
 
 import { canManageBookings } from "@/lib/admin/roles";
-import { executeStripeRoomBookingRefund } from "@/lib/stripe/room-booking-refund";
+import { executeNexiRoomBookingRefundRecord } from "@/lib/nexi/room-booking-refund";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
   if (stripePlan?.needed) {
     const service = createServiceRoleClient();
-    const refundResult = await executeStripeRoomBookingRefund(service, stripePlan);
+    const refundResult = await executeNexiRoomBookingRefundRecord(service, stripePlan);
     if (!refundResult.success) {
       stripeRefundWarning =
         refundResult.message ??

@@ -9,7 +9,7 @@ import {
 
 import { AssociatePageShell } from "@/components/associate/associate-page-shell";
 import { MyLessonFeesPanel } from "@/components/associate/my-lesson-fees-panel";
-import { SettingsGearLink } from "@/components/dashboard/settings-gear-link";
+import { HeaderSettingsActions } from "@/components/dashboard/header-settings-actions";
 import { LessonsUnavailableNotice } from "@/components/lezioni/lessons-unavailable-notice";
 import { isLessonsModuleEnabled } from "@/lib/lessons-module";
 import { createClient } from "@/lib/supabase/server";
@@ -47,7 +47,7 @@ export default async function DashboardRettePage({ searchParams }: PageProps) {
   }
 
   return (
-    <AssociatePageShell actions={<SettingsGearLink />}>
+    <AssociatePageShell actions={<HeaderSettingsActions />}>
       <div className="space-y-5">
         <div>
           <Link

@@ -70,7 +70,7 @@ function parseEuroAmount(raw: string): number | null {
 }
 
 function paymentMethodLabel(method: LessonPackPaymentMethod): string {
-  if (method === "stripe") return "Stripe";
+  if (method === "stripe" || method === "nexi") return "Nexi";
   if (method === "bonifico") return "Bonifico";
   if (method === "contanti") return "Contanti";
   return "Altro";

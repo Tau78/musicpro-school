@@ -6,7 +6,7 @@ import { APP_NAME } from "@musicpro/shared";
 
 import { BandCard } from "@/components/band/band-card";
 import { BandCreateForm } from "@/components/band/band-create-form";
-import { SettingsGearLink } from "@/components/dashboard/settings-gear-link";
+import { HeaderSettingsActions } from "@/components/dashboard/header-settings-actions";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function BandDashboardPage() {
@@ -38,7 +38,7 @@ export default async function BandDashboardPage() {
             >
               Impostazioni
             </Link>
-            <SettingsGearLink />
+            <HeaderSettingsActions />
           </div>
         </div>
       </header>

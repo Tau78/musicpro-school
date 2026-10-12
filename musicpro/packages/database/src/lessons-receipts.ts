@@ -212,6 +212,18 @@ async function loadLinesByReceiptIds(
   return byReceipt;
 }
 
+async function resolveFiscalReceiptSection(
+  client: ReceiptsClient,
+  memberId: string,
+): Promise<string> {
+  const { data } = await client
+    .from("members")
+    .select("is_test_account")
+    .eq("id", memberId)
+    .maybeSingle();
+  return data?.is_test_account ? "TEST" : "S";
+}
+
 async function insertReceiptWithLines(
   client: ReceiptsClient,
   input: {
@@ -234,9 +246,11 @@ async function insertReceiptWithLines(
     return { error: "Anno ricevuta non valido." };
   }
 
+  const section = await resolveFiscalReceiptSection(client, input.memberId);
+
   const { data: numberN, error: rpcError } = await client.rpc(
     "next_fiscal_receipt_number",
-    { p_year: year },
+    { p_year: year, p_section: section },
   );
   if (rpcError || numberN == null) {
     return {
@@ -244,12 +258,13 @@ async function insertReceiptWithLines(
     };
   }
 
-  const code = `S/${numberN}/${year}`;
+  const code = `${section}/${numberN}/${year}`;
   const { data: inserted, error: insertError } = await client
     .from("fiscal_receipts")
     .insert({
       number_n: numberN,
       year,
+      section,
       code,
       issued_on: input.issuedOn,
       status: "emessa",

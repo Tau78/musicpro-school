@@ -6,7 +6,7 @@ import {
   getLessonSchoolSettings,
   getTeacherProfile,
   listLessonsInRange,
-  listRooms,
+  listRoomsForLessons,
   todayInRome,
 } from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
@@ -46,7 +46,7 @@ export default async function LezioniCalendarioPage({
 
   const [settings, rooms, profile] = await Promise.all([
     getLessonSchoolSettings(supabase),
-    listRooms(supabase),
+    listRoomsForLessons(supabase),
     getTeacherProfile(supabase, member.id),
   ]);
 

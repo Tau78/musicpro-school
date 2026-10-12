@@ -5,7 +5,7 @@ import {
   getTeacherProfile,
   listLessonsInRange,
   listLessonsOnDate,
-  listRooms,
+  listRoomsForLessons,
   todayInRome,
 } from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
@@ -35,7 +35,7 @@ export default async function LezioniOggiPage() {
       teacherMemberId: member.id,
     }),
     getTeacherProfile(supabase, member.id),
-    listRooms(supabase),
+    listRoomsForLessons(supabase),
   ]);
   const arrears = arrearsRange.filter(
     (lesson) =>

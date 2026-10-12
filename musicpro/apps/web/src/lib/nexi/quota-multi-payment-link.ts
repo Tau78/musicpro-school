@@ -20,7 +20,7 @@ function buildQuotaMultiPayReturnUrl(baseUrl: string, bandId?: string): string {
   return `${safeBase}${sep}${q.toString()}`;
 }
 
-export async function createStripePaymentLinkQuotaMultiPay(opts: {
+export async function createNexiQuotaMultiPaymentLink(opts: {
   quotaPaymentId: string;
   paidByMemberId: string;
   memberIds: string[];

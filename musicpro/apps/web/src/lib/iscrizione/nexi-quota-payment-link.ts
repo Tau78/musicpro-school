@@ -7,7 +7,7 @@ import { buildQuotaReturnUrl, iscrizioneReturnBase } from "@/lib/nexi/return-url
 export { QUOTA_ASSOCIATIVA_CENTESIMI };
 export type { PaymentLinkResult } from "@/lib/nexi/mint-payment";
 
-export async function createStripePaymentLinkQuotaAssociativa(opts: {
+export async function createNexiQuotaAssociativaPaymentLink(opts: {
   idIscrizione: string;
   memberId?: string;
   nome: string;
@@ -66,10 +66,13 @@ export async function createStripePaymentLinkQuotaAssociativa(opts: {
   });
 }
 
-export async function syncStripePaymentForEnrollment(
+/** Compat legacy (primo arg ignorato). */
+export async function syncNexiPaymentForEnrollmentLegacy(
   _cfg: unknown,
   idIscrizione: string,
   paymentLinkId: string,
 ) {
   return syncNexiPaymentForEnrollment(idIscrizione, paymentLinkId);
 }
+
+export { syncNexiPaymentForEnrollment };
