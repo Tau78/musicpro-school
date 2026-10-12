@@ -192,6 +192,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         {...hubProps}
         firstName={member.firstName}
         canManageShop={manageShop}
+        today={today}
         embeddedCalendar={
           showUnifiedCalendar ? (
             <StaffUnifiedCalendar
