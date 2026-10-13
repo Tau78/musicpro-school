@@ -181,7 +181,14 @@ function editBlockForLesson(params: {
   }
   if (params.startsAt) {
     const lessonDate = dateInRome(params.startsAt);
-    const elapsed = daysBetweenRomeDates(lessonDate, todayInRome());
+    const today = todayInRome();
+    if (lessonDate > today) {
+      return {
+        canEdit: false,
+        editBlockReason: "Lezione non ancora svolta.",
+      };
+    }
+    const elapsed = daysBetweenRomeDates(lessonDate, today);
     if (elapsed > params.attendanceEditDays) {
       return {
         canEdit: false,
@@ -594,12 +601,16 @@ export async function saveLessonAttendance(
   });
 
   let nextSequence: number | null = null;
+  // Gruppo: makeup per allievo giustificato; NON parkare la madre (evita doppio
+  // recupero se tutti giustificati). Individuale: park madre come prima.
+  let usedGroupMakeupPath = false;
 
   for (const row of giustificati) {
     const shouldCreateMakeup =
       course.courseKind === "gruppo" && lesson.kind === "regular";
 
     if (shouldCreateMakeup) {
+      usedGroupMakeupPath = true;
       try {
         const existingId = await existingMakeupLessonId(
           client,
@@ -636,7 +647,13 @@ export async function saveLessonAttendance(
     break;
   }
 
-  if (course.courseKind === "gruppo" && roster.students.length > 0) {
+  // Solo se gruppo senza path makeup (es. lezione non regular): park madre
+  // quando tutti giustificati. Con makeup già creati → no park (no doppio recupero).
+  if (
+    !usedGroupMakeupPath &&
+    course.courseKind === "gruppo" &&
+    roster.students.length > 0
+  ) {
     const nextByMember = new Map(previousByMember);
     for (const row of input.rows) {
       nextByMember.set(row.memberId, row.status);

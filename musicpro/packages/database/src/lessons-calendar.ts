@@ -283,6 +283,94 @@ async function collectOverlapWarnings(
   return warnings;
 }
 
+type LessonSlotSnapshot = {
+  bookingId: string | null;
+  roomId: string | null;
+  startsAt: string | null;
+  endsAt: string | null;
+};
+
+function bookingCreateErrorMessage(booked: {
+  errorCode?: string;
+  errorMessage?: string;
+}): string {
+  return booked.errorCode === "SLOT_TAKEN"
+    ? "Lo slot è già occupato."
+    : booked.errorMessage || "Impossibile occupare la sala.";
+}
+
+/**
+ * Dopo un cancel riuscito, se il create del nuovo slot fallisce ricrea il booking
+ * sullo slot precedente e aggiorna `lessons.booking_id` (il vecchio id è cancelled).
+ */
+async function restoreLessonBookingAfterFailedCreate(
+  client: CalendarClient,
+  params: {
+    lessonId: string;
+    titularMemberId: string;
+    title: string;
+    snapshot: LessonSlotSnapshot;
+    createErrorCode?: string;
+    createErrorMessage: string;
+  },
+): Promise<{ ok: false; errorCode?: string; errorMessage: string }> {
+  const { snapshot } = params;
+  if (
+    !snapshot.bookingId ||
+    !snapshot.roomId ||
+    !snapshot.startsAt ||
+    !snapshot.endsAt
+  ) {
+    return {
+      ok: false,
+      errorCode: params.createErrorCode,
+      errorMessage: params.createErrorMessage,
+    };
+  }
+
+  const restored = await createLessonBooking(client, {
+    roomId: snapshot.roomId,
+    memberId: params.titularMemberId,
+    startAt: snapshot.startsAt,
+    endAt: snapshot.endsAt,
+    title: params.title,
+  });
+
+  if (restored.bookingId) {
+    const { error: linkError } = await client
+      .from("lessons")
+      .update({ booking_id: restored.bookingId })
+      .eq("id", params.lessonId);
+    if (linkError) {
+      return {
+        ok: false,
+        errorCode: "SLOT_INCONSISTENT",
+        errorMessage:
+          `Slot lezione inconsistente: sala liberata, contatta supporto ` +
+          `(lesson=${params.lessonId}; oldBooking=${snapshot.bookingId}; ` +
+          `restoredBooking=${restored.bookingId} non collegato: ${linkError.message}; ` +
+          `create=${params.createErrorMessage})`,
+      };
+    }
+    return {
+      ok: false,
+      errorCode: params.createErrorCode,
+      errorMessage: params.createErrorMessage,
+    };
+  }
+
+  return {
+    ok: false,
+    errorCode: "SLOT_INCONSISTENT",
+    errorMessage:
+      `Slot lezione inconsistente: sala liberata, contatta supporto ` +
+      `(lesson=${params.lessonId}; oldBooking=${snapshot.bookingId}; ` +
+      `room=${snapshot.roomId}; start=${snapshot.startsAt}; end=${snapshot.endsAt}; ` +
+      `create=${params.createErrorMessage}; ` +
+      `restore=${restored.errorMessage || restored.errorCode || "fallito"})`,
+  };
+}
+
 async function applyLessonSlot(
   client: CalendarClient,
   params: {
@@ -297,8 +385,61 @@ async function applyLessonSlot(
   | { ok: true; bookingId: string | null }
   | { ok: false; errorCode?: string; errorMessage: string }
 > {
-  if (params.lesson.bookingId) {
-    const cancelError = await cancelHoldBooking(client, params.lesson.bookingId);
+  const snapshot: LessonSlotSnapshot = {
+    bookingId: params.lesson.bookingId,
+    roomId: params.lesson.roomId,
+    startsAt: params.lesson.startsAt,
+    endsAt: params.lesson.endsAt,
+  };
+
+  // create_lesson_booking non espone excludeBookingId: se il vecchio booking
+  // occupa lo stesso slot (stessa sala + overlap), bisogna cancel-first + restore.
+  const oldBlocksNew =
+    Boolean(snapshot.bookingId) &&
+    Boolean(snapshot.roomId) &&
+    Boolean(snapshot.startsAt) &&
+    Boolean(snapshot.endsAt) &&
+    params.roomId === snapshot.roomId &&
+    intervalsOverlap(
+      snapshot.startsAt!,
+      snapshot.endsAt!,
+      params.startsAt,
+      params.endsAt,
+    );
+
+  // Create-first quando il vecchio booking non blocca il nuovo slot.
+  if (params.roomId && !oldBlocksNew) {
+    const booked = await createLessonBooking(client, {
+      roomId: params.roomId,
+      memberId: params.titularMemberId,
+      startAt: params.startsAt,
+      endAt: params.endsAt,
+      title: params.title,
+    });
+    if (!booked.bookingId) {
+      return {
+        ok: false,
+        errorCode: booked.errorCode,
+        errorMessage: bookingCreateErrorMessage(booked),
+      };
+    }
+    if (snapshot.bookingId) {
+      const cancelError = await cancelHoldBooking(client, snapshot.bookingId);
+      if (cancelError) {
+        await cancelHoldBooking(client, booked.bookingId);
+        return {
+          ok: false,
+          errorCode: "CANCEL_FAILED",
+          errorMessage: cancelError,
+        };
+      }
+    }
+    return { ok: true, bookingId: booked.bookingId };
+  }
+
+  // Cancel-first (overlap stessa sala, oppure solo liberazione sala online/senza room).
+  if (snapshot.bookingId) {
+    const cancelError = await cancelHoldBooking(client, snapshot.bookingId);
     if (cancelError) {
       return { ok: false, errorCode: "CANCEL_FAILED", errorMessage: cancelError };
     }
@@ -314,14 +455,14 @@ async function applyLessonSlot(
       title: params.title,
     });
     if (!booked.bookingId) {
-      return {
-        ok: false,
-        errorCode: booked.errorCode,
-        errorMessage:
-          booked.errorCode === "SLOT_TAKEN"
-            ? "Lo slot è già occupato."
-            : booked.errorMessage || "Impossibile occupare la sala.",
-      };
+      return restoreLessonBookingAfterFailedCreate(client, {
+        lessonId: params.lesson.id,
+        titularMemberId: params.titularMemberId,
+        title: params.title,
+        snapshot,
+        createErrorCode: booked.errorCode,
+        createErrorMessage: bookingCreateErrorMessage(booked),
+      });
     }
     bookingId = booked.bookingId;
   }
@@ -1120,6 +1261,21 @@ export async function requestLessonMove(
   }
   if (lesson.placement !== "scheduled") {
     return fail("Si possono spostare solo le lezioni in calendario.");
+  }
+
+  try {
+    const attended = await lessonIdsWithAttendance(client, [lesson.id]);
+    if (attended.has(lesson.id)) {
+      return fail(
+        "Lezione già presenziata: sblocca la presenza prima di spostarla.",
+      );
+    }
+  } catch (err) {
+    return fail(
+      err instanceof Error
+        ? err.message
+        : "Impossibile verificare le presenze.",
+    );
   }
 
   const course = await getCourse(client, lesson.courseId);

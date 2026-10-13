@@ -570,6 +570,7 @@ export {
   listMyEnrollmentWallets,
   listMyOpenLessonFees,
   maybeSendPackReminders,
+  reconcilePackFeesForEnrollment,
   registerFamilyCollection,
   seedOpeningPrepaidCredits,
   sendFeeDunning,

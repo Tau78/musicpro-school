@@ -117,13 +117,24 @@ async function releaseHold(
   if (!holdBookingId) return null;
   const cancelError = await cancelHoldBooking(client, holdBookingId);
   if (cancelError) return cancelError;
+  // Clear FK after cancel; status may already be approved/rejected (claim-first).
   const { error } = await client
     .from("lesson_change_requests")
     .update({ hold_booking_id: null })
-    .eq("id", requestId)
-    .eq("status", "pending");
+    .eq("id", requestId);
   if (error) return error.message || "Impossibile rilasciare l'hold.";
   return null;
+}
+
+async function revertClaimToPending(
+  client: RequestsClient,
+  requestId: string,
+): Promise<void> {
+  await client
+    .from("lesson_change_requests")
+    .update({ status: "pending" })
+    .eq("id", requestId)
+    .eq("status", "approved");
 }
 
 export async function listPendingLessonChangeRequests(
@@ -166,6 +177,10 @@ export async function listPendingLessonChangeRequests(
   return rows.map((row) => mapRequest(row, originals.get(row.lesson_id)));
 }
 
+/**
+ * Atomic claim: UPDATE status pending → approved|rejected with .eq('status','pending').
+ * Only the winner proceeds (approve → moveLesson; reject → releaseHold).
+ */
 export async function reviewLessonChangeRequest(
   client: RequestsClient,
   requestId: string,
@@ -180,32 +195,36 @@ export async function reviewLessonChangeRequest(
     return fail("Autore della revisione mancante.");
   }
 
-  const { data, error } = await client
+  const nextStatus = input.approve ? "approved" : "rejected";
+
+  const { data: claimed, error: claimError } = await client
     .from("lesson_change_requests")
-    .select(REQUEST_COLUMNS)
+    .update({ status: nextStatus })
     .eq("id", requestId)
     .eq("status", "pending")
+    .select(REQUEST_COLUMNS)
     .maybeSingle();
 
-  if (error) {
-    return fail(error.message || "Impossibile caricare la richiesta.");
+  if (claimError) {
+    return fail(claimError.message || "Impossibile aggiornare la richiesta.");
   }
-  if (!data) {
+  if (!claimed) {
     return fail("Richiesta non trovata o già gestita.");
   }
 
-  const request = mapRequest(data);
-
-  // Rilascia l'hold prima di moveLesson: altrimenti lo slot resta occupato (SLOT_TAKEN).
-  const holdError = await releaseHold(client, request.id, request.holdBookingId);
-  if (holdError) return fail(holdError);
+  const request = mapRequest(claimed);
 
   if (input.approve) {
-    const { data: original } = await client
-      .from("lessons")
-      .select("starts_at, room_id")
-      .eq("id", request.lessonId)
-      .maybeSingle();
+    // Release hold after claim so the slot is free for moveLesson.
+    const holdError = await releaseHold(
+      client,
+      request.id,
+      request.holdBookingId,
+    );
+    if (holdError) {
+      await revertClaimToPending(client, request.id);
+      return fail(holdError);
+    }
 
     const moved = await moveLesson(client, request.lessonId, {
       startsAt: request.requestedStartsAt,
@@ -220,46 +239,24 @@ export async function reviewLessonChangeRequest(
       },
     });
     if (!moved.success) {
-      await restoreRequestHold(client, request);
+      await revertClaimToPending(client, request.id);
+      await restoreRequestHold(client, { ...request, holdBookingId: null });
       return moved;
     }
 
-    const { error: updateError } = await client
-      .from("lesson_change_requests")
-      .update({ status: "approved" })
-      .eq("id", request.id)
-      .eq("status", "pending");
-    if (updateError) {
-      if (original?.starts_at) {
-        await moveLesson(client, request.lessonId, {
-          startsAt: original.starts_at,
-          roomId: original.room_id,
-          scope: "this",
-          notifyTeacher: false,
-          notifyFamily: false,
-          actor: {
-            memberId: input.actorMemberId,
-            isStaff: true,
-            canReschedule: true,
-          },
-        });
-      }
-      await restoreRequestHold(client, request);
-      return fail(
-        updateError.message || "Impossibile approvare la richiesta.",
-        { warnings: moved.warnings },
-      );
-    }
     return ok(request.id, moved.warnings);
   }
 
-  const { error: rejectError } = await client
-    .from("lesson_change_requests")
-    .update({ status: "rejected" })
-    .eq("id", request.id)
-    .eq("status", "pending");
-  if (rejectError) {
-    return fail(rejectError.message || "Impossibile rifiutare la richiesta.");
+  // Reject: hold only after successful status claim (already done above).
+  const holdError = await releaseHold(
+    client,
+    request.id,
+    request.holdBookingId,
+  );
+  if (holdError) {
+    return ok(request.id, [
+      `Richiesta rifiutata, ma hold non rilasciato: ${holdError}`,
+    ]);
   }
   return ok(request.id);
 }

@@ -1207,9 +1207,67 @@ export async function approveCourse(
 
   const generated = await generateCourseLessons(client, courseId);
   if (!generated.success) {
+    // Evita corso «attivo» senza lezioni: rollback a in_attesa.
+    const rollbackWarnings = [...(expired.warnings ?? [])];
+    const settings = await getLessonSchoolSettings(client);
+    const holdUntil = new Date(
+      Date.now() + (settings?.holdHours ?? 48) * 60 * 60 * 1000,
+    ).toISOString();
+    let restoredHoldId: string | null = null;
+    if (course.courseKind !== "online" && nextRoomId) {
+      const term = await getCurrentSchoolCourseTerm(client);
+      const closures = await listSchoolClosures(client);
+      if (term) {
+        const occurrence = firstFutureOccurrence(
+          {
+            startsOn: course.startsOn,
+            weeklyDow: nextDow,
+            weeklyStartMinute: nextStart,
+            durationMinutes: course.durationMinutes,
+          },
+          term,
+          closures,
+        );
+        if (occurrence) {
+          const rebooked = await createLessonBooking(client, {
+            roomId: nextRoomId,
+            memberId: course.titularMemberId,
+            startAt: occurrence.startAt,
+            endAt: occurrence.endAt,
+            title: await resolveLessonCalendarTitle(client, courseId),
+          });
+          if (rebooked.bookingId) {
+            restoredHoldId = rebooked.bookingId;
+          } else {
+            rollbackWarnings.push(
+              rebooked.errorMessage ||
+                "Hold sala non ripristinato: riprenota lo slot prima di riapprovare.",
+            );
+          }
+        }
+      }
+    }
+    const { error: rollbackError } = await client
+      .from("courses")
+      .update({
+        status: "in_attesa",
+        hold_until: holdUntil,
+        hold_booking_id: restoredHoldId,
+        room_id: nextRoomId,
+        weekly_dow: nextDow,
+        weekly_start_minute: nextStart,
+      })
+      .eq("id", courseId);
+    if (rollbackError) {
+      rollbackWarnings.push(
+        rollbackError.message ||
+          "Rollback stato corso fallito: corso può risultare attivo senza lezioni.",
+      );
+    }
     return fail(
-      generated.errorMessage || "Corso approvato, ma le lezioni non sono state generate.",
-      { id: courseId, warnings: expired.warnings },
+      generated.errorMessage ||
+        "Impossibile generare le lezioni: corso non attivato.",
+      { warnings: rollbackWarnings },
     );
   }
 
@@ -1516,13 +1574,12 @@ export async function placeLesson(
   if (!course) {
     return fail("Corso non trovato.");
   }
-  if (!input.actor.isStaff) {
-    if (course.titularMemberId !== input.actor.memberId) {
-      return fail("Puoi piazzare solo le lezioni dei tuoi corsi.");
-    }
-    if (!input.actor.canReschedule) {
-      return fail("Non hai il permesso di piazzare o recuperare lezioni.");
-    }
+  // Solo il titolare con canReschedule — niente bypass staff.
+  if (course.titularMemberId !== input.actor.memberId) {
+    return fail("Solo il docente titolare può piazzare le lezioni.");
+  }
+  if (!input.actor.canReschedule) {
+    return fail("Non hai il permesso di piazzare o recuperare lezioni.");
   }
   if (course.status !== "attivo") {
     return fail("Si possono piazzare lezioni solo su un corso attivo.");

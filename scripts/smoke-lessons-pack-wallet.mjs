@@ -53,6 +53,8 @@ const staticChecks = [
   "supabase/migrations/099_sandbox_lesson_room.sql",
   "supabase/migrations/100_lesson_wallet_pack_at_zero.sql",
   "supabase/migrations/101_fiscal_receipt_test_section.sql",
+  "supabase/migrations/108_reconcile_pack_fees_on_positive_balance.sql",
+  "supabase/migrations/109_lesson_change_request_rls_tighten.sql",
   "musicpro/apps/web/src/lib/nexi/lesson-pack-payment-link.ts",
   "musicpro/apps/web/src/app/api/lezioni/pack-payment/request/route.ts",
   "musicpro/apps/web/src/app/api/lezioni/checkout/route.ts",
@@ -75,6 +77,19 @@ if (
   ok("sync wallet: retta a saldo 0 + enrollment ids");
 } else {
   fail("sync wallet incompleto in 100");
+}
+
+const reconcileSql = readFileSync(
+  join(root, "supabase/migrations/108_reconcile_pack_fees_on_positive_balance.sql"),
+  "utf8",
+);
+if (
+  reconcileSql.includes("reconcile_pack_fees_for_enrollment") &&
+  reconcileSql.includes("v_balance > 0")
+) {
+  ok("sync wallet: abbuona pack fantasma se saldo > 0 (108)");
+} else {
+  fail("reconcile pack fees incompleto in 108");
 }
 
 const checkoutSrc = readFileSync(
