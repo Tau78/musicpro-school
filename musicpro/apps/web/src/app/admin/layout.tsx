@@ -20,7 +20,9 @@ import {
   canManageRooms,
   canManageSettings,
   canManageShop,
+  canManageSchoolMarket,
   canManageStaffUsers,
+  isSchoolMarketDeskOnly,
   canManageTemplates,
 } from "@/lib/admin/roles";
 import { firstDocumentiHref } from "@/lib/admin/documenti-nav";
@@ -58,6 +60,7 @@ export default async function AdminLayout({
   const showPrenotazioni = canManageBookings(member.roles);
   const showSale = canManageRooms(member.roles);
   const showShop = canManageShop(member.roles);
+  const showMarket = canManageSchoolMarket(member.roles);
   const showPrenotazioniSettings =
     canManageSettings(member.roles) || canManagePenalties(member.roles);
   const showDocumentiSettings =
@@ -136,6 +139,7 @@ export default async function AdminLayout({
           }
           showPrenotazioni={showPrenotazioni}
           showDocumenti={showDocumentiSection}
+          showSchoolMarket={isSchoolMarketDeskOnly(member.roles)}
           showRimborsi={showRimborsi}
           showImpostazioni={showImpostazioni}
           showWebsite={canManageSettings(member.roles)}
@@ -150,6 +154,7 @@ export default async function AdminLayout({
             showQuote={showQuote}
             showSale={showSale}
             showShop={showShop}
+            showMarket={showMarket}
             showPrenotazioniSettings={showPrenotazioniSettings}
             showDocumenti={showDocumentiSettings}
             showUtenti={showUtenti}

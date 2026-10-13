@@ -8,9 +8,14 @@ export async function POST(request: Request) {
   const access = await requireMarketAccess();
   if (access.error) return access.error;
 
-  let body: { title?: string; price?: string };
+  let body: { title?: string; price?: string; description?: string; status?: string };
   try {
-    body = (await request.json()) as { title?: string; price?: string };
+    body = (await request.json()) as {
+      title?: string;
+      price?: string;
+      description?: string;
+      status?: string;
+    };
   } catch {
     return NextResponse.json(
       { success: false, message: "Body JSON non valido." },
@@ -30,6 +35,8 @@ export async function POST(request: Request) {
     const listing = await createMarketListing(access.supabase, {
       title: String(body.title ?? ""),
       priceCents,
+      description: String(body.description ?? ""),
+      status: body.status === "in_vendita" ? "in_vendita" : "bozza",
     });
     return NextResponse.json({ success: true, listing });
   } catch (error) {

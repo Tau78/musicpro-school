@@ -806,8 +806,15 @@ export interface Database {
           title: string;
           description: string;
           price_cents: number;
-          status: "bozza" | "in_vendita" | "riservato" | "venduto";
+          status: "bozza" | "in_revisione" | "rifiutato" | "in_vendita" | "riservato" | "venduto";
           photo_path: string | null;
+          fixed_asset_id: string | null;
+          seller_kind: "associazione" | "associato";
+          seller_member_id: string | null;
+          seller_name: string | null;
+          seller_phone: string | null;
+          seller_email: string | null;
+          handover: "sede" | "diretto" | null;
           created_at: string;
           updated_at: string;
         };
@@ -816,8 +823,15 @@ export interface Database {
           title: string;
           description?: string;
           price_cents: number;
-          status?: "bozza" | "in_vendita" | "riservato" | "venduto";
+          status?: "bozza" | "in_revisione" | "rifiutato" | "in_vendita" | "riservato" | "venduto";
           photo_path?: string | null;
+          fixed_asset_id?: string | null;
+          seller_kind?: "associazione" | "associato";
+          seller_member_id?: string | null;
+          seller_name?: string | null;
+          seller_phone?: string | null;
+          seller_email?: string | null;
+          handover?: "sede" | "diretto" | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -831,7 +845,7 @@ export interface Database {
           buyer_name: string;
           buyer_email: string | null;
           buyer_phone: string | null;
-          method: "bonifico" | "contanti" | "nexi";
+          method: "bonifico" | "contanti" | "nexi" | "tra_privati";
           status: "richiesto" | "in_attesa" | "pagato" | "ritirato" | "annullato";
           amount_cents: number;
           nexi_cod_trans: string | null;
@@ -844,7 +858,7 @@ export interface Database {
           buyer_name: string;
           buyer_email?: string | null;
           buyer_phone?: string | null;
-          method: "bonifico" | "contanti" | "nexi";
+          method: "bonifico" | "contanti" | "nexi" | "tra_privati";
           status?: "richiesto" | "in_attesa" | "pagato" | "ritirato" | "annullato";
           amount_cents: number;
           nexi_cod_trans?: string | null;
@@ -852,6 +866,36 @@ export interface Database {
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["market_orders"]["Insert"]>;
+        Relationships: [];
+      };
+      association_ledger_entries: {
+        Row: {
+          id: string;
+          entry_date: string;
+          direction: "entrata" | "uscita";
+          category: string;
+          amount_cents: number;
+          method: "bonifico" | "contanti" | "nexi" | null;
+          description: string;
+          fixed_asset_id: string | null;
+          market_order_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          entry_date: string;
+          direction: "entrata" | "uscita";
+          category: string;
+          amount_cents: number;
+          method?: "bonifico" | "contanti" | "nexi" | null;
+          description: string;
+          fixed_asset_id?: string | null;
+          market_order_id?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["association_ledger_entries"]["Insert"]
+        >;
         Relationships: [];
       };
       message_templates: {
@@ -1734,7 +1778,8 @@ export interface Database {
             | "perdita"
             | "smarrimento"
             | "rottura"
-            | "trasferimento";
+            | "trasferimento"
+            | "venduto";
           event_date: string | null;
           notes: string | null;
           verbale_ref: string | null;
@@ -1750,7 +1795,8 @@ export interface Database {
             | "perdita"
             | "smarrimento"
             | "rottura"
-            | "trasferimento";
+            | "trasferimento"
+            | "venduto";
           event_date?: string | null;
           notes?: string | null;
           verbale_ref?: string | null;
@@ -1784,6 +1830,7 @@ export interface Database {
           location_custom: string | null;
           notes: string | null;
           disposed_at: string | null;
+          disposal_kind: "venduto" | "dismesso" | null;
           deleted_at: string | null;
           photo_storage_path: string | null;
           created_at: string;
@@ -1813,6 +1860,7 @@ export interface Database {
           location_custom?: string | null;
           notes?: string | null;
           disposed_at?: string | null;
+          disposal_kind?: "venduto" | "dismesso" | null;
           deleted_at?: string | null;
           photo_storage_path?: string | null;
           created_by?: string | null;

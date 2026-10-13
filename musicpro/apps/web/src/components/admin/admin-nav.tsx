@@ -9,6 +9,7 @@ import {
   NavIconDocumenti,
   NavIconHome,
   NavIconLezioni,
+  NavIconMarket,
   NavIconRimborsi,
   NavIconRubrica,
   NavIconStats,
@@ -18,6 +19,7 @@ interface AdminNavProps {
   showLezioni: boolean;
   showPrenotazioni: boolean;
   showDocumenti: boolean;
+  showSchoolMarket: boolean;
   showRimborsi: boolean;
   showImpostazioni: boolean;
   showWebsite: boolean;
@@ -32,6 +34,7 @@ type NavKey =
   | "stats"
   | "prenotazioni"
   | "documenti"
+  | "market"
   | "rimborsi";
 
 type NavDef = {
@@ -89,6 +92,13 @@ const NAV_DEFS: NavDef[] = [
     mobileIcon: <NavIconDocumenti />,
   },
   {
+    key: "market",
+    label: "Market scuola",
+    mobileLabel: "Market",
+    href: "/admin/market",
+    mobileIcon: <NavIconMarket />,
+  },
+  {
     key: "rimborsi",
     label: "Rimborsi",
     mobileLabel: "Rimborsi",
@@ -102,6 +112,7 @@ export function AdminNav({
   showLezioni,
   showPrenotazioni,
   showDocumenti,
+  showSchoolMarket,
   showRimborsi,
   documentiHref,
 }: AdminNavProps) {
@@ -118,6 +129,7 @@ export function AdminNav({
       if (item.key === "stats") return showPrenotazioni;
       if (item.key === "prenotazioni") return showPrenotazioni;
       if (item.key === "documenti") return showDocumenti;
+      if (item.key === "market") return showSchoolMarket;
       if (item.key === "rimborsi") return showRimborsi;
       return false;
     }).map((item) => {
@@ -127,6 +139,7 @@ export function AdminNav({
   }, [
     documentiHref,
     showDocumenti,
+    showSchoolMarket,
     showLezioni,
     showPrenotazioni,
     showRimborsi,
@@ -221,6 +234,7 @@ function isNavItemActive(
     );
   }
   if (key === "documenti") return pathname.startsWith("/admin/documenti");
+  if (key === "market") return pathname.startsWith("/admin/market");
   if (key === "stats") return pathname.startsWith("/admin/stats");
   if (key === "prenotazioni") return pathname.startsWith("/admin/prenotazioni");
   if (key === "lezioni") return pathname.startsWith("/admin/lezioni");

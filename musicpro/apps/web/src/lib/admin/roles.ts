@@ -65,6 +65,18 @@ export function canManageShop(roles: MemberRoleValue[]): boolean {
   );
 }
 
+/** Oggetti Market dell'associazione. Il Market personale resta sul dashboard. */
+export function canManageSchoolMarket(roles: MemberRoleValue[]): boolean {
+  return canManageShop(roles) || roles.includes(MemberRole.Collaboratore);
+}
+
+/** Collaboratore senza segreteria: solo il catalogo scuola, non gli annunci degli associati. */
+export function isSchoolMarketDeskOnly(roles: MemberRoleValue[]): boolean {
+  return (
+    roles.includes(MemberRole.Collaboratore) && !canManageShop(roles)
+  );
+}
+
 export function canDeleteCreditPackages(roles: MemberRoleValue[]): boolean {
   return roles.includes(MemberRole.Admin);
 }

@@ -58,7 +58,7 @@ function loadWidths(): Record<string, number> {
   }
 }
 
-function assetStatus(asset: FixedAsset): {
+function assetStatus(asset: CespitiAssetWithPhoto): {
   label: string;
   className: string;
 } {
@@ -69,9 +69,21 @@ function assetStatus(asset: FixedAsset): {
     };
   }
   if (asset.disposedAt) {
+    if (asset.disposalKind === "venduto") {
+      return {
+        label: "Venduto",
+        className: "bg-neutral-200 text-neutral-700",
+      };
+    }
     return {
       label: "Dismesso",
       className: "bg-amber-100 text-amber-900",
+    };
+  }
+  if (asset.onSale) {
+    return {
+      label: "In vendita",
+      className: "bg-sky-100 text-sky-900",
     };
   }
   return {

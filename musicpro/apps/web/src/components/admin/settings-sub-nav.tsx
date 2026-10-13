@@ -13,6 +13,7 @@ interface SettingsSubNavProps {
   showQuote: boolean;
   showSale: boolean;
   showShop: boolean;
+  showMarket: boolean;
   showPrenotazioniSettings: boolean;
   showDocumenti: boolean;
   showUtenti: boolean;
@@ -23,6 +24,7 @@ export function SettingsSubNav({
   showQuote,
   showSale,
   showShop,
+  showMarket,
   showPrenotazioniSettings,
   showDocumenti,
   showUtenti,
@@ -65,9 +67,11 @@ export function SettingsSubNav({
     {
       href: "/admin/market",
       label: "Market",
-      description: "Oggetti usati, ritiro in sede",
+      description: showShop
+        ? "Oggetti usati, ritiro in sede"
+        : "Solo oggetti della scuola",
       active: onMarket,
-      visible: showShop,
+      visible: showMarket,
     },
   ].filter((item) => item.visible);
 

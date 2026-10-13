@@ -1,10 +1,18 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { listFixedAssets } from "@musicpro/database";
+import {
+  formatEuro,
+  listAssetsOnSale,
+  listFixedAssets,
+  listSaleLedger,
+  romeCalendarYear,
+} from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
 
 import { CespitiPanel } from "@/components/admin/cespiti/cespiti-panel";
 import { getAdminMember } from "@/lib/admin/current-member";
+import { canManageSchoolMarket } from "@/lib/admin/roles";
 import {
   canAccessDocumentiSubsection,
   getDocumentiSegreteriaFlags,
@@ -40,13 +48,22 @@ export default async function DocumentiLibroCespitiPage() {
     );
   }
 
-  const assets = await listFixedAssets(supabase);
+  const canSell = canManageSchoolMarket(member.roles);
+  const [assets, onSale, ledger] = await Promise.all([
+    listFixedAssets(supabase),
+    listAssetsOnSale(supabase).catch(() => [] as string[]),
+    canSell ? listSaleLedger(supabase).catch(() => []) : Promise.resolve([]),
+  ]);
+  const selling = new Set(onSale);
   const initialAssets = await Promise.all(
     assets.map(async (asset) => ({
       ...asset,
       photoUrl: await signedPhotoUrl(supabase, asset.photoStoragePath),
+      onSale: selling.has(asset.id),
     })),
   );
+  const salesTotal = ledger.reduce((sum, entry) => sum + entry.amountCents, 0);
+  const salesYear = romeCalendarYear();
 
   const isAdmin = member.roles.includes(MemberRole.Admin);
 
@@ -59,12 +76,22 @@ export default async function DocumentiLibroCespitiPage() {
         <p className="mt-1 text-sm text-neutral-600">
           Registro beni e cespiti associativi: inventario per sala, foto e
           storico eventi.
+          {canSell ? (
+            <>
+              {" "}
+              <Link href="/admin/market" className="font-medium text-[var(--brand)]">
+                Entrate vendite {salesYear}: {formatEuro(salesTotal / 100)}
+              </Link>
+              .
+            </>
+          ) : null}
         </p>
       </div>
 
       <CespitiPanel
         initialAssets={initialAssets}
         isAdmin={isAdmin}
+        canSell={canSell}
         memberId={member.id}
       />
     </div>

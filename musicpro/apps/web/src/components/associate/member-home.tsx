@@ -159,6 +159,25 @@ export function MemberHome({
           </div>
         </Link>
 
+        <Link
+          href="/dashboard/market"
+          className="glass-card group block p-5 transition hover:border-[var(--brand)]/20"
+        >
+          <div className="flex items-start gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--brand)]/10 text-lg">
+              🏷️
+            </span>
+            <div>
+              <p className="font-medium text-[var(--brand)] group-hover:underline">
+                Market
+              </p>
+              <p className="mt-1 text-sm text-neutral-600">
+                Annunci e vendita tra associati
+              </p>
+            </div>
+          </div>
+        </Link>
+
         <Link href="/prenotazioni" className="glass-card group block p-5 transition hover:border-[var(--brand)]/20">
           <div className="flex items-start gap-3">
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#38764B]/15 text-lg">

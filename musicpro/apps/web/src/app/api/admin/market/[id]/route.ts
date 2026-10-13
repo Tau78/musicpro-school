@@ -6,20 +6,30 @@ import {
   updateMarketListing,
 } from "@musicpro/database";
 
-import { marketErrorResponse, requireMarketAccess } from "@/lib/admin/market-auth";
+import {
+  marketErrorResponse,
+  rejectPersonalMarketEdit,
+  requireMarketAccess,
+} from "@/lib/admin/market-auth";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function PATCH(request: Request, context: RouteContext) {
   const access = await requireMarketAccess();
-  if (access.error) return access.error;
+  if (access.error || !access.member) return access.error;
   const { id } = await context.params;
+  const blocked = await rejectPersonalMarketEdit(
+    access.supabase,
+    access.member.roles,
+    id,
+  );
+  if (blocked) return blocked;
 
   let body: {
     title?: string;
     description?: string;
     price?: string;
-    status?: "bozza" | "in_vendita";
+    status?: "bozza" | "in_revisione" | "rifiutato" | "in_vendita" | "venduto";
   };
   try {
     body = (await request.json()) as typeof body;
@@ -34,11 +44,17 @@ export async function PATCH(request: Request, context: RouteContext) {
     title?: string;
     description?: string;
     priceCents?: number;
-    status?: "bozza" | "in_vendita";
+    status?: "bozza" | "in_revisione" | "rifiutato" | "in_vendita" | "venduto";
   } = {};
   if (body.title != null) patch.title = body.title;
   if (body.description != null) patch.description = body.description;
-  if (body.status === "bozza" || body.status === "in_vendita") {
+  if (
+    body.status === "bozza" ||
+    body.status === "in_revisione" ||
+    body.status === "rifiutato" ||
+    body.status === "in_vendita" ||
+    body.status === "venduto"
+  ) {
     patch.status = body.status;
   }
   if (body.price != null) {
@@ -62,8 +78,14 @@ export async function PATCH(request: Request, context: RouteContext) {
 
 export async function DELETE(_request: Request, context: RouteContext) {
   const access = await requireMarketAccess();
-  if (access.error) return access.error;
+  if (access.error || !access.member) return access.error;
   const { id } = await context.params;
+  const blocked = await rejectPersonalMarketEdit(
+    access.supabase,
+    access.member.roles,
+    id,
+  );
+  if (blocked) return blocked;
 
   try {
     const photoPath = await deleteMarketListing(access.supabase, id);

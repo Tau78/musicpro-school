@@ -784,11 +784,13 @@ export {
   MARKET_LISTING_STATUSES,
   MARKET_ORDER_STATUSES,
   MARKET_PAY_METHODS,
+  createAssociateListing,
   createMarketListing,
   deleteMarketListing,
   getMarketPaymentSettings,
   listMarketListings,
   listMarketOrders,
+  marketHandoverLabel,
   marketListingStatusLabel,
   marketOrderStatusLabel,
   marketPayMethodLabel,
@@ -798,9 +800,22 @@ export {
   parseMarketPriceEuros,
   saveMarketPaymentSettings,
   setMarketOrderStatus,
+  updateAssociateListing,
   updateMarketListing,
 } from "./market";
+export {
+  findOpenMarketListingForAsset,
+  fixedAssetSaleTitle,
+  listAssetsOnSale,
+  listSaleLedger,
+  publishFixedAssetToMarket,
+  recordMarketSale,
+  romeCalendarYear,
+  romeToday,
+} from "./market-sale";
+export type { SaleLedgerEntry } from "./market-sale";
 export type {
+  MarketHandover,
   MarketListing,
   MarketListingStatus,
   MarketOrder,

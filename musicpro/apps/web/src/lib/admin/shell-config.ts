@@ -11,6 +11,7 @@ import {
   canManageRooms,
   canManageSettings,
   canManageShop,
+  isSchoolMarketDeskOnly,
   canManageStaffUsers,
   canManageTemplates,
 } from "@/lib/admin/roles";
@@ -29,6 +30,7 @@ export type AdminShellNavConfig = {
   showLezioni: boolean;
   showPrenotazioni: boolean;
   showDocumenti: boolean;
+  showSchoolMarket: boolean;
   showRimborsi: boolean;
   showImpostazioni: boolean;
   showWebsite: boolean;
@@ -97,6 +99,7 @@ export async function getAdminShellNavConfig(
     showLezioni: canManageMembers(roles) && isLessonsModuleEnabled(),
     showPrenotazioni,
     showDocumenti: showDocumentiSection,
+    showSchoolMarket: isSchoolMarketDeskOnly(roles),
     showRimborsi,
     showImpostazioni,
     showWebsite: canManageSettings(roles),

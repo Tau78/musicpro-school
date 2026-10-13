@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import {
   findDuplicateMatches,
+  listAssetsOnSale,
   listFixedAssets,
   type FixedAssetInput,
   type LocationPreset,
@@ -50,8 +51,18 @@ export async function GET(request: Request) {
 
   try {
     const assets = await listFixedAssets(access.supabase, parseListOptions(request));
-    const assetsWithPhotos = await withPhotoUrls(access.supabase, assets);
-    return NextResponse.json({ success: true, assets: assetsWithPhotos });
+    const [assetsWithPhotos, onSale] = await Promise.all([
+      withPhotoUrls(access.supabase, assets),
+      listAssetsOnSale(access.supabase).catch(() => [] as string[]),
+    ]);
+    const selling = new Set(onSale);
+    return NextResponse.json({
+      success: true,
+      assets: assetsWithPhotos.map((asset) => ({
+        ...asset,
+        onSale: selling.has(asset.id),
+      })),
+    });
   } catch (error) {
     return NextResponse.json(
       {

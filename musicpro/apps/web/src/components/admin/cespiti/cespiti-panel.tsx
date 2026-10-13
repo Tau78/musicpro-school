@@ -25,6 +25,7 @@ export type CespitiSortMode = "sala" | "name" | "date";
 interface CespitiPanelProps {
   initialAssets: CespitiAssetWithPhoto[];
   isAdmin: boolean;
+  canSell: boolean;
   memberId: string;
 }
 
@@ -69,6 +70,7 @@ function sortAssetsByMode(
 export function CespitiPanel({
   initialAssets,
   isAdmin,
+  canSell,
   memberId,
 }: CespitiPanelProps) {
   const [assets, setAssets] = useState(initialAssets);
@@ -264,6 +266,7 @@ export function CespitiPanel({
                 mode={panelMode}
                 assetId={selectedId}
                 isAdmin={isAdmin}
+                canSell={canSell}
                 memberId={memberId}
                 onClose={closePanel}
                 onSaved={(id) => void handleSaved(id)}
