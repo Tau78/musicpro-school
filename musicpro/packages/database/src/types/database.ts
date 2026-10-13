@@ -800,6 +800,60 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["credit_purchases"]["Insert"]>;
         Relationships: [];
       };
+      market_listings: {
+        Row: {
+          id: string;
+          title: string;
+          description: string;
+          price_cents: number;
+          status: "bozza" | "in_vendita" | "riservato" | "venduto";
+          photo_path: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          title: string;
+          description?: string;
+          price_cents: number;
+          status?: "bozza" | "in_vendita" | "riservato" | "venduto";
+          photo_path?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["market_listings"]["Insert"]>;
+        Relationships: [];
+      };
+      market_orders: {
+        Row: {
+          id: string;
+          listing_id: string;
+          buyer_name: string;
+          buyer_email: string | null;
+          buyer_phone: string | null;
+          method: "bonifico" | "contanti" | "nexi";
+          status: "richiesto" | "in_attesa" | "pagato" | "ritirato" | "annullato";
+          amount_cents: number;
+          nexi_cod_trans: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          listing_id: string;
+          buyer_name: string;
+          buyer_email?: string | null;
+          buyer_phone?: string | null;
+          method: "bonifico" | "contanti" | "nexi";
+          status?: "richiesto" | "in_attesa" | "pagato" | "ritirato" | "annullato";
+          amount_cents: number;
+          nexi_cod_trans?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["market_orders"]["Insert"]>;
+        Relationships: [];
+      };
       message_templates: {
         Row: {
           id: string;
@@ -1990,7 +2044,8 @@ export interface Database {
             | "quota_multi_pay"
             | "room_booking"
             | "shop_credit_package"
-            | "lesson_pack";
+            | "lesson_pack"
+            | "market";
           provider_payment_id: string;
           amount_cents: number;
           status: "pending" | "paid" | "cancelled" | "expired";
@@ -2019,7 +2074,8 @@ export interface Database {
             | "quota_multi_pay"
             | "room_booking"
             | "shop_credit_package"
-            | "lesson_pack";
+            | "lesson_pack"
+            | "market";
           provider_payment_id: string;
           amount_cents: number;
           status?: "pending" | "paid" | "cancelled" | "expired";

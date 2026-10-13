@@ -7,7 +7,8 @@ export type NexiFlow =
   | "quota_multi_pay"
   | "room_booking"
   | "shop_credit_package"
-  | "lesson_pack";
+  | "lesson_pack"
+  | "market";
 
 export interface PaymentLinkResult {
   success: boolean;
