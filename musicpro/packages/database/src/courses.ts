@@ -187,7 +187,14 @@ type StudentRow = {
   email: string | null;
   manual_tutor_email: string | null;
   is_enrollment_draft: boolean;
+  tax_code: string | null;
 };
+
+/** Bozza o senza CF: non iscrivibile (la sola quota non basta). */
+function isStudentEnrollmentIncomplete(student: StudentRow): boolean {
+  if (student.is_enrollment_draft) return true;
+  return !String(student.tax_code || "").trim();
+}
 
 type LessonBookingRpc = {
   success?: boolean;
@@ -822,7 +829,7 @@ export async function createCourse(
     client
       .from("members")
       .select(
-        "id, first_name, last_name, email, manual_tutor_email, is_enrollment_draft",
+        "id, first_name, last_name, email, manual_tutor_email, is_enrollment_draft, tax_code",
       )
       .in("id", studentMemberIds),
   ]);
@@ -860,14 +867,17 @@ export async function createCourse(
         `Manca l'email per ${memberLabel(student.last_name, student.first_name)} (allievo o tutore).`,
       );
     }
-    if (student.is_enrollment_draft) {
+    if (isStudentEnrollmentIncomplete(student)) {
+      const label = memberLabel(student.last_name, student.first_name);
+      // Conversione prova: solo staff può forzare con warning (allowDraftEnrollment).
+      // Bozza / CF+firma mancanti: altrimenti sempre blocco (anche se quota ok).
       if (input.allowDraftEnrollment && actor.isStaff) {
         warnings.push(
-          `Iscrizione in bozza per ${memberLabel(student.last_name, student.first_name)}: completa il modulo di iscrizione.`,
+          `Iscrizione incompleta per ${label}: completa il modulo (CF e firma) prima del corso regolare.`,
         );
       } else {
         return fail(
-          `Non si può iscrivere una bozza anagrafica (${memberLabel(student.last_name, student.first_name)}) a un corso.`,
+          `Non si può iscrivere un allievo con iscrizione incompleta (${label}): serve modulo firmato (CF), non basta la quota.`,
         );
       }
     }

@@ -15,7 +15,11 @@ interface BandSelectStepProps {
   onBack?: () => void;
   quotaStatus?: Pick<
     MembershipStatus,
-    "fiscalYear" | "formCompleted" | "quotaPaid" | "quotaAmountEur"
+    | "fiscalYear"
+    | "formCompleted"
+    | "canPayQuota"
+    | "quotaPaid"
+    | "quotaAmountEur"
   > | null;
 }
 

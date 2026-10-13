@@ -1064,6 +1064,81 @@ export async function ensureOpenPackFee(
   return ok(lastId ?? enrollmentId);
 }
 
+/**
+ * Garantisce una retta pack aperta sull'enrollment dell'incasso.
+ * Fail hard se non si apre: evita anticipo_famiglia sul primo enrollment (LIMIT 1).
+ */
+export async function ensureOpenPackFeeForCollection(
+  client: WalletClient,
+  enrollmentId: string,
+): Promise<CourseMutationResult> {
+  if (!enrollmentId.trim()) {
+    return fail("Manca l'iscrizione al corso per aprire la retta pack.");
+  }
+
+  const enrollment = await loadEnrollment(client, enrollmentId);
+  if (!enrollment) return fail("Iscrizione al corso non trovata.");
+  if (enrollment.left_at) {
+    return fail("L'iscrizione non è più attiva.");
+  }
+
+  const { data: course, error: courseError } = await client
+    .from("courses")
+    .select("id, status, is_trial, price_eur")
+    .eq("id", enrollment.course_id)
+    .maybeSingle();
+  if (courseError) {
+    return fail(courseError.message || "Impossibile caricare il corso.");
+  }
+  if (!course) return fail("Corso non trovato.");
+  if (course.is_trial) {
+    return fail("La prova non si incassa come pacchetto.");
+  }
+
+  const priceEur = Number(course.price_eur);
+  if (!Number.isFinite(priceEur) || priceEur <= 0) {
+    return fail(
+      "Il corso non ha un prezzo pack valido: impossibile aprire la retta per l'incasso.",
+    );
+  }
+
+  const ensured = await ensureOpenPackFee(client, enrollmentId);
+  if (!ensured.success) {
+    return fail(
+      ensured.errorMessage ||
+        "Impossibile aprire la retta pack per questo corso. L'incasso non è stato registrato.",
+    );
+  }
+
+  let openCount: number;
+  try {
+    openCount = await openPackFeeCount(client, enrollmentId);
+  } catch (err) {
+    return fail(
+      err instanceof Error
+        ? err.message
+        : "Impossibile verificare la retta pack aperta.",
+    );
+  }
+  if (openCount > 0) return ok(ensured.id ?? enrollmentId);
+
+  // ensureOpenPackFee può tornare ok senza fee (saldo crediti > 0 / corso non attivo).
+  // Per l'incasso serve una retta ancorata a QUESTO enrollment, non al primo della famiglia.
+  const inserted = await insertPackFee(client, {
+    enrollmentId: enrollment.id,
+    memberId: enrollment.member_id,
+    courseId: enrollment.course_id,
+    amountEur: priceEur,
+  });
+  if (typeof inserted !== "string") {
+    return fail(
+      inserted.errorMessage ||
+        "Impossibile aprire la retta pack per questo corso. L'incasso non è stato registrato.",
+    );
+  }
+  return ok(inserted);
+}
+
 export async function listLessonFees(
   client: WalletClient,
   opts?: {
@@ -1183,6 +1258,12 @@ export async function registerFamilyCollection(
   client: WalletClient,
   input: {
     memberId: string;
+    /**
+     * Enrollment del corso dell'incasso. Obbligatorio se si vuole ancorare
+     * la retta pack (evita anticipo_famiglia sul primo enrollment famiglia).
+     * Per incasso solo quota può restare omesso.
+     */
+    enrollmentId?: string;
     amountEur: number;
     method: "bonifico" | "altro";
     paidOn: string;
@@ -1206,6 +1287,42 @@ export async function registerFamilyCollection(
   }
   if (input.method !== "bonifico" && input.method !== "altro") {
     return fail("Metodo di pagamento non valido.");
+  }
+
+  const targetEnrollmentId = input.enrollmentId?.trim() ?? "";
+  if (targetEnrollmentId) {
+    const enrollment = await loadEnrollment(client, targetEnrollmentId);
+    if (!enrollment) return fail("Iscrizione al corso non trovata.");
+    if (enrollment.left_at) {
+      return fail("L'iscrizione non è più attiva.");
+    }
+    if (enrollment.member_id !== input.memberId) {
+      const enrollmentFamily = await lessonFamilyKey(
+        client,
+        enrollment.member_id,
+      );
+      if ("errorMessage" in enrollmentFamily) {
+        return fail(enrollmentFamily.errorMessage);
+      }
+      const payerFamily = await lessonFamilyKey(client, input.memberId);
+      if ("errorMessage" in payerFamily) return fail(payerFamily.errorMessage);
+      if (enrollmentFamily.key !== payerFamily.key) {
+        return fail(
+          "L'iscrizione selezionata non appartiene alla famiglia dell'incasso.",
+        );
+      }
+    }
+
+    const packFee = await ensureOpenPackFeeForCollection(
+      client,
+      targetEnrollmentId,
+    );
+    if (!packFee.success) {
+      return fail(
+        packFee.errorMessage ||
+          "Impossibile aprire la retta pack per questo corso. L'incasso non è stato registrato.",
+      );
+    }
   }
 
   const family = await lessonFamilyKey(client, input.memberId);

@@ -12,7 +12,7 @@ import type { MembershipStatus } from "@/lib/membership";
 
 type MemberQuotaPanelProps = Pick<
   MembershipStatus,
-  "fiscalYear" | "formCompleted" | "quotaPaid" | "quotaAmountEur"
+  "fiscalYear" | "formCompleted" | "canPayQuota" | "quotaPaid" | "quotaAmountEur"
 > & {
   quotas: MemberAnnualQuota[];
   quotaSettings: AnnualQuotaSetting[];
@@ -22,6 +22,7 @@ type MemberQuotaPanelProps = Pick<
 export function MemberQuotaPanel({
   fiscalYear,
   formCompleted,
+  canPayQuota,
   quotaPaid,
   quotaAmountEur,
   quotas,
@@ -63,7 +64,7 @@ export function MemberQuotaPanel({
 
       {!quotaPaid ? (
         <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
-          {!formCompleted ? (
+          {!canPayQuota ? (
             <p className="text-sm text-amber-900">
               Prima di pagare,{" "}
               <Link href="/onboarding/form" className="font-medium underline">
@@ -76,6 +77,15 @@ export function MemberQuotaPanel({
               <p className="text-sm text-amber-900">
                 Importo {fiscalYear}:{" "}
                 <span className="font-semibold">{amountLabel}</span>
+                {!formCompleted ? (
+                  <span className="mt-1 block text-xs font-normal">
+                    Modulo formale ancora da completare —{" "}
+                    <Link href="/onboarding/form" className="underline">
+                      apri modulo
+                    </Link>
+                    .
+                  </span>
+                ) : null}
               </p>
               <QuotaPayButton />
             </div>

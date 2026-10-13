@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getMemberRoles } from "./auth";
 import type { CourseMutationResult } from "./courses";
+import { ensureOpenPackFeeForCollection } from "./lessons-wallet";
 import { emitFiscalReceiptForPayment } from "./lessons-receipts";
 import type { Database, Json } from "./types/database";
 
@@ -166,6 +167,17 @@ export async function registerTeacherCashCollection(
 
   const family = await lessonFamilyKey(client, enrollment.member_id);
   if ("errorMessage" in family) return fail(family.errorMessage);
+
+  const packFee = await ensureOpenPackFeeForCollection(
+    client,
+    enrollment.id,
+  );
+  if (!packFee.success) {
+    return fail(
+      packFee.errorMessage ||
+        "Impossibile aprire la retta pack per questo corso. L'incasso non è stato registrato.",
+    );
+  }
 
   const { data: payment, error: paymentError } = await client
     .from("lesson_pack_payments")

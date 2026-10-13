@@ -7,12 +7,13 @@ import type { MembershipStatus } from "@/lib/membership";
 
 type MemberQuotaAlertProps = Pick<
   MembershipStatus,
-  "fiscalYear" | "formCompleted" | "quotaPaid" | "quotaAmountEur"
+  "fiscalYear" | "formCompleted" | "canPayQuota" | "quotaPaid" | "quotaAmountEur"
 >;
 
 export function MemberQuotaAlert({
   fiscalYear,
   formCompleted,
+  canPayQuota,
   quotaPaid,
   quotaAmountEur,
 }: MemberQuotaAlertProps) {
@@ -39,7 +40,7 @@ export function MemberQuotaAlert({
           </span>
         </p>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
-          {!formCompleted ? (
+          {!canPayQuota ? (
             <Link
               href="/onboarding/form"
               className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-950 hover:bg-amber-100/60"
@@ -52,6 +53,14 @@ export function MemberQuotaAlert({
               className="rounded-lg bg-[var(--brand)] px-3 py-1.5 text-xs font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-60"
             />
           )}
+          {!formCompleted && canPayQuota ? (
+            <Link
+              href="/onboarding/form"
+              className="text-xs font-medium text-amber-900 underline-offset-2 hover:underline"
+            >
+              Modulo
+            </Link>
+          ) : null}
           <Link
             href="/onboarding/quota"
             className="text-xs font-medium text-amber-900 underline-offset-2 hover:underline"

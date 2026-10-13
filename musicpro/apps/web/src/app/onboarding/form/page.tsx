@@ -26,8 +26,60 @@ export default async function OnboardingFormPage() {
     redirect("/onboarding/quota");
   }
 
+  // Quota già pagata ma modulo formale ancora incompleto: non lasciare stato silenzioso.
+  if (status.quotaPaid && !status.formCompleted) {
+    return (
+      <main className="min-h-screen">
+        <header className="border-b border-neutral-200 bg-white">
+          <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-4">
+            <div>
+              <p className="text-sm font-medium text-[var(--brand-accent)]">
+                {APP_NAME}
+              </p>
+              <h1 className="text-xl font-semibold text-[var(--brand)]">
+                Modulo iscrizione
+              </h1>
+            </div>
+            <SignOutButton />
+          </div>
+        </header>
+
+        <div className="mx-auto max-w-3xl px-6 py-8">
+          <section className="rounded-xl border border-amber-200 bg-amber-50 p-6">
+            <h2 className="text-lg font-medium text-amber-950">
+              Quota pagata — completa il modulo
+            </h2>
+            <p className="mt-2 text-sm text-amber-900">
+              La quota associativa {status.fiscalYear} risulta versata, ma il
+              modulo iscrizione (anagrafica/consensi) non è ancora allineato al
+              tuo profilo. Completa il modulo per sbloccare la dashboard.
+            </p>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <a
+                href={
+                  process.env.NEXT_PUBLIC_ENROLLMENT_FORM_URL?.trim() ||
+                  "/api/iscrizione"
+                }
+                className="inline-flex rounded-lg bg-[var(--brand)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90"
+              >
+                Apri modulo iscrizione
+              </a>
+              <Link
+                href="/dashboard"
+                className="inline-flex rounded-lg border border-amber-300 bg-white px-5 py-2.5 text-sm font-medium text-amber-950 hover:bg-amber-100/60"
+              >
+                Torna alla dashboard
+              </Link>
+            </div>
+          </section>
+        </div>
+      </main>
+    );
+  }
+
   const externalFormUrl = process.env.NEXT_PUBLIC_ENROLLMENT_FORM_URL?.trim();
   const formHref = externalFormUrl || "/api/iscrizione";
+  const canSkipToQuota = status.canPayQuota;
 
   return (
     <main className="min-h-screen">
@@ -61,6 +113,19 @@ export default async function OnboardingFormPage() {
               l&apos;invio potrai procedere al versamento della quota
               associativa.
             </p>
+            {canSkipToQuota ? (
+              <p className="mt-3 text-neutral-600">
+                Sul tuo profilo risultano già nome e contatti: puoi versare la
+                quota ora; il ruolo associato verrà allineato al pagamento. Il
+                modulo formale resta consigliato se non l&apos;hai ancora inviato.
+              </p>
+            ) : (
+              <p className="mt-3 text-amber-900">
+                Anagrafica incompleta sul profilo: completa il modulo prima di
+                pagare. Il link esterno non è collegato automaticamente al tuo
+                account — dopo l&apos;invio torna qui o vai alla quota.
+              </p>
+            )}
           </div>
 
           <div className="mt-6 flex flex-wrap gap-3">
@@ -72,12 +137,14 @@ export default async function OnboardingFormPage() {
             >
               Apri modulo iscrizione
             </a>
-            <Link
-              href="/onboarding/quota"
-              className="inline-flex rounded-lg border border-neutral-300 px-5 py-2.5 text-sm font-medium text-neutral-800 hover:bg-neutral-50"
-            >
-              Ho già compilato il modulo
-            </Link>
+            {canSkipToQuota ? (
+              <Link
+                href="/onboarding/quota"
+                className="inline-flex rounded-lg border border-neutral-300 px-5 py-2.5 text-sm font-medium text-neutral-800 hover:bg-neutral-50"
+              >
+                Vai al pagamento quota
+              </Link>
+            ) : null}
           </div>
         </section>
       </div>

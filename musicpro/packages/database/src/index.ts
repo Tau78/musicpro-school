@@ -563,6 +563,7 @@ export type {
 export {
   adjustEnrollmentCredits,
   ensureOpenPackFee,
+  ensureOpenPackFeeForCollection,
   getEnrollmentWallet,
   getMemberLessonPaymentHistory,
   listEnrollmentWalletsForCourse,

@@ -1205,6 +1205,11 @@ async function findOrCreateEnrollmentDraftMember(
   return inserted;
 }
 
+/**
+ * Registra solo la quota contanti. Non chiude la bozza:
+ * is_enrollment_draft resta true finché salvaAggiornamentoAssociatoIscrizione
+ * (CF + firma). Il trigger clear_enrollment_draft_on_quota richiede CF+GDPR.
+ */
 async function markCashQuotaPaid(db: Db, memberId: string): Promise<void> {
   const anno = currentFiscalYear();
   const settings = await listAnnualQuotaSettings(db);
@@ -1714,6 +1719,131 @@ async function uploadEnrollmentPdf(
   return { pdfUrl, storagePath };
 }
 
+function enrollmentFormHasUsablePayload(form: EnrollmentFormData): boolean {
+  return Boolean(
+    formText(form.nome) ||
+      formText(form.cognome) ||
+      formText(form.cf) ||
+      formText(form.signatureData) ||
+      formText(form.email),
+  );
+}
+
+/**
+ * Post-quota onboarding/rinnovo app: enrollment senza form_payload (o payload vuoto).
+ * Allinea ruolo associato da anagrafica su `members` senza PDF/email e senza
+ * inventare GDPR. Chiude bozza/enrolled_at solo se CF+GDPR (come migration 110).
+ */
+async function finalizePaidEnrollmentFromMemberAnagrafica(
+  db: Db,
+  rec: EnrollmentRow,
+): Promise<{
+  success: true;
+  alreadySent: false;
+  skippedForm: true;
+  name: string;
+  pdfUrl: string;
+  memberNumber: number | null;
+  formStillRequired: boolean;
+}> {
+  if (!rec.member_id) {
+    throw new Error(
+      "Quota pagata ma iscrizione senza associato collegato. Contatta la segreteria.",
+    );
+  }
+
+  const member = await findMemberById(db, rec.member_id);
+  if (!member) {
+    throw new Error(
+      "Quota pagata ma profilo associato non trovato. Contatta la segreteria.",
+    );
+  }
+
+  const nome = String(member.first_name || rec.first_name || "").trim();
+  const cognome = String(member.last_name || rec.last_name || "").trim();
+  const email = String(member.email || rec.email || "")
+    .trim()
+    .toLowerCase();
+  if (!nome || !cognome) {
+    throw new Error(
+      "Quota pagata ma anagrafica incompleta sul profilo. Completa il modulo iscrizione o contatta la segreteria.",
+    );
+  }
+
+  const nowIso = new Date().toISOString();
+  const taxCode = String(member.tax_code || "").trim();
+  const canCloseDraft = Boolean(taxCode && member.gdpr_consent);
+  const patch: Database["public"]["Tables"]["members"]["Update"] = {};
+
+  if (canCloseDraft) {
+    patch.is_enrollment_draft = false;
+    patch.draft_expires_at = null;
+    if (!member.enrolled_at) {
+      patch.enrolled_at = nowIso;
+    }
+    if (member.member_number == null) {
+      patch.member_number = await getNextMemberNumber(db);
+    }
+  }
+
+  let updated = member;
+  if (Object.keys(patch).length > 0) {
+    const { data, error } = await db
+      .from("members")
+      .update(patch)
+      .eq("id", member.id)
+      .select("*")
+      .single();
+    if (error || !data) {
+      throw new Error(
+        error?.message ||
+          "Impossibile aggiornare l'associato dopo il pagamento quota.",
+      );
+    }
+    updated = data;
+  }
+
+  const roleResult = await grantMemberRole(db, updated.id, "associato", null);
+  if (!roleResult.success) {
+    console.error(
+      "[finalizePaidEnrollmentFromMemberAnagrafica] grant associato:",
+      roleResult.errorMessage,
+    );
+  }
+
+  const form = {
+    ...memberToFormFields(updated),
+    source: "onboarding_quota_no_form",
+  } as EnrollmentFormData;
+
+  await db
+    .from("enrollments")
+    .update({
+      confirmation_email_sent: true,
+      confirmation_email_sent_at: nowIso,
+      member_id: updated.id,
+      first_name: nome,
+      last_name: cognome,
+      email: email || rec.email,
+      tax_code:
+        String(updated.tax_code || rec.tax_code || "").toUpperCase().trim() ||
+        rec.tax_code,
+      form_payload:
+        form as Database["public"]["Tables"]["enrollments"]["Update"]["form_payload"],
+    } as Database["public"]["Tables"]["enrollments"]["Update"])
+    .eq("id", rec.id);
+
+  return {
+    success: true,
+    alreadySent: false,
+    skippedForm: true,
+    name: nome,
+    pdfUrl: "",
+    memberNumber: updated.member_number,
+    formStillRequired: !canCloseDraft,
+  };
+}
+
 async function promoteMemberAfterPaidEnrollment(
   db: Db,
   enrollment: EnrollmentRow,
@@ -1739,26 +1869,47 @@ async function promoteMemberAfterPaidEnrollment(
   }
 
   const nowIso = new Date().toISOString();
+  // Solo consenso esplicito dal modulo (firma / privacy): non inventare GDPR
+  // da snapshot onboarding_quota / anagrafica members.
+  const formConsented =
+    isFormFlagTrue(form.privacy_accepted) ||
+    Boolean(formText(form.signatureData));
+  const resolvedCf =
+    formText(form.cf) ||
+    String(enrollment.tax_code || "") ||
+    String(member.tax_code || "");
+  // Allineato a migration 110: chiudi bozza solo con CF + consenso (form o già su member).
+  const canFullyEnroll =
+    Boolean(resolvedCf.trim()) &&
+    (formConsented || Boolean(member.gdpr_consent));
+
+  // Preferisci form → enrollment → member: non azzerare anagrafica con campi vuoti.
   const patch: Database["public"]["Tables"]["members"]["Update"] = {
     ...memberPatchFromForm({
       ...form,
-      nome: form.nome || enrollment.first_name,
-      cognome: form.cognome || enrollment.last_name,
-      email: form.email || enrollment.email,
-      cf: form.cf || enrollment.tax_code || "",
-      telefono: form.telefono || enrollment.phone || "",
+      nome: formText(form.nome) || enrollment.first_name || member.first_name,
+      cognome:
+        formText(form.cognome) || enrollment.last_name || member.last_name,
+      email: formText(form.email) || enrollment.email || member.email || "",
+      cf: resolvedCf,
+      telefono:
+        formText(form.telefono) ||
+        String(enrollment.phone || "") ||
+        String(member.phone || ""),
     }),
-    is_enrollment_draft: false,
-    draft_expires_at: null,
   };
 
-  if (member.member_number == null) {
-    patch.member_number = await getNextMemberNumber(db);
+  if (canFullyEnroll) {
+    patch.is_enrollment_draft = false;
+    patch.draft_expires_at = null;
+    if (member.member_number == null) {
+      patch.member_number = await getNextMemberNumber(db);
+    }
+    if (!member.enrolled_at) {
+      patch.enrolled_at = nowIso;
+    }
   }
-  if (!member.enrolled_at) {
-    patch.enrolled_at = nowIso;
-  }
-  if (!member.gdpr_consent) {
+  if (!member.gdpr_consent && formConsented) {
     patch.gdpr_consent = true;
     patch.gdpr_consent_at = nowIso;
   }
@@ -1962,13 +2113,22 @@ export async function completaInvioIscrizione(idIscrizione: string) {
   }
 
   const form = parseEnrollmentFormPayload(rec.form_payload);
-  if (!Object.keys(form).length && !rec.email) {
-    await db
-      .from("enrollments")
-      .update({ confirmation_email_sent_at: null })
-      .eq("id", rec.id)
-      .eq("confirmation_email_sent", false);
-    throw new Error("Dati iscrizione mancanti.");
+  const formSource = String(form.source || "");
+  const isOnboardingSnapshot =
+    formSource.startsWith("onboarding_quota") &&
+    !formText(form.signatureData);
+  // Snapshot app / payload vuoto: promote da members, niente PDF modulo vuoto.
+  if (!enrollmentFormHasUsablePayload(form) || isOnboardingSnapshot) {
+    try {
+      return await finalizePaidEnrollmentFromMemberAnagrafica(db, rec);
+    } catch (err) {
+      await db
+        .from("enrollments")
+        .update({ confirmation_email_sent_at: null })
+        .eq("id", rec.id)
+        .eq("confirmation_email_sent", false);
+      throw err;
+    }
   }
 
   try {
