@@ -114,7 +114,7 @@ export async function updateSession(request: NextRequest) {
   ) {
     const { data: member } = await supabase
       .from("members")
-      .select("id")
+      .select("id, tax_code, gdpr_consent, enrolled_at, is_enrollment_draft")
       .eq("user_id", user.id)
       .maybeSingle();
 
@@ -132,6 +132,7 @@ export async function updateSession(request: NextRequest) {
       const isAssociato = roles.includes(MemberRole.Associato);
       const skipCheck = shouldSkipOnboardingCheck(roles);
 
+      // Associati puri: form (CF+firma) + quota. Staff/docenti non bloccati.
       if (isAssociato && !skipCheck) {
         const fiscalYear = new Date().getFullYear();
         const { data: quotaOk } = await supabase.rpc("member_quota_ok", {
@@ -139,7 +140,13 @@ export async function updateSession(request: NextRequest) {
           p_fiscal_year: fiscalYear,
         });
 
-        if (!quotaOk) {
+        const taxCode = String(member.tax_code || "").trim();
+        const formOk =
+          !member.is_enrollment_draft &&
+          Boolean(taxCode) &&
+          Boolean(member.gdpr_consent || member.enrolled_at);
+
+        if (!quotaOk || !formOk) {
           const onboardingUrl = request.nextUrl.clone();
           onboardingUrl.pathname = "/onboarding";
           onboardingUrl.search = "";

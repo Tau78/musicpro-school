@@ -54,20 +54,28 @@ export default async function OnboardingQuotaPage({ searchParams }: QuotaPagePro
       </header>
 
       <div className="mx-auto max-w-3xl px-6 py-8">
-        {!status.formCompleted ? (
+        {!status.canPayQuota ? (
           <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             Prima di pagare la quota,{" "}
             <Link href="/onboarding/form" className="font-medium underline">
               completa il modulo iscrizione
-            </Link>
-            .
+            </Link>{" "}
+            (anagrafica mancante sul profilo).
+          </div>
+        ) : !status.formCompleted ? (
+          <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            Puoi pagare con i dati già sul profilo. Il{" "}
+            <Link href="/onboarding/form" className="font-medium underline">
+              modulo iscrizione formale
+            </Link>{" "}
+            resta da completare per chiudere l&apos;onboarding.
           </div>
         ) : null}
 
         {paymentComplete ? (
           <div className="mb-6 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
-            Pagamento ricevuto. L&apos;aggiornamento della quota può richiedere
-            qualche secondo: ricarica la pagina o torna alla dashboard.
+            Pagamento ricevuto. Se la dashboard non si aggiorna subito, ricarica
+            tra qualche secondo: ruolo e quota si allineano al conferma Nexi.
           </div>
         ) : null}
 
@@ -94,7 +102,7 @@ export default async function OnboardingQuotaPage({ searchParams }: QuotaPagePro
           </dl>
 
           <div className="mt-6">
-            <QuotaPayButton disabled={!status.formCompleted} />
+            <QuotaPayButton disabled={!status.canPayQuota} />
           </div>
 
           <p className="mt-4 text-xs text-neutral-500">

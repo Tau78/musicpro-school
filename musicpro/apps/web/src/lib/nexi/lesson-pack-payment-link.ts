@@ -1,3 +1,5 @@
+import { createServiceRoleClient } from "@/lib/supabase/service-role";
+
 import { QUOTA_ASSOCIATIVA_CENTESIMI, eurosToCents } from "@/lib/nexi/cod-trans";
 import { mintNexiPayment } from "@/lib/nexi/mint-payment";
 import {
@@ -7,6 +9,9 @@ import {
 
 export const LESSON_PACK_FLOW = "lesson_pack";
 
+/** Max age for a reusable pending pack payment when nexi order has no expires_at. */
+const REUSABLE_PENDING_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
 export interface LessonPackPaymentLinkResult {
   success: boolean;
   url?: string;
@@ -14,6 +19,108 @@ export interface LessonPackPaymentLinkResult {
   paymentId?: string;
   totaleCents?: number;
   message?: string;
+}
+
+export interface ReusableLessonPackPayment {
+  paymentId: string;
+  url: string;
+  stripeId?: string | null;
+  reused: true;
+}
+
+/**
+ * Idempotency: same member/family/enrollment/amount pending with a still-valid
+ * Nexi link → reuse row + URL, do not INSERT or mint again.
+ */
+export async function findReusableLessonPackPayment(opts: {
+  memberId: string;
+  familyKey: string;
+  enrollmentId: string;
+  amountEur: number;
+  includeQuota: boolean;
+}): Promise<ReusableLessonPackPayment | null> {
+  const memberId = String(opts.memberId || "").trim();
+  const familyKey = String(opts.familyKey || "").trim();
+  const enrollmentId = String(opts.enrollmentId || "").trim();
+  if (!memberId || !familyKey || !enrollmentId) return null;
+
+  const targetCents = eurosToCents(opts.amountEur);
+  if (!Number.isFinite(targetCents) || targetCents < 50) return null;
+
+  const service = createServiceRoleClient();
+  const now = Date.now();
+  const nowIso = new Date(now).toISOString();
+
+  const { data: candidates, error } = await service
+    .from("lesson_pack_payments")
+    .select(
+      "id, amount_eur, stripe_payment_link_url, stripe_payment_link_id, created_at",
+    )
+    .eq("member_id", memberId)
+    .eq("family_key", familyKey)
+    .eq("status", "pending")
+    .eq("method", "nexi")
+    .eq("include_quota", opts.includeQuota)
+    .not("stripe_payment_link_url", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(20);
+
+  if (error || !candidates?.length) return null;
+
+  for (const row of candidates) {
+    if (eurosToCents(Number(row.amount_eur)) !== targetCents) continue;
+    const packUrl = String(row.stripe_payment_link_url || "").trim();
+    if (!packUrl) continue;
+
+    const { data: order } = await service
+      .from("nexi_payment_orders")
+      .select(
+        "provider_payment_id, payment_link_url, expires_at, metadata, created_at",
+      )
+      .eq("lesson_pack_payment_id", row.id)
+      .eq("flow", LESSON_PACK_FLOW)
+      .eq("status", "pending")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!order) continue;
+
+    const meta =
+      order.metadata && typeof order.metadata === "object"
+        ? (order.metadata as Record<string, unknown>)
+        : {};
+    const orderEnrollment = String(meta.mp_enrollment_id || "").trim();
+    if (orderEnrollment !== enrollmentId) continue;
+
+    if (order.expires_at) {
+      if (String(order.expires_at) <= nowIso) continue;
+    } else {
+      const createdMs = new Date(
+        String(order.created_at || row.created_at),
+      ).getTime();
+      if (
+        !Number.isFinite(createdMs) ||
+        now - createdMs > REUSABLE_PENDING_MAX_AGE_MS
+      ) {
+        continue;
+      }
+    }
+
+    const url = String(order.payment_link_url || packUrl).trim();
+    if (!url) continue;
+
+    return {
+      paymentId: row.id,
+      url,
+      stripeId:
+        String(order.provider_payment_id || "").trim() ||
+        row.stripe_payment_link_id,
+      reused: true,
+    };
+  }
+
+  return null;
 }
 
 function usablePublicUrl(value: string): string {

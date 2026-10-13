@@ -96,6 +96,10 @@ const checkoutSrc = readFileSync(
   join(root, "musicpro/apps/web/src/app/api/lezioni/checkout/route.ts"),
   "utf8",
 );
+const packLinkSrc = readFileSync(
+  join(root, "musicpro/apps/web/src/lib/nexi/lesson-pack-payment-link.ts"),
+  "utf8",
+);
 if (
   checkoutSrc.includes("lib/nexi/lesson-pack-payment-link") &&
   !checkoutSrc.includes('from "@/lib/stripe/')
@@ -103,6 +107,14 @@ if (
   ok("checkout pacchetto usa Nexi (no import stripe)");
 } else {
   fail("checkout pacchetto non allineato a Nexi");
+}
+if (
+  checkoutSrc.includes("findReusableLessonPackPayment") &&
+  packLinkSrc.includes("findReusableLessonPackPayment")
+) {
+  ok("checkout idempotente: riusa pending pack Nexi");
+} else {
+  fail("manca riuso pending lesson_pack_payments");
 }
 
 const nexiApply = readFileSync(

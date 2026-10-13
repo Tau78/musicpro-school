@@ -86,12 +86,14 @@ const nexiMig = readFileSync(
 
 const checkoutChecks = [
   ["createLessonPackPaymentLink", "checkout → createLessonPackPaymentLink"],
+  ["findReusableLessonPackPayment", "checkout riusa pending Nexi se valido"],
   ['method: "nexi"', "checkout registra method=nexi"],
   ["member_quota_ok", "checkout RPC member_quota_ok"],
   ["lesson_family_key", "checkout RPC lesson_family_key"],
   ["ensureOpenPackFee", "checkout ensureOpenPackFee"],
   ["enrollmentId", "checkout body enrollmentId"],
   ["success: true", "checkout risposta success"],
+  ["reused: true", "checkout risponde reused su pending riusato"],
 ];
 
 for (const [needle, label] of checkoutChecks) {
@@ -107,6 +109,16 @@ if (
   ok("lesson-pack-payment-link → mintNexiPayment(lesson_pack)");
 } else {
   fail("lesson-pack-payment-link non cablato su Nexi lesson_pack");
+}
+
+if (
+  linkSrc.includes("findReusableLessonPackPayment") &&
+  linkSrc.includes("mp_enrollment_id") &&
+  linkSrc.includes("expires_at")
+) {
+  ok("findReusableLessonPackPayment: enrollment + expires_at");
+} else {
+  fail("findReusableLessonPackPayment assente o incompleto");
 }
 
 if (mintSrc.includes("lesson_pack") && mintSrc.includes("lesson_pack_payment_id")) {

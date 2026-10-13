@@ -11,7 +11,10 @@ import {
 import { canManageMembers } from "@/lib/admin/roles";
 import { authPublicOrigin, isLocalDevOrigin } from "@/lib/auth/redirect-url";
 import { QUOTA_ASSOCIATIVA_CENTESIMI, eurosToCents } from "@/lib/nexi/cod-trans";
-import { createLessonPackPaymentLink } from "@/lib/nexi/lesson-pack-payment-link";
+import {
+  createLessonPackPaymentLink,
+  findReusableLessonPackPayment,
+} from "@/lib/nexi/lesson-pack-payment-link";
 import {
   isLessonsModuleEnabled,
   lessonsModuleApiDisabledBody,
@@ -253,6 +256,23 @@ export async function POST(request: NextRequest) {
     const totaleCents = packCents + (includeQuota ? quotaAmountCents : 0);
     const amountEur = Number((totaleCents / 100).toFixed(2));
 
+    const reusable = await findReusableLessonPackPayment({
+      memberId: student.id,
+      familyKey,
+      enrollmentId: enrollment.id,
+      amountEur,
+      includeQuota,
+    });
+    if (reusable) {
+      return NextResponse.json({
+        success: true,
+        url: reusable.url,
+        paymentId: reusable.paymentId,
+        includeQuota,
+        reused: true,
+      });
+    }
+
     const { data: payment, error: paymentError } = await writer
       .from("lesson_pack_payments")
       .insert({
@@ -326,6 +346,7 @@ export async function POST(request: NextRequest) {
       url: linkRes.url,
       paymentId: payment.id,
       includeQuota,
+      reused: false,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

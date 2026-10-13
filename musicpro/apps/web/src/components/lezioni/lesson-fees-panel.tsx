@@ -351,8 +351,51 @@ export function LessonFeesPanel({
     setError(null);
     setNotice(null);
 
+    let enrollmentId: string;
+    try {
+      const openPackFees = await listLessonFees(supabase, {
+        mode: "all",
+        status: ["aperta", "parziale"],
+        memberId: collectMemberId,
+      });
+      const memberPackEnrollmentIds = [
+        ...new Set(
+          openPackFees
+            .filter(
+              (row) =>
+                row.kind === "pack" && Boolean(row.courseEnrollmentId),
+            )
+            .map((row) => row.courseEnrollmentId as string),
+        ),
+      ];
+      if (memberPackEnrollmentIds.length === 0) {
+        setCollecting(false);
+        setError(
+          "Nessuna retta pack aperta per questo allievo. Usa «Incassa» sulla riga della retta del corso, oppure registra i contanti dal corso.",
+        );
+        return;
+      }
+      if (memberPackEnrollmentIds.length > 1) {
+        setCollecting(false);
+        setError(
+          "L’allievo ha più corsi con retta aperta. Usa «Incassa» sulla riga della retta del corso corretto.",
+        );
+        return;
+      }
+      enrollmentId = memberPackEnrollmentIds[0];
+    } catch (err) {
+      setCollecting(false);
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Impossibile verificare le rette pack aperte.",
+      );
+      return;
+    }
+
     const result = await registerFamilyCollection(supabase, {
       memberId: collectMemberId,
+      enrollmentId,
       amountEur: amount,
       method: collectMethod,
       paidOn: collectDate,
@@ -385,6 +428,10 @@ export function LessonFeesPanel({
       setError("Residuo non valido per questa retta.");
       return;
     }
+    if (fee.kind === "pack" && !fee.courseEnrollmentId) {
+      setError("Manca l'iscrizione al corso per questa retta pack.");
+      return;
+    }
 
     setHistoryCollectingId(fee.id);
     setError(null);
@@ -392,6 +439,7 @@ export function LessonFeesPanel({
 
     const result = await registerFamilyCollection(supabase, {
       memberId: fee.memberId,
+      enrollmentId: fee.courseEnrollmentId ?? undefined,
       amountEur: amount,
       method: "bonifico",
       paidOn: todayInRome(),
