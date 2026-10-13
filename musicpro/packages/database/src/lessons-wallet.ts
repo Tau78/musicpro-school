@@ -945,6 +945,59 @@ export async function seedOpeningPrepaidCredits(
   return ok(input.enrollmentId);
 }
 
+const RECONCILE_PACK_FEE_NOTE = "consumo annullato / saldo ripristinato";
+
+/**
+ * Abbuona rette pack aperte/parziali senza allocazioni quando il saldo
+ * enrollment è tornato > 0 (speculare a reconcile_pack_fees_for_enrollment).
+ */
+export async function reconcilePackFeesForEnrollment(
+  client: WalletClient,
+  enrollmentId: string,
+): Promise<number> {
+  const { data: openFees, error: loadError } = await client
+    .from("lesson_fees")
+    .select("id")
+    .eq("course_enrollment_id", enrollmentId)
+    .eq("kind", "pack")
+    .in("status", OPEN_FEE_STATUSES);
+  if (loadError) {
+    throw new Error(
+      loadError.message || "Impossibile caricare le rette pack da riconciliare.",
+    );
+  }
+  if (!openFees || openFees.length === 0) return 0;
+
+  const feeIds = openFees.map((row) => row.id);
+  const { data: allocated, error: allocError } = await client
+    .from("lesson_fee_allocations")
+    .select("fee_id")
+    .in("fee_id", feeIds);
+  if (allocError) {
+    throw new Error(
+      allocError.message || "Impossibile verificare le allocazioni rette.",
+    );
+  }
+  const allocatedIds = new Set((allocated ?? []).map((row) => row.fee_id));
+  const toWaive = feeIds.filter((id) => !allocatedIds.has(id));
+  if (toWaive.length === 0) return 0;
+
+  const { error: updateError } = await client
+    .from("lesson_fees")
+    .update({
+      status: "abbuonata",
+      remaining_eur: 0,
+      note: RECONCILE_PACK_FEE_NOTE,
+    })
+    .in("id", toWaive);
+  if (updateError) {
+    throw new Error(
+      updateError.message || "Impossibile abbuonare le rette pack fantasma.",
+    );
+  }
+  return toWaive.length;
+}
+
 export async function ensureOpenPackFee(
   client: WalletClient,
   enrollmentId: string,
@@ -961,7 +1014,25 @@ export async function ensureOpenPackFee(
     return fail(courseError.message || "Impossibile caricare il corso.");
   }
   if (!course) return fail("Corso non trovato.");
-  if (course.status !== "attivo" || course.is_trial) {
+  if (course.is_trial) {
+    return ok(enrollmentId);
+  }
+
+  const balance = await ledgerBalance(client, enrollmentId);
+  if (balance > 0) {
+    try {
+      await reconcilePackFeesForEnrollment(client, enrollmentId);
+    } catch (err) {
+      return fail(
+        err instanceof Error
+          ? err.message
+          : "Impossibile riconciliare le rette pack.",
+      );
+    }
+    return ok(enrollmentId);
+  }
+
+  if (course.status !== "attivo") {
     return ok(enrollmentId);
   }
 
@@ -970,15 +1041,10 @@ export async function ensureOpenPackFee(
     return ok(enrollmentId);
   }
 
-  const balance = await ledgerBalance(client, enrollmentId);
-  if (balance > 0) {
-    return ok(enrollmentId);
-  }
-
   const debt = Math.max(0, -balance);
   let needed = debt === 0 ? 0 : Math.ceil(debt / 4);
   let openCount = await openPackFeeCount(client, enrollmentId);
-  if (balance >= 0 && openCount === 0) {
+  if (balance <= 0 && openCount === 0 && needed === 0) {
     needed = 1;
   }
 

@@ -87,7 +87,8 @@ export function CourseDetailView({
   const canMutate = !readOnly && Boolean(actorMemberId);
   const canPlace =
     canMutate &&
-    (isStaff || canReschedule) &&
+    canReschedule &&
+    actorMemberId === course.titularMemberId &&
     course.status === "attivo";
   const today = todayInRome();
   const [expandedLessonId, setExpandedLessonId] = useState<string | null>(null);
@@ -397,8 +398,8 @@ export function CourseDetailView({
                       slotStepMinutes={slotStepMinutes}
                       actor={{
                         memberId: actorMemberId,
-                        isStaff,
-                        canReschedule: isStaff || canReschedule,
+                        isStaff: false,
+                        canReschedule,
                       }}
                       minDate={isRecovery ? today : undefined}
                       label={isRecovery ? "Nuova data e ora" : undefined}

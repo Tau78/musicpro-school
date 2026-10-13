@@ -2462,6 +2462,10 @@ export interface Database {
         Args: { p_member_id: string };
         Returns: string;
       };
+      reconcile_pack_fees_for_enrollment: {
+        Args: { p_enrollment_id: string };
+        Returns: number;
+      };
       sync_lesson_wallet_after_attendance: {
         Args: { p_lesson_id: string };
         Returns: Json;

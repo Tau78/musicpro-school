@@ -20,3 +20,18 @@ test("sync_lesson_wallet: assente consuma come presente (096)", () => {
   assert.match(sql, /status IN \('presente', 'assente'\)/);
   assert.match(sql, /assente_giustificato no/);
 });
+
+test("sync_lesson_wallet: abbuona pack fantasma se saldo > 0 (108)", () => {
+  const root = join(dirname(fileURLToPath(import.meta.url)), "../../../..");
+  const sql = readFileSync(
+    join(
+      root,
+      "supabase/migrations/108_reconcile_pack_fees_on_positive_balance.sql",
+    ),
+    "utf8",
+  );
+  assert.match(sql, /reconcile_pack_fees_for_enrollment/);
+  assert.match(sql, /v_balance > 0/);
+  assert.match(sql, /consumo annullato \/ saldo ripristinato/);
+  assert.match(sql, /NOT EXISTS \([\s\S]*lesson_fee_allocations/);
+});

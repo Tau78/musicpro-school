@@ -56,9 +56,10 @@ console.log("Smoke — lezioni pacchetto Nexi\n");
 // --- Static files ---
 const requiredFiles = [
   "musicpro/apps/web/src/app/api/lezioni/checkout/route.ts",
-  "musicpro/apps/web/src/lib/stripe/lesson-pack-payment-link.ts",
+  "musicpro/apps/web/src/lib/nexi/lesson-pack-payment-link.ts",
   "musicpro/apps/web/src/lib/nexi/mint-payment.ts",
   "supabase/migrations/075_nexi_xpay_payments.sql",
+  "supabase/migrations/108_reconcile_pack_fees_on_positive_balance.sql",
 ];
 
 for (const rel of requiredFiles) {
@@ -71,7 +72,7 @@ const checkoutSrc = readFileSync(
   "utf8",
 );
 const linkSrc = readFileSync(
-  join(root, "musicpro/apps/web/src/lib/stripe/lesson-pack-payment-link.ts"),
+  join(root, "musicpro/apps/web/src/lib/nexi/lesson-pack-payment-link.ts"),
   "utf8",
 );
 const mintSrc = readFileSync(
