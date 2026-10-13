@@ -8,7 +8,6 @@ import {
   listPendingCourses,
   listPendingLessonChangeRequests,
   listRooms,
-  listUnplacedLessons,
   type Room,
 } from "@musicpro/database";
 
@@ -44,7 +43,6 @@ export async function loadStaffDashboardHub(
     pendingApprovalCount,
     upcomingBookingsRaw,
     bookingRooms,
-    unplacedLessons,
     pendingCourses,
     changeRequests,
     todayLessons,
@@ -61,9 +59,6 @@ export async function loadStaffDashboardHub(
     showBookingsCalendar
       ? listRooms(supabase)
       : Promise.resolve([] as Room[]),
-    showStaffLessons
-      ? listUnplacedLessons(supabase)
-      : Promise.resolve([]),
     showStaffLessons
       ? listPendingCourses(supabase)
       : Promise.resolve([]),
@@ -105,7 +100,6 @@ export async function loadStaffDashboardHub(
     showStaffLessons,
     showTeacherLessons,
     pendingApprovalCount,
-    unplacedCount: unplacedLessons.length,
     codaCount: pendingCourses.length + changeRequests.length,
     arrearsCount,
     upcomingBookings: upcomingBookingsRaw.slice(0, 4),

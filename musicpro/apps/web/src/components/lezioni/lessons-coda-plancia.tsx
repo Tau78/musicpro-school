@@ -42,19 +42,16 @@ function StatTile({
 
 export function LessonsCodaPlanciaHeader({
   pendingCount,
-  unplacedCount,
   changeCount,
   advanceCount,
   closeCount,
 }: {
   pendingCount: number;
-  unplacedCount: number;
   changeCount: number;
   advanceCount: number;
   closeCount: number;
 }) {
-  const openTotal =
-    pendingCount + unplacedCount + changeCount + advanceCount + closeCount;
+  const openTotal = pendingCount + changeCount + advanceCount + closeCount;
 
   return (
     <div className="space-y-4">
@@ -63,8 +60,8 @@ export function LessonsCodaPlanciaHeader({
           Da fare
         </h1>
         <p className="mt-1 max-w-2xl text-sm text-neutral-600">
-          Plancia operativa: approva corsi, calendarizza lezioni, gestisci
-          richieste e anticipi.{" "}
+          Plancia operativa: approva corsi, gestisci richieste e anticipi. Le
+          lezioni da piazzare restano nell&apos;area docente.{" "}
           {openTotal > 0 ? (
             <span className="font-medium text-amber-800">
               {openTotal} {openTotal === 1 ? "voce aperta" : "voci aperte"}.
@@ -75,7 +72,7 @@ export function LessonsCodaPlanciaHeader({
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 lg:gap-3">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:gap-3">
         <StatTile
           label="Anticipi"
           count={advanceCount}
@@ -93,12 +90,6 @@ export function LessonsCodaPlanciaHeader({
           count={pendingCount}
           href="#coda-approvare"
           tone={pendingCount > 0 ? "brand" : "neutral"}
-        />
-        <StatTile
-          label="In calendario"
-          count={unplacedCount}
-          href="#coda-calendario"
-          tone={unplacedCount > 0 ? "brand" : "neutral"}
         />
         <StatTile
           label="Spostamenti"
