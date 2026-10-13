@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 
 import { updateMarketListing } from "@musicpro/database";
 
-import { marketErrorResponse, requireMarketAccess } from "@/lib/admin/market-auth";
+import {
+  marketErrorResponse,
+  rejectPersonalMarketEdit,
+  requireMarketAccess,
+} from "@/lib/admin/market-auth";
 
 const MAX_BYTES = 4 * 1024 * 1024;
 const ALLOWED = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
@@ -18,8 +22,14 @@ function extensionFor(type: string): string {
 
 export async function POST(request: Request, context: RouteContext) {
   const access = await requireMarketAccess();
-  if (access.error) return access.error;
+  if (access.error || !access.member) return access.error;
   const { id } = await context.params;
+  const blocked = await rejectPersonalMarketEdit(
+    access.supabase,
+    access.member.roles,
+    id,
+  );
+  if (blocked) return blocked;
 
   let form: FormData;
   try {

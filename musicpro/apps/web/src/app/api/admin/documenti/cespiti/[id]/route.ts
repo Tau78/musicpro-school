@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import {
+  findOpenMarketListingForAsset,
   getFixedAssetById,
   hardDeleteFixedAsset,
   listFixedAssetEvents,
@@ -55,15 +56,17 @@ export async function GET(_request: Request, context: RouteContext) {
       );
     }
 
-    const [photoUrl, events] = await Promise.all([
+    const [photoUrl, events, listing] = await Promise.all([
       signedPhotoUrl(access.supabase, asset.photoStoragePath),
       listFixedAssetEvents(access.supabase, id),
+      findOpenMarketListingForAsset(access.supabase, id).catch(() => null),
     ]);
 
     return NextResponse.json({
       success: true,
       asset: { ...asset, photoUrl },
       events,
+      listing,
     });
   } catch (error) {
     return NextResponse.json(

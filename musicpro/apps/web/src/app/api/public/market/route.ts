@@ -15,7 +15,9 @@ export async function GET(request: Request) {
     const service = createServiceRoleClient();
     const { data, error } = await service
       .from("market_listings")
-      .select("id, title, description, price_cents, photo_path")
+      .select(
+        "id, title, description, price_cents, photo_path, seller_kind, seller_name, seller_phone, seller_email, handover",
+      )
       .eq("status", "in_vendita")
       .order("created_at", { ascending: false });
 
@@ -33,6 +35,11 @@ export async function GET(request: Request) {
       description: row.description,
       priceCents: row.price_cents,
       photoUrl: marketPhotoPublicUrl(row.photo_path, base),
+      sellerKind: row.seller_kind,
+      sellerName: row.seller_kind === "associato" ? row.seller_name : null,
+      sellerPhone: row.seller_kind === "associato" ? row.seller_phone : null,
+      sellerEmail: row.seller_kind === "associato" ? row.seller_email : null,
+      handover: row.seller_kind === "associato" ? row.handover : "sede",
     }));
 
     return NextResponse.json(

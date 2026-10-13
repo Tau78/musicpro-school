@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
@@ -25,6 +26,7 @@ const EVENT_TYPE_OPTIONS: { value: FixedAssetEventType; label: string }[] = [
 
 export interface CespitiAssetWithPhoto extends FixedAsset {
   photoUrl?: string | null;
+  onSale?: boolean;
 }
 
 export interface CespitiFormState {
@@ -96,6 +98,7 @@ interface CespitiDetailPanelProps {
   assetId: string | null;
   initialForm?: CespitiFormState;
   isAdmin: boolean;
+  canSell: boolean;
   memberId: string;
   onClose: () => void;
   onSaved: (id: string) => void;
@@ -108,6 +111,7 @@ export function CespitiDetailPanel({
   assetId,
   initialForm,
   isAdmin,
+  canSell,
   memberId,
   onClose,
   onSaved,
@@ -134,6 +138,11 @@ export function CespitiDetailPanel({
   const [newEventNotes, setNewEventNotes] = useState("");
   const [newEventVerbale, setNewEventVerbale] = useState("");
   const [addingEvent, setAddingEvent] = useState(false);
+  const [listingId, setListingId] = useState<string | null>(null);
+  const [assetLive, setAssetLive] = useState(true);
+  const [sellOpen, setSellOpen] = useState(false);
+  const [sellPrice, setSellPrice] = useState("");
+  const [selling, setSelling] = useState(false);
 
   const photoInputRef = useRef<HTMLInputElement>(null);
   const pendingPhotoRef = useRef<File | null>(null);
@@ -150,6 +159,7 @@ export function CespitiDetailPanel({
         success?: boolean;
         asset?: CespitiAssetWithPhoto;
         events?: FixedAssetEvent[];
+        listing?: { id: string; status: string } | null;
         message?: string;
       };
 
@@ -159,6 +169,8 @@ export function CespitiDetailPanel({
 
       setForm(assetToForm(data.asset));
       setEvents(data.events ?? []);
+      setListingId(data.listing?.id ?? null);
+      setAssetLive(!data.asset.disposedAt && !data.asset.deletedAt);
     } catch (loadError) {
       setError(
         loadError instanceof Error
@@ -535,6 +547,15 @@ export function CespitiDetailPanel({
           {mode === "add" ? "Nuovo cespite" : "Dettaglio cespite"}
         </h3>
         <div className="flex items-center gap-1">
+          {canSell && mode === "edit" && assetId && assetLive && !listingId ? (
+            <button
+              type="button"
+              onClick={() => setSellOpen((current) => !current)}
+              className="min-h-[44px] rounded-lg bg-[var(--brand)] px-3 text-sm font-medium text-white touch-manipulation hover:opacity-95"
+            >
+              Vendi
+            </button>
+          ) : null}
           {mode === "edit" && assetId ? (
             <div className="relative">
               <button
@@ -598,6 +619,74 @@ export function CespitiDetailPanel({
           </button>
         </div>
       </div>
+
+      {canSell && listingId ? (
+        <p className="border-b border-neutral-100 px-4 py-2 text-sm text-neutral-600">
+          In vendita sul sito.{" "}
+          <Link href="/admin/market" className="font-medium text-[var(--brand)]">
+            Apri Market
+          </Link>
+        </p>
+      ) : null}
+      {sellOpen && canSell && !listingId ? (
+        <form
+          className="flex items-center gap-2 border-b border-neutral-100 px-4 py-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!assetId) return;
+            void (async () => {
+              setSelling(true);
+              setError(null);
+              try {
+                const response = await fetch(
+                  `/api/admin/documenti/cespiti/${assetId}/vendi`,
+                  {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ price: sellPrice }),
+                  },
+                );
+                const data = (await response.json()) as {
+                  success?: boolean;
+                  listingId?: string;
+                  message?: string;
+                };
+                if (!response.ok || !data.success || !data.listingId) {
+                  throw new Error(data.message ?? "Pubblicazione non riuscita.");
+                }
+                setListingId(data.listingId);
+                setSellOpen(false);
+                onSaved(assetId);
+              } catch (sellError) {
+                setError(
+                  sellError instanceof Error
+                    ? sellError.message
+                    : "Pubblicazione non riuscita.",
+                );
+              } finally {
+                setSelling(false);
+              }
+            })();
+          }}
+        >
+          <input
+            className="h-9 min-w-0 flex-1 rounded-lg border border-neutral-300 px-2 text-sm"
+            value={sellPrice}
+            onChange={(event) => setSellPrice(event.target.value)}
+            placeholder="Prezzo €"
+            aria-label="Prezzo di vendita"
+            inputMode="decimal"
+            required
+          />
+          <button
+            type="submit"
+            disabled={selling}
+            className="h-9 shrink-0 rounded-lg bg-[var(--brand)] px-3 text-sm font-medium text-white disabled:opacity-50"
+          >
+            {selling ? "Pubblico…" : "Pubblica"}
+          </button>
+        </form>
+      ) : null}
 
       <div className="flex-1 overflow-y-auto px-4 py-4">
         {loading ? (
@@ -828,11 +917,11 @@ export function CespitiDetailPanel({
                         className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm"
                       >
                         <p className="font-medium text-neutral-800">
-                          {
-                            EVENT_TYPE_OPTIONS.find(
-                              (item) => item.value === event.eventType,
-                            )?.label
-                          }
+                          {event.eventType === "venduto"
+                            ? "Venduto"
+                            : EVENT_TYPE_OPTIONS.find(
+                                (item) => item.value === event.eventType,
+                              )?.label}
                           {event.eventDate
                             ? ` — ${new Date(event.eventDate).toLocaleDateString("it-IT")}`
                             : ""}

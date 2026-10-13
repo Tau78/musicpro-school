@@ -1,5 +1,24 @@
 type IconProps = { className?: string };
 
+export function NavIconMarket({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      <path d="M6 7h12l-1 13H7L6 7Z" />
+      <path d="M9 7a3 3 0 0 1 6 0" />
+    </svg>
+  );
+}
+
 export function NavIconHome({ className = "h-5 w-5" }: IconProps) {
   return (
     <svg

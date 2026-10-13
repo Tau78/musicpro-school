@@ -1,11 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { recordMarketSale } from "./market-sale";
 import type { Database } from "./types/database";
 
 type MarketClient = SupabaseClient<Database>;
 
 export const MARKET_LISTING_STATUSES = [
   "bozza",
+  "in_revisione",
+  "rifiutato",
   "in_vendita",
   "riservato",
   "venduto",
@@ -13,7 +16,13 @@ export const MARKET_LISTING_STATUSES = [
 
 export type MarketListingStatus = (typeof MARKET_LISTING_STATUSES)[number];
 
-export const MARKET_PAY_METHODS = ["bonifico", "contanti", "nexi"] as const;
+export const MARKET_PAY_METHODS = ["bonifico", "contanti", "nexi", "tra_privati"] as const;
+
+export const MARKET_SELLER_KINDS = ["associazione", "associato"] as const;
+export type MarketSellerKind = (typeof MARKET_SELLER_KINDS)[number];
+
+export const MARKET_HANDOVERS = ["sede", "diretto"] as const;
+export type MarketHandover = (typeof MARKET_HANDOVERS)[number];
 
 export type MarketPayMethod = (typeof MARKET_PAY_METHODS)[number];
 
@@ -38,6 +47,13 @@ export type MarketListing = {
   status: MarketListingStatus;
   photoPath: string | null;
   createdAt: string;
+  sellerKind: MarketSellerKind;
+  sellerMemberId: string | null;
+  sellerName: string | null;
+  sellerPhone: string | null;
+  sellerEmail: string | null;
+  handover: MarketHandover | null;
+  fixedAssetId: string | null;
 };
 
 export type MarketOrder = {
@@ -70,6 +86,8 @@ export function parseMarketPriceEuros(raw: string): number | null {
 
 export function marketListingStatusLabel(status: MarketListingStatus): string {
   if (status === "bozza") return "Bozza";
+  if (status === "in_revisione") return "In revisione";
+  if (status === "rifiutato") return "Rifiutato";
   if (status === "in_vendita") return "In vendita";
   if (status === "riservato") return "Riservato";
   return "Venduto";
@@ -78,7 +96,14 @@ export function marketListingStatusLabel(status: MarketListingStatus): string {
 export function marketPayMethodLabel(method: MarketPayMethod): string {
   if (method === "bonifico") return "Bonifico";
   if (method === "contanti") return "Contanti";
+  if (method === "tra_privati") return "Tra privati";
   return "Nexi";
+}
+
+export function marketHandoverLabel(handover: MarketHandover | null): string {
+  if (handover === "sede") return "Ritiro in sede";
+  if (handover === "diretto") return "Consegna tra di voi";
+  return "Ritiro in sede";
 }
 
 export function marketOrderStatusLabel(status: MarketOrderStatus): string {
@@ -108,6 +133,13 @@ function mapListing(row: ListingRow): MarketListing {
     status: row.status,
     photoPath: row.photo_path,
     createdAt: row.created_at,
+    sellerKind: row.seller_kind,
+    sellerMemberId: row.seller_member_id,
+    sellerName: row.seller_name,
+    sellerPhone: row.seller_phone,
+    sellerEmail: row.seller_email,
+    handover: row.handover,
+    fixedAssetId: row.fixed_asset_id,
   };
 }
 
@@ -225,7 +257,12 @@ export function normalizeMarketDescription(raw: string): string {
 
 export async function createMarketListing(
   client: MarketClient,
-  input: { title: string; priceCents: number },
+  input: {
+    title: string;
+    priceCents: number;
+    description?: string;
+    status?: "bozza" | "in_vendita";
+  },
 ): Promise<MarketListing> {
   const title = normalizeMarketTitle(input.title);
   if (!title) throw new Error("Titolo mancante.");
@@ -236,8 +273,8 @@ export async function createMarketListing(
     .insert({
       title,
       price_cents: input.priceCents,
-      status: "bozza",
-      description: "",
+      status: input.status === "in_vendita" ? "in_vendita" : "bozza",
+      description: normalizeMarketDescription(input.description ?? ""),
     })
     .select("*")
     .single();
@@ -255,7 +292,7 @@ export async function updateMarketListing(
     title?: string;
     description?: string;
     priceCents?: number;
-    status?: "bozza" | "in_vendita";
+    status?: "bozza" | "in_revisione" | "rifiutato" | "in_vendita" | "venduto";
     photoPath?: string | null;
   },
 ): Promise<void> {
@@ -302,18 +339,125 @@ export async function deleteMarketListing(
     .eq("id", id)
     .maybeSingle();
   if (!current.data) throw new Error("Oggetto non trovato.");
-  if (current.data.status !== "bozza") {
-    throw new Error("Puoi eliminare solo una bozza.");
+  if (
+    current.data.status !== "bozza" &&
+    current.data.status !== "in_revisione" &&
+    current.data.status !== "rifiutato" &&
+    current.data.status !== "in_vendita"
+  ) {
+    throw new Error("Questo annuncio non si può eliminare.");
   }
   const { error } = await client.from("market_listings").delete().eq("id", id);
   if (error) throw new Error(error.message || "Impossibile eliminare l'oggetto.");
   return current.data.photo_path;
 }
 
+export async function createAssociateListing(
+  client: MarketClient,
+  input: {
+    memberId: string;
+    sellerName: string;
+    title: string;
+    description: string;
+    priceCents: number;
+    phone: string;
+    email: string;
+    handover: MarketHandover;
+  },
+): Promise<MarketListing> {
+  const title = normalizeMarketTitle(input.title);
+  if (!title) throw new Error("Titolo mancante.");
+  if (input.priceCents < 100) throw new Error("Prezzo minimo 1 euro.");
+  const phone = input.phone.trim();
+  const email = input.email.trim().toLowerCase();
+  if (phone.replace(/\D/g, "").length < 6 && !email.includes("@")) {
+    throw new Error("Lascia telefono o email.");
+  }
+  if (input.handover !== "sede" && input.handover !== "diretto") {
+    throw new Error("Scegli come consegnare l'oggetto.");
+  }
+
+  const { data, error } = await client
+    .from("market_listings")
+    .insert({
+      title,
+      description: normalizeMarketDescription(input.description),
+      price_cents: input.priceCents,
+      status: "in_revisione",
+      seller_kind: "associato",
+      seller_member_id: input.memberId,
+      seller_name: input.sellerName.trim().slice(0, 120) || null,
+      seller_phone: phone || null,
+      seller_email: email || null,
+      handover: input.handover,
+      fixed_asset_id: null,
+    })
+    .select("*")
+    .single();
+
+  if (error || !data) {
+    throw new Error(error?.message || "Impossibile inviare l'annuncio.");
+  }
+  return mapListing(data);
+}
+
+export async function updateAssociateListing(
+  client: MarketClient,
+  id: string,
+  memberId: string,
+  patch: {
+    title?: string;
+    description?: string;
+    priceCents?: number;
+    phone?: string;
+    email?: string;
+    handover?: MarketHandover;
+    sold?: boolean;
+  },
+): Promise<void> {
+  const current = await client
+    .from("market_listings")
+    .select("*")
+    .eq("id", id)
+    .eq("seller_member_id", memberId)
+    .maybeSingle();
+  if (!current.data) throw new Error("Annuncio non trovato.");
+  if (current.data.status === "riservato" || current.data.status === "venduto") {
+    throw new Error("Questo annuncio non si può modificare.");
+  }
+
+  const update: Database["public"]["Tables"]["market_listings"]["Update"] = {
+    status: patch.sold ? "venduto" : "in_revisione",
+  };
+  if (patch.title != null) {
+    const title = normalizeMarketTitle(patch.title);
+    if (!title) throw new Error("Titolo non valido.");
+    update.title = title;
+  }
+  if (patch.description != null) {
+    update.description = normalizeMarketDescription(patch.description);
+  }
+  if (patch.priceCents != null) {
+    if (patch.priceCents < 100) throw new Error("Prezzo minimo 1 euro.");
+    update.price_cents = patch.priceCents;
+  }
+  if (patch.phone != null) update.seller_phone = patch.phone.trim() || null;
+  if (patch.email != null) update.seller_email = patch.email.trim().toLowerCase() || null;
+  if (patch.handover) update.handover = patch.handover;
+
+  const { error } = await client
+    .from("market_listings")
+    .update(update)
+    .eq("id", id)
+    .eq("seller_member_id", memberId);
+  if (error) throw new Error(error.message || "Impossibile aggiornare l'annuncio.");
+}
+
 export async function setMarketOrderStatus(
   client: MarketClient,
   orderId: string,
   next: "pagato" | "ritirato" | "annullato",
+  actorMemberId?: string | null,
 ): Promise<void> {
   const found = await client
     .from("market_orders")
@@ -357,6 +501,7 @@ export async function setMarketOrderStatus(
   if (order.status !== "pagato" && order.method !== "contanti") {
     throw new Error("Segna prima il pagamento.");
   }
+  await recordMarketSale(client, order, actorMemberId);
   const picked = await client
     .from("market_orders")
     .update({ status: "ritirato" })

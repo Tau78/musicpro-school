@@ -62,7 +62,8 @@ export type FixedAssetEventType =
   | "perdita"
   | "smarrimento"
   | "rottura"
-  | "trasferimento";
+  | "trasferimento"
+  | "venduto";
 
 export interface FixedAsset {
   id: string;
@@ -77,6 +78,7 @@ export interface FixedAsset {
   locationCustom: string | null;
   notes: string | null;
   disposedAt: string | null;
+  disposalKind: "venduto" | "dismesso" | null;
   deletedAt: string | null;
   photoStoragePath: string | null;
   createdAt: string;
@@ -147,7 +149,7 @@ type FixedAssetEventRow =
   Database["public"]["Tables"]["fixed_asset_events"]["Row"];
 
 const FIXED_ASSET_COLUMNS =
-  "id, quantity, name, brand, model, serial, accessories, purchased_at, location_preset, location_custom, notes, disposed_at, deleted_at, photo_storage_path, created_at, updated_at, created_by, updated_by";
+  "id, quantity, name, brand, model, serial, accessories, purchased_at, location_preset, location_custom, notes, disposed_at, disposal_kind, deleted_at, photo_storage_path, created_at, updated_at, created_by, updated_by";
 
 const FIXED_ASSET_EVENT_COLUMNS =
   "id, asset_id, event_type, event_date, notes, verbale_ref, created_at, created_by";
@@ -207,6 +209,7 @@ function mapFixedAsset(row: FixedAssetRow): FixedAsset {
     locationCustom: row.location_custom,
     notes: row.notes,
     disposedAt: row.disposed_at,
+    disposalKind: row.disposal_kind,
     deletedAt: row.deleted_at,
     photoStoragePath: row.photo_storage_path,
     createdAt: row.created_at,
@@ -529,6 +532,7 @@ export async function markDisposedFixedAsset(
     .from("fixed_assets")
     .update({
       disposed_at: disposedAt ?? new Date().toISOString(),
+      disposal_kind: "dismesso",
       updated_by: updatedBy ?? null,
     })
     .eq("id", id);

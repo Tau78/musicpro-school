@@ -88,7 +88,7 @@ export function CespitiFiltersDrawer({
           <fieldset className="mt-6 space-y-3 border-t border-neutral-100 pt-4">
             <legend className="text-sm font-medium text-neutral-800">Stato</legend>
             {[
-              { key: "includeDisposed" as const, label: "Includi dismessi" },
+              { key: "includeDisposed" as const, label: "Includi dismessi e venduti" },
               { key: "withoutPhoto" as const, label: "Senza foto" },
               { key: "withoutSerial" as const, label: "Senza seriale" },
               { key: "includeDeleted" as const, label: "Includi eliminati" },

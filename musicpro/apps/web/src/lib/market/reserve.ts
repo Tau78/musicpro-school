@@ -41,11 +41,48 @@ export async function reserveMarketListing(input: ReserveMarketInput) {
   if (phone && phone.replace(/\D/g, "").length < 6) {
     return { success: false, message: "Telefono non valido." };
   }
+  const service = createServiceRoleClient();
+  const listing = await service
+    .from("market_listings")
+    .select("id, seller_kind, seller_phone, seller_email, seller_name, handover, status, price_cents, title")
+    .eq("id", listingId)
+    .maybeSingle();
+  if (listing.error || !listing.data || listing.data.status !== "in_vendita") {
+    return { success: false, message: "Questo oggetto non è più in vendita." };
+  }
+
+  if (listing.data.seller_kind === "associato") {
+    const inserted = await service.from("market_orders").insert({
+      listing_id: listingId,
+      buyer_name: name,
+      buyer_email: email || null,
+      buyer_phone: phone || null,
+      method: "tra_privati",
+      status: "richiesto",
+      amount_cents: listing.data.price_cents,
+    });
+    if (inserted.error) {
+      return { success: false, message: "Impossibile registrare l'interesse." };
+    }
+    const where =
+      listing.data.handover === "sede"
+        ? "L'oggetto può restare in sede: il pagamento lo concordate tra voi, non con l'associazione."
+        : "Vi accordate tra voi per consegna e pagamento. L'associazione non incassa.";
+    return {
+      success: true,
+      method: "tra_privati",
+      peer: true,
+      sellerName: listing.data.seller_name,
+      sellerPhone: listing.data.seller_phone,
+      sellerEmail: listing.data.seller_email,
+      message: where,
+    };
+  }
+
   if (!METHODS.has(method)) {
     return { success: false, message: "Scegli come pagare." };
   }
 
-  const service = createServiceRoleClient();
   const claimed = await service
     .from("market_listings")
     .update({ status: "riservato" })
