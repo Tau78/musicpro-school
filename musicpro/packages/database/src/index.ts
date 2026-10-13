@@ -778,6 +778,36 @@ export {
   updateFixedAsset,
   updateFixedAssetPhotoPath,
 } from "./fixed-assets";
+export {
+  MARKET_IBAN_HOLDER_KEY,
+  MARKET_IBAN_KEY,
+  MARKET_LISTING_STATUSES,
+  MARKET_ORDER_STATUSES,
+  MARKET_PAY_METHODS,
+  createMarketListing,
+  deleteMarketListing,
+  getMarketPaymentSettings,
+  listMarketListings,
+  listMarketOrders,
+  marketListingStatusLabel,
+  marketOrderStatusLabel,
+  marketPayMethodLabel,
+  marketPhotoPublicUrl,
+  normalizeMarketDescription,
+  normalizeMarketTitle,
+  parseMarketPriceEuros,
+  saveMarketPaymentSettings,
+  setMarketOrderStatus,
+  updateMarketListing,
+} from "./market";
+export type {
+  MarketListing,
+  MarketListingStatus,
+  MarketOrder,
+  MarketOrderStatus,
+  MarketPayMethod,
+  MarketPaymentSettings,
+} from "./market";
 export type {
   AccessoryTagKey,
   DuplicateComparableFields,

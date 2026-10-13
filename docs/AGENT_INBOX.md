@@ -8,7 +8,7 @@ Voci recenti in cima. Marca `✓ letto YYYY-MM-DD` dopo lettura.
 
 **Da:** questo agente School (`Integrazione google reserve`)  
 **Per:** agente MusicPro Website  
-**Stato:** mandato scritto in `/Users/mauroandreoni/MusicPro Website/docs/AGENT_INBOX.md` (voce `[VETRINA GBP]`).
+**Stato:** ✓ letto 2026-10-13 — mandato scritto in `/Users/mauroandreoni/MusicPro Website/docs/AGENT_INBOX.md` (voce `[VETRINA GBP]`).
 
 Decisione: no Reserve with Google E2E; sì landing pubblica hub + link GBP. Attesa risposta website con URL finale.
 

@@ -37,6 +37,7 @@ export function SettingsSubNav({
   const onQuote = pathname.startsWith("/admin/quote");
   const onSale = pathname.startsWith("/admin/sale");
   const onShop = pathname.startsWith("/admin/shop");
+  const onMarket = pathname.startsWith("/admin/market");
   const onImpostazioniRoot =
     pathname === "/admin/impostazioni" || pathname.startsWith("/admin/penali");
   const onDocumenti =
@@ -59,6 +60,13 @@ export function SettingsSubNav({
       label: "Crediti",
       description: "Totale, shop, promozioni e storico",
       active: onShop,
+      visible: showShop,
+    },
+    {
+      href: "/admin/market",
+      label: "Market",
+      description: "Oggetti usati, ritiro in sede",
+      active: onMarket,
       visible: showShop,
     },
   ].filter((item) => item.visible);

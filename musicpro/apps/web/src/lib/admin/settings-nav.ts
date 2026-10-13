@@ -3,6 +3,7 @@ export const SETTINGS_PATH_PREFIXES = [
   "/admin/quote",
   "/admin/sale",
   "/admin/shop",
+  "/admin/market",
   "/admin/template",
   "/admin/penali",
 ] as const;
