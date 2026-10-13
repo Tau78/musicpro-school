@@ -23,7 +23,6 @@ export interface StaffDashboardHubProps {
   showTeacherLessons: boolean;
   canManageShop?: boolean;
   pendingApprovalCount: number;
-  unplacedCount: number;
   codaCount: number;
   arrearsCount: number;
   upcomingBookings: AdminBookingListItem[];
@@ -131,7 +130,6 @@ export function StaffDashboardHub({
   showTeacherLessons,
   canManageShop = false,
   pendingApprovalCount,
-  unplacedCount,
   codaCount,
   arrearsCount,
   upcomingBookings,
@@ -165,12 +163,6 @@ export function StaffDashboardHub({
     todoItems.push({
       href: "/admin/prenotazioni/lista",
       label: `${pendingApprovalCount} da approvare`,
-    });
-  }
-  if (showStaffLessons && unplacedCount > 0) {
-    todoItems.push({
-      href: "/admin/lezioni/calendario",
-      label: `${unplacedCount} da piazzare`,
     });
   }
   if (showStaffLessons && codaCount > 0) {

@@ -9,12 +9,9 @@ import {
   listPendingLessonChangeRequests,
   listRoomsForLessons,
   listTeacherCashAdvances,
-  listUnplacedLessons,
   minutesToTimeLabel,
-  todayInRome,
   type CourseDetail,
   type IsoWeekday,
-  type LessonParkedReason,
 } from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
 
@@ -26,7 +23,6 @@ import {
   LessonsCodaPlanciaHeader,
   LessonsCodaSection,
 } from "@/components/lezioni/lessons-coda-plancia";
-import { PlaceLessonForm } from "@/components/lezioni/place-lesson-form";
 import { getAdminMember } from "@/lib/admin/current-member";
 import { canManageMembers } from "@/lib/admin/roles";
 import { createClient } from "@/lib/supabase/server";
@@ -62,12 +58,6 @@ function titularLabel(detail: CourseDetail | undefined): string {
   if (!detail?.titular) return "—";
   return `${detail.titular.lastName} ${detail.titular.firstName}`.trim() || "—";
 }
-
-const PARKED_REASON_LABELS: Record<LessonParkedReason, string> = {
-  giustificato: "Giustificato",
-  cancellata_scuola: "Cancellata scuola",
-  docente_assente: "Docente assente",
-};
 
 const SCOPE_LABELS = {
   this: "Solo questa",
@@ -113,7 +103,6 @@ export default async function AdminLezioniCodaPage() {
 
   let loadError: string | null = null;
   let pending: Awaited<ReturnType<typeof listPendingCourses>> = [];
-  let unplaced: Awaited<ReturnType<typeof listUnplacedLessons>> = [];
   let changeRequests: Awaited<
     ReturnType<typeof listPendingLessonChangeRequests>
   > = [];
@@ -124,12 +113,10 @@ export default async function AdminLezioniCodaPage() {
     ReturnType<typeof listPendingCourseCloseRequests>
   > = [];
   const detailsById = new Map<string, CourseDetail>();
-  const today = todayInRome();
 
   try {
     const [
       pendingRows,
-      unplacedRows,
       requestRows,
       roomRows,
       schoolSettings,
@@ -138,7 +125,6 @@ export default async function AdminLezioniCodaPage() {
     ] =
       await Promise.all([
         listPendingCourses(supabase),
-        listUnplacedLessons(supabase),
         listPendingLessonChangeRequests(supabase),
         listRoomsForLessons(supabase),
         getLessonSchoolSettings(supabase),
@@ -146,7 +132,6 @@ export default async function AdminLezioniCodaPage() {
         listPendingCourseCloseRequests(supabase),
       ]);
     pending = pendingRows;
-    unplaced = unplacedRows;
     changeRequests = requestRows;
     rooms = roomRows;
     settings = schoolSettings;
@@ -156,7 +141,6 @@ export default async function AdminLezioniCodaPage() {
     const courseIds = [
       ...new Set([
         ...pending.map((course) => course.id),
-        ...unplaced.map((lesson) => lesson.courseId),
         ...changeRequests.map((request) => request.courseId),
       ]),
     ];
@@ -181,7 +165,6 @@ export default async function AdminLezioniCodaPage() {
     <div className="space-y-5 sm:space-y-6">
       <LessonsCodaPlanciaHeader
         pendingCount={pending.length}
-        unplacedCount={unplaced.length}
         changeCount={changeRequests.length}
         advanceCount={cashAdvances.length}
         closeCount={closeRequests.length}
@@ -301,76 +284,6 @@ export default async function AdminLezioniCodaPage() {
                     online={course.courseKind === "online"}
                     slotStepMinutes={slotStepMinutes}
                     defaultHoldHours={settings?.holdHours ?? 48}
-                  />
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </LessonsCodaSection>
-
-      <LessonsCodaSection
-        id="coda-calendario"
-        title="Da mettere in calendario"
-        count={unplaced.length}
-      >
-        {unplaced.length === 0 ? (
-          <p className="text-sm text-neutral-600">
-            Nessuna lezione da mettere in calendario.
-          </p>
-        ) : (
-          <ul className="space-y-3">
-            {unplaced.map((lesson) => {
-              const detail = detailsById.get(lesson.courseId);
-              const online = detail?.courseKind === "online";
-              const isRecovery = lesson.placement === "da_recuperare";
-              return (
-                <li
-                  key={lesson.id}
-                  className="space-y-3 rounded-xl border border-neutral-200 bg-white p-4"
-                >
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <p className="font-medium text-neutral-900">
-                      {detail?.name ?? "Corso"}
-                      <span className="ml-2 text-sm font-normal text-neutral-600">
-                        #{lesson.sequenceNumber}
-                      </span>
-                    </p>
-                    <p className="text-sm text-neutral-600">
-                      Sala:{" "}
-                      {roomLabel(lesson.roomId, roomsById, Boolean(online))}
-                    </p>
-                  </div>
-                  {isRecovery ? (
-                    <div className="flex flex-wrap items-center gap-2 text-sm">
-                      <span className="rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800">
-                        Da recuperare
-                      </span>
-                      {lesson.parkedReason ? (
-                        <span className="text-neutral-600">
-                          {PARKED_REASON_LABELS[lesson.parkedReason]}
-                        </span>
-                      ) : null}
-                      {lesson.originalStartsAt ? (
-                        <span className="text-neutral-500">
-                          Originale: {formatDateTimeIt(lesson.originalStartsAt)}
-                        </span>
-                      ) : null}
-                    </div>
-                  ) : null}
-                  <PlaceLessonForm
-                    lessonId={lesson.id}
-                    rooms={roomOptions}
-                    requiresRoom={!online}
-                    defaultRoomId={lesson.roomId}
-                    actor={{
-                      memberId: member.id,
-                      isStaff: true,
-                      canReschedule: true,
-                    }}
-                    slotStepMinutes={slotStepMinutes}
-                    minDate={isRecovery ? today : undefined}
-                    label={isRecovery ? "Nuova data e ora" : undefined}
                   />
                 </li>
               );

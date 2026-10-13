@@ -5,9 +5,11 @@ import {
   listCoordinatedCourses,
   listCourses,
   listLessonsInRange,
+  listUnplacedLessons,
   todayInRome,
   type CalendarLesson,
   type Course,
+  type Lesson,
 } from "@musicpro/database";
 
 import { courseSlotLabel } from "@/components/lezioni/course-labels";
@@ -19,6 +21,7 @@ const PREVIEW = 4;
 export type TeacherHomeData = {
   attendance: CalendarLesson[];
   upcoming: CalendarLesson[];
+  unplaced: Lesson[];
   courses: Course[];
   coordinatedCount: number;
 };
@@ -28,7 +31,7 @@ export async function loadTeacherHomeData(
 ): Promise<TeacherHomeData> {
   const supabase = await createClient();
   const today = todayInRome();
-  const [past, upcoming, courses, coordinated] = await Promise.all([
+  const [past, upcoming, unplaced, courses, coordinated] = await Promise.all([
     listLessonsInRange(supabase, {
       from: addRomeDays(today, -14),
       to: today,
@@ -39,6 +42,7 @@ export async function loadTeacherHomeData(
       to: addRomeDays(today, 14),
       titularMemberId: memberId,
     }),
+    listUnplacedLessons(supabase, { titularMemberId: memberId }),
     listCourses(supabase, { titularMemberId: memberId, status: "attivo" }),
     listCoordinatedCourses(supabase, memberId),
   ]);
@@ -54,6 +58,7 @@ export async function loadTeacherHomeData(
     upcoming: upcoming.filter(
       (lesson) => lesson.startsAt && !lesson.id.startsWith("hold:"),
     ),
+    unplaced,
     courses,
     coordinatedCount: coordinated.length,
   };
@@ -89,6 +94,31 @@ export function TeacherHome({
             meta={lessonMeta(lesson)}
           />
         ))}
+      </HomeSection>
+
+      <HomeSection
+        title="Da piazzare"
+        href="/lezioni/calendario"
+        count={data.unplaced.length}
+        empty="Nessuna lezione da mettere in calendario."
+      >
+        {data.unplaced.slice(0, PREVIEW).map((lesson) => {
+          const courseName =
+            data.courses.find((course) => course.id === lesson.courseId)?.name ??
+            "Corso";
+          return (
+            <HomeRow
+              key={lesson.id}
+              href={`/lezioni/corsi/${lesson.courseId}`}
+              title={`${courseName} · #${lesson.sequenceNumber}`}
+              meta={
+                lesson.placement === "da_recuperare"
+                  ? "Da recuperare — scegli data/ora dal calendario"
+                  : "Da piazzare — scegli data/ora dal calendario"
+              }
+            />
+          );
+        })}
       </HomeSection>
 
       <HomeSection
