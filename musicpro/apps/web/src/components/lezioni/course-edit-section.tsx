@@ -197,6 +197,9 @@ export function CourseEditSection({
     }
 
     if (needsSchedule) {
+      // Svuota lo step precedente così un secondo Salva non riusa le righe vecchie.
+      setSchedulePreview(null);
+      setSchedulePatch(null);
       const preview = await previewCourseScheduleResync(
         supabase,
         course.id,
