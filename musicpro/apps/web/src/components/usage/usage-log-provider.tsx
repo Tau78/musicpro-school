@@ -1,17 +1,36 @@
 "use client";
 
-import { usePathname, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useRef } from "react";
+import { usePathname } from "next/navigation";
+import { useEffect, useRef } from "react";
 
 import { getUsageSessionId, logUsage } from "@/lib/usage-log";
 
-function UsageLogRoutesInner() {
+/** Prefissi dove ha senso loggare navigazione prodotto (non login/marketing). */
+const TRACKED_PREFIXES = [
+  "/dashboard",
+  "/lezioni",
+  "/admin",
+  "/prenotazioni",
+  "/onboarding",
+  "/tabellone",
+] as const;
+
+function shouldTrackPath(pathname: string | null): boolean {
+  if (!pathname) return false;
+  return TRACKED_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
+
+/** Log navigazione autenticata (dashboard, lezioni, prenotazioni). */
+export function UsageLogProvider() {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const lastRoute = useRef<string | null>(null);
   const sessionLogged = useRef(false);
 
   useEffect(() => {
+    if (!shouldTrackPath(pathname)) return;
+
     if (!sessionLogged.current) {
       sessionLogged.current = true;
       logUsage("session.start", {
@@ -19,11 +38,10 @@ function UsageLogRoutesInner() {
         properties: { sessionId: getUsageSessionId() },
       });
     }
-  }, []);
 
-  useEffect(() => {
-    const qs = searchParams?.toString();
-    const route = qs ? `${pathname}?${qs}` : pathname;
+    const search =
+      typeof window !== "undefined" ? window.location.search.replace(/^\?/, "") : "";
+    const route = search ? `${pathname}?${search}` : pathname;
     if (!route || route === lastRoute.current) {
       return;
     }
@@ -33,16 +51,7 @@ function UsageLogRoutesInner() {
       route,
       properties: { pathname },
     });
-  }, [pathname, searchParams]);
+  }, [pathname]);
 
   return null;
-}
-
-/** Log navigazione autenticata (dashboard, lezioni, prenotazioni). */
-export function UsageLogProvider() {
-  return (
-    <Suspense fallback={null}>
-      <UsageLogRoutesInner />
-    </Suspense>
-  );
 }
