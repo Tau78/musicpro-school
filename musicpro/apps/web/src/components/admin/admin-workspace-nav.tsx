@@ -45,7 +45,7 @@ function actionClass(active: boolean): string {
 }
 
 function segmentClass(active: boolean): string {
-  return `flex-1 rounded-md px-2 py-1.5 text-center text-xs font-semibold touch-manipulation transition-colors ${
+  return `shrink-0 rounded-md px-3 py-1.5 text-xs font-semibold touch-manipulation transition-colors ${
     active
       ? "bg-white text-[var(--brand)] shadow-sm"
       : "text-neutral-500 hover:text-neutral-800"
@@ -60,7 +60,8 @@ export function AdminWorkspaceNav({
   itemIcons,
 }: {
   groups: readonly AdminWorkspaceNavGroup[];
-  title: string;
+  /** Solo accessibilità (tab principale già visibile nella nav admin). */
+  title?: string;
   activeHref: string | null;
   segmentAriaLabel?: string;
   itemIcons?: Record<string, ReactNode>;
@@ -82,16 +83,16 @@ export function AdminWorkspaceNav({
   const [, startTransition] = useTransition();
   const [optimisticHref, setOptimisticHref] = useOptimistic(activeHref);
 
+  const segmentsLabel =
+    segmentAriaLabel ?? (title ? `Sezioni ${title}` : "Sezioni workspace");
+
   return (
     <header className="rounded-xl bg-white/90 shadow-sm ring-1 ring-black/5">
-      <div className="flex items-center gap-2 px-3 pt-2 pb-1.5">
-        <h2 className="shrink-0 text-xs font-semibold uppercase tracking-wide text-[var(--brand)]">
-          {title}
-        </h2>
+      <div className="pt-2 pb-1.5">
         <div
-          className="flex min-w-0 flex-1 rounded-lg bg-neutral-100/90 p-0.5"
+          className="inline-flex max-w-full flex-wrap gap-0.5 rounded-lg bg-neutral-100/90 p-0.5"
           role="tablist"
-          aria-label={segmentAriaLabel ?? `Sezioni ${title}`}
+          aria-label={segmentsLabel}
         >
           {groups.map((group) => {
             const active = group.label === activeGroup?.label;
@@ -123,7 +124,7 @@ export function AdminWorkspaceNav({
       </div>
 
       <nav
-        className="flex gap-1.5 overflow-x-auto px-3 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex gap-1.5 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         aria-label={activeGroup ? `Azioni ${activeGroup.label}` : "Azioni"}
       >
         {(activeGroup?.items ?? []).map((item) => {
