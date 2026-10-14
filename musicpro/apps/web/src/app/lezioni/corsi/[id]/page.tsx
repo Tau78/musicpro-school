@@ -1,19 +1,21 @@
+import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
 
 import {
   getCourse,
   getCurrentMemberWithRoles,
-  getLessonSchoolSettings,
   getTeacherProfile,
   isActiveCourseCoordinator,
-  listRoomsForLessons,
 } from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
 
+import { CourseDetailPageLoading } from "@/components/lezioni/course-detail-page-loading";
 import { CourseDetailView } from "@/components/lezioni/course-detail-view";
 import {
   loadCourseLessons,
   loadCourseProgrammingHints,
+  loadLessonSchoolSettingsCached,
+  loadRoomsForLessonsCached,
   roomsByIdFromList,
 } from "@/components/lezioni/load-course-page-data";
 import { createClient } from "@/lib/supabase/server";
@@ -22,7 +24,15 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-export default async function CorsoDocenteDetailPage({ params }: PageProps) {
+export default function CorsoDocenteDetailPage(props: PageProps) {
+  return (
+    <Suspense fallback={<CourseDetailPageLoading />}>
+      <CorsoDocenteDetailContent {...props} />
+    </Suspense>
+  );
+}
+
+async function CorsoDocenteDetailContent({ params }: PageProps) {
   const { id } = await params;
   const supabase = await createClient();
   const member = await getCurrentMemberWithRoles(supabase);
@@ -34,9 +44,9 @@ export default async function CorsoDocenteDetailPage({ params }: PageProps) {
   const [course, lessons, rooms, profile, settings] = await Promise.all([
     getCourse(supabase, id),
     loadCourseLessons(supabase, id),
-    listRoomsForLessons(supabase),
+    loadRoomsForLessonsCached(),
     getTeacherProfile(supabase, member.id),
-    getLessonSchoolSettings(supabase),
+    loadLessonSchoolSettingsCached(),
   ]);
 
   if (!course) {

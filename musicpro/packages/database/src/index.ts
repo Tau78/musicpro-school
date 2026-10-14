@@ -528,6 +528,8 @@ export {
   rejectCourse,
   transferCourseTitular,
   patchCourse,
+  previewCourseScheduleResync,
+  applyCourseScheduleResync,
   getCourseDeletePreview,
   adminDeleteCourse,
 } from "./courses";
@@ -546,6 +548,9 @@ export type {
   CreateCourseActor,
   CreateCourseInput,
   PatchCourseInput,
+  ApplyCourseScheduleRow,
+  CourseSchedulePreview,
+  CourseSchedulePreviewRow,
   LessonScheduleActor,
   Lesson,
   LessonKind,

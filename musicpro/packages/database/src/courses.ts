@@ -1364,6 +1364,343 @@ export async function extendCourseHold(
   return ok(courseId);
 }
 
+export type CourseLessonPlanEntryKind =
+  | "regular"
+  | "holiday_makeup"
+  | "manual_holiday";
+
+export type CourseLessonPlanEntry = {
+  date: string;
+  startsAt: string;
+  endsAt: string;
+  kind: CourseLessonPlanEntryKind;
+  /** Data settimanale saltata perché festivo/chiusura. */
+  replacedHolidayDate?: string;
+};
+
+export type CourseLessonPlanDraft = {
+  entries: CourseLessonPlanEntry[];
+  /** Recuperi non piazzabili automaticamente (da_piazzare). */
+  unplacedMakeupCount: number;
+  skippedHolidayDates: string[];
+};
+
+export type CourseSchedulePreviewRow = {
+  rowKey: string;
+  date: string;
+  startsAt: string | null;
+  endsAt: string | null;
+  placement: LessonPlacement;
+  kind: CourseLessonPlanEntryKind;
+  replacedHolidayDate?: string;
+  included: boolean;
+};
+
+export type CourseSchedulePreview = {
+  rows: CourseSchedulePreviewRow[];
+  skippedHolidays: string[];
+  lockedLessonCount: number;
+  warnings: string[];
+};
+
+export type ApplyCourseScheduleRow = {
+  rowKey: string;
+  date: string;
+  included: boolean;
+  kind: CourseLessonPlanEntryKind;
+  replacedHolidayDate?: string;
+};
+
+function buildCourseLessonSchedulePlan(
+  params: {
+    startsOn: string;
+    weeklyDow: IsoWeekday;
+    weeklyStartMinute: number;
+    durationMinutes: number;
+  },
+  term: SchoolCourseTerm,
+  closures: SchoolClosure[],
+  options: { planFrom: string },
+): CourseLessonPlanDraft {
+  const from = maxDate(maxDate(params.startsOn, term.startsOn), options.planFrom);
+  const regularDates: string[] = [];
+  const skippedHolidayDates: string[] = [];
+  let holidayCount = 0;
+
+  for (const date of weeklyDates(from, params.weeklyDow, term.endsOn)) {
+    if (date < params.startsOn) continue;
+    if (isSchoolClosed(date, closures)) {
+      holidayCount += 1;
+      skippedHolidayDates.push(date);
+    } else {
+      regularDates.push(date);
+    }
+  }
+
+  const entries: CourseLessonPlanEntry[] = regularDates.map((date) => {
+    const startsAt = romeDateTimeToUtcIso(date, params.weeklyStartMinute);
+    return {
+      date,
+      startsAt,
+      endsAt: addMinutesIso(startsAt, params.durationMinutes),
+      kind: "regular",
+    };
+  });
+
+  let searchFrom = addDays(term.endsOn, 1);
+  let unplacedMakeupCount = 0;
+  for (let i = 0; i < holidayCount; i += 1) {
+    let cursor = firstDateOnDow(searchFrom, params.weeklyDow);
+    let found: string | null = null;
+    for (let week = 0; week < 12; week += 1) {
+      if (!isSchoolClosed(cursor, closures)) {
+        found = cursor;
+        break;
+      }
+      cursor = addDays(cursor, 7);
+    }
+    if (found) {
+      const startsAt = romeDateTimeToUtcIso(found, params.weeklyStartMinute);
+      entries.push({
+        date: found,
+        startsAt,
+        endsAt: addMinutesIso(startsAt, params.durationMinutes),
+        kind: "holiday_makeup",
+        replacedHolidayDate: skippedHolidayDates[i],
+      });
+      searchFrom = addDays(found, 1);
+    } else {
+      unplacedMakeupCount += 1;
+    }
+  }
+
+  entries.sort((a, b) => a.date.localeCompare(b.date));
+  return { entries, unplacedMakeupCount, skippedHolidayDates };
+}
+
+function planEntryRowKey(entry: Pick<CourseLessonPlanEntry, "date" | "kind">): string {
+  return `${entry.kind}:${entry.date}`;
+}
+
+async function loadCourseTerm(
+  client: CoursesClient,
+  termId: string,
+): Promise<SchoolCourseTerm | null> {
+  const { data: termRow, error: termError } = await client
+    .from("school_course_terms")
+    .select("id, label, starts_on, ends_on, is_current, created_at, updated_at")
+    .eq("id", termId)
+    .maybeSingle();
+  if (termError || !termRow) return null;
+  return {
+    id: termRow.id,
+    label: termRow.label,
+    startsOn: termRow.starts_on,
+    endsOn: termRow.ends_on,
+    isCurrent: termRow.is_current,
+    createdAt: termRow.created_at,
+    updatedAt: termRow.updated_at,
+  };
+}
+
+function mergedScheduleParams(
+  course: Course,
+  patch: PatchCourseInput,
+): {
+  startsOn: string;
+  weeklyDow: IsoWeekday;
+  weeklyStartMinute: number;
+  durationMinutes: number;
+  roomId: string | null;
+} {
+  return {
+    startsOn: patch.startsOn ?? course.startsOn,
+    weeklyDow: (patch.weeklyDow ?? course.weeklyDow) as IsoWeekday,
+    weeklyStartMinute: patch.weeklyStartMinute ?? course.weeklyStartMinute,
+    durationMinutes: patch.durationMinutes ?? course.durationMinutes,
+    roomId:
+      patch.roomId !== undefined ? patch.roomId : course.roomId,
+  };
+}
+
+async function loadLockedLessonIds(
+  client: CoursesClient,
+  courseId: string,
+): Promise<Set<string> | { errorMessage: string }> {
+  const today = todayInRome();
+  const { data: lessons, error } = await client
+    .from("lessons")
+    .select("id, starts_at, placement")
+    .eq("course_id", courseId)
+    .is("cancelled_at", null);
+  if (error) {
+    return {
+      errorMessage: error.message || "Impossibile caricare le lezioni.",
+    };
+  }
+  const lessonIds = (lessons ?? []).map((row) => row.id);
+  if (lessonIds.length === 0) return new Set<string>();
+
+  const [consumoRes, attendanceRes] = await Promise.all([
+    client
+      .from("lesson_credit_ledger")
+      .select("lesson_id")
+      .in("lesson_id", lessonIds)
+      .eq("kind", "consumo"),
+    client.from("lesson_attendances").select("lesson_id").in("lesson_id", lessonIds),
+  ]);
+  if (consumoRes.error || attendanceRes.error) {
+    return {
+      errorMessage:
+        consumoRes.error?.message ||
+        attendanceRes.error?.message ||
+        "Impossibile verificare le lezioni bloccate.",
+    };
+  }
+
+  const locked = new Set<string>();
+  const consumo = new Set(
+    (consumoRes.data ?? [])
+      .map((row) => row.lesson_id)
+      .filter((id): id is string => Boolean(id)),
+  );
+  const attended = new Set((attendanceRes.data ?? []).map((row) => row.lesson_id));
+
+  for (const lesson of lessons ?? []) {
+    if (consumo.has(lesson.id) || attended.has(lesson.id)) {
+      locked.add(lesson.id);
+      continue;
+    }
+    if (lesson.starts_at && dateInRome(lesson.starts_at) < today) {
+      locked.add(lesson.id);
+    }
+  }
+  return locked;
+}
+
+async function insertPlannedLessonRows(
+  client: CoursesClient,
+  course: Course,
+  entries: CourseLessonPlanEntry[],
+  sequenceStart: number,
+): Promise<{ warnings: string[] } | { errorMessage: string }> {
+  const title = await resolveLessonCalendarTitle(client, course.id);
+  const warnings: string[] = [];
+  const rows: Database["public"]["Tables"]["lessons"]["Insert"][] = [];
+  let sequence = sequenceStart;
+
+  for (const entry of entries) {
+    if (!course.roomId) {
+      rows.push({
+        course_id: course.id,
+        sequence_number: sequence,
+        starts_at: entry.startsAt,
+        ends_at: entry.endsAt,
+        room_id: null,
+        booking_id: null,
+        placement: "scheduled",
+      });
+      sequence += 1;
+      continue;
+    }
+
+    const booked = await createLessonBooking(client, {
+      roomId: course.roomId,
+      memberId: course.titularMemberId,
+      startAt: entry.startsAt,
+      endAt: entry.endsAt,
+      title,
+    });
+
+    if (booked.bookingId) {
+      rows.push({
+        course_id: course.id,
+        sequence_number: sequence,
+        starts_at: entry.startsAt,
+        ends_at: entry.endsAt,
+        room_id: course.roomId,
+        booking_id: booked.bookingId,
+        placement: "scheduled",
+      });
+    } else {
+      if (booked.errorCode !== "SLOT_TAKEN" && booked.errorMessage) {
+        warnings.push(`Lezione ${entry.date}: ${booked.errorMessage}`);
+      }
+      rows.push({
+        course_id: course.id,
+        sequence_number: sequence,
+        starts_at: null,
+        ends_at: null,
+        room_id: course.roomId,
+        booking_id: null,
+        placement: "da_piazzare",
+      });
+    }
+    sequence += 1;
+  }
+
+  if (rows.length === 0) {
+    return { warnings };
+  }
+
+  const { error: insertError } = await client.from("lessons").insert(rows);
+  if (insertError) {
+    for (const row of rows) {
+      if (row.booking_id) {
+        await cancelHoldBooking(client, row.booking_id);
+      }
+    }
+    return {
+      errorMessage:
+        insertError.message || "Impossibile salvare le lezioni programmate.",
+    };
+  }
+
+  return { warnings };
+}
+
+async function cancelReplaceableFutureLessons(
+  client: CoursesClient,
+  courseId: string,
+  locked: Set<string>,
+): Promise<{ errorMessage?: string }> {
+  const today = todayInRome();
+  const { data: lessons, error } = await client
+    .from("lessons")
+    .select("id, starts_at, booking_id, placement")
+    .eq("course_id", courseId)
+    .is("cancelled_at", null);
+  if (error) {
+    return { errorMessage: error.message || "Impossibile caricare le lezioni." };
+  }
+
+  const nowIso = new Date().toISOString();
+  for (const lesson of lessons ?? []) {
+    if (locked.has(lesson.id)) continue;
+    const isFuture =
+      !lesson.starts_at ||
+      dateInRome(lesson.starts_at) >= today ||
+      lesson.placement === "da_piazzare" ||
+      lesson.placement === "da_recuperare";
+    if (!isFuture) continue;
+
+    if (lesson.booking_id) {
+      const cancelError = await cancelHoldBooking(client, lesson.booking_id);
+      if (cancelError) return { errorMessage: cancelError };
+    }
+    const { error: updateError } = await client
+      .from("lessons")
+      .update({ cancelled_at: nowIso, booking_id: null })
+      .eq("id", lesson.id);
+    if (updateError) {
+      return {
+        errorMessage: updateError.message || "Impossibile cancellare una lezione.",
+      };
+    }
+  }
+  return {};
+}
+
 export async function generateCourseLessons(
   client: CoursesClient,
   courseId: string,
@@ -1393,143 +1730,53 @@ export async function generateCourseLessons(
     ]);
   }
 
-  const { data: termRow, error: termError } = await client
-    .from("school_course_terms")
-    .select("id, label, starts_on, ends_on, is_current, created_at, updated_at")
-    .eq("id", course.termId)
-    .maybeSingle();
-  if (termError) {
-    return fail(termError.message || "Impossibile caricare l'anno corsi.");
-  }
-  if (!termRow) {
+  const term = await loadCourseTerm(client, course.termId);
+  if (!term) {
     return fail("Manca l’anno corsi in Impostazioni.");
   }
 
-  const term: SchoolCourseTerm = {
-    id: termRow.id,
-    label: termRow.label,
-    startsOn: termRow.starts_on,
-    endsOn: termRow.ends_on,
-    isCurrent: termRow.is_current,
-    createdAt: termRow.created_at,
-    updatedAt: termRow.updated_at,
-  };
   const closures = await listSchoolClosures(client);
-  const from = maxDate(course.startsOn, term.startsOn);
-  const title = await resolveLessonCalendarTitle(client, courseId);
+  const plan = buildCourseLessonSchedulePlan(
+    {
+      startsOn: course.startsOn,
+      weeklyDow: course.weeklyDow,
+      weeklyStartMinute: course.weeklyStartMinute,
+      durationMinutes: course.durationMinutes,
+    },
+    term,
+    closures,
+    { planFrom: maxDate(course.startsOn, term.startsOn) },
+  );
+
   const warnings: string[] = [];
-  const rows: Database["public"]["Tables"]["lessons"]["Insert"][] = [];
-  let sequence = 1;
-
-  const regularDates: string[] = [];
-  let holidayCount = 0;
-  for (const date of weeklyDates(from, course.weeklyDow, term.endsOn)) {
-    if (date < course.startsOn) continue;
-    if (isSchoolClosed(date, closures)) holidayCount += 1;
-    else regularDates.push(date);
+  const inserted = await insertPlannedLessonRows(
+    client,
+    course,
+    plan.entries,
+    1,
+  );
+  if ("errorMessage" in inserted) {
+    return fail(inserted.errorMessage);
   }
+  warnings.push(...inserted.warnings);
 
-  const datesToPlace = [...regularDates];
-  let searchFrom = addDays(term.endsOn, 1);
-  for (let i = 0; i < holidayCount; i += 1) {
-    let cursor = firstDateOnDow(searchFrom, course.weeklyDow);
-    let found: string | null = null;
-    for (let week = 0; week < 12; week += 1) {
-      if (!isSchoolClosed(cursor, closures)) {
-        found = cursor;
-        break;
-      }
-      cursor = addDays(cursor, 7);
-    }
-    if (found) {
-      datesToPlace.push(found);
-      searchFrom = addDays(found, 1);
-    } else {
-      rows.push({
-        course_id: courseId,
-        sequence_number: sequence,
-        starts_at: null,
-        ends_at: null,
-        room_id: course.roomId,
-        booking_id: null,
-        placement: "da_piazzare",
-      });
-      sequence += 1;
-    }
-  }
-
-  for (const date of datesToPlace) {
-
-    const startAt = romeDateTimeToUtcIso(date, course.weeklyStartMinute);
-    const endAt = addMinutesIso(startAt, course.durationMinutes);
-
-    if (!course.roomId) {
-      rows.push({
-        course_id: courseId,
-        sequence_number: sequence,
-        starts_at: startAt,
-        ends_at: endAt,
-        room_id: null,
-        booking_id: null,
-        placement: "scheduled",
-      });
-      sequence += 1;
-      continue;
-    }
-
-    const booked = await createLessonBooking(client, {
-      roomId: course.roomId,
-      memberId: course.titularMemberId,
-      startAt,
-      endAt,
-      title,
+  for (let i = 0; i < plan.unplacedMakeupCount; i += 1) {
+    const { error } = await client.from("lessons").insert({
+      course_id: courseId,
+      sequence_number: plan.entries.length + 1 + i,
+      starts_at: null,
+      ends_at: null,
+      room_id: course.roomId,
+      booking_id: null,
+      placement: "da_piazzare",
     });
-
-    if (booked.bookingId) {
-      rows.push({
-        course_id: courseId,
-        sequence_number: sequence,
-        starts_at: startAt,
-        ends_at: endAt,
-        room_id: course.roomId,
-        booking_id: booked.bookingId,
-        placement: "scheduled",
-      });
-    } else {
-      if (booked.errorCode !== "SLOT_TAKEN" && booked.errorMessage) {
-        warnings.push(`Lezione #${sequence}: ${booked.errorMessage}`);
-      }
-      rows.push({
-        course_id: courseId,
-        sequence_number: sequence,
-        starts_at: null,
-        ends_at: null,
-        room_id: course.roomId,
-        booking_id: null,
-        placement: "da_piazzare",
-      });
+    if (error) {
+      return fail(error.message || "Impossibile salvare le lezioni da piazzare.");
     }
-    sequence += 1;
   }
 
-  if (rows.length === 0) {
-    return fail(
-      "Nessuna lezione da generare nell'anno corsi.",
-      { id: courseId },
-    );
-  }
-
-  const { error: insertError } = await client.from("lessons").insert(rows);
-  if (insertError) {
-    for (const row of rows) {
-      if (row.booking_id) {
-        await cancelHoldBooking(client, row.booking_id);
-      }
-    }
-    return fail(
-      insertError.message || "Impossibile salvare le lezioni generate.",
-      { id: courseId, warnings },
-    );
+  if (plan.entries.length === 0 && plan.unplacedMakeupCount === 0) {
+    return fail("Nessuna lezione da generare nell'anno corsi.", { id: courseId });
   }
 
   try {
@@ -1816,6 +2063,7 @@ export async function patchCourse(
   courseId: string,
   input: PatchCourseInput,
   actor: LessonScheduleActor,
+  options?: { bypassSlotLessonGuard?: boolean },
 ): Promise<CourseMutationResult> {
   const course = await loadCourse(client, courseId);
   if (!course) {
@@ -1945,15 +2193,277 @@ export async function patchCourse(
     }
   }
 
-  if (slotFields) {
-    warnings.push(
-      "Slot e sala aggiornati sul corso. Le lezioni già programmate non sono state spostate automaticamente.",
-    );
+  if (slotFields && !options?.bypassSlotLessonGuard) {
+    const { data: lessonRows } = await client
+      .from("lessons")
+      .select("id")
+      .eq("course_id", courseId)
+      .is("cancelled_at", null)
+      .limit(1);
+    if ((lessonRows?.length ?? 0) > 0) {
+      return fail(
+        "Per cambiare giorno, ora o sala usa la conferma della nuova programmazione.",
+      );
+    }
   }
 
   const { error } = await client.from("courses").update(patch).eq("id", courseId);
   if (error) {
     return fail(error.message || "Impossibile aggiornare il corso.");
+  }
+
+  return ok(courseId, warnings.length > 0 ? warnings : undefined);
+}
+
+function assertScheduleEditPermission(
+  course: Course,
+  actor: LessonScheduleActor,
+):
+  | { ok: true; staffEdit: boolean; teacherEdit: boolean }
+  | { ok: false; errorMessage: string } {
+  if (course.isTrial) {
+    return { ok: false, errorMessage: "Modifica dalla scheda lezione di prova." };
+  }
+  if (course.status === "chiuso" || course.status === "rifiutato") {
+    return {
+      ok: false,
+      errorMessage: "Non si può modificare un corso chiuso o rifiutato.",
+    };
+  }
+  const isTitular = course.titularMemberId === actor.memberId;
+  const staffEdit =
+    actor.isStaff &&
+    (course.status === "attivo" ||
+      course.status === "in_pausa" ||
+      course.status === "in_attesa");
+  const teacherEdit =
+    !actor.isStaff &&
+    isTitular &&
+    actor.canReschedule &&
+    (course.status === "attivo" || course.status === "in_pausa");
+  if (!staffEdit && !teacherEdit) {
+    return {
+      ok: false,
+      errorMessage: "Non hai il permesso di modificare questo corso.",
+    };
+  }
+  return { ok: true, staffEdit, teacherEdit };
+}
+
+export async function previewCourseScheduleResync(
+  client: CoursesClient,
+  courseId: string,
+  patch: PatchCourseInput,
+  actor: LessonScheduleActor,
+): Promise<
+  | { success: true; preview: CourseSchedulePreview }
+  | { success: false; errorMessage: string }
+> {
+  const course = await loadCourse(client, courseId);
+  if (!course) {
+    return { success: false, errorMessage: "Corso non trovato." };
+  }
+  const permission = assertScheduleEditPermission(course, actor);
+  if (!permission.ok) {
+    return { success: false, errorMessage: permission.errorMessage };
+  }
+
+  const schedule = mergedScheduleParams(course, patch);
+  if (!isIsoWeekday(schedule.weeklyDow)) {
+    return { success: false, errorMessage: "Giorno della settimana non valido." };
+  }
+  if (course.courseKind !== "online" && !schedule.roomId) {
+    return { success: false, errorMessage: "La sala è obbligatoria." };
+  }
+
+  const term = await loadCourseTerm(client, course.termId);
+  if (!term) {
+    return { success: false, errorMessage: "Manca l'anno corsi in Impostazioni." };
+  }
+
+  const closures = await listSchoolClosures(client);
+  const today = todayInRome();
+  const plan = buildCourseLessonSchedulePlan(
+    {
+      startsOn: schedule.startsOn,
+      weeklyDow: schedule.weeklyDow,
+      weeklyStartMinute: schedule.weeklyStartMinute,
+      durationMinutes: schedule.durationMinutes,
+    },
+    term,
+    closures,
+    { planFrom: today },
+  );
+
+  const rows: CourseSchedulePreviewRow[] = plan.entries
+    .filter((entry) => entry.date >= today)
+    .map((entry) => ({
+      rowKey: planEntryRowKey(entry),
+      date: entry.date,
+      startsAt: entry.startsAt,
+      endsAt: entry.endsAt,
+      placement: "scheduled" as const,
+      kind: entry.kind,
+      replacedHolidayDate: entry.replacedHolidayDate,
+      included: true,
+    }));
+
+  for (let i = 0; i < plan.unplacedMakeupCount; i += 1) {
+    rows.push({
+      rowKey: `unplaced:${i}`,
+      date: "",
+      startsAt: null,
+      endsAt: null,
+      placement: "da_piazzare",
+      kind: "holiday_makeup",
+      included: true,
+    });
+  }
+
+  const locked = await loadLockedLessonIds(client, courseId);
+  if ("errorMessage" in locked) {
+    return { success: false, errorMessage: locked.errorMessage };
+  }
+
+  const warnings: string[] = [];
+  if (locked.size > 0) {
+    warnings.push(
+      `${locked.size} lezioni passate o con presenze/consumi restano invariate.`,
+    );
+  }
+
+  return {
+    success: true,
+    preview: {
+      rows,
+      skippedHolidays: plan.skippedHolidayDates.filter((d) => d >= today),
+      lockedLessonCount: locked.size,
+      warnings,
+    },
+  };
+}
+
+export async function applyCourseScheduleResync(
+  client: CoursesClient,
+  courseId: string,
+  patch: PatchCourseInput,
+  planRows: ApplyCourseScheduleRow[],
+  actor: LessonScheduleActor,
+): Promise<CourseMutationResult> {
+  const course = await loadCourse(client, courseId);
+  if (!course) {
+    return fail("Corso non trovato.");
+  }
+  const permission = assertScheduleEditPermission(course, actor);
+  if (!permission.ok) {
+    return fail(permission.errorMessage);
+  }
+
+  const locked = await loadLockedLessonIds(client, courseId);
+  if ("errorMessage" in locked) {
+    return fail(locked.errorMessage);
+  }
+
+  const patchResult = await patchCourse(client, courseId, patch, actor, {
+    bypassSlotLessonGuard: true,
+  });
+  if (!patchResult.success) {
+    return patchResult;
+  }
+
+  const updatedCourse = await loadCourse(client, courseId);
+  if (!updatedCourse) {
+    return fail("Corso non trovato dopo l'aggiornamento.");
+  }
+
+  const term = await loadCourseTerm(client, updatedCourse.termId);
+  if (!term) {
+    return fail("Manca l'anno corsi in Impostazioni.");
+  }
+  const closures = await listSchoolClosures(client);
+  const schedule = mergedScheduleParams(updatedCourse, {});
+  const draft = buildCourseLessonSchedulePlan(schedule, term, closures, {
+    planFrom: todayInRome(),
+  });
+  const draftByKey = new Map(
+    draft.entries.map((entry) => [planEntryRowKey(entry), entry]),
+  );
+
+  const included = planRows.filter((row) => row.included);
+  const resolvedEntries: CourseLessonPlanEntry[] = [];
+  let unplacedIncluded = 0;
+
+  for (const row of included) {
+    if (row.rowKey.startsWith("unplaced:")) {
+      unplacedIncluded += 1;
+      continue;
+    }
+    if (row.rowKey.startsWith("manual:")) {
+      const startsAt = romeDateTimeToUtcIso(
+        row.date,
+        updatedCourse.weeklyStartMinute,
+      );
+      resolvedEntries.push({
+        date: row.date,
+        startsAt,
+        endsAt: addMinutesIso(startsAt, updatedCourse.durationMinutes),
+        kind: "manual_holiday",
+        replacedHolidayDate: row.replacedHolidayDate,
+      });
+      continue;
+    }
+    const fromDraft = draftByKey.get(row.rowKey);
+    if (fromDraft) {
+      resolvedEntries.push(fromDraft);
+    }
+  }
+
+  const cancelError = await cancelReplaceableFutureLessons(
+    client,
+    courseId,
+    locked,
+  );
+  if (cancelError.errorMessage) {
+    return fail(cancelError.errorMessage);
+  }
+
+  const { data: seqRow } = await client
+    .from("lessons")
+    .select("sequence_number")
+    .eq("course_id", courseId)
+    .order("sequence_number", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  let sequenceStart = (seqRow?.sequence_number ?? 0) + 1;
+
+  const warnings = [...(patchResult.warnings ?? [])];
+  if (resolvedEntries.length > 0) {
+    const inserted = await insertPlannedLessonRows(
+      client,
+      updatedCourse,
+      resolvedEntries.sort((a, b) => a.date.localeCompare(b.date)),
+      sequenceStart,
+    );
+    if ("errorMessage" in inserted) {
+      return fail(inserted.errorMessage);
+    }
+    warnings.push(...inserted.warnings);
+    sequenceStart += resolvedEntries.length;
+  }
+
+  for (let i = 0; i < unplacedIncluded; i += 1) {
+    const { error } = await client.from("lessons").insert({
+      course_id: courseId,
+      sequence_number: sequenceStart + i,
+      starts_at: null,
+      ends_at: null,
+      room_id: updatedCourse.roomId,
+      booking_id: null,
+      placement: "da_piazzare",
+    });
+    if (error) {
+      return fail(error.message || "Impossibile salvare le lezioni da piazzare.");
+    }
   }
 
   return ok(courseId, warnings.length > 0 ? warnings : undefined);

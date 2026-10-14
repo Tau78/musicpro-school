@@ -4,12 +4,17 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import {
+  applyCourseScheduleResync,
   formatEuro,
   patchCourse,
+  previewCourseScheduleResync,
+  type ApplyCourseScheduleRow,
   type CourseDetail,
   type CourseDurationMinutes,
   type CourseKind,
+  type CourseSchedulePreview,
   type IsoWeekday,
+  type PatchCourseInput,
   minutesToTimeLabel,
 } from "@musicpro/database";
 
@@ -18,6 +23,7 @@ import {
   courseSlotLabel,
   WEEKDAY_LABELS,
 } from "@/components/lezioni/course-labels";
+import { CourseScheduleResyncPanel } from "@/components/lezioni/course-schedule-resync-panel";
 import { createClient } from "@/lib/supabase/client";
 
 const DURATIONS: CourseDurationMinutes[] = [30, 45, 60, 90];
@@ -90,6 +96,11 @@ export function CourseEditSection({
   const [startsOn, setStartsOn] = useState(course.startsOn);
   const [priceEur, setPriceEur] = useState(String(course.priceEur));
   const [maxStudents, setMaxStudents] = useState(String(course.maxStudents));
+  const [schedulePreview, setSchedulePreview] =
+    useState<CourseSchedulePreview | null>(null);
+  const [schedulePatch, setSchedulePatch] = useState<PatchCourseInput | null>(
+    null,
+  );
 
   const weekdayOptions = useMemo(() => {
     const entries = Object.entries(WEEKDAY_LABELS) as [string, string][];
@@ -111,40 +122,70 @@ export function CourseEditSection({
         ? (rooms.find((r) => r.id === course.roomId)?.name ?? "—")
         : "—";
 
+  function buildPatchInput(): PatchCourseInput {
+    const parsedPrice = Number.parseFloat(priceEur.replace(",", "."));
+    return mode === "staff"
+      ? {
+          subjectId,
+          roomId: course.courseKind === "online" ? null : roomId || null,
+          durationMinutes,
+          weeklyDow,
+          weeklyStartMinute,
+          startsOn,
+          priceEur: parsedPrice,
+          maxStudents:
+            course.courseKind === "gruppo"
+              ? Number.parseInt(maxStudents, 10)
+              : undefined,
+        }
+      : {
+          roomId: course.courseKind === "online" ? null : roomId || null,
+          durationMinutes,
+          weeklyDow,
+          weeklyStartMinute,
+        };
+  }
+
+  function slotChanged(input: PatchCourseInput): boolean {
+    return (
+      input.durationMinutes !== course.durationMinutes ||
+      input.weeklyDow !== course.weeklyDow ||
+      input.weeklyStartMinute !== course.weeklyStartMinute ||
+      (input.roomId !== undefined && input.roomId !== course.roomId)
+    );
+  }
+
   async function handleSave(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
     setNotice(null);
     setBusy(true);
 
-    const parsedPrice = Number.parseFloat(priceEur.replace(",", "."));
-    const input =
-      mode === "staff"
-        ? {
-            subjectId,
-            roomId: course.courseKind === "online" ? null : roomId || null,
-            durationMinutes,
-            weeklyDow,
-            weeklyStartMinute,
-            startsOn,
-            priceEur: parsedPrice,
-            maxStudents:
-              course.courseKind === "gruppo"
-                ? Number.parseInt(maxStudents, 10)
-                : undefined,
-          }
-        : {
-            roomId: course.courseKind === "online" ? null : roomId || null,
-            durationMinutes,
-            weeklyDow,
-            weeklyStartMinute,
-          };
+    const input = buildPatchInput();
+    const actor = { memberId: actorMemberId, isStaff, canReschedule };
+    const needsSchedule =
+      slotChanged(input) &&
+      !course.isTrial &&
+      (course.status === "attivo" || course.status === "in_pausa");
 
-    const result = await patchCourse(supabase, course.id, input, {
-      memberId: actorMemberId,
-      isStaff,
-      canReschedule,
-    });
+    if (needsSchedule) {
+      const preview = await previewCourseScheduleResync(
+        supabase,
+        course.id,
+        input,
+        actor,
+      );
+      setBusy(false);
+      if (!preview.success) {
+        setError(preview.errorMessage ?? "Impossibile calcolare la programmazione.");
+        return;
+      }
+      setSchedulePatch(input);
+      setSchedulePreview(preview.preview);
+      return;
+    }
+
+    const result = await patchCourse(supabase, course.id, input, actor);
     setBusy(false);
 
     if (!result.success) {
@@ -154,6 +195,32 @@ export function CourseEditSection({
     if (result.warnings?.length) {
       setNotice(result.warnings.join(" "));
     }
+    setEditing(false);
+    router.refresh();
+  }
+
+  async function handleConfirmSchedule(rows: ApplyCourseScheduleRow[]) {
+    if (!schedulePatch) return;
+    setError(null);
+    setNotice(null);
+    setBusy(true);
+    const result = await applyCourseScheduleResync(
+      supabase,
+      course.id,
+      schedulePatch,
+      rows,
+      { memberId: actorMemberId, isStaff, canReschedule },
+    );
+    setBusy(false);
+    if (!result.success) {
+      setError(result.errorMessage ?? "Impossibile salvare la programmazione.");
+      return;
+    }
+    if (result.warnings?.length) {
+      setNotice(result.warnings.join(" "));
+    }
+    setSchedulePreview(null);
+    setSchedulePatch(null);
     setEditing(false);
     router.refresh();
   }
@@ -169,6 +236,8 @@ export function CourseEditSection({
     setMaxStudents(String(course.maxStudents));
     setError(null);
     setNotice(null);
+    setSchedulePreview(null);
+    setSchedulePatch(null);
     setEditing(false);
   }
 
@@ -393,6 +462,20 @@ export function CourseEditSection({
           </div>
         </form>
       )}
+
+      {schedulePreview && schedulePatch ? (
+        <div className="mt-3">
+          <CourseScheduleResyncPanel
+            preview={schedulePreview}
+            busy={busy}
+            onCancel={() => {
+              setSchedulePreview(null);
+              setSchedulePatch(null);
+            }}
+            onConfirm={(rows) => void handleConfirmSchedule(rows)}
+          />
+        </div>
+      ) : null}
     </section>
   );
 }
