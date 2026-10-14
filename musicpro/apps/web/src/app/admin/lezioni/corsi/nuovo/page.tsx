@@ -51,6 +51,7 @@ export default async function AdminNuovoCorsoPage() {
         defaultGroupCapacity={data.defaultGroupCapacity}
         currentTerm={data.currentTerm}
         teachers={data.teachers}
+        packPrices={data.packPrices}
       />
     </div>
   );

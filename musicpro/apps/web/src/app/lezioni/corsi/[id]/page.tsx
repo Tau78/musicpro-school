@@ -75,6 +75,9 @@ export default async function CorsoDocenteDetailPage({ params }: PageProps) {
       canReschedule={readOnly ? false : (profile?.canReschedule ?? false)}
       canCloseCourses={readOnly ? false : (profile?.canCloseCourses ?? false)}
       slotStepMinutes={settings?.slotGranularityMinutes ?? 15}
+      sundayVisible={settings?.sundayVisible ?? false}
+      gridOpenMinute={settings?.gridOpenMinute ?? 600}
+      gridCloseMinute={settings?.gridCloseMinute ?? 1380}
     />
   );
 }

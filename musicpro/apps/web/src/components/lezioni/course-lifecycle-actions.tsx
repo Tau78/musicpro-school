@@ -263,169 +263,184 @@ export function CourseLifecycleActions(props: {
   }
 
   return (
-    <fieldset className="space-y-4 rounded-xl border border-neutral-200 bg-white p-6">
-      <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
+    <section className="rounded-xl bg-white px-3.5 py-3 shadow-sm ring-1 ring-black/5">
+      <h3 className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-[var(--brand)]">
         Ciclo vita
-      </legend>
+      </h3>
 
       {error ? (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p className="mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           {error}
         </p>
       ) : null}
       {notice ? (
-        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+        <p className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
           {notice}
         </p>
       ) : null}
 
-      {undoEvents?.map((event) => (
-        <div
-          key={event.id}
-          className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900"
-        >
-          <p className="font-medium">{undoKindLabel(event.kind)}</p>
-          <p>Puoi annullare entro 24 ore se le sale sono ancora libere.</p>
-          {event.payload.studentLabel ? (
-            <p className="text-amber-800">{event.payload.studentLabel}</p>
-          ) : null}
-          <button
-            type="button"
-            disabled={busy != null}
-            onClick={() => void handleUndo(event.id)}
-            className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+      <div className="grid grid-cols-2 gap-3">
+        {undoEvents?.map((event) => (
+          <div
+            key={event.id}
+            className="col-span-2 space-y-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900"
           >
-            {busy === `undo:${event.id}` ? "Annullamento…" : "Annulla (24h)"}
-          </button>
-        </div>
-      ))}
-
-      {showPause ? (
-        <button
-          type="button"
-          disabled={busy != null}
-          onClick={() => void handlePause()}
-          className="rounded-lg bg-[var(--brand)] px-3 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
-        >
-          {busy === "pause" ? "Pausa…" : "Metti in pausa"}
-        </button>
-      ) : null}
-
-      {showResume ? (
-        <button
-          type="button"
-          disabled={busy != null}
-          onClick={() => void handleResume()}
-          className="rounded-lg bg-[var(--brand)] px-3 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
-        >
-          {busy === "resume" ? "Ripresa…" : "Riprendi corso"}
-        </button>
-      ) : null}
-
-      {showClose ? (
-        <form onSubmit={(event) => void handleClose(event)} className="space-y-3">
-          <label className="block text-sm">
-            <span className="mb-1 block text-neutral-600">Data chiusura</span>
-            <input
-              required
-              type="date"
-              value={closedOn}
+            <p className="font-medium">{undoKindLabel(event.kind)}</p>
+            <p className="text-xs">Annullabile entro 24h se le sale sono libere.</p>
+            {event.payload.studentLabel ? (
+              <p className="text-amber-800">{event.payload.studentLabel}</p>
+            ) : null}
+            <button
+              type="button"
               disabled={busy != null}
-              onChange={(e) => setClosedOn(e.target.value)}
-              className={inputClass}
-            />
-          </label>
-          {accounting ? (
-            <ul className="space-y-1 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-              {accounting.length === 0 ? (
-                <li>Nessun iscritto attivo o rette aperte.</li>
-              ) : (
-                accounting.map((row) => (
-                  <li key={row.enrollmentId}>{accountingLine(row)}</li>
-                ))
-              )}
-            </ul>
-          ) : null}
-          <button
-            type="submit"
-            disabled={busy != null}
-            className="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
-          >
-            {busy === "close" ? "Chiusura…" : "Chiudi corso"}
-          </button>
-        </form>
-      ) : null}
+              onClick={() => void handleUndo(event.id)}
+              className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+            >
+              {busy === `undo:${event.id}` ? "Annullamento…" : "Annulla (24h)"}
+            </button>
+          </div>
+        ))}
 
-      {showRemove ? (
-        <div className="space-y-2">
-          <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">
-            Rimuovi iscritto
-          </p>
-          {accounting ? (
-            <ul className="space-y-1 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-              {accounting.length === 0 ? (
-                <li>Nessun iscritto attivo o rette aperte.</li>
-              ) : (
-                accounting.map((row) => (
-                  <li key={row.enrollmentId}>{accountingLine(row)}</li>
-                ))
-              )}
-            </ul>
-          ) : null}
-          <ul className="space-y-2">
-            {activeEnrollments.map((enrollment) => {
-              const label = studentName(enrollment);
-              return (
-                <li
-                  key={enrollment.id}
-                  className="flex flex-wrap items-center justify-between gap-2"
-                >
-                  <span className="text-sm text-neutral-800">{label}</span>
-                  <button
-                    type="button"
-                    disabled={busy != null}
-                    onClick={() => void handleRemove(enrollment.id, label)}
-                    className="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+        {showPause ? (
+          <div className="min-w-0">
+            <p className="mb-1 text-xs text-neutral-500">Pausa</p>
+            <button
+              type="button"
+              disabled={busy != null}
+              onClick={() => void handlePause()}
+              className="w-full rounded-lg bg-[var(--brand)] px-3 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
+            >
+              {busy === "pause" ? "Pausa…" : "Metti in pausa"}
+            </button>
+          </div>
+        ) : null}
+
+        {showResume ? (
+          <div className="min-w-0">
+            <p className="mb-1 text-xs text-neutral-500">Ripresa</p>
+            <button
+              type="button"
+              disabled={busy != null}
+              onClick={() => void handleResume()}
+              className="w-full rounded-lg bg-[var(--brand)] px-3 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
+            >
+              {busy === "resume" ? "Ripresa…" : "Riprendi corso"}
+            </button>
+          </div>
+        ) : null}
+
+        {showClose ? (
+          <form
+            onSubmit={(event) => void handleClose(event)}
+            className="col-span-2 grid grid-cols-2 gap-3"
+          >
+            <label className="min-w-0 text-sm">
+              <span className="mb-0.5 block text-xs text-neutral-500">
+                Data chiusura
+              </span>
+              <input
+                required
+                type="date"
+                value={closedOn}
+                disabled={busy != null}
+                onChange={(e) => setClosedOn(e.target.value)}
+                className={inputClass}
+              />
+            </label>
+            <div className="flex min-w-0 items-end">
+              <button
+                type="submit"
+                disabled={busy != null}
+                className="w-full rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+              >
+                {busy === "close" ? "Chiusura…" : "Chiudi corso"}
+              </button>
+            </div>
+            {accounting ? (
+              <ul className="col-span-2 space-y-1 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                {accounting.length === 0 ? (
+                  <li>Nessun iscritto attivo o rette aperte.</li>
+                ) : (
+                  accounting.map((row) => (
+                    <li key={row.enrollmentId}>{accountingLine(row)}</li>
+                  ))
+                )}
+              </ul>
+            ) : null}
+          </form>
+        ) : null}
+
+        {showRemove ? (
+          <div className="col-span-2 space-y-2">
+            <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">
+              Rimuovi iscritto
+            </p>
+            {accounting ? (
+              <ul className="space-y-1 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                {accounting.length === 0 ? (
+                  <li>Nessun iscritto attivo o rette aperte.</li>
+                ) : (
+                  accounting.map((row) => (
+                    <li key={row.enrollmentId}>{accountingLine(row)}</li>
+                  ))
+                )}
+              </ul>
+            ) : null}
+            <ul className="divide-y divide-neutral-100">
+              {activeEnrollments.map((enrollment) => {
+                const label = studentName(enrollment);
+                return (
+                  <li
+                    key={enrollment.id}
+                    className="flex flex-wrap items-center justify-between gap-2 py-2"
                   >
-                    {busy === `remove:${enrollment.id}`
-                      ? "Rimozione…"
-                      : "Rimuovi iscritto"}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      ) : null}
+                    <span className="text-sm text-neutral-800">{label}</span>
+                    <button
+                      type="button"
+                      disabled={busy != null}
+                      onClick={() => void handleRemove(enrollment.id, label)}
+                      className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                    >
+                      {busy === `remove:${enrollment.id}`
+                        ? "Rimozione…"
+                        : "Rimuovi"}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ) : null}
 
-      {showRequest ? (
-        <form
-          onSubmit={(event) => void handleRequest(event)}
-          className="space-y-3"
-        >
-          <p className="text-sm text-neutral-600">
-            La segreteria riceverà una email e vedrà la richiesta in Coda.
-          </p>
-          <label className="block text-sm">
-            <span className="mb-1 block text-neutral-600">Nota</span>
-            <textarea
-              value={requestNote}
-              disabled={busy != null}
-              onChange={(e) => setRequestNote(e.target.value)}
-              rows={3}
-              placeholder="Opzionale"
-              className={`w-full ${inputClass}`}
-            />
-          </label>
-          <button
-            type="submit"
-            disabled={busy != null}
-            className="rounded-lg bg-[var(--brand)] px-3 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
+        {showRequest ? (
+          <form
+            onSubmit={(event) => void handleRequest(event)}
+            className="col-span-2 space-y-2"
           >
-            {busy === "request" ? "Invio…" : "Richiedi chiusura"}
-          </button>
-        </form>
-      ) : null}
-    </fieldset>
+            <p className="text-sm text-neutral-600">
+              La segreteria riceverà una email e vedrà la richiesta in Coda.
+            </p>
+            <label className="block text-sm">
+              <span className="mb-0.5 block text-xs text-neutral-500">Nota</span>
+              <textarea
+                value={requestNote}
+                disabled={busy != null}
+                onChange={(e) => setRequestNote(e.target.value)}
+                rows={2}
+                placeholder="Opzionale"
+                className={`w-full ${inputClass}`}
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={busy != null}
+              className="rounded-lg bg-[var(--brand)] px-3 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
+            >
+              {busy === "request" ? "Invio…" : "Richiedi chiusura"}
+            </button>
+          </form>
+        ) : null}
+      </div>
+    </section>
   );
 }

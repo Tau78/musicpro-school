@@ -13,6 +13,9 @@ import {
   type MemberSummary,
 } from "@musicpro/database";
 
+/** Allineato al wallet (rette pack): un pagamento = N lezioni a credito. */
+export const COURSE_PACK_LESSON_COUNT = 4;
+
 import { WEEKDAY_LABELS } from "@/components/lezioni/course-labels";
 import { createClient } from "@/lib/supabase/client";
 
@@ -85,6 +88,11 @@ export interface CourseCreateFormProps {
   defaultGroupCapacity: number;
   currentTerm: CourseCreateFormTerm | null;
   teachers?: CourseCreateFormTeacher[];
+  packPrices?: {
+    courseKind: CourseKind;
+    durationMinutes: number;
+    amountEur: number | null;
+  }[];
 }
 
 const DURATIONS: CourseDurationMinutes[] = [30, 45, 60, 90];
@@ -145,6 +153,7 @@ export function CourseCreateForm({
   defaultGroupCapacity,
   currentTerm,
   teachers,
+  packPrices = [],
 }: CourseCreateFormProps) {
   const router = useRouter();
   const supabase = createClient();
@@ -179,6 +188,7 @@ export function CourseCreateForm({
   );
   const [maxStudents, setMaxStudents] = useState(defaultGroupCapacity);
   const [priceEur, setPriceEur] = useState("");
+  const [priceManual, setPriceManual] = useState(false);
   const [openingPrepaid, setOpeningPrepaid] = useState("");
   const [titularMemberId, setTitularMemberId] = useState(
     teachers && teachers.length > 0 ? teachers[0].id : actorMemberId,
@@ -215,7 +225,10 @@ export function CourseCreateForm({
       if (typeof draft.maxStudents === "number") {
         setMaxStudents(draft.maxStudents);
       }
-      if (draft.priceEur != null) setPriceEur(draft.priceEur);
+      if (draft.priceEur != null) {
+        setPriceEur(draft.priceEur);
+        setPriceManual(true);
+      }
       if (draft.openingPrepaid != null) setOpeningPrepaid(draft.openingPrepaid);
       if (
         draft.titularMemberId &&
@@ -269,6 +282,21 @@ export function CourseCreateForm({
   const selectedStudents = studentIds
     .map((id) => membersById.get(id))
     .filter((row): row is MemberSummary => Boolean(row));
+
+  const listinoPackEur = useMemo(() => {
+    const row = packPrices.find(
+      (p) =>
+        p.courseKind === kind && p.durationMinutes === durationMinutes,
+    );
+    return row?.amountEur ?? null;
+  }, [packPrices, kind, durationMinutes]);
+
+  useEffect(() => {
+    if (!isStaff || priceManual) return;
+    if (listinoPackEur != null) {
+      setPriceEur(String(listinoPackEur));
+    }
+  }, [isStaff, priceManual, listinoPackEur]);
 
   const studentMatches = useMemo(() => {
     const term = studentQuery.trim().toLowerCase();
@@ -438,9 +466,75 @@ export function CourseCreateForm({
         <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
           Corso
         </legend>
-        <p className="text-sm text-neutral-600">
-          Anno corsi: <strong>{currentTerm.label}</strong>
+        <p className="text-xs text-neutral-500">
+          Anno corsi: <strong className="text-neutral-700">{currentTerm.label}</strong>
         </p>
+
+        <div className="space-y-2 border-b border-neutral-100 pb-4">
+          <p className="text-sm font-medium text-neutral-800">
+            {kind === "gruppo"
+              ? `Allievi (max ${maxSelectable}) *`
+              : "Allievo *"}
+          </p>
+          {selectedStudents.length > 0 ? (
+            <ul className="flex flex-wrap gap-1.5">
+              {selectedStudents.map((student) => (
+                <li
+                  key={student.id}
+                  className="flex items-center gap-1.5 rounded-full bg-neutral-100 px-2.5 py-0.5 text-sm text-neutral-800"
+                >
+                  {memberLabel(student)}
+                  <button
+                    type="button"
+                    onClick={() => removeStudent(student.id)}
+                    className="text-neutral-500 hover:text-neutral-900"
+                    aria-label={`Rimuovi ${memberLabel(student)}`}
+                  >
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {studentIds.length < maxSelectable ? (
+            <div className="space-y-1.5">
+              <input
+                type="search"
+                value={studentQuery}
+                onChange={(e) => setStudentQuery(e.target.value)}
+                placeholder="Cerca associato…"
+                className={inputClass}
+              />
+              {studentQuery.trim() || studentMatches.length > 0 ? (
+                <ul className="max-h-40 divide-y divide-neutral-100 overflow-y-auto rounded-lg border border-neutral-200 bg-white">
+                  {studentMatches.length === 0 ? (
+                    <li className="px-3 py-2 text-sm text-neutral-500">
+                      Nessun associato trovato.
+                    </li>
+                  ) : (
+                    studentMatches.map((member) => (
+                      <li key={member.id}>
+                        <button
+                          type="button"
+                          onClick={() => addStudent(member.id)}
+                          className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-neutral-50"
+                        >
+                          <span>{memberLabel(member)}</span>
+                          {member.email ? (
+                            <span className="truncate text-xs text-neutral-400">
+                              {member.email}
+                            </span>
+                          ) : null}
+                        </button>
+                      </li>
+                    ))
+                  )}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Tipo *">
             <select
@@ -517,7 +611,7 @@ export function CourseCreateForm({
             >
               {DURATIONS.map((minutes) => (
                 <option key={minutes} value={minutes}>
-                  {minutes} minuti
+                  {minutes === 30 ? "30 min (½ ora)" : `${minutes} min`}
                 </option>
               ))}
             </select>
@@ -577,96 +671,62 @@ export function CourseCreateForm({
             </Field>
           ) : null}
           {isStaff ? (
-            <Field label="Prezzo (€)">
-              <input
-                type="number"
-                min={0}
-                step="0.01"
-                value={priceEur}
-                onChange={(e) => setPriceEur(e.target.value)}
-                placeholder="0"
-                className={inputClass}
-              />
-            </Field>
-          ) : null}
-          {isStaff ? (
-            <Field label="Lezioni già pagate (saldo iniziale)">
-              <input
-                type="number"
-                min={0}
-                step={1}
-                value={openingPrepaid}
-                onChange={(e) => setOpeningPrepaid(e.target.value)}
-                placeholder="Transizione ScuolaSemplice"
-                className={inputClass}
-              />
-            </Field>
+            <>
+              <Field label="Pacchetto">
+                <input
+                  type="text"
+                  readOnly
+                  value={`${COURSE_PACK_LESSON_COUNT} lezioni`}
+                  className={`${inputClass} bg-neutral-50 text-neutral-700`}
+                  aria-describedby="course-pack-hint"
+                />
+              </Field>
+              <Field label="Prezzo pack (€)">
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={priceEur}
+                  onChange={(e) => {
+                    setPriceManual(true);
+                    setPriceEur(e.target.value);
+                  }}
+                  placeholder={
+                    listinoPackEur != null ? String(listinoPackEur) : "0"
+                  }
+                  className={inputClass}
+                />
+              </Field>
+              <p
+                id="course-pack-hint"
+                className="text-xs text-neutral-500 sm:col-span-2"
+              >
+                Ogni pagamento copre {COURSE_PACK_LESSON_COUNT} lezioni. Prezzi
+                standard (es. 120€ / 60€ per ½ ora) in{" "}
+                <Link
+                  href="/admin/lezioni/impostazioni"
+                  className="font-medium text-[var(--brand)] hover:underline"
+                >
+                  Impostazioni → Prezzi
+                </Link>
+                {listinoPackEur == null && priceEur.trim() === ""
+                  ? " — listino non impostato per tipo/durata scelti."
+                  : null}
+              </p>
+              <Field label="Lezioni già pagate" className="sm:col-span-2">
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={openingPrepaid}
+                  onChange={(e) => setOpeningPrepaid(e.target.value)}
+                  placeholder="Saldo iniziale (es. transizione ScuolaSemplice)"
+                  className={inputClass}
+                />
+              </Field>
+            </>
           ) : null}
         </div>
-      </fieldset>
-
-      <fieldset className="space-y-4 rounded-xl border border-neutral-200 bg-white p-6">
-        <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
-          Allievi
-        </legend>
-        <p className="text-sm text-neutral-600">
-          {kind === "gruppo"
-            ? `Seleziona da 1 a ${maxSelectable} allievi.`
-            : "Seleziona un allievo."}
-        </p>
-        {selectedStudents.length > 0 ? (
-          <ul className="flex flex-wrap gap-2">
-            {selectedStudents.map((student) => (
-              <li
-                key={student.id}
-                className="flex items-center gap-2 rounded-full bg-neutral-100 px-3 py-1 text-sm text-neutral-800"
-              >
-                {memberLabel(student)}
-                <button
-                  type="button"
-                  onClick={() => removeStudent(student.id)}
-                  className="text-neutral-500 hover:text-neutral-900"
-                  aria-label={`Rimuovi ${memberLabel(student)}`}
-                >
-                  ×
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-        {studentIds.length < maxSelectable ? (
-          <div>
-            <input
-              type="search"
-              value={studentQuery}
-              onChange={(e) => setStudentQuery(e.target.value)}
-              placeholder="Cerca associato…"
-              className={inputClass}
-            />
-            <ul className="mt-2 divide-y divide-neutral-100 overflow-hidden rounded-lg border border-neutral-200 bg-white">
-              {studentMatches.length === 0 ? (
-                <li className="px-3 py-2 text-sm text-neutral-500">
-                  Nessun associato trovato.
-                </li>
-              ) : (
-                studentMatches.map((member) => (
-                  <li key={member.id}>
-                    <button
-                      type="button"
-                      onClick={() => addStudent(member.id)}
-                      className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-neutral-50"
-                    >
-                      <span>{memberLabel(member)}</span>
-                      {member.email ? (
-                        <span className="text-neutral-400">{member.email}</span>
-                      ) : null}
-                    </button>
-                  </li>
-                ))
-              )}
-            </ul>
-          </div>
-        ) : null}
       </fieldset>
 
       <div className="flex flex-wrap items-center gap-3">

@@ -1725,3 +1725,316 @@ export async function transferCourseTitular(
 
   return ok(courseId);
 }
+
+export type PatchCourseInput = {
+  subjectId?: string;
+  roomId?: string | null;
+  durationMinutes?: CourseDurationMinutes;
+  weeklyDow?: IsoWeekday | number;
+  weeklyStartMinute?: number;
+  startsOn?: string;
+  priceEur?: number;
+  maxStudents?: number;
+};
+
+export type CourseDeletePreview = {
+  activeLessonCount: number;
+  hasCreditConsumption: boolean;
+  hasBlockingFees: boolean;
+  canDelete: boolean;
+  blockReason?: string;
+};
+
+export async function getCourseDeletePreview(
+  client: CoursesClient,
+  courseId: string,
+): Promise<CourseDeletePreview> {
+  const course = await loadCourse(client, courseId);
+  if (!course) {
+    return {
+      activeLessonCount: 0,
+      hasCreditConsumption: false,
+      hasBlockingFees: false,
+      canDelete: false,
+      blockReason: "Corso non trovato.",
+    };
+  }
+
+  const [lessonsRes, consumoRes, feesRes] = await Promise.all([
+    client
+      .from("lessons")
+      .select("id", { count: "exact", head: true })
+      .eq("course_id", courseId)
+      .is("cancelled_at", null),
+    client
+      .from("lesson_credit_ledger")
+      .select("id", { count: "exact", head: true })
+      .eq("course_id", courseId)
+      .eq("kind", "consumo"),
+    client
+      .from("lesson_fees")
+      .select("status")
+      .eq("course_id", courseId),
+  ]);
+
+  if (lessonsRes.error || consumoRes.error || feesRes.error) {
+    return {
+      activeLessonCount: 0,
+      hasCreditConsumption: false,
+      hasBlockingFees: false,
+      canDelete: false,
+      blockReason: "Impossibile verificare lo stato del corso.",
+    };
+  }
+
+  const activeLessonCount = lessonsRes.count ?? 0;
+  const hasCreditConsumption = (consumoRes.count ?? 0) > 0;
+  const hasBlockingFees = (feesRes.data ?? []).some(
+    (row) => row.status === "saldata" || row.status === "parziale",
+  );
+
+  let blockReason: string | undefined;
+  if (hasCreditConsumption) {
+    blockReason =
+      "Corso con presenze o consumi wallet registrati: non eliminabile. Chiudi il corso.";
+  } else if (hasBlockingFees) {
+    blockReason =
+      "Ci sono rette pagate o parziali su questo corso: non eliminabile.";
+  }
+
+  return {
+    activeLessonCount,
+    hasCreditConsumption,
+    hasBlockingFees,
+    canDelete: !blockReason,
+    blockReason,
+  };
+}
+
+export async function patchCourse(
+  client: CoursesClient,
+  courseId: string,
+  input: PatchCourseInput,
+  actor: LessonScheduleActor,
+): Promise<CourseMutationResult> {
+  const course = await loadCourse(client, courseId);
+  if (!course) {
+    return fail("Corso non trovato.");
+  }
+  if (course.isTrial) {
+    return fail("Modifica dalla scheda lezione di prova.");
+  }
+  if (course.status === "chiuso" || course.status === "rifiutato") {
+    return fail("Non si può modificare un corso chiuso o rifiutato.");
+  }
+
+  const isTitular = course.titularMemberId === actor.memberId;
+  const staffEdit =
+    actor.isStaff &&
+    (course.status === "attivo" ||
+      course.status === "in_pausa" ||
+      course.status === "in_attesa");
+  const teacherEdit =
+    !actor.isStaff &&
+    isTitular &&
+    actor.canReschedule &&
+    (course.status === "attivo" || course.status === "in_pausa");
+
+  if (!staffEdit && !teacherEdit) {
+    return fail("Non hai il permesso di modificare questo corso.");
+  }
+
+  const patch: Database["public"]["Tables"]["courses"]["Update"] = {};
+  const warnings: string[] = [];
+
+  if (staffEdit) {
+    if (input.subjectId != null) {
+      if (!input.subjectId.trim()) {
+        return fail("La materia è obbligatoria.");
+      }
+      patch.subject_id = input.subjectId;
+    }
+    if (input.startsOn != null) {
+      if (!ISO_DATE_RE.test(input.startsOn)) {
+        return fail("La data di inizio non è valida.");
+      }
+      patch.starts_on = input.startsOn;
+    }
+    if (input.priceEur != null) {
+      if (!Number.isFinite(input.priceEur) || input.priceEur < 0) {
+        return fail("Il prezzo non è valido.");
+      }
+      patch.price_eur = input.priceEur;
+    }
+    if (input.maxStudents != null && course.courseKind === "gruppo") {
+      if (!Number.isInteger(input.maxStudents) || input.maxStudents < 1) {
+        return fail("La capienza non è valida.");
+      }
+      patch.max_students = input.maxStudents;
+    }
+  }
+
+  const slotFields =
+    input.roomId !== undefined ||
+    input.durationMinutes != null ||
+    input.weeklyDow != null ||
+    input.weeklyStartMinute != null;
+
+  if (slotFields) {
+    if (!staffEdit && !teacherEdit) {
+      return fail("Non puoi modificare slot o sala.");
+    }
+
+    if (input.durationMinutes != null) {
+      if (!DURATION_MINUTES.has(input.durationMinutes)) {
+        return fail("La durata deve essere 30, 45, 60 o 90 minuti.");
+      }
+      patch.duration_minutes = input.durationMinutes;
+    }
+    if (input.weeklyDow != null) {
+      if (!isIsoWeekday(input.weeklyDow)) {
+        return fail("Giorno della settimana non valido.");
+      }
+      patch.weekly_dow = input.weeklyDow;
+    }
+    if (input.weeklyStartMinute != null) {
+      if (
+        !Number.isInteger(input.weeklyStartMinute) ||
+        input.weeklyStartMinute < 0 ||
+        input.weeklyStartMinute > 1439
+      ) {
+        return fail("L'orario settimanale non è valido.");
+      }
+      patch.weekly_start_minute = input.weeklyStartMinute;
+    }
+    if (input.roomId !== undefined) {
+      if (course.courseKind === "online") {
+        if (input.roomId) {
+          return fail("Un corso online non può avere una sala.");
+        }
+        patch.room_id = null;
+      } else if (!input.roomId) {
+        return fail("La sala è obbligatoria.");
+      } else {
+        patch.room_id = input.roomId;
+      }
+    }
+  }
+
+  if (Object.keys(patch).length === 0) {
+    return fail("Nessuna modifica da salvare.");
+  }
+
+  if (patch.subject_id && patch.subject_id !== course.subjectId) {
+    const detail = await getCourse(client, courseId);
+    const [subjectRes, firstEnrollment] = await Promise.all([
+      client
+        .from("lesson_subjects")
+        .select("name")
+        .eq("id", patch.subject_id)
+        .maybeSingle(),
+      detail?.enrollments.find((row) => !row.leftAt) ?? detail?.enrollments[0],
+    ]);
+    if (!subjectRes.data) {
+      return fail("Materia non trovata.");
+    }
+    if (course.courseKind === "gruppo") {
+      patch.name = `Gruppo ${subjectRes.data.name}`;
+    } else if (firstEnrollment) {
+      patch.name = `${subjectRes.data.name} — ${memberLabel(firstEnrollment.lastName, firstEnrollment.firstName)}`;
+    }
+  }
+
+  if (slotFields) {
+    warnings.push(
+      "Slot e sala aggiornati sul corso. Le lezioni già programmate non sono state spostate automaticamente.",
+    );
+  }
+
+  const { error } = await client.from("courses").update(patch).eq("id", courseId);
+  if (error) {
+    return fail(error.message || "Impossibile aggiornare il corso.");
+  }
+
+  return ok(courseId, warnings.length > 0 ? warnings : undefined);
+}
+
+export async function adminDeleteCourse(
+  client: CoursesClient,
+  courseId: string,
+  actor: { memberId: string; isStaff: boolean },
+  options: { purgeProgramming: boolean },
+): Promise<CourseMutationResult> {
+  if (!actor.isStaff) {
+    return fail("Solo l'amministrazione può eliminare un corso.");
+  }
+
+  const course = await loadCourse(client, courseId);
+  if (!course) {
+    return fail("Corso non trovato.");
+  }
+
+  if (course.isTrial) {
+    await cancelHoldBooking(client, course.holdBookingId);
+    const { error } = await client.from("courses").delete().eq("id", courseId);
+    if (error) {
+      return fail(error.message || "Impossibile eliminare la lezione di prova.");
+    }
+    return ok(courseId);
+  }
+
+  const preview = await getCourseDeletePreview(client, courseId);
+  if (!preview.canDelete) {
+    return fail(preview.blockReason ?? "Impossibile eliminare il corso.");
+  }
+
+  if (preview.activeLessonCount > 0 && !options.purgeProgramming) {
+    return fail(
+      "C'è programmazione attiva. Conferma la cancellazione della programmazione.",
+    );
+  }
+
+  const { data: lessonRows, error: lessonsError } = await client
+    .from("lessons")
+    .select("id, booking_id")
+    .eq("course_id", courseId);
+  if (lessonsError) {
+    return fail(lessonsError.message || "Impossibile caricare le lezioni.");
+  }
+
+  const lessonIds = (lessonRows ?? []).map((row) => row.id);
+
+  for (const row of lessonRows ?? []) {
+    if (row.booking_id) {
+      await cancelHoldBooking(client, row.booking_id);
+    }
+  }
+
+  if (lessonIds.length > 0) {
+    await client
+      .from("lesson_reminder_log")
+      .delete()
+      .in("lesson_id", lessonIds);
+    await client.from("lesson_attendances").delete().in("lesson_id", lessonIds);
+  }
+
+  await client.from("lesson_change_requests").delete().eq("course_id", courseId);
+  await client.from("lesson_credit_ledger").delete().eq("course_id", courseId);
+  await client.from("lesson_fees").delete().eq("course_id", courseId);
+  await client.from("lessons").delete().eq("course_id", courseId);
+  await cancelHoldBooking(client, course.holdBookingId);
+
+  await client.from("course_lifecycle_events").delete().eq("course_id", courseId);
+  await client.from("course_teachers").delete().eq("course_id", courseId);
+  await client.from("course_enrollments").delete().eq("course_id", courseId);
+
+  const { error: deleteError } = await client
+    .from("courses")
+    .delete()
+    .eq("id", courseId);
+  if (deleteError) {
+    return fail(deleteError.message || "Impossibile eliminare il corso.");
+  }
+
+  return ok(courseId);
+}

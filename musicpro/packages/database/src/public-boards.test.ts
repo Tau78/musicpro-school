@@ -76,12 +76,12 @@ test("la riga unisce lezione e prenotazione sala", () => {
     subjectName: "",
     students: [],
     who: "I Gatti",
-    instrument: "",
+    instrument: "SALA PROVE",
     microphones: "3",
     solo: "No",
   });
   assert.equal(columnValue("who", booking), "I Gatti");
-  assert.equal(columnValue("instrument", booking), "");
+  assert.equal(columnValue("instrument", booking), "SALA PROVE");
   assert.equal(columnValue("microphones", booking), "3");
   assert.equal(columnValue("solo", booking), "No");
   assert.equal(boardBookingWho("I Gatti", "Mario", "Rossi"), "I Gatti");
