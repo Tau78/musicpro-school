@@ -37,6 +37,7 @@
     "test:supersaas": "node --test scripts/lib/supersaas-bookings.test.mjs scripts/lib/supersaas-users.test.mjs",
     "smoke:credit-refund-cancel": "node scripts/smoke-credit-refund-cancel.mjs",
     "smoke:credit-shop-nexi": "node scripts/smoke-credit-shop-nexi-e2e.mjs",
+    "pilot:usage-report": "node scripts/pilot-usage-report.mjs",
     "smoke:lezioni": "node scripts/smoke-lessons-pack-wallet.mjs",
     "smoke:lezioni:live": "node scripts/smoke-lessons-pack-wallet.mjs --live",
     "smoke:lesson-pack": "node scripts/smoke-lesson-pack-nexi.mjs",

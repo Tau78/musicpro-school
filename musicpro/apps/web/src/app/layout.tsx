@@ -5,6 +5,7 @@ import { APP_NAME } from "@musicpro/shared";
 
 import { PasswordChangePrompt } from "@/components/auth/password-change-prompt";
 import { StyleLoadGuard } from "@/components/style-load-guard";
+import { UsageLogProvider } from "@/components/usage/usage-log-provider";
 
 import "./globals.css";
 
@@ -150,6 +151,7 @@ export default function RootLayout({
       <body className="min-h-screen antialiased">
         <StyleLoadGuard />
         <PasswordChangePrompt />
+        <UsageLogProvider />
         {children}
       </body>
     </html>

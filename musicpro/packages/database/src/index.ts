@@ -842,3 +842,12 @@ export type {
   ListFixedAssetsOptions,
   LocationPreset,
 } from "./fixed-assets";
+export {
+  logProductUsageEvent,
+  listPilotUsageEvents,
+} from "./usage-events";
+export type {
+  LogProductUsageEventInput,
+  PilotUsageEventRow,
+  ProductUsageEventType,
+} from "./usage-events";

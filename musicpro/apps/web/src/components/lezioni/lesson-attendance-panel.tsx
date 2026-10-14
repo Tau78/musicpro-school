@@ -13,6 +13,7 @@ import {
 } from "@musicpro/database";
 
 import { createClient } from "@/lib/supabase/client";
+import { logUsage } from "@/lib/usage-log";
 
 export interface LessonAttendancePanelProps {
   lessonId: string;
@@ -127,9 +128,22 @@ export function LessonAttendancePanel({
     setBusy(null);
 
     if (!result.success) {
+      logUsage("lezioni.attendance.save_failed", {
+        properties: { lessonId, message: result.errorMessage },
+      });
       setError(result.errorMessage ?? "Impossibile salvare le presenze.");
       return;
     }
+
+    logUsage("lezioni.attendance.saved", {
+      properties: {
+        lessonId,
+        students: roster.students.map((s) => ({
+          memberId: s.memberId,
+          status: draft[s.memberId] ?? "presente",
+        })),
+      },
+    });
 
     const opened = result.packOpenedEnrollmentIds ?? [];
     if (opened.length > 0) {
@@ -179,6 +193,7 @@ export function LessonAttendancePanel({
       return;
     }
 
+    logUsage("lezioni.lesson.cancelled_school", { properties: { lessonId } });
     setSuccess("Lezione cancellata.");
     onSaved?.();
     router.refresh();
@@ -209,6 +224,7 @@ export function LessonAttendancePanel({
       return;
     }
 
+    logUsage("lezioni.attendance.unlocked", { properties: { lessonId } });
     setSuccess("Presenze sbloccate.");
     await loadRoster();
     onSaved?.();
