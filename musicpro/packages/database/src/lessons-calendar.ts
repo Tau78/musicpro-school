@@ -471,8 +471,8 @@ async function applyLessonSlot(
 }
 
 /**
- * Lezioni `scheduled` non annullate con `starts_at` in `[from, to)`.
- * `to` è **esclusivo** (non fine giornata inclusiva).
+ * Lezioni programmate (`scheduled` e `da_piazzare` con orario) non annullate,
+ * con `starts_at` in `[from, to)`. `to` è **esclusivo** (non fine giornata inclusiva).
  */
 export async function listLessonsInRange(
   client: CalendarClient,

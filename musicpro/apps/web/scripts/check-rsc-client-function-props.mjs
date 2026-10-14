@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 /**
- * Blocca il pattern che ha fatto crashare /admin/lezioni/corsi:
- * Server Component (app/** senza "use client") che passa una arrow/function
- * prop a un Client Component ("use client").
+ * Blocca Server Component (app/** senza "use client") che passa una funzione
+ * a un Client Component — crash Next: digest tipo 1015345330.
  *
  * Uso: node scripts/check-rsc-client-function-props.mjs
  */
@@ -28,38 +27,105 @@ function isClientModule(source) {
   return /^\s*["']use client["']\s*;/m.test(source);
 }
 
-function exportedNames(source) {
+function exportedComponentNames(source) {
   const names = new Set();
   const re =
     /export\s+(?:async\s+)?function\s+([A-Z][A-Za-z0-9]*)|export\s+(?:const|let)\s+([A-Z][A-Za-z0-9]*)\s*=/g;
   let m;
-  while ((m = re.exec(source))) {
-    names.add(m[1] || m[2]);
-  }
-  const def = source.match(
-    /export\s+default\s+function\s+([A-Z][A-Za-z0-9]*)/,
-  );
+  while ((m = re.exec(source))) names.add(m[1] || m[2]);
+  const def = source.match(/export\s+default\s+function\s+([A-Z][A-Za-z0-9]*)/);
   if (def) names.add(def[1]);
   return names;
 }
 
+/** Estrae attributi del primo tag JSX `<Name …>` / `<Name …/>` gestendo `{}` annidate. */
+function extractJsxOpenAttrs(source, componentName) {
+  const results = [];
+  const startRe = new RegExp(`<${componentName}\\b`, "g");
+  let sm;
+  while ((sm = startRe.exec(source))) {
+    let i = sm.index + sm[0].length;
+    let depthBrace = 0;
+    let inStr = null;
+    let attrs = "";
+    while (i < source.length) {
+      const ch = source[i];
+      const next = source[i + 1];
+      if (inStr) {
+        attrs += ch;
+        if (ch === "\\" && inStr !== "`") {
+          attrs += next ?? "";
+          i += 2;
+          continue;
+        }
+        if (ch === inStr) inStr = null;
+        i += 1;
+        continue;
+      }
+      if (ch === '"' || ch === "'" || ch === "`") {
+        inStr = ch;
+        attrs += ch;
+        i += 1;
+        continue;
+      }
+      if (ch === "{") {
+        depthBrace += 1;
+        attrs += ch;
+        i += 1;
+        continue;
+      }
+      if (ch === "}") {
+        depthBrace = Math.max(0, depthBrace - 1);
+        attrs += ch;
+        i += 1;
+        continue;
+      }
+      if (depthBrace === 0 && ch === "/" && next === ">") {
+        results.push({ attrs, index: sm.index });
+        break;
+      }
+      if (depthBrace === 0 && ch === ">") {
+        results.push({ attrs, index: sm.index });
+        break;
+      }
+      attrs += ch;
+      i += 1;
+    }
+  }
+  return results;
+}
+
+function findFunctionProps(attrs) {
+  const found = [];
+  // prop={ ( ... ) =>  OR prop={ async ( ... ) => OR prop={ function
+  const re =
+    /\b([A-Za-z_][\w]*)\s*=\s*\{\s*(?:async\s*)?(?:\([^)]*\)|[A-Za-z_]\w*)\s*=>|\b([A-Za-z_][\w]*)\s*=\s*\{\s*function\b/g;
+  let m;
+  while ((m = re.exec(attrs))) {
+    found.push(m[1] || m[2]);
+  }
+  // Nomi tipici anche se il body è multilinea strano
+  for (const name of ["hrefFor", "getHref", "getUrl", "renderItem", "renderTitle"]) {
+    if (new RegExp(`\\b${name}\\s*=\\s*\\{`).test(attrs) && /=>/.test(attrs)) {
+      if (!found.includes(name)) found.push(name);
+    }
+  }
+  return found;
+}
+
 const files = walk(SRC);
-/** @type {Map<string, string>} exportName -> relative path */
+/** @type {Map<string, string>} */
 const clientExports = new Map();
 
 for (const file of files) {
   const source = readFileSync(file, "utf8");
   if (!isClientModule(source)) continue;
-  const rel = relative(SRC, file);
-  for (const name of exportedNames(source)) {
+  const rel = relative(SRC, file).replace(/\\/g, "/");
+  for (const name of exportedComponentNames(source)) {
     clientExports.set(name, rel);
   }
 }
 
-const FUNCTION_PROP =
-  /\b([A-Za-z_][A-Za-z0-9_]*)=\{\s*(?:\([^)]*\)\s*=>|async\s*\([^)]*\)\s*=>|function\b)/g;
-
-/** Handler tipici: se compaiono in una page server verso un Client Component, sono comunque non serializzabili — li segnaliamo. */
 const issues = [];
 
 for (const file of files) {
@@ -68,37 +134,24 @@ for (const file of files) {
   const rel = relative(SRC, file).replace(/\\/g, "/");
   if (!rel.startsWith("app/")) continue;
 
-  /** @type {Map<string, string>} localName -> exportName */
+  /** @type {Map<string, string>} local -> export */
   const importedClients = new Map();
   const importRe = /import\s*\{([^}]+)\}\s*from\s*["']([^"']+)["']/g;
   let im;
   while ((im = importRe.exec(source))) {
-    const specs = im[1]
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    for (const spec of specs) {
+    for (const spec of im[1].split(",").map((s) => s.trim()).filter(Boolean)) {
       const parts = spec.split(/\s+as\s+/).map((p) => p.trim());
       const exported = parts[0];
       const local = parts[1] || parts[0];
-      if (clientExports.has(exported)) {
-        importedClients.set(local, exported);
-      }
+      if (clientExports.has(exported)) importedClients.set(local, exported);
     }
   }
-
   if (importedClients.size === 0) continue;
 
   for (const [local, exported] of importedClients) {
-    const tagRe = new RegExp(`<${local}\\b([\\s\\S]*?)(?:\\/>|>)`, "g");
-    let tag;
-    while ((tag = tagRe.exec(source))) {
-      const attrs = tag[1] || "";
-      FUNCTION_PROP.lastIndex = 0;
-      let pm;
-      while ((pm = FUNCTION_PROP.exec(attrs))) {
-        const prop = pm[1];
-        const line = source.slice(0, tag.index).split(/\n/).length;
+    for (const { attrs, index } of extractJsxOpenAttrs(source, local)) {
+      for (const prop of findFunctionProps(attrs)) {
+        const line = source.slice(0, index).split(/\n/).length;
         issues.push({
           file: rel,
           line,
