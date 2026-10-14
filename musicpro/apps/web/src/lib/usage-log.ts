@@ -18,18 +18,23 @@ function detectClient(): string {
 }
 
 export function getUsageSessionId(): string {
-  if (typeof sessionStorage === "undefined") {
+  if (typeof window === "undefined") {
     return "ssr";
   }
-  let id = sessionStorage.getItem(SESSION_KEY);
-  if (!id) {
-    id =
-      typeof crypto !== "undefined" && crypto.randomUUID
-        ? crypto.randomUUID()
-        : `s-${Date.now()}`;
-    sessionStorage.setItem(SESSION_KEY, id);
+  try {
+    let id = sessionStorage.getItem(SESSION_KEY);
+    if (!id) {
+      id =
+        typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `s-${Date.now()}`;
+      sessionStorage.setItem(SESSION_KEY, id);
+    }
+    return id;
+  } catch {
+    // WKWebView / privacy mode: sessionStorage può lanciare SecurityError
+    return `mem-${Date.now()}`;
   }
-  return id;
 }
 
 export function logUsage(
@@ -40,13 +45,17 @@ export function logUsage(
     properties?: Record<string, unknown>;
   },
 ): void {
-  const supabase = createClient();
-  void logProductUsageEvent(supabase, {
-    eventName,
-    eventType: options?.eventType ?? "action",
-    route: options?.route,
-    properties: options?.properties,
-    sessionId: getUsageSessionId(),
-    client: detectClient(),
-  });
+  try {
+    const supabase = createClient();
+    void logProductUsageEvent(supabase, {
+      eventName,
+      eventType: options?.eventType ?? "action",
+      route: options?.route,
+      properties: options?.properties,
+      sessionId: getUsageSessionId(),
+      client: detectClient(),
+    }).catch(() => undefined);
+  } catch {
+    /* telemetry must never break UI */
+  }
 }
