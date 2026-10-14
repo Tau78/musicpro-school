@@ -93,6 +93,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         {lessonsOffNotice}
         <TeacherHome
           firstName={member.firstName}
+          actorMemberId={member.id}
           data={await loadTeacherHomeData(member.id)}
         />
       </>

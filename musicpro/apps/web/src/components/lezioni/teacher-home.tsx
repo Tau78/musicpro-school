@@ -12,6 +12,10 @@ import {
   type Lesson,
 } from "@musicpro/database";
 
+import {
+  AttendanceToastStack,
+  type AttendanceToastLesson,
+} from "@/components/lezioni/attendance-toast-stack";
 import { courseSlotLabel } from "@/components/lezioni/course-labels";
 import { formatLessonWhen } from "@/lib/ui/associate-theme";
 import { createClient } from "@/lib/supabase/server";
@@ -66,11 +70,23 @@ export async function loadTeacherHomeData(
 
 export function TeacherHome({
   firstName,
+  actorMemberId,
   data,
 }: {
   firstName: string;
+  actorMemberId: string;
   data: TeacherHomeData;
 }) {
+  const showAttendanceToasts =
+    data.courses.length > 0 && data.attendance.length > 0;
+  const attendanceToasts: AttendanceToastLesson[] = data.attendance.map(
+    (lesson) => ({
+      id: lesson.id,
+      studentLabel: studentLabel(lesson),
+      whenLabel: attendanceWhenLabel(lesson),
+    }),
+  );
+
   return (
     <div className="space-y-5">
       <div>
@@ -80,21 +96,28 @@ export function TeacherHome({
         <p className="mt-1 text-sm text-neutral-600">La tua giornata in scuola</p>
       </div>
 
-      <HomeSection
-        title="Presenze da inserire"
-        href="/lezioni/oggi"
-        count={data.attendance.length}
-        empty="Nessuna presenza in ritardo."
-      >
-        {data.attendance.slice(0, PREVIEW).map((lesson) => (
-          <HomeRow
-            key={lesson.id}
-            href="/lezioni/oggi"
-            title={lessonLabel(lesson)}
-            meta={lessonMeta(lesson)}
-          />
-        ))}
-      </HomeSection>
+      {showAttendanceToasts ? (
+        <AttendanceToastStack
+          lessons={attendanceToasts}
+          actorMemberId={actorMemberId}
+        />
+      ) : (
+        <HomeSection
+          title="Presenze da inserire"
+          href="/lezioni/oggi"
+          count={data.attendance.length}
+          empty="Nessuna presenza in ritardo."
+        >
+          {data.attendance.slice(0, PREVIEW).map((lesson) => (
+            <HomeRow
+              key={lesson.id}
+              href="/lezioni/oggi"
+              title={lessonLabel(lesson)}
+              meta={lessonMeta(lesson)}
+            />
+          ))}
+        </HomeSection>
+      )}
 
       <HomeSection
         title="Da piazzare"
@@ -251,6 +274,33 @@ function HomeRow({
 
 function lessonLabel(lesson: CalendarLesson): string {
   return lesson.courseName.trim() || lesson.studentNames[0] || "Lezione";
+}
+
+function studentLabel(lesson: CalendarLesson): string {
+  const names = lesson.studentNames.map((name) => name.trim()).filter(Boolean);
+  if (names.length === 0) {
+    return lesson.courseName.trim() || "Allievo";
+  }
+  if (names.length === 1) return names[0];
+  if (names.length === 2) return names.join(", ");
+  return `${names[0]} +${names.length - 1}`;
+}
+
+function attendanceWhenLabel(lesson: CalendarLesson): string {
+  if (!lesson.startsAt) return "—";
+  const date = new Date(lesson.startsAt);
+  const day = new Intl.DateTimeFormat("it-IT", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    timeZone: "Europe/Rome",
+  }).format(date);
+  const time = new Intl.DateTimeFormat("it-IT", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/Rome",
+  }).format(date);
+  return `${day} · ${time}`;
 }
 
 function lessonMeta(lesson: CalendarLesson): string {
