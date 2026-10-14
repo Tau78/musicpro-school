@@ -722,6 +722,52 @@ export interface Database {
         >;
         Relationships: [];
       };
+      pilot_cohort_members: {
+        Row: {
+          member_id: string;
+          cohort_key: string;
+          role_in_cohort: string;
+          notes: string | null;
+          created_at: string;
+        };
+        Insert: {
+          member_id: string;
+          cohort_key?: string;
+          role_in_cohort: string;
+          notes?: string | null;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["pilot_cohort_members"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      product_usage_events: {
+        Row: {
+          id: string;
+          member_id: string;
+          event_type: string;
+          event_name: string;
+          route: string | null;
+          properties: Json;
+          session_id: string | null;
+          client: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          member_id: string;
+          event_type: string;
+          event_name: string;
+          route?: string | null;
+          properties?: Json;
+          session_id?: string | null;
+          client?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["product_usage_events"]["Insert"]
+        >;
+        Relationships: [];
+      };
       credit_packages: {
         Row: {
           id: string;
@@ -2275,6 +2321,37 @@ export interface Database {
       deactivate_own_account: {
         Args: Record<string, never>;
         Returns: boolean;
+      };
+      log_product_usage_event: {
+        Args: {
+          p_event_name: string;
+          p_event_type?: string;
+          p_route?: string;
+          p_properties?: Json;
+          p_session_id?: string;
+          p_client?: string;
+        };
+        Returns: string | null;
+      };
+      list_pilot_usage_events: {
+        Args: {
+          p_since?: string;
+          p_limit?: number;
+        };
+        Returns: {
+          event_id: string;
+          created_at: string;
+          member_id: string;
+          email: string;
+          display_name: string;
+          role_in_cohort: string;
+          event_type: string;
+          event_name: string;
+          route: string | null;
+          properties: Json;
+          session_id: string | null;
+          client: string;
+        }[];
       };
       ensure_member_linked: {
         Args: Record<string, never>;

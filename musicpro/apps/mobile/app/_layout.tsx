@@ -7,12 +7,14 @@ import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StyleSheet } from "react-native";
 
+import { UsageTracker } from "@/components/usage-tracker";
 import { AuthProvider } from "@/contexts/AuthContext";
 
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={styles.root}>
       <AuthProvider>
+        <UsageTracker />
         <StatusBar style="auto" />
         <Stack>
           <Stack.Screen name="index" options={{ headerShown: false }} />
