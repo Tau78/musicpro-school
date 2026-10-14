@@ -6,14 +6,17 @@ import { useEffect, useMemo, useState } from "react";
 import {
   BOOKING_MICROPHONE_COUNTS,
   adminUpdateBooking,
+  bookingAdminCancelSupportsPenaltyWaive,
+  bookingHasCancelCreditAdjustment,
   bookingPaymentMethodLabel,
+  bookingPaymentStatusLabel,
   bookingStatusLabel,
   calculateBookingPrice,
   createBooking,
+  describeBookingPaymentForAdmin,
   durationOptionsForRoom,
   formatDurationLabel,
   formatEuro,
-  formatCreditsCount,
   getAdminBookingById,
   listMembers,
   proviDaSoloDiscountTotalEur,
@@ -346,32 +349,26 @@ export function BookingCalendarDialog({
     booking != null &&
     booking.status !== "cancelled";
 
+  const deletePaymentLines = useMemo(
+    () => (booking ? describeBookingPaymentForAdmin(booking) : []),
+    [booking],
+  );
+
+  const hasCreditAdjustment =
+    booking != null && bookingHasCancelCreditAdjustment(booking);
+  const canWaivePenalty =
+    booking != null && bookingAdminCancelSupportsPenaltyWaive(booking);
+
   const deleteHint = useMemo(() => {
     if (!booking) return null;
-
-    const parts: string[] = [];
-    if (
-      booking.payment_method === "credits" &&
-      booking.credits_used != null &&
-      booking.credits_used > 0
-    ) {
-      parts.push(
-        `Pagamento con ${formatCreditsCount(booking.credits_used)}.`,
-      );
-    } else if (booking.payment_status === "paid") {
-      parts.push("Pagamento con carta: l'importo torna come crediti sul saldo.");
-    } else if (booking.credits_held > 0) {
-      parts.push(
-        `${formatCreditsCount(booking.credits_held)} crediti riservati.`,
-      );
+    if (!hasCreditAdjustment) {
+      return "La prenotazione verrà annullata. Non c’è nulla da riaccreditare.";
     }
-
-    if (parts.length === 0) {
-      return "La prenotazione verrà annullata.";
+    if (!canWaivePenalty) {
+      return "I crediti riservati torneranno sul saldo. Non c’è penale da applicare.";
     }
-
-    return `${parts.join(" ")} «Elimina» applica le regole di penale; «Elimina e riaccredita» restituisce l'intero importo in crediti.`;
-  }, [booking]);
+    return "«Elimina» applica le regole di penale sui crediti/euro già pagati. «Elimina senza penale» restituisce l’intero importo in crediti sul saldo.";
+  }, [booking, canWaivePenalty, hasCreditAdjustment]);
 
   const title =
     mode === "create"
@@ -424,10 +421,23 @@ export function BookingCalendarDialog({
                 </p>
                 <p className="mt-1 text-neutral-600">
                   {bookingStatusLabel(booking.status, booking.payment_status)}
+                  {" · "}
+                  {bookingPaymentStatusLabel(booking.payment_status)}
                   {booking.payment_method
                     ? ` · ${bookingPaymentMethodLabel(booking.payment_method)}`
                     : ""}
                 </p>
+                {(booking.credits_held > 0 ||
+                  (booking.credits_used != null && booking.credits_used > 0)) && (
+                  <p className="mt-1 text-neutral-600">
+                    {booking.credits_held > 0
+                      ? `Crediti riservati: ${booking.credits_held}`
+                      : null}
+                    {booking.credits_used != null && booking.credits_used > 0
+                      ? `${booking.credits_held > 0 ? " · " : ""}Crediti addebitati: ${booking.credits_used}`
+                      : null}
+                  </p>
+                )}
               </div>
             ) : null}
 
@@ -632,6 +642,13 @@ export function BookingCalendarDialog({
                 <p className="text-sm font-medium text-red-900">
                   Eliminare questa prenotazione?
                 </p>
+                {deletePaymentLines.length > 0 ? (
+                  <ul className="mt-2 list-inside list-disc space-y-0.5 text-sm text-red-900">
+                    {deletePaymentLines.map((line) => (
+                      <li key={line}>{line}</li>
+                    ))}
+                  </ul>
+                ) : null}
                 {deleteHint ? (
                   <p className="mt-2 text-sm text-red-800">{deleteHint}</p>
                 ) : null}
@@ -655,14 +672,16 @@ export function BookingCalendarDialog({
                   >
                     {deleting ? "Eliminazione…" : "Elimina"}
                   </button>
-                  <button
-                    type="button"
-                    disabled={deleting}
-                    onClick={() => void handleDelete(true)}
-                    className="rounded-lg bg-red-700 px-4 py-2 text-sm font-medium text-white hover:bg-red-800 disabled:opacity-50"
-                  >
-                    {deleting ? "Eliminazione…" : "Elimina e riaccredita"}
-                  </button>
+                  {canWaivePenalty ? (
+                    <button
+                      type="button"
+                      disabled={deleting}
+                      onClick={() => void handleDelete(true)}
+                      className="rounded-lg bg-red-700 px-4 py-2 text-sm font-medium text-white hover:bg-red-800 disabled:opacity-50"
+                    >
+                      {deleting ? "Eliminazione…" : "Elimina senza penale"}
+                    </button>
+                  ) : null}
                 </div>
               </div>
             ) : (

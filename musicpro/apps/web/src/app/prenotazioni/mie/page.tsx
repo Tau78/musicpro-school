@@ -7,17 +7,21 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import {
   type BookingWithRoom,
   type CancelBookingResult,
+  type MemberCreditBalance,
   bookingNeedsPayment,
   bookingStatusLabel,
   cancelBooking,
   canCancelBooking,
   canModifyBooking,
+  creditsForBookingPrice,
   formatBookingDateTime,
   formatCreditsCount,
   formatEuro,
   getBookingSettings,
   getCurrentMember,
+  getMemberCreditBalance,
   listMyBookings,
+  requestBookingCreditsPayment,
   requestRoomBookingPaymentUrl,
 } from "@musicpro/database";
 import { mapUserFacingError } from "@musicpro/shared";
@@ -82,6 +86,10 @@ function MiePrenotazioniContent() {
   const [loading, setLoading] = useState(true);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [payingId, setPayingId] = useState<string | null>(null);
+  const [payingCreditsId, setPayingCreditsId] = useState<string | null>(null);
+  const [creditBalance, setCreditBalance] = useState<MemberCreditBalance | null>(
+    null,
+  );
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -118,6 +126,12 @@ function MiePrenotazioniContent() {
           getCurrentMember(supabase),
           getBookingSettings(supabase),
         ]);
+        if (member?.id) {
+          const balance = await getMemberCreditBalance(supabase, member.id).catch(
+            () => null,
+          );
+          if (!cancelled) setCreditBalance(balance);
+        }
 
         if (cancelled) return;
 
@@ -190,7 +204,7 @@ function MiePrenotazioniContent() {
   }, [router, searchParams]);
 
   async function handlePay(bookingId: string) {
-    if (payingId) return;
+    if (payingId || payingCreditsId) return;
 
     setPayingId(bookingId);
     setMessage(null);
@@ -210,6 +224,52 @@ function MiePrenotazioniContent() {
     }
 
     window.location.href = result.url;
+  }
+
+  async function handlePayWithCredits(booking: BookingWithRoom) {
+    if (payingId || payingCreditsId) return;
+
+    const cost = creditsForBookingPrice(booking.total_price_eur ?? 0);
+    const available = creditBalance?.available ?? 0;
+    if (creditBalance == null || available < cost || cost <= 0) {
+      setError(
+        creditBalance != null
+          ? `Saldo crediti insufficiente: servono ${cost}, disponibili ${available}.`
+          : "Impossibile verificare il saldo crediti.",
+      );
+      return;
+    }
+
+    setPayingCreditsId(booking.id);
+    setMessage(null);
+    setError(null);
+
+    const result = await requestBookingCreditsPayment(booking.id, {
+      mode: "full",
+    });
+
+    setPayingCreditsId(null);
+
+    if (!result.success) {
+      setError(
+        mapUserFacingError(
+          result.message ?? "",
+          "Pagamento con crediti non riuscito.",
+        ),
+      );
+      return;
+    }
+
+    setMessage(
+      result.status === "pending_approval"
+        ? "Crediti riservati: in attesa di approvazione."
+        : "Prenotazione pagata con crediti.",
+    );
+    const balance = memberId
+      ? await getMemberCreditBalance(supabase, memberId).catch(() => null)
+      : null;
+    setCreditBalance(balance);
+    await loadBookings(tab);
   }
 
   async function handleCancel(bookingId: string) {
@@ -367,15 +427,41 @@ function MiePrenotazioniContent() {
                 {tab === "upcoming" &&
                   booking.status !== "cancelled" &&
                   bookingNeedsPayment(booking) && (
-                    <div className="mt-4">
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
                       <button
                         type="button"
-                        disabled={payingId === booking.id}
+                        disabled={
+                          payingId === booking.id ||
+                          payingCreditsId === booking.id
+                        }
                         onClick={() => void handlePay(booking.id)}
                         className="rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-60"
                       >
-                        {payingId === booking.id ? "Reindirizzamento…" : "Paga ora"}
+                        {payingId === booking.id
+                          ? "Reindirizzamento…"
+                          : "Paga con carta"}
                       </button>
+                      {creditBalance != null &&
+                      creditsForBookingPrice(booking.total_price_eur ?? 0) >
+                        0 &&
+                      creditBalance.available >=
+                        creditsForBookingPrice(
+                          booking.total_price_eur ?? 0,
+                        ) ? (
+                        <button
+                          type="button"
+                          disabled={
+                            payingId === booking.id ||
+                            payingCreditsId === booking.id
+                          }
+                          onClick={() => void handlePayWithCredits(booking)}
+                          className="rounded-lg border border-[var(--brand)] bg-white px-4 py-2 text-sm font-medium text-[var(--brand)] hover:bg-[var(--brand)]/5 disabled:opacity-60"
+                        >
+                          {payingCreditsId === booking.id
+                            ? "Pagamento crediti…"
+                            : `Paga con crediti (${creditsForBookingPrice(booking.total_price_eur ?? 0)})`}
+                        </button>
+                      ) : null}
                     </div>
                   )}
 

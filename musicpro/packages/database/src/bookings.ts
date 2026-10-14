@@ -441,10 +441,18 @@ export function bookingOccupiesSlot(booking: {
   return true;
 }
 
-/** Richiede POST /api/prenotazioni/{id}/pay-credits (solo web). */
+export type RequestBookingCreditsPaymentOptions = {
+  mode?: "full" | "partial";
+  /** Base URL web app (es. EXPO_PUBLIC_WEB_URL) — richiesto fuori dal browser. */
+  apiBaseUrl?: string;
+  /** Token Supabase per Authorization Bearer (mobile). */
+  accessToken?: string;
+};
+
+/** Richiede POST /api/prenotazioni/{id}/pay-credits (web o mobile via apiBaseUrl). */
 export async function requestBookingCreditsPayment(
   bookingId: string,
-  options?: { mode?: "full" | "partial" },
+  options?: RequestBookingCreditsPaymentOptions,
 ): Promise<{
   success: boolean;
   action?: "hold" | "debit";
@@ -454,14 +462,24 @@ export async function requestBookingCreditsPayment(
   message?: string;
   errorCode?: string;
 }> {
-  const resp = await fetch(
-    `/api/prenotazioni/${encodeURIComponent(bookingId)}/pay-credits`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mode: options?.mode ?? "full" }),
-    },
-  );
+  const apiBase = options?.apiBaseUrl?.replace(/\/$/, "") ?? "";
+  const url = apiBase
+    ? `${apiBase}/api/prenotazioni/${encodeURIComponent(bookingId)}/pay-credits`
+    : `/api/prenotazioni/${encodeURIComponent(bookingId)}/pay-credits`;
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (options?.accessToken) {
+    headers.Authorization = `Bearer ${options.accessToken}`;
+  }
+
+  const resp = await fetch(url, {
+    method: "POST",
+    credentials: apiBase ? "omit" : "same-origin",
+    headers,
+    body: JSON.stringify({ mode: options?.mode ?? "full" }),
+  });
 
   const data = (await resp.json()) as {
     success?: boolean;
@@ -1961,6 +1979,124 @@ export function bookingPaymentMethodLabel(
     default:
       return method;
   }
+}
+
+export function bookingPaymentStatusLabel(
+  status: BookingPaymentStatus | string | null | undefined,
+): string {
+  switch (status) {
+    case "unpaid":
+      return "Non pagata";
+    case "link_sent":
+      return "Link pagamento inviato";
+    case "paid":
+      return "Pagata";
+    case "not_required":
+      return "Pagamento non richiesto";
+    case "refunded":
+      return "Rimborsata";
+    default:
+      return status ? String(status) : "Stato pagamento sconosciuto";
+  }
+}
+
+type BookingCancelPaymentFields = {
+  payment_status?: BookingPaymentStatus | string | null;
+  payment_method?: BookingPaymentMethod | string | null;
+  credits_held?: number | null;
+  credits_used?: number | null;
+  total_price_eur?: number | null;
+  stripe_payment_intent_id?: string | null;
+};
+
+function bookingPaidEurRefundable(booking: BookingCancelPaymentFields): boolean {
+  const used = Number(booking.credits_used ?? 0);
+  const price = Number(booking.total_price_eur ?? 0);
+  const status = booking.payment_status ?? "";
+  const method = booking.payment_method ?? "";
+  const hasPi = Boolean(booking.stripe_payment_intent_id?.trim());
+  return (
+    (status === "paid" || status === "refunded") &&
+    used === 0 &&
+    price > 0 &&
+    (method === "stripe" || method === "nexi" || hasPi)
+  );
+}
+
+/** True se cancel_booking_safe muove crediti/wallet (hold, addebito o euro pagati). */
+export function bookingHasCancelCreditAdjustment(
+  booking: BookingCancelPaymentFields,
+): boolean {
+  const used = Number(booking.credits_used ?? 0);
+  const held = Number(booking.credits_held ?? 0);
+  if (booking.payment_method === "credits" && used > 0) return true;
+  if (held > 0) return true;
+  return bookingPaidEurRefundable(booking);
+}
+
+/**
+ * True se ha senso «Elimina senza penale»: penale/rimborso euro o crediti
+ * addebitati. Hold-only: un solo Elimina (rilascio hold, nessuna penale).
+ */
+export function bookingAdminCancelSupportsPenaltyWaive(
+  booking: BookingCancelPaymentFields,
+): boolean {
+  const used = Number(booking.credits_used ?? 0);
+  const held = Number(booking.credits_held ?? 0);
+  const paidLike =
+    booking.payment_status === "paid" || booking.payment_status === "refunded";
+  const holdOnly =
+    held > 0 &&
+    !(booking.payment_method === "credits" && used > 0) &&
+    !paidLike;
+  if (holdOnly) return false;
+  if (booking.payment_method === "credits" && used > 0) return true;
+  return bookingPaidEurRefundable(booking);
+}
+
+/** Righe stato pagamento per conferma annullo admin. */
+export function describeBookingPaymentForAdmin(
+  booking: BookingCancelPaymentFields & {
+    total_price_eur?: number | null;
+  },
+): string[] {
+  const lines: string[] = [];
+  const used = Number(booking.credits_used ?? 0);
+  const held = Number(booking.credits_held ?? 0);
+  const price = Number(booking.total_price_eur ?? 0);
+
+  lines.push(`Stato pagamento: ${bookingPaymentStatusLabel(booking.payment_status)}`);
+
+  const methodLabel = bookingPaymentMethodLabel(booking.payment_method);
+  if (methodLabel) {
+    lines.push(`Metodo: ${methodLabel}`);
+  }
+
+  if (price > 0) {
+    const euro = new Intl.NumberFormat("it-IT", {
+      style: "currency",
+      currency: "EUR",
+    }).format(price);
+    lines.push(`Totale: ${euro}`);
+  }
+
+  if (booking.payment_method === "credits" && used > 0) {
+    lines.push(`Crediti addebitati: ${formatCreditsCount(used)}.`);
+  } else if (bookingPaidEurRefundable(booking)) {
+    lines.push(
+      "Pagata con carta: in annullamento l’importo torna come crediti sul saldo.",
+    );
+  }
+
+  if (held > 0) {
+    lines.push(`Crediti riservati: ${formatCreditsCount(held)} (tornano sul saldo).`);
+  }
+
+  if (!bookingHasCancelCreditAdjustment(booking)) {
+    lines.push("Nessun importo da riaccreditare in annullamento.");
+  }
+
+  return lines;
 }
 
 export function formatCreditsCount(count: number): string {

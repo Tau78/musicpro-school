@@ -12,21 +12,25 @@ import { useLocalSearchParams } from "expo-router";
 
 import {
   type CreateBookingResult,
+  type MemberCreditBalance,
   type Room,
   type TimeSlot,
   calculateBookingPrice,
   applyMemberBookingDiscount,
   createBooking,
+  creditsForBookingPrice,
   durationOptionsForRoom,
   formatDateItalian,
   formatDurationLabel,
   formatEuro,
   getBookingSettings,
   getCurrentMemberWithRoles,
+  getMemberCreditBalance,
   getRoomAvailability,
   listRooms,
   peekRoomAvailabilityCache,
   requestBookingConfirmationEmail,
+  requestBookingCreditsPayment,
   requestRoomBookingPaymentUrl,
   subscribeToBookings,
   invalidateRoomAvailabilityCache,
@@ -83,6 +87,10 @@ export default function PrenotazioniScreen() {
   const [loading, setLoading] = useState(true);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [payingWithCredits, setPayingWithCredits] = useState(false);
+  const [creditBalance, setCreditBalance] = useState<MemberCreditBalance | null>(
+    null,
+  );
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [stepIndex, setStepIndex] = useState(0);
@@ -119,6 +127,14 @@ export default function PrenotazioniScreen() {
     selectedRoom,
     selectedSlot,
   ]);
+
+  const creditCost = useMemo(
+    () => creditsForBookingPrice(previewPrice ?? 0),
+    [previewPrice],
+  );
+  const availableCredits = creditBalance?.available ?? 0;
+  const canPayWithCredits =
+    creditBalance != null && availableCredits >= creditCost && creditCost > 0;
 
   const loadAvailability = useCallback(async () => {
     if (!selectedRoomId) return;
@@ -216,6 +232,24 @@ export default function PrenotazioniScreen() {
   }, [currentStep, loadAvailability]);
 
   useEffect(() => {
+    if (currentStep !== "confirm" || !memberId) {
+      setCreditBalance(null);
+      return;
+    }
+    let cancelled = false;
+    void getMemberCreditBalance(supabase, memberId)
+      .then((balance) => {
+        if (!cancelled) setCreditBalance(balance);
+      })
+      .catch(() => {
+        if (!cancelled) setCreditBalance(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentStep, memberId, supabase]);
+
+  useEffect(() => {
     if (currentStep !== "slot") return;
     setSelectedSlot(null);
   }, [currentStep, selectedDate, durationMinutes, selectedRoomId]);
@@ -257,14 +291,27 @@ export default function PrenotazioniScreen() {
     setSelectedSlot(null);
   }
 
-  async function handleConfirm() {
+  async function handleConfirm(payMode: "card" | "credits" = "card") {
     if (!memberId || !selectedSlot) {
       setError("Seleziona uno slot disponibile.");
       return;
     }
-    if (submitting) return;
+    if (submitting || payingWithCredits) return;
 
-    setSubmitting(true);
+    if (payMode === "credits" && !canPayWithCredits) {
+      setError(
+        creditBalance != null
+          ? `Saldo crediti insufficiente: servono ${creditCost}, disponibili ${availableCredits}.`
+          : "Impossibile verificare il saldo crediti.",
+      );
+      return;
+    }
+
+    if (payMode === "credits") {
+      setPayingWithCredits(true);
+    } else {
+      setSubmitting(true);
+    }
     setMessage(null);
     setError(null);
 
@@ -281,22 +328,55 @@ export default function PrenotazioniScreen() {
         return;
       }
 
+      const apiBaseUrl = process.env.EXPO_PUBLIC_WEB_URL?.trim();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (payMode === "credits" && result.bookingId) {
+        const creditPayment = await requestBookingCreditsPayment(
+          result.bookingId,
+          {
+            mode: "full",
+            apiBaseUrl,
+            accessToken: session?.access_token,
+          },
+        );
+        if (!creditPayment.success) {
+          setError(
+            creditPayment.message ??
+              "Prenotazione registrata ma il pagamento con crediti non è riuscito.",
+          );
+          return;
+        }
+        if (apiBaseUrl && session?.access_token) {
+          void requestBookingConfirmationEmail(result.bookingId, {
+            apiBaseUrl,
+            accessToken: session.access_token,
+            template: "confirm",
+          });
+        }
+        setMessage(
+          creditPayment.status === "pending_approval"
+            ? "Richiesta inviata: crediti riservati, in attesa di approvazione."
+            : "Prenotazione confermata e pagata con crediti!",
+        );
+        setSelectedSlot(null);
+        setStepIndex(0);
+        await loadAvailability();
+        return;
+      }
+
       if (
         result.bookingId &&
         (result.status === "confirmed" || result.status === "pending_approval")
       ) {
-        const emailBaseUrl = process.env.EXPO_PUBLIC_WEB_URL?.trim();
-        if (emailBaseUrl) {
-          const {
-            data: { session },
-          } = await supabase.auth.getSession();
-          if (session?.access_token) {
-            void requestBookingConfirmationEmail(result.bookingId, {
-              apiBaseUrl: emailBaseUrl,
-              accessToken: session.access_token,
-              template: "confirm",
-            });
-          }
+        if (apiBaseUrl && session?.access_token) {
+          void requestBookingConfirmationEmail(result.bookingId, {
+            apiBaseUrl,
+            accessToken: session.access_token,
+            template: "confirm",
+          });
         }
       }
 
@@ -306,11 +386,6 @@ export default function PrenotazioniScreen() {
         (result.status === "pending" || result.status === "pending_approval");
 
       if (needsCardPayment) {
-        const apiBaseUrl = process.env.EXPO_PUBLIC_WEB_URL?.trim();
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
         const payment = await requestRoomBookingPaymentUrl(result.bookingId!, {
           apiBaseUrl,
           accessToken: session?.access_token,
@@ -347,6 +422,7 @@ export default function PrenotazioniScreen() {
       await loadAvailability();
     } finally {
       setSubmitting(false);
+      setPayingWithCredits(false);
     }
   }
 
@@ -603,6 +679,12 @@ export default function PrenotazioniScreen() {
                     Sconto collaboratore −{collaboratorDiscountPercent}%
                   </Text>
                 ) : null}
+                {creditBalance != null ? (
+                  <Text style={styles.approvalHint}>
+                    Crediti: {availableCredits} disponibili
+                    {creditCost > 0 ? ` · costo ${creditCost}` : ""}
+                  </Text>
+                ) : null}
                 {selectedSlot.leadTimeCategory === "approval" && (
                   <Text style={styles.approvalHint}>
                     Questa fascia richiede approvazione admin.
@@ -610,18 +692,42 @@ export default function PrenotazioniScreen() {
                 )}
                 <View style={styles.confirmActions}>
                   <Pressable
-                    disabled={submitting}
-                    onPress={() => void handleConfirm()}
-                    style={[styles.primaryButton, submitting && styles.buttonDisabled]}
+                    disabled={submitting || payingWithCredits}
+                    onPress={() => void handleConfirm("card")}
+                    style={[
+                      styles.primaryButton,
+                      (submitting || payingWithCredits) && styles.buttonDisabled,
+                    ]}
                   >
                     {submitting ? (
                       <ActivityIndicator color="#fff" />
                     ) : (
-                      <Text style={styles.primaryButtonText}>Conferma</Text>
+                      <Text style={styles.primaryButtonText}>
+                        Paga con carta
+                      </Text>
                     )}
                   </Pressable>
+                  {canPayWithCredits ? (
+                    <Pressable
+                      disabled={submitting || payingWithCredits}
+                      onPress={() => void handleConfirm("credits")}
+                      style={[
+                        styles.secondaryButton,
+                        (submitting || payingWithCredits) &&
+                          styles.buttonDisabled,
+                      ]}
+                    >
+                      {payingWithCredits ? (
+                        <ActivityIndicator color={theme.brand} />
+                      ) : (
+                        <Text style={styles.secondaryButtonText}>
+                          Paga con crediti ({creditCost})
+                        </Text>
+                      )}
+                    </Pressable>
+                  ) : null}
                   <Pressable
-                    disabled={submitting}
+                    disabled={submitting || payingWithCredits}
                     onPress={() => {
                       setSelectedSlot(null);
                       goToStep(stepIndex - 1);
@@ -907,11 +1013,19 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     alignItems: "center",
+    justifyContent: "center",
+    minHeight: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.brand,
+    backgroundColor: "#fff",
+    paddingHorizontal: 16,
     paddingVertical: 12,
   },
   secondaryButtonText: {
-    fontSize: 14,
-    color: "#666",
+    fontSize: 15,
+    fontWeight: "600",
+    color: theme.brand,
   },
   buttonDisabled: {
     opacity: 0.7,
