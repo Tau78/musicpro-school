@@ -16,15 +16,17 @@ import {
 
 export function CourseCards({
   courses,
-  hrefFor,
+  hrefBase,
   badge,
 }: {
   courses: Course[];
-  hrefFor: (id: string) => string;
+  /** Prefisso path senza slash finale (es. `/admin/lezioni/corsi`). */
+  hrefBase: string;
   badge?: string;
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
+  const base = hrefBase.replace(/\/$/, "");
 
   if (courses.length === 0) {
     return (
@@ -37,7 +39,7 @@ export function CourseCards({
   return (
     <ul className="divide-y divide-neutral-200 rounded-xl border border-neutral-200 bg-white">
       {courses.map((course) => {
-        const href = hrefFor(course.id);
+        const href = `${base}/${course.id}`;
         return (
           <li key={course.id}>
             <Link
