@@ -38,7 +38,7 @@ import {
   type MoveNotifyFlags,
   type MoveScope,
 } from "@/components/lezioni/lessons-calendar";
-import { lessonCourseId } from "@/components/lezioni/lessons-oggi";
+import { lessonCourseId } from "@/lib/lezioni/oggi-lesson";
 import { calendarBounds } from "@/lib/lezioni/calendar-range";
 import { createClient } from "@/lib/supabase/client";
 

@@ -23,8 +23,12 @@ import {
 import { LessonAttendancePanel } from "@/components/lezioni/lesson-attendance-panel";
 import type { CalendarLesson } from "@/components/lezioni/lessons-calendar";
 import { LessonsPrintButton } from "@/components/lezioni/lessons-print-button";
+import {
+  lessonCourseId,
+  type OggiLesson,
+} from "@/lib/lezioni/oggi-lesson";
 
-export type OggiLesson = CalendarLesson & { hasAttendance?: boolean };
+export type { OggiLesson };
 
 export interface LessonsOggiProps {
   lessons: OggiLesson[];
@@ -33,12 +37,6 @@ export interface LessonsOggiProps {
   courseDetailBasePath?: string;
   actorMemberId?: string;
   isStaff?: boolean;
-}
-
-export function lessonCourseId(lesson: CalendarLesson): string {
-  if (lesson.courseId) return lesson.courseId;
-  if (lesson.id.startsWith("hold:")) return lesson.id.slice(5);
-  return lesson.id;
 }
 
 function isHoldLesson(lesson: OggiLesson): boolean {
