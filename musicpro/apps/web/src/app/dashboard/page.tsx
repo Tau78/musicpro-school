@@ -7,12 +7,14 @@ import {
   hasActiveCourseEnrollment,
   listLessonsInRange,
   listMyBookings,
+  listTutorWards,
   todayInRome,
 } from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
 
 import { AssociatePageShell } from "@/components/associate/associate-page-shell";
 import { MemberHome } from "@/components/associate/member-home";
+import { NextActionBanner } from "@/components/associate/next-action-banner";
 import { LessonsUnavailableNotice } from "@/components/lezioni/lessons-unavailable-notice";
 import {
   loadTeacherHomeData,
@@ -28,6 +30,7 @@ import {
   canManageBookings,
   canManageMembers,
 } from "@/lib/admin/roles";
+import { getMembershipStatus } from "@/lib/membership";
 import { createClient } from "@/lib/supabase/server";
 import { formatBookingWhen } from "@/lib/ui/associate-theme";
 
@@ -81,6 +84,30 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     <BookingPaymentReturnNotice bookingId={paymentBookingId} />
   ) : null;
 
+  const [membershipStatus, tutorWards] = await Promise.all([
+    getMembershipStatus(supabase, member.id).catch(() => null),
+    listTutorWards(supabase, member.id).catch(() => []),
+  ]);
+  const incompleteWard = tutorWards.find(
+    (ward) => ward.isEnrollmentDraft || !String(ward.taxCode || "").trim(),
+  );
+  const anagraficaBanner =
+    membershipStatus != null && !membershipStatus.formCompleted ? (
+      <NextActionBanner
+        title="Anagrafica incompleta, inserisci i dati mancanti"
+        description="Serve il codice fiscale (e il modulo firmato) per chiudere l’iscrizione."
+        href="/dashboard/impostazioni#dati-personali"
+        ctaLabel="Completa dati"
+      />
+    ) : incompleteWard ? (
+      <NextActionBanner
+        title={`Anagrafica incompleta per ${incompleteWard.firstName} ${incompleteWard.lastName}`}
+        description="Come tutore puoi aggiornare i dati del tutorato."
+        href="/dashboard/impostazioni#tutorati"
+        ctaLabel="Aggiorna dati"
+      />
+    ) : null;
+
   if (
     lessonsEnabled &&
     showTeacherLessons &&
@@ -91,6 +118,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       <>
         {paymentNotice}
         {lessonsOffNotice}
+        {anagraficaBanner}
         <TeacherHome
           firstName={member.firstName}
           data={await loadTeacherHomeData(member.id)}
@@ -129,6 +157,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       <>
         {paymentNotice}
         {lessonsOffNotice}
+        {anagraficaBanner}
         <MemberHome
           firstName={member.firstName}
           showNextLesson={isAllievo}
@@ -179,6 +208,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     <div className="space-y-4 sm:space-y-5">
       {paymentNotice}
       {lessonsOffNotice}
+      {anagraficaBanner}
       <Suspense fallback={<StaffDashboardLoading />}>
         <StaffDashboardLoader
           memberId={member.id}

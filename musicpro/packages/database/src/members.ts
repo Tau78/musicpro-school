@@ -367,11 +367,7 @@ export type OwnProfilePatch = {
   mailingOptIn?: boolean;
 };
 
-export async function updateOwnProfile(
-  client: MembersClient,
-  memberId: string,
-  patch: OwnProfilePatch,
-): Promise<MemberMutationResult> {
+function buildOwnProfileRow(patch: OwnProfilePatch): Record<string, unknown> {
   const row: Record<string, unknown> = {};
 
   if (patch.firstName !== undefined) row.first_name = patch.firstName.trim();
@@ -398,6 +394,16 @@ export async function updateOwnProfile(
     row.mailing_opt_in_at = new Date().toISOString();
   }
 
+  return row;
+}
+
+export async function updateOwnProfile(
+  client: MembersClient,
+  memberId: string,
+  patch: OwnProfilePatch,
+): Promise<MemberMutationResult> {
+  const row = buildOwnProfileRow(patch);
+
   if (Object.keys(row).length === 0) {
     return { success: true, id: memberId };
   }
@@ -409,6 +415,130 @@ export async function updateOwnProfile(
   }
 
   return { success: true, id: memberId };
+}
+
+export type TutorWardSummary = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string | null;
+  phone: string | null;
+  taxCode: string | null;
+  birthDate: string | null;
+  birthPlace: string | null;
+  birthProvince: string | null;
+  addressStreet: string | null;
+  addressPostalCode: string | null;
+  addressCity: string | null;
+  addressProvince: string | null;
+  isEnrollmentDraft: boolean;
+};
+
+/** Tutorati collegati via `tutor_links` (SELECT già permesso da RLS). */
+export async function listTutorWards(
+  client: MembersClient,
+  tutorMemberId: string,
+): Promise<TutorWardSummary[]> {
+  // tutor_links non è ancora nei tipi generati.
+  const untyped = client as unknown as SupabaseClient;
+  const { data: links, error: linkError } = await untyped
+    .from("tutor_links")
+    .select("ward_member_id")
+    .eq("tutor_member_id", tutorMemberId);
+
+  if (linkError) {
+    throw new Error(linkError.message || "Impossibile caricare i tutorati.");
+  }
+
+  const wardIds = [
+    ...new Set(
+      ((links ?? []) as { ward_member_id: string }[]).map(
+        (row) => row.ward_member_id,
+      ),
+    ),
+  ];
+  if (wardIds.length === 0) return [];
+
+  const { data, error } = await client
+    .from("members")
+    .select(
+      "id, first_name, last_name, email, phone, tax_code, birth_date, birth_place, birth_province, address_street, address_postal_code, address_city, address_province, is_enrollment_draft",
+    )
+    .in("id", wardIds)
+    .order("last_name", { ascending: true });
+
+  if (error) {
+    throw new Error(error.message || "Impossibile caricare i tutorati.");
+  }
+
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    firstName: row.first_name,
+    lastName: row.last_name,
+    email: row.email,
+    phone: row.phone,
+    taxCode: row.tax_code,
+    birthDate: row.birth_date,
+    birthPlace: row.birth_place,
+    birthProvince: row.birth_province,
+    addressStreet: row.address_street,
+    addressPostalCode: row.address_postal_code,
+    addressCity: row.address_city,
+    addressProvince: row.address_province,
+    isEnrollmentDraft: Boolean(row.is_enrollment_draft),
+  }));
+}
+
+/** Tutore aggiorna anagrafica del tutorato (RLS `members_update_tutor_wards`). */
+export async function updateWardProfile(
+  client: MembersClient,
+  tutorMemberId: string,
+  wardMemberId: string,
+  patch: OwnProfilePatch,
+): Promise<MemberMutationResult> {
+  if (tutorMemberId === wardMemberId) {
+    return updateOwnProfile(client, wardMemberId, patch);
+  }
+
+  const untyped = client as unknown as SupabaseClient;
+  const { data: link, error: linkError } = await untyped
+    .from("tutor_links")
+    .select("ward_member_id")
+    .eq("tutor_member_id", tutorMemberId)
+    .eq("ward_member_id", wardMemberId)
+    .maybeSingle();
+
+  if (linkError) {
+    return { success: false, errorMessage: linkError.message };
+  }
+  if (!link) {
+    return {
+      success: false,
+      errorMessage: "Non sei tutore di questo allievo.",
+    };
+  }
+
+  const row = buildOwnProfileRow(patch);
+  // Tutore non gestisce mailing/photo consent del tutorato da qui.
+  delete row.mailing_opt_in;
+  delete row.mailing_opt_in_at;
+  delete row.photo_consent;
+  delete row.photo_consent_at;
+
+  if (Object.keys(row).length === 0) {
+    return { success: true, id: wardMemberId };
+  }
+
+  const { error } = await client
+    .from("members")
+    .update(row as never)
+    .eq("id", wardMemberId);
+
+  if (error) {
+    return { success: false, errorMessage: error.message };
+  }
+
+  return { success: true, id: wardMemberId };
 }
 
 export async function deleteMember(

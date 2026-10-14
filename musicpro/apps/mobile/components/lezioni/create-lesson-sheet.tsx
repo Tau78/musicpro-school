@@ -481,6 +481,7 @@ export function CreateLessonSheet({
         maxStudents: courseKind === "gruppo" ? maxStudents : 1,
         priceEur: parsedPrice,
         openingPrepaidLessons,
+        allowDraftEnrollment: data.isStaff,
       },
       {
         memberId: actorMemberId,

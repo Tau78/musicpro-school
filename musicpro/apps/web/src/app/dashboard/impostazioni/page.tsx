@@ -9,6 +9,7 @@ import {
   listMemberAnnualQuotas,
   listMyBands,
   listReimbursements,
+  listTutorWards,
 } from "@musicpro/database";
 import {
   APP_NAME,
@@ -19,6 +20,7 @@ import {
 import { AssociatePageShell } from "@/components/associate/associate-page-shell";
 import { MemberProfileHero } from "@/components/associate/member-profile-hero";
 import { MemberQuotaPanel } from "@/components/associate/member-quota-panel";
+import { NextActionBanner } from "@/components/associate/next-action-banner";
 import { ChangePasswordForm } from "@/components/auth/change-password-form";
 import { DeleteAccountButton } from "@/components/auth/delete-account-button";
 import { PasskeySettings } from "@/components/auth/passkey-settings";
@@ -46,8 +48,17 @@ export default async function DashboardImpostazioniPage() {
 
   const showQuotaUi = isAssociatoMember(member.roles);
 
-  const [profile, myReimbursements, myBands, creditBalance, quotaStatus, quotas, quotaSettings] =
-    await Promise.all([
+  const [
+    profile,
+    myReimbursements,
+    myBands,
+    creditBalance,
+    quotaStatus,
+    quotas,
+    quotaSettings,
+    tutorWards,
+    membershipStatus,
+  ] = await Promise.all([
       getMemberById(supabase, member.id),
       listReimbursements(supabase, { memberId: member.id }),
       listMyBands(supabase).catch(() => []),
@@ -61,6 +72,8 @@ export default async function DashboardImpostazioniPage() {
       showQuotaUi
         ? listAnnualQuotaSettings(supabase)
         : Promise.resolve([]),
+      listTutorWards(supabase, member.id).catch(() => []),
+      getMembershipStatus(supabase, member.id).catch(() => null),
     ]);
 
   const showAdminLink = canAccessAdmin(member.roles);
@@ -109,6 +122,15 @@ export default async function DashboardImpostazioniPage() {
             La mia scheda
           </h1>
         </div>
+
+        {membershipStatus && !membershipStatus.formCompleted ? (
+          <NextActionBanner
+            title="Anagrafica incompleta, inserisci i dati mancanti"
+            description="Serve il codice fiscale (e il modulo firmato) per chiudere l’iscrizione."
+            href="#dati-personali"
+            ctaLabel="Completa dati"
+          />
+        ) : null}
 
         <MemberProfileHero
           firstName={detail?.firstName ?? member.firstName}
@@ -172,6 +194,60 @@ export default async function DashboardImpostazioniPage() {
               }}
             />
           </div>
+
+          {tutorWards.length > 0 ? (
+            <div
+              id="tutorati"
+              className="mt-6 space-y-5 border-t border-neutral-100 pt-5"
+            >
+              <div>
+                <h3 className="text-sm font-medium text-neutral-800">
+                  Tutorati
+                </h3>
+                <p className="mt-1 text-sm text-neutral-600">
+                  Puoi aggiornare l’anagrafica dei tuoi tutorati (CF incluso).
+                </p>
+              </div>
+              {tutorWards.map((ward) => {
+                const incomplete =
+                  ward.isEnrollmentDraft || !String(ward.taxCode || "").trim();
+                return (
+                  <div
+                    key={ward.id}
+                    className="rounded-xl border border-neutral-200 bg-neutral-50/80 p-4"
+                  >
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <p className="text-sm font-semibold text-[var(--brand)]">
+                        {ward.lastName} {ward.firstName}
+                      </p>
+                      {incomplete ? (
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-950">
+                          Anagrafica incompleta
+                        </span>
+                      ) : null}
+                    </div>
+                    <ProfileSettingsForm
+                      tutorMemberId={member.id}
+                      initial={{
+                        memberId: ward.id,
+                        firstName: ward.firstName,
+                        lastName: ward.lastName,
+                        phone: ward.phone,
+                        addressStreet: ward.addressStreet,
+                        addressPostalCode: ward.addressPostalCode,
+                        addressCity: ward.addressCity,
+                        addressProvince: ward.addressProvince,
+                        birthDate: ward.birthDate,
+                        birthPlace: ward.birthPlace,
+                        birthProvince: ward.birthProvince,
+                        taxCode: ward.taxCode,
+                      }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
 
           <div className="mt-6 border-t border-neutral-100 pt-5">
             <h3 className="text-sm font-medium text-neutral-800">Privacy</h3>

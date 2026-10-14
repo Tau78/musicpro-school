@@ -276,7 +276,10 @@ export {
   listMembersDetail,
   updateMember,
   updateOwnProfile,
+  listTutorWards,
+  updateWardProfile,
 } from "./members";
+export type { TutorWardSummary, OwnProfilePatch } from "./members";
 export {
   findDuplicateMembers,
   mergeDuplicateMembers,

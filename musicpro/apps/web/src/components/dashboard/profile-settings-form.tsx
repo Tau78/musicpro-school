@@ -3,7 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { updateOwnProfile } from "@musicpro/database";
+import { updateOwnProfile, updateWardProfile } from "@musicpro/database";
 
 import { createClient } from "@/lib/supabase/client";
 
@@ -30,7 +30,14 @@ function toDateInput(iso: string | null): string {
   return iso.slice(0, 10);
 }
 
-export function ProfileSettingsForm({ initial }: { initial: ProfileSettingsInitial }) {
+export function ProfileSettingsForm({
+  initial,
+  tutorMemberId,
+}: {
+  initial: ProfileSettingsInitial;
+  /** Se valorizzato, salva come tutore sul tutorato `initial.memberId`. */
+  tutorMemberId?: string;
+}) {
   const router = useRouter();
   const [firstName, setFirstName] = useState(initial.firstName);
   const [lastName, setLastName] = useState(initial.lastName);
@@ -63,7 +70,7 @@ export function ProfileSettingsForm({ initial }: { initial: ProfileSettingsIniti
 
     setBusy(true);
     const supabase = createClient();
-    const result = await updateOwnProfile(supabase, initial.memberId, {
+    const patch = {
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       phone: phone.trim() || null,
@@ -75,7 +82,15 @@ export function ProfileSettingsForm({ initial }: { initial: ProfileSettingsIniti
       birthPlace: birthPlace.trim() || null,
       birthProvince: birthProvince.trim() || null,
       taxCode: taxCode.trim() || null,
-    });
+    };
+    const result = tutorMemberId
+      ? await updateWardProfile(
+          supabase,
+          tutorMemberId,
+          initial.memberId,
+          patch,
+        )
+      : await updateOwnProfile(supabase, initial.memberId, patch);
     setBusy(false);
 
     if (!result.success) {
