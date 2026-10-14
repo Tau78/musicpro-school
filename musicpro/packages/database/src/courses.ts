@@ -69,7 +69,7 @@ export type CreateCourseInput = {
   maxStudents?: number;
   priceEur?: number;
   openingPrepaidLessons?: number;
-  /** Solo conversione prova: staff può iscrivere una bozza. */
+  /** Staff (admin/segreteria): iscrive anche con anagrafica incompleta (warning). */
   allowDraftEnrollment?: boolean;
 };
 
@@ -869,8 +869,7 @@ export async function createCourse(
     }
     if (isStudentEnrollmentIncomplete(student)) {
       const label = memberLabel(student.last_name, student.first_name);
-      // Conversione prova: solo staff può forzare con warning (allowDraftEnrollment).
-      // Bozza / CF+firma mancanti: altrimenti sempre blocco (anche se quota ok).
+      // Staff può forzare (allowDraftEnrollment) con warning; docente/altri bloccati.
       if (input.allowDraftEnrollment && actor.isStaff) {
         warnings.push(
           `Iscrizione incompleta per ${label}: completa il modulo (CF e firma) prima del corso regolare.`,

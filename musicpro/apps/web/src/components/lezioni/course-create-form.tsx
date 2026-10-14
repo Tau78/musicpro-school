@@ -236,6 +236,8 @@ export function CourseCreateForm({
         maxStudents: kind === "gruppo" ? maxStudents : 1,
         priceEur: parsedPrice,
         openingPrepaidLessons,
+        // Admin/segreteria: forza iscrizione anche con anagrafica incompleta (warning).
+        allowDraftEnrollment: isStaff,
       },
       { memberId: actorMemberId, isStaff, canCreateCourses },
     );
