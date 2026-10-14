@@ -50,7 +50,7 @@ export default async function LezioniCorsiPage() {
         </div>
       ) : null}
 
-      <CourseCards courses={courses} hrefFor={(id) => `/lezioni/corsi/${id}`} />
+      <CourseCards courses={courses} hrefBase="/lezioni/corsi" />
 
       {coordinated.length > 0 ? (
         <section className="mt-8 space-y-4">
@@ -59,7 +59,7 @@ export default async function LezioniCorsiPage() {
           </h3>
           <CourseCards
             courses={coordinated}
-            hrefFor={(id) => `/lezioni/corsi/${id}`}
+            hrefBase="/lezioni/corsi"
             badge="Coordino"
           />
         </section>

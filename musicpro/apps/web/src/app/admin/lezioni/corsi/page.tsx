@@ -41,10 +41,7 @@ export default async function AdminLezioniCorsiPage() {
         </Link>
       </div>
 
-      <CourseCards
-        courses={courses}
-        hrefFor={(id) => `/admin/lezioni/corsi/${id}`}
-      />
+      <CourseCards courses={courses} hrefBase="/admin/lezioni/corsi" />
     </div>
   );
 }
