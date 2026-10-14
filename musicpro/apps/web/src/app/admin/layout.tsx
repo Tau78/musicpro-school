@@ -36,6 +36,7 @@ import { firstSettingsHref } from "@/lib/admin/settings-nav";
 import { isLessonsModuleEnabled } from "@/lib/lessons-module";
 
 import { AdminPageLoading } from "@/components/admin/admin-page-loading";
+import { BlurActiveOnNavigate } from "@/components/navigation/blur-active-on-navigate";
 
 export const dynamic = "force-dynamic";
 
@@ -112,6 +113,7 @@ export default async function AdminLayout({
 
   return (
     <div className="min-h-screen bg-[var(--background)] pb-[calc(4.25rem+max(0.625rem,env(safe-area-inset-bottom,0.625rem)))] md:pb-0">
+      <BlurActiveOnNavigate />
       <header className="bg-[var(--brand)] text-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-2 sm:px-6 sm:py-2.5">
           <div className="min-w-0">
