@@ -11,6 +11,7 @@ import { AssociatePageShell } from "@/components/associate/associate-page-shell"
 import { MyLessonFeesPanel } from "@/components/associate/my-lesson-fees-panel";
 import { HeaderSettingsActions } from "@/components/dashboard/header-settings-actions";
 import { LessonsUnavailableNotice } from "@/components/lezioni/lessons-unavailable-notice";
+import { canAccessAdmin } from "@/lib/admin/roles";
 import { isLessonsModuleEnabled } from "@/lib/lessons-module";
 import { createClient } from "@/lib/supabase/server";
 
@@ -46,9 +47,10 @@ export default async function DashboardRettePage({ searchParams }: PageProps) {
     }
   }
 
-  return (
-    <AssociatePageShell actions={<HeaderSettingsActions />}>
-      <div className="space-y-5">
+  const inAdminShell = canAccessAdmin(member.roles);
+
+  const body = (
+      <div className={`space-y-5 ${inAdminShell ? "mx-auto max-w-3xl" : ""}`}>
         <div>
           <Link
             href="/dashboard"
@@ -83,6 +85,15 @@ export default async function DashboardRettePage({ searchParams }: PageProps) {
           <MyLessonFeesPanel fees={fees} paymentComplete={paymentComplete} />
         ) : null}
       </div>
+  );
+
+  if (inAdminShell) {
+    return body;
+  }
+
+  return (
+    <AssociatePageShell actions={<HeaderSettingsActions />}>
+      {body}
     </AssociatePageShell>
   );
 }
