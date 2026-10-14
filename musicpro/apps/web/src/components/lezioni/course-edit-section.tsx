@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -101,6 +101,15 @@ export function CourseEditSection({
   const [schedulePatch, setSchedulePatch] = useState<PatchCourseInput | null>(
     null,
   );
+  const scheduleStepRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!schedulePreview) return;
+    scheduleStepRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }, [schedulePreview]);
 
   const weekdayOptions = useMemo(() => {
     const entries = Object.entries(WEEKDAY_LABELS) as [string, string][];
@@ -146,12 +155,23 @@ export function CourseEditSection({
         };
   }
 
-  function slotChanged(input: PatchCourseInput): boolean {
+  function scheduleChanged(input: PatchCourseInput): boolean {
     return (
       input.durationMinutes !== course.durationMinutes ||
       input.weeklyDow !== course.weeklyDow ||
       input.weeklyStartMinute !== course.weeklyStartMinute ||
-      (input.roomId !== undefined && input.roomId !== course.roomId)
+      (input.roomId !== undefined && input.roomId !== course.roomId) ||
+      (input.startsOn !== undefined && input.startsOn !== course.startsOn)
+    );
+  }
+
+  function metaChanged(input: PatchCourseInput): boolean {
+    if (mode !== "staff") return false;
+    return (
+      (input.subjectId !== undefined && input.subjectId !== course.subjectId) ||
+      (input.priceEur !== undefined && input.priceEur !== course.priceEur) ||
+      (input.maxStudents !== undefined &&
+        input.maxStudents !== course.maxStudents)
     );
   }
 
@@ -164,9 +184,17 @@ export function CourseEditSection({
     const input = buildPatchInput();
     const actor = { memberId: actorMemberId, isStaff, canReschedule };
     const needsSchedule =
-      slotChanged(input) &&
+      scheduleChanged(input) &&
       !course.isTrial &&
-      (course.status === "attivo" || course.status === "in_pausa");
+      (course.status === "attivo" ||
+        course.status === "in_pausa" ||
+        course.status === "in_attesa");
+
+    if (!scheduleChanged(input) && !metaChanged(input)) {
+      setBusy(false);
+      setEditing(false);
+      return;
+    }
 
     if (needsSchedule) {
       const preview = await previewCourseScheduleResync(
@@ -287,8 +315,27 @@ export function CourseEditSection({
             <Row label="Chiuso il" value={course.closedOn} />
           ) : null}
         </dl>
+      ) : schedulePreview && schedulePatch ? (
+        <div ref={scheduleStepRef} className="space-y-2">
+          <p className="rounded-lg border border-[var(--brand)]/20 bg-[var(--brand)]/5 px-3 py-2 text-sm text-[var(--brand)]">
+            Step 2 di 2 — conferma la nuova programmazione, poi salva.
+          </p>
+          <CourseScheduleResyncPanel
+            preview={schedulePreview}
+            busy={busy}
+            onCancel={() => {
+              setSchedulePreview(null);
+              setSchedulePatch(null);
+            }}
+            onConfirm={(rows) => void handleConfirmSchedule(rows)}
+          />
+        </div>
       ) : (
         <form onSubmit={(e) => void handleSave(e)} className="space-y-3">
+          <p className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs text-neutral-600">
+            Se cambi giorno, ora, sala, durata o data inizio, dopo Salva compare
+            lo step «Nuova programmazione» per confermare le lezioni.
+          </p>
           <div className="grid grid-cols-2 gap-3">
             {mode === "staff" ? (
               <label className="min-w-0 text-sm">
@@ -462,20 +509,6 @@ export function CourseEditSection({
           </div>
         </form>
       )}
-
-      {schedulePreview && schedulePatch ? (
-        <div className="mt-3">
-          <CourseScheduleResyncPanel
-            preview={schedulePreview}
-            busy={busy}
-            onCancel={() => {
-              setSchedulePreview(null);
-              setSchedulePatch(null);
-            }}
-            onConfirm={(rows) => void handleConfirmSchedule(rows)}
-          />
-        </div>
-      ) : null}
     </section>
   );
 }
