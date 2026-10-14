@@ -19,5 +19,11 @@ export default async function LezioniPage() {
 
   const data = await loadTeacherHomeData(member.id);
 
-  return <TeacherHome firstName={member.firstName} data={data} />;
+  return (
+    <TeacherHome
+      firstName={member.firstName}
+      actorMemberId={member.id}
+      data={data}
+    />
+  );
 }
