@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   getCurrentSchoolCourseTerm,
   getLessonSchoolSettings,
+  listCoursePackPrices,
   listLessonSubjects,
   listMemberIdsWithRole,
   listMembers,
@@ -92,13 +93,14 @@ export function roomsByIdFromList(
 }
 
 export async function loadCourseCreateData(client: Client, includeTeachers: boolean) {
-  const [subjects, rooms, members, settings, currentTerm, docenteIds] =
+  const [subjects, rooms, members, settings, currentTerm, packPrices, docenteIds] =
     await Promise.all([
       listLessonSubjects(client),
       listRoomsForLessons(client),
       listMembers(client),
       getLessonSchoolSettings(client),
       getCurrentSchoolCourseTerm(client),
+      listCoursePackPrices(client),
       includeTeachers
         ? listMemberIdsWithRole(client, MemberRole.Docente)
         : Promise.resolve<string[]>([]),
@@ -134,5 +136,10 @@ export async function loadCourseCreateData(client: Client, includeTeachers: bool
     defaultGroupCapacity: settings?.defaultGroupCapacity ?? 8,
     currentTerm: term,
     teachers,
+    packPrices: packPrices.map((row) => ({
+      courseKind: row.courseKind,
+      durationMinutes: row.durationMinutes,
+      amountEur: row.amountEur,
+    })),
   };
 }

@@ -527,11 +527,15 @@ export {
   placeLesson,
   rejectCourse,
   transferCourseTitular,
+  patchCourse,
+  getCourseDeletePreview,
+  adminDeleteCourse,
 } from "./courses";
 export type {
   Course,
   CourseDetail,
   CourseDurationMinutes,
+  CourseDeletePreview,
   CourseEnrollment,
   CourseEnrollmentWithMember,
   CourseMutationResult,
@@ -541,6 +545,7 @@ export type {
   CourseTitular,
   CreateCourseActor,
   CreateCourseInput,
+  PatchCourseInput,
   LessonScheduleActor,
   Lesson,
   LessonKind,

@@ -4,6 +4,8 @@ import {
   getActiveCourseCoordinator,
   getCourse,
   getLessonSchoolSettings,
+  listCoursePackPrices,
+  listLessonSubjects,
   listMemberIdsWithRole,
   listMembers,
   listRoomsForLessons,
@@ -38,16 +40,27 @@ export default async function AdminCorsoDetailPage({ params }: PageProps) {
     );
   }
 
-  const [course, lessons, rooms, docenteIds, members, coordinator, settings] =
-    await Promise.all([
-      getCourse(supabase, id),
-      loadCourseLessons(supabase, id),
-      listRoomsForLessons(supabase),
-      listMemberIdsWithRole(supabase, MemberRole.Docente),
-      listMembers(supabase),
-      getActiveCourseCoordinator(supabase, id),
-      getLessonSchoolSettings(supabase),
-    ]);
+  const [
+    course,
+    lessons,
+    rooms,
+    docenteIds,
+    members,
+    coordinator,
+    settings,
+    subjects,
+    packPrices,
+  ] = await Promise.all([
+    getCourse(supabase, id),
+    loadCourseLessons(supabase, id),
+    listRoomsForLessons(supabase),
+    listMemberIdsWithRole(supabase, MemberRole.Docente),
+    listMembers(supabase),
+    getActiveCourseCoordinator(supabase, id),
+    getLessonSchoolSettings(supabase),
+    listLessonSubjects(supabase),
+    listCoursePackPrices(supabase),
+  ]);
 
   if (!course) {
     notFound();
@@ -83,6 +96,15 @@ export default async function AdminCorsoDetailPage({ params }: PageProps) {
         canReschedule
         teachers={teachers}
         slotStepMinutes={settings?.slotGranularityMinutes ?? 15}
+        editSubjects={subjects.map((row) => ({ id: row.id, name: row.name }))}
+        editPackPrices={packPrices.map((row) => ({
+          courseKind: row.courseKind,
+          durationMinutes: row.durationMinutes,
+          amountEur: row.amountEur,
+        }))}
+        sundayVisible={settings?.sundayVisible ?? false}
+        gridOpenMinute={settings?.gridOpenMinute ?? 600}
+        gridCloseMinute={settings?.gridCloseMinute ?? 1380}
       />
       {!course.isTrial ? (
         <AssignCoordinatorForm

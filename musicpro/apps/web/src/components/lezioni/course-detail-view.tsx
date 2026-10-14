@@ -8,6 +8,7 @@ import {
   formatEuro,
   todayInRome,
   type CourseDetail,
+  type CourseKind,
   type Lesson,
 } from "@musicpro/database";
 
@@ -20,6 +21,8 @@ import {
   courseTrialLabel,
 } from "@/components/lezioni/course-labels";
 import { CashCollectionForm } from "@/components/lezioni/cash-collection-form";
+import { CourseDeleteButton } from "@/components/lezioni/course-delete-button";
+import { CourseEditSection } from "@/components/lezioni/course-edit-section";
 import { CourseLifecycleActions } from "@/components/lezioni/course-lifecycle-actions";
 import { LessonAttendancePanel } from "@/components/lezioni/lesson-attendance-panel";
 import { PlaceLessonForm } from "@/components/lezioni/place-lesson-form";
@@ -56,6 +59,11 @@ export function CourseDetailView({
   teachers = [],
   readOnly = false,
   slotStepMinutes = 15,
+  editSubjects = [],
+  editPackPrices = [],
+  sundayVisible = false,
+  gridOpenMinute = 600,
+  gridCloseMinute = 1380,
 }: {
   course: CourseDetail;
   lessons: Lesson[];
@@ -74,17 +82,33 @@ export function CourseDetailView({
   /** Coordinatore: stesso dettaglio, nessuna azione. */
   readOnly?: boolean;
   slotStepMinutes?: number;
+  editSubjects?: { id: string; name: string }[];
+  editPackPrices?: {
+    courseKind: CourseKind;
+    durationMinutes: number;
+    amountEur: number | null;
+  }[];
+  sundayVisible?: boolean;
+  gridOpenMinute?: number;
+  gridCloseMinute?: number;
 }) {
-  const titularLabel = course.titular
-    ? `${course.titular.lastName} ${course.titular.firstName}`.trim()
-    : "—";
-  const roomLabel =
-    course.courseKind === "online"
-      ? "Online"
-      : course.roomId
-        ? (roomsById[course.roomId] ?? "—")
-        : "—";
   const canMutate = !readOnly && Boolean(actorMemberId);
+  const canEditStaff =
+    canMutate &&
+    isStaff &&
+    !course.isTrial &&
+    course.status !== "chiuso" &&
+    course.status !== "rifiutato";
+  const canEditTeacher =
+    canMutate &&
+    !isStaff &&
+    actorMemberId === course.titularMemberId &&
+    canReschedule &&
+    !course.isTrial &&
+    (course.status === "attivo" || course.status === "in_pausa");
+  const editGridOpen = gridOpenMinute ?? 600;
+  const editGridClose = gridCloseMinute ?? 1380;
+  const editSunday = sundayVisible ?? false;
   const canPlace =
     canMutate &&
     canReschedule &&
@@ -176,28 +200,62 @@ export function CourseDetailView({
 
       {detailTab === "panoramica" ? (
         <>
-      <section className="rounded-xl bg-white px-3.5 py-3 shadow-sm ring-1 ring-black/5">
-        <h3 className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-[var(--brand)]">
-          Dettaglio
-        </h3>
-        <dl className="grid grid-cols-2 gap-3">
-          <Row label="Materia" value={course.subjectName ?? "—"} />
-          <Row label="Tipo" value={courseKindLabel(course.courseKind)} />
-          <Row label="Titolare" value={titularLabel} />
-          <Row label="Sala" value={roomLabel} />
-          <Row label="Slot" value={courseSlotLabel(course)} />
-          <Row label="Inizio" value={course.startsOn} />
-          {course.courseKind === "gruppo" ? (
-            <Row label="Capienza" value={String(course.maxStudents)} />
-          ) : null}
-          {showPrice ? (
-            <Row label="Prezzo" value={formatEuro(course.priceEur)} />
-          ) : null}
-          {course.closedOn ? (
-            <Row label="Chiuso il" value={course.closedOn} />
-          ) : null}
-        </dl>
-      </section>
+      {canEditStaff || canEditTeacher ? (
+        <CourseEditSection
+          course={course}
+          mode={canEditStaff ? "staff" : "teacher"}
+          actorMemberId={actorMemberId!}
+          isStaff={isStaff}
+          canReschedule={canReschedule}
+          subjects={editSubjects}
+          rooms={rooms}
+          packPrices={editPackPrices}
+          sundayVisible={editSunday}
+          gridOpenMinute={editGridOpen}
+          gridCloseMinute={editGridClose}
+          slotGranularityMinutes={slotStepMinutes}
+          showPrice={showPrice}
+        />
+      ) : (
+        <section className="rounded-xl bg-white px-3.5 py-3 shadow-sm ring-1 ring-black/5">
+          <h3 className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-[var(--brand)]">
+            Dettaglio
+          </h3>
+          <dl className="grid grid-cols-2 gap-3">
+            <Row label="Materia" value={course.subjectName ?? "—"} />
+            <Row label="Tipo" value={courseKindLabel(course.courseKind)} />
+            <Row
+              label="Titolare"
+              value={
+                course.titular
+                  ? `${course.titular.lastName} ${course.titular.firstName}`.trim()
+                  : "—"
+              }
+            />
+            <Row
+              label="Sala"
+              value={
+                course.courseKind === "online"
+                  ? "Online"
+                  : course.roomId
+                    ? (roomsById[course.roomId] ?? "—")
+                    : "—"
+              }
+            />
+            <Row label="Slot" value={courseSlotLabel(course)} />
+            <Row label="Inizio" value={course.startsOn} />
+            {course.courseKind === "gruppo" ? (
+              <Row label="Capienza" value={String(course.maxStudents)} />
+            ) : null}
+            {showPrice ? (
+              <Row label="Prezzo" value={formatEuro(course.priceEur)} />
+            ) : null}
+            {course.closedOn ? (
+              <Row label="Chiuso il" value={course.closedOn} />
+            ) : null}
+          </dl>
+        </section>
+      )}
 
       {canMutate && actorMemberId && !course.isTrial ? (
         <CourseLifecycleActions
@@ -205,6 +263,14 @@ export function CourseDetailView({
           actorMemberId={actorMemberId}
           isStaff={isStaff}
           canCloseCourses={isStaff || canCloseCourses}
+        />
+      ) : null}
+
+      {isStaff && canMutate && actorMemberId && !course.isTrial ? (
+        <CourseDeleteButton
+          course={course}
+          actorMemberId={actorMemberId}
+          backHref={backHref}
         />
       ) : null}
 

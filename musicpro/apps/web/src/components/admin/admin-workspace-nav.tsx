@@ -16,6 +16,11 @@ export type AdminWorkspaceNavGroup = {
   items: readonly { href: string; label: string }[];
 };
 
+function hrefMatchesItem(path: string, itemHref: string): boolean {
+  const itemPath = itemHref.split("?")[0] ?? itemHref;
+  return path === itemPath || path.startsWith(`${itemPath}/`);
+}
+
 function groupForHref(
   href: string | null,
   groups: readonly AdminWorkspaceNavGroup[],
@@ -24,9 +29,7 @@ function groupForHref(
   const pathOnly = href.split("?")[0] ?? href;
   return (
     groups.find((group) =>
-      group.items.some(
-        (item) => item.href === href || item.href.split("?")[0] === pathOnly,
-      ),
+      group.items.some((item) => hrefMatchesItem(pathOnly, item.href)),
     )?.label ??
     groups[0]?.label ??
     ""
@@ -92,13 +95,24 @@ export function AdminWorkspaceNav({
         >
           {groups.map((group) => {
             const active = group.label === activeGroup?.label;
+            const firstItem = group.items[0];
             return (
               <button
                 key={group.label}
                 type="button"
                 role="tab"
                 aria-selected={active}
-                onClick={() => setSelectedGroup(group.label)}
+                onClick={() => {
+                  if (!firstItem) return;
+                  setSelectedGroup(group.label);
+                  startTransition(() => {
+                    setOptimisticHref(firstItem.href);
+                  });
+                  router.push(firstItem.href);
+                }}
+                onPointerEnter={() => {
+                  if (firstItem) router.prefetch(firstItem.href);
+                }}
                 className={segmentClass(active)}
               >
                 {group.label}

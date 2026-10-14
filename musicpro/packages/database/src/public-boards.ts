@@ -172,7 +172,7 @@ export type BoardLessonSource = {
   siteLabel: string;
   /** Allievo, band o prenotante. Vuoto: si ricava dal corso. */
   who: string;
-  /** Strumento della lezione. Vuoto sulle prenotazioni sala. */
+  /** Strumento della lezione. Sulle prenotazioni sala: «SALA PROVE». */
   instrument: string;
   /** Microfoni della prenotazione. Vuoto sulle lezioni. */
   microphones: string;
@@ -932,7 +932,7 @@ export async function loadPublicTimetable(
       note: "",
       siteLabel: settings.siteLabel,
       who: booking.who,
-      instrument: "",
+      instrument: "SALA PROVE",
       microphones: booking.microphones,
       solo: booking.solo,
     })),
