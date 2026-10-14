@@ -1,8 +1,4 @@
-"use client";
-
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useTransition } from "react";
 
 import type { Course } from "@musicpro/database";
 
@@ -20,12 +16,10 @@ export function CourseCards({
   badge,
 }: {
   courses: Course[];
-  /** Prefisso path senza slash finale (es. `/admin/lezioni/corsi`). */
+  /** Prefisso path senza slash finale (es. `/admin/lezioni/corsi`). Solo stringa: serializzabile verso Client Components. */
   hrefBase: string;
   badge?: string;
 }) {
-  const router = useRouter();
-  const [, startTransition] = useTransition();
   const base = hrefBase.replace(/\/$/, "");
 
   if (courses.length === 0) {
@@ -46,12 +40,6 @@ export function CourseCards({
               href={href}
               prefetch
               scroll={false}
-              onPointerEnter={() => router.prefetch(href)}
-              onClick={() => {
-                startTransition(() => {
-                  router.prefetch(href);
-                });
-              }}
               className="flex items-center gap-4 px-4 py-3 transition-colors hover:bg-neutral-50 active:bg-neutral-100"
             >
               <div className="min-w-0 flex-1">

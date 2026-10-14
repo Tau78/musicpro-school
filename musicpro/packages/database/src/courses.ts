@@ -12,7 +12,10 @@ import {
   type SchoolClosure,
   type SchoolCourseTerm,
 } from "./lessons-settings";
-import { notifyCourseApproved } from "./lessons-notify";
+import {
+  notifyCourseApproved,
+  notifyCourseCreatedActive,
+} from "./lessons-notify";
 import {
   ensureOpenPackFee,
   maybeSendPackReminders,
@@ -1105,6 +1108,7 @@ export async function createCourse(
       );
     }
     if (generated.warnings) warnings.push(...generated.warnings);
+    void notifyCourseCreatedActive(client, { courseId }).catch(() => undefined);
   }
 
   return ok(courseId, warnings);
@@ -1623,14 +1627,18 @@ async function insertPlannedLessonRows(
         placement: "scheduled",
       });
     } else {
-      if (booked.errorCode !== "SLOT_TAKEN" && booked.errorMessage) {
+      if (booked.errorCode === "SLOT_TAKEN") {
+        warnings.push(
+          `Lezione ${entry.date}: sala occupata — compare in calendario come da piazzare.`,
+        );
+      } else if (booked.errorMessage) {
         warnings.push(`Lezione ${entry.date}: ${booked.errorMessage}`);
       }
       rows.push({
         course_id: course.id,
         sequence_number: sequence,
-        starts_at: null,
-        ends_at: null,
+        starts_at: entry.startsAt,
+        ends_at: entry.endsAt,
         room_id: course.roomId,
         booking_id: null,
         placement: "da_piazzare",

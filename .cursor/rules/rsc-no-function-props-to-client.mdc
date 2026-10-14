@@ -1,0 +1,25 @@
+---
+description: Mai passare funzioni da Server Component a Client Component (crash Next digest)
+alwaysApply: true
+---
+
+# RSC → Client: niente funzioni come props
+
+Passare una funzione (arrow, `hrefFor={(id)=>…}`, render prop) da una **Server Component** (`app/**` senza `"use client"`) a un **Client Component** (`"use client"`) fa crashare la pagina in produzione:
+
+`Functions cannot be passed directly to Client Components…` (digest tipo `1015345330`).
+
+## Obbligatorio
+
+- Props verso Client Components: solo dati **serializzabili** (string, number, boolean, plain object/array, `null`).
+- Link/liste: preferisci `hrefBase="/admin/lezioni/corsi"` (stringa) e costruisci l’URL **dentro** il client, oppure tieni la lista come **Server Component** e usa `<Link href={…}>` senza `"use client"`.
+- Event handler / callback: solo da Client → Client, oppure Server Action esplicita (`"use server"`).
+
+## Vietato
+
+- Aggiungere `"use client"` a un componente che riceve ancora props funzione dalle page server (es. `hrefFor`, `renderX`, `getHref`).
+- `hrefFor={(id) => \`/path/${id}\`}` verso un file con `"use client"`.
+
+## Check automatico
+
+`npm run lint -w @musicpro/web` esegue anche `scripts/check-rsc-client-function-props.mjs` (bloccante in VAI).
