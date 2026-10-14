@@ -526,6 +526,8 @@ export {
   listUnplacedLessons,
   placeLesson,
   rejectCourse,
+  repairAllCourseLessonCalendarTimes,
+  repairCourseLessonCalendarTimes,
   transferCourseTitular,
   patchCourse,
   previewCourseScheduleResync,
@@ -624,6 +626,7 @@ export {
 export type { FiscalReceiptRow } from "./lessons-receipts";
 export {
   notifyCourseApproved,
+  notifyCourseCreatedActive,
   notifyLessonScheduleChange,
   notifyPackPaymentLink,
   sendDueLessonReminders,

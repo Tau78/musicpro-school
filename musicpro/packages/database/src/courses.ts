@@ -1800,6 +1800,83 @@ export async function generateCourseLessons(
   return ok(courseId, warnings);
 }
 
+/** Ripristina `starts_at`/`ends_at` da programmazione corso (lezioni già in DB senza orario). */
+export async function repairCourseLessonCalendarTimes(
+  client: CoursesClient,
+  courseId: string,
+): Promise<CourseMutationResult> {
+  const course = await loadCourse(client, courseId);
+  if (!course) {
+    return fail("Corso non trovato.");
+  }
+
+  const { data: broken, error } = await client
+    .from("lessons")
+    .select("id, sequence_number")
+    .eq("course_id", courseId)
+    .is("cancelled_at", null)
+    .is("starts_at", null)
+    .order("sequence_number", { ascending: true });
+  if (error) {
+    return fail(error.message || "Impossibile leggere le lezioni.");
+  }
+  if (!broken?.length) {
+    return ok(courseId);
+  }
+
+  const term = await loadCourseTerm(client, course.termId);
+  if (!term) {
+    return fail("Manca l’anno corsi in Impostazioni.");
+  }
+
+  const closures = await listSchoolClosures(client);
+  const plan = buildCourseLessonSchedulePlan(
+    {
+      startsOn: course.startsOn,
+      weeklyDow: course.weeklyDow,
+      weeklyStartMinute: course.weeklyStartMinute,
+      durationMinutes: course.durationMinutes,
+    },
+    term,
+    closures,
+    { planFrom: maxDate(course.startsOn, term.startsOn) },
+  );
+
+  let fixed = 0;
+  for (const lesson of broken) {
+    const entry = plan.entries[lesson.sequence_number - 1];
+    if (!entry) continue;
+    const { error: updateError } = await client
+      .from("lessons")
+      .update({ starts_at: entry.startsAt, ends_at: entry.endsAt })
+      .eq("id", lesson.id);
+    if (!updateError) fixed += 1;
+  }
+
+  return ok(
+    courseId,
+    fixed > 0
+      ? [`Orari calendario ripristinati per ${fixed} lezione/i.`]
+      : undefined,
+  );
+}
+
+export async function repairAllCourseLessonCalendarTimes(
+  client: CoursesClient,
+): Promise<void> {
+  const { data, error } = await client
+    .from("lessons")
+    .select("course_id")
+    .is("cancelled_at", null)
+    .is("starts_at", null);
+  if (error || !data?.length) return;
+
+  const courseIds = [...new Set(data.map((row) => row.course_id))];
+  for (const courseId of courseIds) {
+    await repairCourseLessonCalendarTimes(client, courseId);
+  }
+}
+
 export async function placeLesson(
   client: CoursesClient,
   lessonId: string,

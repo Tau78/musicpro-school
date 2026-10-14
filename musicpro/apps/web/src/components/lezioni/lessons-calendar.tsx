@@ -74,6 +74,7 @@ export interface CalendarLesson {
   bookingStatus?: "pending" | "pending_approval" | "confirmed" | "cancelled";
   proviDaSolo?: boolean;
   calendarColorId?: string | null;
+  placement?: "scheduled" | "da_piazzare" | "da_recuperare";
 }
 
 export interface LessonsCalendarProps {
@@ -1715,7 +1716,9 @@ function lessonCardClass(lesson: CalendarLesson): string {
       : "bg-emerald-100 border-emerald-300";
   }
   const dashed =
-    lesson.courseStatus === "in_attesa" ? "border-dashed border-amber-400" : "";
+    lesson.courseStatus === "in_attesa" || lesson.placement === "da_piazzare"
+      ? "border-dashed border-amber-400"
+      : "";
   if (lesson.isTrial) {
     return `bg-rose-100 ${dashed || "border-rose-300"}`;
   }

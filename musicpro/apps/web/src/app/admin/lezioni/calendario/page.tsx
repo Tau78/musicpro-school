@@ -4,6 +4,7 @@ import {
   getLessonSchoolSettings,
   listMemberLabelsWithRole,
   listRoomsForLessons,
+  repairAllCourseLessonCalendarTimes,
   todayInRome,
 } from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
@@ -70,6 +71,8 @@ export default async function AdminLezioniCalendarioPage({
 
   const sundayVisible = settings?.sundayVisible ?? false;
   const bounds = calendarBounds(view, anchorDate, sundayVisible);
+
+  await repairAllCourseLessonCalendarTimes(supabase);
 
   const initialLessons = await loadUnifiedCalendarEvents(supabase, {
     view,

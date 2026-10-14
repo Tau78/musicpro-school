@@ -7,6 +7,7 @@ import {
   getTeacherProfile,
   listLessonsInRange,
   listRoomsForLessons,
+  repairAllCourseLessonCalendarTimes,
   todayInRome,
 } from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
@@ -52,6 +53,8 @@ export default async function LezioniCalendarioPage({
 
   const sundayVisible = settings?.sundayVisible ?? false;
   const bounds = calendarBounds(view, anchorDate, sundayVisible);
+
+  await repairAllCourseLessonCalendarTimes(supabase);
 
   const lessons = await listLessonsInRange(supabase, {
     from: bounds.from,
