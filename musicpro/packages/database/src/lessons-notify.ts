@@ -275,9 +275,9 @@ export async function notifyLessonScheduleChange(
   }
 }
 
-export async function notifyCourseApproved(
+async function notifyCourseReady(
   client: NotifyClient,
-  input: { courseId: string },
+  input: { courseId: string; subject: string; statusLine: string },
 ): Promise<void> {
   const { data: course, error: courseError } = await client
     .from("courses")
@@ -292,7 +292,7 @@ export async function notifyCourseApproved(
       "id, course_id, starts_at, room_id, placement, cancelled_at, kind, makeup_member_id, original_starts_at",
     )
     .eq("course_id", input.courseId)
-    .eq("placement", "scheduled")
+    .in("placement", ["scheduled", "da_piazzare"])
     .is("cancelled_at", null)
     .not("starts_at", "is", null)
     .order("starts_at", { ascending: true })
@@ -304,30 +304,92 @@ export async function notifyCourseApproved(
     firstLesson?.room_id ?? course.room_id,
   );
   const room = roomLabel(roomName, course.course_kind);
-  const subject = `Corso approvato — ${course.name}`;
 
-  const lines = [
-    "Ciao,",
-    "",
-    `il corso ${course.name} è stato approvato.`,
-  ];
-
+  const scheduleLines: string[] = [];
   if (firstLesson?.starts_at) {
     const when = formatRomeDateTime(firstLesson.starts_at);
-    lines.push("", `Prima lezione: ${when}`, `Sala: ${room}`);
+    scheduleLines.push(`Prima lezione: ${when}`, `Sala: ${room}`);
     const startsMs = Date.parse(firstLesson.starts_at);
     if (Number.isFinite(startsMs) && startsMs - Date.now() < APPROVAL_SOON_MS) {
-      lines.push("", "La prima lezione parte presto.");
+      scheduleLines.push("La prima lezione parte presto.");
+    }
+    if (firstLesson.placement === "da_piazzare") {
+      scheduleLines.push(
+        "La sala va ancora confermata: compare in calendario come da piazzare.",
+      );
     }
   } else {
-    lines.push("", "Ti comunicheremo data e ora della prima lezione.");
+    scheduleLines.push("Ti comunicheremo data e ora della prima lezione.");
   }
 
-  lines.push("", "A presto,", "MusicPro School");
-  const body = lines.join("\n");
+  const familyBody = [
+    "Ciao,",
+    "",
+    `il corso ${course.name} ${input.statusLine}`,
+    "",
+    ...scheduleLines,
+    "",
+    "A presto,",
+    "MusicPro School",
+  ].join("\n");
 
   const memberIds = await loadActiveEnrollmentMemberIds(client, course.id);
-  await notifyFamilies(client, memberIds, subject, body);
+  await notifyFamilies(client, memberIds, input.subject, familyBody);
+
+  const teacherEmails = await loadTeacherEmails(client, [
+    course.titular_member_id,
+  ]);
+  if (teacherEmails.length === 0) return;
+
+  const teacherBody = [
+    "Ciao,",
+    "",
+    `il corso ${course.name} ${input.statusLine}`,
+    "",
+    ...scheduleLines,
+    "",
+    "Calendario lezioni: accedi a MusicPro School → Lezioni → Calendario.",
+    "",
+    "MusicPro School",
+  ].join("\n");
+
+  for (const to of teacherEmails) {
+    await sendSingleEmail(client, { to, subject: input.subject, body: teacherBody });
+  }
+}
+
+export async function notifyCourseApproved(
+  client: NotifyClient,
+  input: { courseId: string },
+): Promise<void> {
+  const { data: course } = await client
+    .from("courses")
+    .select("name")
+    .eq("id", input.courseId)
+    .maybeSingle();
+  if (!course) return;
+  await notifyCourseReady(client, {
+    courseId: input.courseId,
+    subject: `Corso approvato — ${course.name}`,
+    statusLine: "è stato approvato.",
+  });
+}
+
+export async function notifyCourseCreatedActive(
+  client: NotifyClient,
+  input: { courseId: string },
+): Promise<void> {
+  const { data: course } = await client
+    .from("courses")
+    .select("name")
+    .eq("id", input.courseId)
+    .maybeSingle();
+  if (!course) return;
+  await notifyCourseReady(client, {
+    courseId: input.courseId,
+    subject: `Nuovo corso — ${course.name}`,
+    statusLine: "è attivo: le lezioni sono in calendario.",
+  });
 }
 
 export async function notifyPackPaymentLink(
