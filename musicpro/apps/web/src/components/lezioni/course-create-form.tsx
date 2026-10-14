@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   createCourse,
@@ -16,6 +16,49 @@ import {
 import { WEEKDAY_LABELS } from "@/components/lezioni/course-labels";
 import { createClient } from "@/lib/supabase/client";
 
+const DRAFT_KEY = "mps-course-create-draft-v1";
+
+type CourseCreateDraft = {
+  kind: CourseKind;
+  subjectId: string;
+  studentIds: string[];
+  roomId: string;
+  durationMinutes: CourseDurationMinutes;
+  weeklyDow: IsoWeekday;
+  weeklyStartMinute: number;
+  startsOn: string;
+  maxStudents: number;
+  priceEur: string;
+  openingPrepaid: string;
+  titularMemberId: string;
+};
+
+function readDraft(): CourseCreateDraft | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as CourseCreateDraft;
+  } catch {
+    return null;
+  }
+}
+
+function writeDraft(draft: CourseCreateDraft): void {
+  try {
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  } catch {
+    /* ignore */
+  }
+}
+
+function clearDraft(): void {
+  try {
+    sessionStorage.removeItem(DRAFT_KEY);
+  } catch {
+    /* ignore */
+  }
+}
 export type CourseCreateFormTerm = {
   id: string;
   label: string;
@@ -144,6 +187,79 @@ export function CourseCreateForm({
   const [error, setError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [createdId, setCreatedId] = useState<string | null>(null);
+  const [draftReady, setDraftReady] = useState(false);
+
+  useEffect(() => {
+    const draft = readDraft();
+    if (draft) {
+      if (draft.kind) setKind(draft.kind);
+      if (draft.subjectId && subjects.some((s) => s.id === draft.subjectId)) {
+        setSubjectId(draft.subjectId);
+      }
+      if (draft.studentIds?.length) {
+        setStudentIds(
+          draft.studentIds.filter((id) => members.some((m) => m.id === id)),
+        );
+      }
+      if (draft.roomId && rooms.some((r) => r.id === draft.roomId)) {
+        setRoomId(draft.roomId);
+      }
+      if (draft.durationMinutes && DURATIONS.includes(draft.durationMinutes)) {
+        setDurationMinutes(draft.durationMinutes);
+      }
+      if (draft.weeklyDow) setWeeklyDow(draft.weeklyDow);
+      if (typeof draft.weeklyStartMinute === "number") {
+        setWeeklyStartMinute(draft.weeklyStartMinute);
+      }
+      if (draft.startsOn) setStartsOn(draft.startsOn);
+      if (typeof draft.maxStudents === "number") {
+        setMaxStudents(draft.maxStudents);
+      }
+      if (draft.priceEur != null) setPriceEur(draft.priceEur);
+      if (draft.openingPrepaid != null) setOpeningPrepaid(draft.openingPrepaid);
+      if (
+        draft.titularMemberId &&
+        teachers?.some((t) => t.id === draft.titularMemberId)
+      ) {
+        setTitularMemberId(draft.titularMemberId);
+      }
+    }
+    setDraftReady(true);
+    // Solo idratazione iniziale dalla bozza di sessione.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!draftReady) return;
+    writeDraft({
+      kind,
+      subjectId,
+      studentIds,
+      roomId,
+      durationMinutes,
+      weeklyDow,
+      weeklyStartMinute,
+      startsOn,
+      maxStudents,
+      priceEur,
+      openingPrepaid,
+      titularMemberId,
+    });
+  }, [
+    draftReady,
+    kind,
+    subjectId,
+    studentIds,
+    roomId,
+    durationMinutes,
+    weeklyDow,
+    weeklyStartMinute,
+    startsOn,
+    maxStudents,
+    priceEur,
+    openingPrepaid,
+    titularMemberId,
+  ]);
 
   const maxSelectable = kind === "gruppo" ? maxStudents : 1;
   const membersById = useMemo(
@@ -250,12 +366,14 @@ export function CourseCreateForm({
     }
 
     if (result.warnings?.length) {
+      clearDraft();
       setWarnings(result.warnings);
       setCreatedId(result.id ?? null);
       return;
     }
 
     if (result.id) {
+      clearDraft();
       router.push(detailHref(result.id));
       router.refresh();
     }
@@ -561,6 +679,7 @@ export function CourseCreateForm({
         </button>
         <Link
           href={listHref}
+          onClick={() => clearDraft()}
           className="text-sm text-[var(--brand)] hover:underline"
         >
           Annulla

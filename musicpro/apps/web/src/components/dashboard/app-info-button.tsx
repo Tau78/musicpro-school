@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import {
@@ -48,7 +49,12 @@ export function AppInfoButton({
   label?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
   const info = getAppBuildInfo();
+
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     if (!open) return;
@@ -76,7 +82,7 @@ export function AppInfoButton({
 
       {open ? (
         <div
-          className="fixed inset-0 z-[100] flex items-end justify-center bg-black/40 p-4 sm:items-center"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
           onClick={() => setOpen(false)}
           role="presentation"
         >
@@ -84,7 +90,7 @@ export function AppInfoButton({
             role="dialog"
             aria-modal="true"
             aria-labelledby="app-info-title"
-            className="max-h-[min(90vh,32rem)] w-full max-w-md overflow-y-auto rounded-xl bg-white p-5 shadow-lg"
+            className="max-h-[min(80vh,32rem)] w-full max-w-md overflow-y-auto rounded-xl bg-white p-5 shadow-lg"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3">

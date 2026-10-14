@@ -4,6 +4,7 @@ import { APP_NAME, type MemberRoleValue } from "@musicpro/shared";
 
 import { AdminNav } from "@/components/admin/admin-nav";
 import { HeaderSettingsActions } from "@/components/dashboard/header-settings-actions";
+import { BlurActiveOnNavigate } from "@/components/navigation/blur-active-on-navigate";
 import type { AdminShellNavConfig } from "@/lib/admin/shell-config";
 
 export function AdminShell({
@@ -23,6 +24,7 @@ export function AdminShell({
 }) {
   return (
     <div className="min-h-screen bg-[var(--background)] pb-[calc(4.25rem+max(0.625rem,env(safe-area-inset-bottom,0.625rem)))] md:pb-0">
+      <BlurActiveOnNavigate />
       <header className="bg-[var(--brand)] text-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-2 sm:px-6 sm:py-2.5">
           <div className="min-w-0">
