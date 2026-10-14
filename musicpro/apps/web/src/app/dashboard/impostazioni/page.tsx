@@ -76,7 +76,7 @@ export default async function DashboardImpostazioniPage() {
       getMembershipStatus(supabase, member.id).catch(() => null),
     ]);
 
-  const showAdminLink = canAccessAdmin(member.roles);
+  const inAdminShell = canAccessAdmin(member.roles);
   const detail = profile ?? null;
 
   const founderBands = myBands.filter((band) => band.myRole === "founder");
@@ -92,33 +92,19 @@ export default async function DashboardImpostazioniPage() {
       ? creditBalance.available
       : null;
 
-  return (
-    <AssociatePageShell
-      actions={
-        <div className="flex items-center gap-3">
-          <Link
-            href="/dashboard"
-            className="text-sm font-medium text-[var(--brand)] hover:underline"
-          >
-            Home
-          </Link>
-          {showAdminLink ? (
-            <Link
-              href="/admin"
-              className="text-sm text-neutral-600 hover:text-[var(--brand)]"
-            >
-              Admin
-            </Link>
-          ) : null}
-        </div>
-      }
-    >
-      <div className="space-y-8">
+  const body = (
+      <div className={`space-y-8 ${inAdminShell ? "mx-auto max-w-3xl" : ""}`}>
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-[var(--brand-accent)]">
-            {APP_NAME}
-          </p>
-          <h1 className="font-display mt-1 text-2xl font-semibold text-[var(--brand)]">
+          {!inAdminShell ? (
+            <p className="text-xs font-semibold uppercase tracking-wider text-[var(--brand-accent)]">
+              {APP_NAME}
+            </p>
+          ) : null}
+          <h1
+            className={`font-display text-2xl font-semibold text-[var(--brand)] ${
+              inAdminShell ? "" : "mt-1"
+            }`}
+          >
             La mia scheda
           </h1>
         </div>
@@ -367,6 +353,24 @@ export default async function DashboardImpostazioniPage() {
           </div>
         </section>
       </div>
+  );
+
+  if (inAdminShell) {
+    return body;
+  }
+
+  return (
+    <AssociatePageShell
+      actions={
+        <Link
+          href="/dashboard"
+          className="text-sm font-medium text-[var(--brand)] hover:underline"
+        >
+          Home
+        </Link>
+      }
+    >
+      {body}
     </AssociatePageShell>
   );
 }

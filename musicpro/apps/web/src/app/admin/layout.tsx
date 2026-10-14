@@ -122,14 +122,18 @@ export default async function AdminLayout({
               Amministrazione
             </h1>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             <Link
               href="/dashboard"
-              className="hidden text-sm text-white/80 hover:text-white sm:inline"
+              className="hidden shrink-0 text-sm text-white/80 hover:text-white sm:inline"
             >
               Dashboard
             </Link>
-            <HeaderSettingsActions variant="onBrand" />
+            <HeaderSettingsActions
+              variant="onBrand"
+              userFirstName={member.firstName}
+              userRoles={member.roles}
+            />
           </div>
         </div>
         <AdminNav

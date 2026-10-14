@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { APP_NAME } from "@musicpro/shared";
+import { APP_NAME, type MemberRoleValue } from "@musicpro/shared";
 
 import { AdminNav } from "@/components/admin/admin-nav";
 import { HeaderSettingsActions } from "@/components/dashboard/header-settings-actions";
@@ -11,23 +11,31 @@ export function AdminShell({
   title = "Amministrazione",
   children,
   wide = false,
+  userFirstName,
+  userRoles,
 }: {
   nav: AdminShellNavConfig;
   title?: string;
   children: React.ReactNode;
   wide?: boolean;
+  userFirstName?: string | null;
+  userRoles?: MemberRoleValue[];
 }) {
   return (
     <div className="min-h-screen bg-[var(--background)] pb-[calc(4.25rem+max(0.625rem,env(safe-area-inset-bottom,0.625rem)))] md:pb-0">
       <header className="bg-[var(--brand)] text-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-2 sm:px-6 sm:py-2.5">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-2 sm:px-6 sm:py-2.5">
           <div className="min-w-0">
             <p className="text-[10px] font-medium uppercase tracking-wide text-[var(--brand-accent)]">
               {APP_NAME}
             </p>
             <h1 className="truncate text-base font-semibold sm:text-lg">{title}</h1>
           </div>
-          <HeaderSettingsActions variant="onBrand" />
+          <HeaderSettingsActions
+            variant="onBrand"
+            userFirstName={userFirstName}
+            userRoles={userRoles}
+          />
         </div>
         <AdminNav {...nav} />
       </header>
