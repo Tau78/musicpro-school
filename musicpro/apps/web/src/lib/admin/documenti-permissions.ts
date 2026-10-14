@@ -33,21 +33,26 @@ function parseBool(value: string | undefined, defaultValue: boolean): boolean {
 /** Una lettura impostazioni documenti per richiesta (layout + pagine). */
 export const getDocumentiSegreteriaFlags = cache(
   async (): Promise<DocumentiSegreteriaFlags> => {
-    const supabase = await createClient();
-    const settings = await listAppSettings(supabase, Object.values(FLAG_KEYS));
-    const byKey = new Map(settings.map((s) => [s.key, s.value]));
+    try {
+      const supabase = await createClient();
+      const settings = await listAppSettings(supabase, Object.values(FLAG_KEYS));
+      const byKey = new Map(settings.map((s) => [s.key, s.value]));
 
-    return {
-      libro_associati: parseBool(
-        byKey.get(FLAG_KEYS.libro_associati),
-        DEFAULT_FLAGS.libro_associati,
-      ),
-      verbali: parseBool(byKey.get(FLAG_KEYS.verbali), DEFAULT_FLAGS.verbali),
-      libro_cespiti: parseBool(
-        byKey.get(FLAG_KEYS.libro_cespiti),
-        DEFAULT_FLAGS.libro_cespiti,
-      ),
-    };
+      return {
+        libro_associati: parseBool(
+          byKey.get(FLAG_KEYS.libro_associati),
+          DEFAULT_FLAGS.libro_associati,
+        ),
+        verbali: parseBool(byKey.get(FLAG_KEYS.verbali), DEFAULT_FLAGS.verbali),
+        libro_cespiti: parseBool(
+          byKey.get(FLAG_KEYS.libro_cespiti),
+          DEFAULT_FLAGS.libro_cespiti,
+        ),
+      };
+    } catch {
+      // Docenti e altri ruoli senza SELECT su app_settings non devono far crashare la shell.
+      return { ...DEFAULT_FLAGS };
+    }
   },
 );
 

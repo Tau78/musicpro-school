@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import {
   type AdminBookingListItem,
+  type CalendarLesson,
   formatBookingDateTime,
   formatCreditsCount,
   getRomeMinutesFromMidnight,
@@ -13,8 +14,8 @@ import {
 import { StaffQuickBookingAction } from "@/components/admin/staff-quick-booking-action";
 import {
   lessonCourseId,
-  type OggiLesson,
-} from "@/components/lezioni/lessons-oggi";
+  oggiLessonTitle,
+} from "@/lib/lezioni/oggi-lesson";
 import { roomVisualFromName } from "@/lib/ui/associate-theme";
 
 export interface StaffDashboardHubProps {
@@ -27,7 +28,7 @@ export interface StaffDashboardHubProps {
   arrearsCount: number;
   upcomingBookings: AdminBookingListItem[];
   bookingRooms?: Room[];
-  todayLessons: OggiLesson[];
+  todayLessons: CalendarLesson[];
   creditAvailable?: number;
   creditsInCirculation?: number | null;
   today?: string;
@@ -86,17 +87,13 @@ function ActionChip({
   );
 }
 
-function lessonTimeLabel(lesson: OggiLesson): string {
+function lessonTimeLabel(lesson: CalendarLesson): string {
   if (!lesson.startsAt) return "—";
   const start = minutesToTimeLabel(getRomeMinutesFromMidnight(lesson.startsAt));
   const end = lesson.endsAt
     ? minutesToTimeLabel(getRomeMinutesFromMidnight(lesson.endsAt))
     : null;
   return end ? `${start}–${end}` : start;
-}
-
-function lessonTitle(lesson: OggiLesson): string {
-  return lesson.courseName.trim() || lesson.studentNames[0] || "Lezione";
 }
 
 function CompactRow({
@@ -339,7 +336,7 @@ export function StaffDashboardHub({
                   <CompactRow
                     key={lesson.id}
                     href={`${courseDetailBasePath}/${lessonCourseId(lesson)}`}
-                    title={lessonTitle(lesson)}
+                    title={oggiLessonTitle(lesson)}
                     meta={`${lessonTimeLabel(lesson)}${lesson.roomName ? ` · ${lesson.roomName}` : ""}`}
                   />
                 ))}
