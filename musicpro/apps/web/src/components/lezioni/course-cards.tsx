@@ -1,4 +1,8 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useTransition } from "react";
 
 import type { Course } from "@musicpro/database";
 
@@ -19,6 +23,9 @@ export function CourseCards({
   hrefFor: (id: string) => string;
   badge?: string;
 }) {
+  const router = useRouter();
+  const [, startTransition] = useTransition();
+
   if (courses.length === 0) {
     return (
       <p className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 px-4 py-4 text-sm text-neutral-600">
@@ -29,40 +36,51 @@ export function CourseCards({
 
   return (
     <ul className="divide-y divide-neutral-200 rounded-xl border border-neutral-200 bg-white">
-      {courses.map((course) => (
-        <li key={course.id}>
-          <Link
-            href={hrefFor(course.id)}
-            className="flex items-center gap-4 px-4 py-3 transition-colors hover:bg-neutral-50"
-          >
-            <div className="min-w-0 flex-1">
-              <p className="truncate font-medium text-neutral-900">
-                {course.name}
-              </p>
-              <p className="truncate text-sm text-neutral-500">
-                {courseSlotLabel(course)}
-              </p>
-            </div>
-            {badge ? (
-              <span className="shrink-0 rounded-full bg-violet-50 px-2.5 py-0.5 text-xs font-medium text-violet-800">
-                {badge}
-              </span>
-            ) : null}
-            {course.isTrial ? (
-              <span
-                className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${courseTrialBadgeClass()}`}
-              >
-                {courseTrialLabel()}
-              </span>
-            ) : null}
-            <span
-              className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${courseStatusClass(course.status)}`}
+      {courses.map((course) => {
+        const href = hrefFor(course.id);
+        return (
+          <li key={course.id}>
+            <Link
+              href={href}
+              prefetch
+              scroll={false}
+              onPointerEnter={() => router.prefetch(href)}
+              onClick={() => {
+                startTransition(() => {
+                  router.prefetch(href);
+                });
+              }}
+              className="flex items-center gap-4 px-4 py-3 transition-colors hover:bg-neutral-50 active:bg-neutral-100"
             >
-              {courseStatusLabel(course.status)}
-            </span>
-          </Link>
-        </li>
-      ))}
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-medium text-neutral-900">
+                  {course.name}
+                </p>
+                <p className="truncate text-sm text-neutral-500">
+                  {courseSlotLabel(course)}
+                </p>
+              </div>
+              {badge ? (
+                <span className="shrink-0 rounded-full bg-violet-50 px-2.5 py-0.5 text-xs font-medium text-violet-800">
+                  {badge}
+                </span>
+              ) : null}
+              {course.isTrial ? (
+                <span
+                  className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${courseTrialBadgeClass()}`}
+                >
+                  {courseTrialLabel()}
+                </span>
+              ) : null}
+              <span
+                className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${courseStatusClass(course.status)}`}
+              >
+                {courseStatusLabel(course.status)}
+              </span>
+            </Link>
+          </li>
+        );
+      })}
     </ul>
   );
 }

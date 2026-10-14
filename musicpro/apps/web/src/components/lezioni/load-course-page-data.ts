@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { cache } from "react";
 
 import {
   getCurrentSchoolCourseTerm,
@@ -13,7 +14,44 @@ import {
 } from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
 
+import { createClient } from "@/lib/supabase/server";
+
 type Client = SupabaseClient<Database>;
+
+export const loadLessonSchoolSettingsCached = cache(async () => {
+  const supabase = await createClient();
+  return getLessonSchoolSettings(supabase);
+});
+
+export const loadRoomsForLessonsCached = cache(async () => {
+  const supabase = await createClient();
+  return listRoomsForLessons(supabase);
+});
+
+export const loadLessonSubjectsCached = cache(async () => {
+  const supabase = await createClient();
+  return listLessonSubjects(supabase);
+});
+
+export const loadCoursePackPricesCached = cache(async () => {
+  const supabase = await createClient();
+  return listCoursePackPrices(supabase);
+});
+
+export const loadDocenteTeacherOptionsCached = cache(async () => {
+  const supabase = await createClient();
+  const [docenteIds, members] = await Promise.all([
+    listMemberIdsWithRole(supabase, MemberRole.Docente),
+    listMembers(supabase),
+  ]);
+  const docenteIdSet = new Set(docenteIds);
+  return members
+    .filter((row) => docenteIdSet.has(row.id))
+    .map((row) => ({
+      id: row.id,
+      label: `${row.lastName} ${row.firstName}`.trim(),
+    }));
+});
 
 /** Consumi wallet per riga tab Programmazione. */
 export type CourseLessonProgrammingHint = {

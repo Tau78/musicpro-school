@@ -1,22 +1,23 @@
+import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
 
-import {
-  getActiveCourseCoordinator,
-  getCourse,
-  getLessonSchoolSettings,
-  listCoursePackPrices,
-  listLessonSubjects,
-  listMemberIdsWithRole,
-  listMembers,
-  listRoomsForLessons,
-} from "@musicpro/database";
+import { getCourse } from "@musicpro/database";
 import { MemberRole } from "@musicpro/shared";
 
-import { AssignCoordinatorForm } from "@/components/lezioni/assign-coordinator-form";
+import {
+  AdminCourseCoordinatorSection,
+  AdminCourseCoordinatorSectionSkeleton,
+} from "@/components/lezioni/admin-course-coordinator-section";
+import { CourseDetailPageLoading } from "@/components/lezioni/course-detail-page-loading";
 import { CourseDetailView } from "@/components/lezioni/course-detail-view";
 import {
   loadCourseLessons,
+  loadCoursePackPricesCached,
   loadCourseProgrammingHints,
+  loadDocenteTeacherOptionsCached,
+  loadLessonSchoolSettingsCached,
+  loadLessonSubjectsCached,
+  loadRoomsForLessonsCached,
   roomsByIdFromList,
 } from "@/components/lezioni/load-course-page-data";
 import { getAdminMember } from "@/lib/admin/current-member";
@@ -27,7 +28,15 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-export default async function AdminCorsoDetailPage({ params }: PageProps) {
+export default function AdminCorsoDetailPage(props: PageProps) {
+  return (
+    <Suspense fallback={<CourseDetailPageLoading />}>
+      <AdminCorsoDetailContent {...props} />
+    </Suspense>
+  );
+}
+
+async function AdminCorsoDetailContent({ params }: PageProps) {
   const { id } = await params;
   const supabase = await createClient();
   const member = await getAdminMember();
@@ -40,27 +49,16 @@ export default async function AdminCorsoDetailPage({ params }: PageProps) {
     );
   }
 
-  const [
-    course,
-    lessons,
-    rooms,
-    docenteIds,
-    members,
-    coordinator,
-    settings,
-    subjects,
-    packPrices,
-  ] = await Promise.all([
-    getCourse(supabase, id),
-    loadCourseLessons(supabase, id),
-    listRoomsForLessons(supabase),
-    listMemberIdsWithRole(supabase, MemberRole.Docente),
-    listMembers(supabase),
-    getActiveCourseCoordinator(supabase, id),
-    getLessonSchoolSettings(supabase),
-    listLessonSubjects(supabase),
-    listCoursePackPrices(supabase),
-  ]);
+  const [course, lessons, rooms, settings, subjects, packPrices, teachers] =
+    await Promise.all([
+      getCourse(supabase, id),
+      loadCourseLessons(supabase, id),
+      loadRoomsForLessonsCached(),
+      loadLessonSchoolSettingsCached(),
+      loadLessonSubjectsCached(),
+      loadCoursePackPricesCached(),
+      loadDocenteTeacherOptionsCached(),
+    ]);
 
   if (!course) {
     notFound();
@@ -70,14 +68,6 @@ export default async function AdminCorsoDetailPage({ params }: PageProps) {
     supabase,
     lessons.map((lesson) => lesson.id),
   );
-
-  const docenteIdSet = new Set(docenteIds);
-  const teachers = members
-    .filter((row) => docenteIdSet.has(row.id))
-    .map((row) => ({
-      id: row.id,
-      label: `${row.lastName} ${row.firstName}`.trim(),
-    }));
 
   return (
     <div className="space-y-6">
@@ -107,23 +97,13 @@ export default async function AdminCorsoDetailPage({ params }: PageProps) {
         gridCloseMinute={settings?.gridCloseMinute ?? 1380}
       />
       {!course.isTrial ? (
-        <AssignCoordinatorForm
-          key={coordinator?.memberId ?? "none"}
-          courseId={course.id}
-          titularMemberId={course.titularMemberId}
-          actorMemberId={member.id}
-          teachers={teachers}
-          current={
-            coordinator
-              ? {
-                  memberId: coordinator.memberId,
-                  firstName: coordinator.firstName,
-                  lastName: coordinator.lastName,
-                  startsOn: coordinator.startsOn,
-                }
-              : null
-          }
-        />
+        <Suspense fallback={<AdminCourseCoordinatorSectionSkeleton />}>
+          <AdminCourseCoordinatorSection
+            courseId={course.id}
+            titularMemberId={course.titularMemberId}
+            actorMemberId={member.id}
+          />
+        </Suspense>
       ) : null}
     </div>
   );
