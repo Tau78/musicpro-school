@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   formatBookingDateTime,
@@ -47,6 +47,12 @@ export function CourseScheduleResyncPanel({
   onConfirm: (rows: ApplyCourseScheduleRow[]) => void;
 }) {
   const [rows, setRows] = useState(preview.rows);
+
+  // Ogni nuovo preview (es. dopo aver cambiato di nuovo il giorno) deve
+  // sostituire le righe: useState tiene solo il primo mount.
+  useEffect(() => {
+    setRows(preview.rows);
+  }, [preview]);
 
   const includedCount = useMemo(
     () => rows.filter((row) => row.included).length,

@@ -2181,25 +2181,29 @@ export async function patchCourse(
   const warnings: string[] = [];
 
   if (staffEdit) {
-    if (input.subjectId != null) {
+    if (input.subjectId != null && input.subjectId !== course.subjectId) {
       if (!input.subjectId.trim()) {
         return fail("La materia è obbligatoria.");
       }
       patch.subject_id = input.subjectId;
     }
-    if (input.startsOn != null) {
+    if (input.startsOn != null && input.startsOn !== course.startsOn) {
       if (!ISO_DATE_RE.test(input.startsOn)) {
         return fail("La data di inizio non è valida.");
       }
       patch.starts_on = input.startsOn;
     }
-    if (input.priceEur != null) {
+    if (input.priceEur != null && input.priceEur !== course.priceEur) {
       if (!Number.isFinite(input.priceEur) || input.priceEur < 0) {
         return fail("Il prezzo non è valido.");
       }
       patch.price_eur = input.priceEur;
     }
-    if (input.maxStudents != null && course.courseKind === "gruppo") {
+    if (
+      input.maxStudents != null &&
+      course.courseKind === "gruppo" &&
+      input.maxStudents !== course.maxStudents
+    ) {
       if (!Number.isInteger(input.maxStudents) || input.maxStudents < 1) {
         return fail("La capienza non è valida.");
       }
@@ -2207,55 +2211,70 @@ export async function patchCourse(
     }
   }
 
-  const slotFields =
-    input.roomId !== undefined ||
+  const slotChanging =
+    (input.durationMinutes != null &&
+      input.durationMinutes !== course.durationMinutes) ||
+    (input.weeklyDow != null && input.weeklyDow !== course.weeklyDow) ||
+    (input.weeklyStartMinute != null &&
+      input.weeklyStartMinute !== course.weeklyStartMinute) ||
+    (input.roomId !== undefined && input.roomId !== course.roomId) ||
+    (input.startsOn != null && input.startsOn !== course.startsOn);
+
+  if (
     input.durationMinutes != null ||
     input.weeklyDow != null ||
-    input.weeklyStartMinute != null;
-
-  if (slotFields) {
+    input.weeklyStartMinute != null ||
+    input.roomId !== undefined
+  ) {
     if (!staffEdit && !teacherEdit) {
       return fail("Non puoi modificare slot o sala.");
     }
+  }
 
-    if (input.durationMinutes != null) {
-      if (!DURATION_MINUTES.has(input.durationMinutes)) {
-        return fail("La durata deve essere 30, 45, 60 o 90 minuti.");
-      }
-      patch.duration_minutes = input.durationMinutes;
+  if (
+    input.durationMinutes != null &&
+    input.durationMinutes !== course.durationMinutes
+  ) {
+    if (!DURATION_MINUTES.has(input.durationMinutes)) {
+      return fail("La durata deve essere 30, 45, 60 o 90 minuti.");
     }
-    if (input.weeklyDow != null) {
-      if (!isIsoWeekday(input.weeklyDow)) {
-        return fail("Giorno della settimana non valido.");
-      }
-      patch.weekly_dow = input.weeklyDow;
+    patch.duration_minutes = input.durationMinutes;
+  }
+  if (input.weeklyDow != null && input.weeklyDow !== course.weeklyDow) {
+    if (!isIsoWeekday(input.weeklyDow)) {
+      return fail("Giorno della settimana non valido.");
     }
-    if (input.weeklyStartMinute != null) {
-      if (
-        !Number.isInteger(input.weeklyStartMinute) ||
-        input.weeklyStartMinute < 0 ||
-        input.weeklyStartMinute > 1439
-      ) {
-        return fail("L'orario settimanale non è valido.");
-      }
-      patch.weekly_start_minute = input.weeklyStartMinute;
+    patch.weekly_dow = input.weeklyDow;
+  }
+  if (
+    input.weeklyStartMinute != null &&
+    input.weeklyStartMinute !== course.weeklyStartMinute
+  ) {
+    if (
+      !Number.isInteger(input.weeklyStartMinute) ||
+      input.weeklyStartMinute < 0 ||
+      input.weeklyStartMinute > 1439
+    ) {
+      return fail("L'orario settimanale non è valido.");
     }
-    if (input.roomId !== undefined) {
-      if (course.courseKind === "online") {
-        if (input.roomId) {
-          return fail("Un corso online non può avere una sala.");
-        }
-        patch.room_id = null;
-      } else if (!input.roomId) {
-        return fail("La sala è obbligatoria.");
-      } else {
-        patch.room_id = input.roomId;
+    patch.weekly_start_minute = input.weeklyStartMinute;
+  }
+  if (input.roomId !== undefined && input.roomId !== course.roomId) {
+    if (course.courseKind === "online") {
+      if (input.roomId) {
+        return fail("Un corso online non può avere una sala.");
       }
+      patch.room_id = null;
+    } else if (!input.roomId) {
+      return fail("La sala è obbligatoria.");
+    } else {
+      patch.room_id = input.roomId;
     }
   }
 
   if (Object.keys(patch).length === 0) {
-    return fail("Nessuna modifica da salvare.");
+    // Salva senza differenze: ok silenzioso (evita errore fuorviante).
+    return ok(courseId);
   }
 
   if (patch.subject_id && patch.subject_id !== course.subjectId) {
@@ -2278,7 +2297,9 @@ export async function patchCourse(
     }
   }
 
-  if (slotFields && !options?.bypassSlotLessonGuard) {
+  // Solo se giorno/ora/sala/durata cambiano davvero: altrimenti il form
+  // rimandava sempre i campi slot e bloccava anche un Salva a vuoto.
+  if (slotChanging && !options?.bypassSlotLessonGuard) {
     const { data: lessonRows } = await client
       .from("lessons")
       .select("id")
