@@ -12,21 +12,26 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import {
+  cancelLessonAsSchool,
+  getLessonRoster,
   getRomeMinutesFromMidnight,
   minutesToTimeLabel,
+  saveLessonAttendance,
   todayInRome,
+  type AttendanceStatus,
 } from "@musicpro/database";
 
-import { LessonAttendancePanel } from "@/components/lezioni/lesson-attendance-panel";
 import type { CalendarLesson } from "@/components/lezioni/lessons-calendar";
 import { LessonsPrintButton } from "@/components/lezioni/lessons-print-button";
 import {
   lessonCourseId,
   type OggiLesson,
 } from "@/lib/lezioni/oggi-lesson";
+import { createClient } from "@/lib/supabase/client";
+import { logUsage } from "@/lib/usage-log";
 
 export type { OggiLesson };
 
@@ -49,6 +54,19 @@ function filterArrearsLessons(lessons: OggiLesson[]): OggiLesson[] {
   );
 }
 
+function studentLabel(lesson: OggiLesson): string {
+  const students = lesson.studentNames.filter(Boolean).join(", ");
+  if (students) return students;
+  return lesson.courseName.trim() || "Lezione";
+}
+
+function whenLabel(lesson: OggiLesson, withDate: boolean): string {
+  if (!lesson.startsAt) return "—";
+  const time = minutesToTimeLabel(getRomeMinutesFromMidnight(lesson.startsAt));
+  if (!withDate) return time;
+  return `${romeDayLabel(lesson.startsAt)} · ${time}`;
+}
+
 export function LessonsOggi({
   lessons,
   arrears = [],
@@ -59,23 +77,6 @@ export function LessonsOggi({
 }: LessonsOggiProps) {
   const router = useRouter();
   const today = todayInRome();
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const canExpand = Boolean(actorMemberId);
-
-  function openLesson(lesson: OggiLesson) {
-    if (canExpand) {
-      if (isHoldLesson(lesson)) return;
-      setExpandedId((current) => (current === lesson.id ? null : lesson.id));
-      return;
-    }
-    if (onOpenLesson) {
-      onOpenLesson(lesson.id);
-      return;
-    }
-    if (courseDetailBasePath) {
-      router.push(`${courseDetailBasePath}/${lessonCourseId(lesson)}`);
-    }
-  }
 
   const todayRows = sortByStart(
     lessons.filter(
@@ -97,13 +98,12 @@ export function LessonsOggi({
       ) : (
         <LessonOggiList
           rows={todayRows}
-          expandedId={expandedId}
-          canExpand={canExpand}
           actorMemberId={actorMemberId}
           isStaff={isStaff}
           courseDetailBasePath={courseDetailBasePath}
-          onOpen={openLesson}
+          onOpenLesson={onOpenLesson}
           onSaved={() => router.refresh()}
+          showDate={false}
         />
       )}
 
@@ -114,12 +114,10 @@ export function LessonsOggi({
           </h3>
           <LessonOggiList
             rows={arrearsRows}
-            expandedId={expandedId}
-            canExpand={canExpand}
             actorMemberId={actorMemberId}
             isStaff={isStaff}
             courseDetailBasePath={courseDetailBasePath}
-            onOpen={openLesson}
+            onOpenLesson={onOpenLesson}
             onSaved={() => router.refresh()}
             showDate
           />
@@ -131,122 +129,221 @@ export function LessonsOggi({
 
 function LessonOggiList({
   rows,
-  expandedId,
-  canExpand,
   actorMemberId,
   isStaff,
   courseDetailBasePath,
-  onOpen,
+  onOpenLesson,
   onSaved,
   showDate = false,
 }: {
   rows: OggiLesson[];
-  expandedId: string | null;
-  canExpand: boolean;
   actorMemberId?: string;
   isStaff: boolean;
   courseDetailBasePath?: string;
-  onOpen: (lesson: OggiLesson) => void;
+  onOpenLesson?: (lessonId: string) => void;
   onSaved: () => void;
   showDate?: boolean;
 }) {
   return (
     <ul className="divide-y divide-neutral-200 overflow-hidden rounded-xl border border-neutral-200 bg-white">
-      {rows.map((lesson) => {
-        const start = lesson.startsAt
-          ? minutesToTimeLabel(getRomeMinutesFromMidnight(lesson.startsAt))
-          : "—";
-        const end = lesson.endsAt
-          ? minutesToTimeLabel(getRomeMinutesFromMidnight(lesson.endsAt))
-          : null;
-        const name =
-          lesson.courseName.trim() || lesson.studentNames[0] || "Lezione";
-        const students = lesson.studentNames.filter(Boolean).join(", ");
-        const room =
-          lesson.courseKind === "online" ? "Online" : (lesson.roomName ?? "—");
-        const hold = isHoldLesson(lesson);
-        const expanded = expandedId === lesson.id;
-        const clickable =
-          canExpand || Boolean(onOpen || courseDetailBasePath);
-        const dayLabel =
-          showDate && lesson.startsAt ? romeDayLabel(lesson.startsAt) : null;
-
-        const inner = (
-          <>
-            <KindDot lesson={lesson} />
-            <p className="w-24 shrink-0 text-sm font-semibold tabular-nums text-[var(--brand)]">
-              {end ? `${start}–${end}` : start}
-            </p>
-            <div className="min-w-0 flex-1">
-              <p className="truncate font-medium text-neutral-900">
-                {dayLabel ? (
-                  <>
-                    <span className="font-normal text-neutral-500">
-                      {dayLabel}
-                    </span>{" "}
-                  </>
-                ) : null}
-                <span className="text-neutral-500">#{lesson.sequenceNumber}</span>{" "}
-                {name}
-              </p>
-              <p className="truncate text-sm text-neutral-500">
-                {students || "—"}
-                <span className="text-neutral-300"> · </span>
-                {room}
-              </p>
-            </div>
-            {hold ? null : lesson.hasAttendance ? (
-              <span className="shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
-                OK
-              </span>
-            ) : (
-              <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
-                Presenza
-              </span>
-            )}
-          </>
-        );
-
-        return (
-          <li key={lesson.id}>
-            <div className="flex items-stretch">
-              {clickable ? (
-                <button
-                  type="button"
-                  onClick={() => onOpen(lesson)}
-                  aria-expanded={canExpand ? expanded : undefined}
-                  className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3 text-left hover:bg-neutral-50"
-                >
-                  {inner}
-                </button>
-              ) : (
-                <div className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3">
-                  {inner}
-                </div>
-              )}
-              {courseDetailBasePath ? (
-                <Link
-                  href={`${courseDetailBasePath}/${lessonCourseId(lesson)}`}
-                  className="flex shrink-0 items-center px-3 text-xs font-medium text-[var(--brand)] hover:bg-neutral-50 hover:underline"
-                >
-                  Corso →
-                </Link>
-              ) : null}
-            </div>
-            {canExpand && expanded && actorMemberId ? (
-              <div className="border-t border-neutral-200 bg-neutral-50 px-4 py-4">
-                <LessonAttendancePanel
-                  lessonId={lesson.id}
-                  actorMemberId={actorMemberId}
-                  isStaff={isStaff}
-                  onSaved={onSaved}
-                />
-              </div>
-            ) : null}
-          </li>
-        );
-      })}
+      {rows.map((lesson) => (
+        <LessonOggiRow
+          key={lesson.id}
+          lesson={lesson}
+          actorMemberId={actorMemberId}
+          isStaff={isStaff}
+          courseDetailBasePath={courseDetailBasePath}
+          onOpenLesson={onOpenLesson}
+          onSaved={onSaved}
+          showDate={showDate}
+        />
+      ))}
     </ul>
+  );
+}
+
+function LessonOggiRow({
+  lesson,
+  actorMemberId,
+  isStaff,
+  courseDetailBasePath,
+  onOpenLesson,
+  onSaved,
+  showDate,
+}: {
+  lesson: OggiLesson;
+  actorMemberId?: string;
+  isStaff: boolean;
+  courseDetailBasePath?: string;
+  onOpenLesson?: (lessonId: string) => void;
+  onSaved: () => void;
+  showDate: boolean;
+}) {
+  const supabase = useMemo(() => createClient(), []);
+  const [busy, setBusy] = useState<"presente" | "assente" | "annulla" | null>(
+    null,
+  );
+  const [error, setError] = useState<string | null>(null);
+  const hold = isHoldLesson(lesson);
+  const canMark = Boolean(actorMemberId) && !hold && !lesson.hasAttendance;
+  const name = studentLabel(lesson);
+  const when = whenLabel(lesson, showDate);
+
+  async function markStatus(status: AttendanceStatus) {
+    if (!actorMemberId || busy) return;
+    setError(null);
+    setBusy(status === "presente" ? "presente" : "assente");
+    try {
+      const roster = await getLessonRoster(supabase, lesson.id, {
+        memberId: actorMemberId,
+        isStaff,
+      });
+      if (!roster) throw new Error("Lezione non trovata.");
+      if (!roster.canEdit) {
+        throw new Error(
+          roster.editBlockReason || "Non è possibile modificare le presenze.",
+        );
+      }
+      if (roster.students.length === 0) {
+        throw new Error("Nessun allievo in questa lezione.");
+      }
+      const result = await saveLessonAttendance(supabase, {
+        lessonId: lesson.id,
+        actorMemberId,
+        isStaff,
+        rows: roster.students.map((student) => ({
+          memberId: student.memberId,
+          status,
+        })),
+      });
+      if (!result.success) {
+        throw new Error(result.errorMessage ?? "Impossibile salvare le presenze.");
+      }
+      logUsage("lezioni.attendance.saved", {
+        properties: {
+          lessonId: lesson.id,
+          source: "oggi_da_segnare",
+          status,
+        },
+      });
+      const opened = result.packOpenedEnrollmentIds ?? [];
+      for (const enrollmentId of opened) {
+        try {
+          await fetch("/api/lezioni/pack-payment/request", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({ enrollmentId, notify: true }),
+          });
+        } catch {
+          /* link rette resta in admin */
+        }
+      }
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Operazione non riuscita.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function cancelLesson() {
+    if (!actorMemberId || busy) return;
+    const ok = window.confirm(
+      `Annullare la lezione di ${name} (${when})?\nL'orario torna libero e la lezione va in recupero.`,
+    );
+    if (!ok) return;
+    setError(null);
+    setBusy("annulla");
+    try {
+      const result = await cancelLessonAsSchool(supabase, lesson.id, {
+        memberId: actorMemberId,
+        isStaff,
+      });
+      if (!result.success) {
+        throw new Error(
+          result.errorMessage ?? "Impossibile annullare la lezione.",
+        );
+      }
+      logUsage("lezioni.lesson.cancelled_school", {
+        properties: { lessonId: lesson.id, source: "oggi_da_segnare" },
+      });
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Operazione non riuscita.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <li>
+      <div className="flex items-center gap-2 px-3 py-2.5">
+        <KindDot lesson={lesson} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-neutral-900">{name}</p>
+          <p className="truncate text-xs tabular-nums text-neutral-500">{when}</p>
+          {error ? (
+            <p className="mt-0.5 text-xs text-red-700">{error}</p>
+          ) : null}
+        </div>
+
+        {hold ? null : lesson.hasAttendance ? (
+          <span className="shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
+            OK
+          </span>
+        ) : canMark ? (
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              disabled={busy != null}
+              onClick={() => void markStatus("presente")}
+              className="rounded-md bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+            >
+              {busy === "presente" ? "…" : "Presente"}
+            </button>
+            <button
+              type="button"
+              disabled={busy != null}
+              onClick={() => void markStatus("assente")}
+              className="rounded-md bg-red-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+            >
+              {busy === "assente" ? "…" : "Assente"}
+            </button>
+            <button
+              type="button"
+              disabled={busy != null}
+              onClick={() => void cancelLesson()}
+              className="rounded-md bg-neutral-500 px-2 py-1 text-[11px] font-semibold text-white hover:bg-neutral-600 disabled:opacity-50"
+            >
+              {busy === "annulla" ? "…" : "Annulla"}
+            </button>
+          </div>
+        ) : onOpenLesson ? (
+          <button
+            type="button"
+            onClick={() => onOpenLesson(lesson.id)}
+            className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800"
+          >
+            Presenza
+          </button>
+        ) : (
+          <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+            Presenza
+          </span>
+        )}
+
+        {courseDetailBasePath ? (
+          <Link
+            href={`${courseDetailBasePath}/${lessonCourseId(lesson)}`}
+            aria-label={`Apri corso di ${name}`}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-lg font-medium text-[var(--brand)] hover:bg-neutral-50"
+          >
+            →
+          </Link>
+        ) : null}
+      </div>
+    </li>
   );
 }
 
