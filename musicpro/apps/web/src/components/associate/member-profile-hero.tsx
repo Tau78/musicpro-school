@@ -88,7 +88,7 @@ export function MemberProfileHero({
         ) : null}
 
         {roomCreditsHours != null ? (
-          <Link href="/dashboard/shop" className="glass-card block p-4">
+          <Link href="/dashboard/shop#storico" className="glass-card block p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
               Crediti
             </p>

@@ -139,7 +139,7 @@ export function MemberHome({
         ) : null}
 
         <Link
-          href="/dashboard/shop"
+          href="/dashboard/shop#storico"
           className="glass-card group block p-5 transition hover:border-[var(--brand)]/20"
         >
           <div className="flex items-start gap-3">
@@ -152,8 +152,8 @@ export function MemberHome({
               </p>
               <p className="mt-1 text-sm text-neutral-600">
                 {hasCredits
-                  ? `${formatCreditsCount(creditAvailable)} · acquista altri`
-                  : "Acquista crediti per le sale"}
+                  ? `${formatCreditsCount(creditAvailable)} · saldo e movimenti`
+                  : "Saldo, storico e acquisto crediti"}
               </p>
             </div>
           </div>

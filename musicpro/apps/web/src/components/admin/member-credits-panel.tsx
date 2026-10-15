@@ -6,44 +6,23 @@ import { useState } from "react";
 
 import {
   type CreditTransaction,
-  type CreditTransactionType,
   type MemberCreditBalance,
   adminAdjustMemberCredits,
-  formatDateItalian,
   getMemberCreditBalance,
   listMemberCreditTransactions,
 } from "@musicpro/database";
 
+import {
+  CREDIT_TRANSACTION_TYPE_LABELS,
+  formatCreditAmount,
+  formatCreditTransactionWhen,
+} from "@/components/shop/credit-transaction-display";
 import { createClient } from "@/lib/supabase/client";
-
-const TRANSACTION_TYPE_LABELS: Record<CreditTransactionType, string> = {
-  purchase: "Acquisto",
-  debit: "Addebito",
-  hold: "Blocco",
-  release: "Rilascio",
-  refund: "Rimborso",
-  adjustment: "Rettifica admin",
-  penalty: "Penale",
-};
 
 interface MemberCreditsPanelProps {
   memberId: string;
   initialBalance: MemberCreditBalance;
   initialTransactions: CreditTransaction[];
-}
-
-function formatCredits(amount: number): string {
-  const prefix = amount > 0 ? "+" : "";
-  return `${prefix}${amount}`;
-}
-
-function formatDateTime(iso: string): string {
-  const date = formatDateItalian(iso);
-  const time = new Date(iso).toLocaleTimeString("it-IT", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-  return `${date} ${time}`;
 }
 
 export function MemberCreditsPanel({
@@ -243,10 +222,10 @@ export function MemberCreditsPanel({
                 {transactions.map((tx) => (
                   <tr key={tx.id} className="text-neutral-800">
                     <td className="whitespace-nowrap px-4 py-2">
-                      {formatDateTime(tx.createdAt)}
+                      {formatCreditTransactionWhen(tx.createdAt)}
                     </td>
                     <td className="px-4 py-2">
-                      {TRANSACTION_TYPE_LABELS[tx.type] ?? tx.type}
+                      {CREDIT_TRANSACTION_TYPE_LABELS[tx.type] ?? tx.type}
                     </td>
                     <td
                       className={`px-4 py-2 text-right font-medium tabular-nums ${
@@ -257,7 +236,7 @@ export function MemberCreditsPanel({
                             : "text-neutral-600"
                       }`}
                     >
-                      {formatCredits(tx.amount)}
+                      {formatCreditAmount(tx.amount)}
                     </td>
                     <td className="max-w-xs truncate px-4 py-2">
                       {tx.reason ?? "—"}

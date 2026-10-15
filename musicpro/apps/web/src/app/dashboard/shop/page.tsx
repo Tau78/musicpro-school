@@ -5,11 +5,13 @@ import {
   getCurrentMemberWithRoles,
   getMemberCreditBalance,
   listActiveCreditPackages,
+  listMemberCreditTransactions,
 } from "@musicpro/database";
 import { APP_NAME } from "@musicpro/shared";
 
 import { HeaderSettingsActions } from "@/components/dashboard/header-settings-actions";
 import { CreditShopPackages } from "@/components/shop/credit-shop-packages";
+import { MemberCreditHistory } from "@/components/shop/member-credit-history";
 import { createClient } from "@/lib/supabase/server";
 
 interface ShopPageProps {
@@ -27,9 +29,10 @@ export default async function DashboardShopPage({ searchParams }: ShopPageProps)
   const params = await searchParams;
   const paymentComplete = params.dopoPagamento === "1";
 
-  const [balance, packages] = await Promise.all([
+  const [balance, packages, transactions] = await Promise.all([
     getMemberCreditBalance(supabase, member.id),
     listActiveCreditPackages(supabase),
+    listMemberCreditTransactions(supabase, member.id, 80).catch(() => []),
   ]);
 
   return (
@@ -94,6 +97,7 @@ export default async function DashboardShopPage({ searchParams }: ShopPageProps)
               </dd>
             </div>
           </dl>
+          <MemberCreditHistory transactions={transactions} />
         </section>
 
         <section className="mt-8">
