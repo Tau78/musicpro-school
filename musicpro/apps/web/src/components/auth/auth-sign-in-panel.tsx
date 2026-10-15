@@ -116,31 +116,43 @@ export function AuthSignInPanel({
     }
   }
 
+  async function prepareLoginEmail(trimmedEmail: string) {
+    await fetch("/api/auth/prepare-login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: trimmedEmail }),
+    }).catch(() => null);
+  }
+
   async function handleMagicLinkSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
     setMessage(null);
     setIsLoading(true);
 
-    const supabase = createClient();
-    const { error: otpError } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: {
-        emailRedirectTo: authEmailRedirectTo(redirectTo),
-        shouldCreateUser: false,
-      },
-    });
+    try {
+      const trimmedEmail = email.trim();
+      await prepareLoginEmail(trimmedEmail);
+      const supabase = createClient();
+      const { error: otpError } = await supabase.auth.signInWithOtp({
+        email: trimmedEmail,
+        options: {
+          emailRedirectTo: authEmailRedirectTo(redirectTo),
+          shouldCreateUser: false,
+        },
+      });
 
-    setIsLoading(false);
+      if (otpError) {
+        setError(mapAuthError(otpError.message));
+        return;
+      }
 
-    if (otpError) {
-      setError(mapAuthError(otpError.message));
-      return;
+      setMessage(
+        "Ti abbiamo inviato un link di accesso. Controlla la posta (anche spam) e clicca entro pochi minuti.",
+      );
+    } finally {
+      setIsLoading(false);
     }
-
-    setMessage(
-      "Ti abbiamo inviato un link di accesso. Controlla la posta (anche spam) e clicca entro pochi minuti.",
-    );
   }
 
   async function handlePasskeySignIn() {
@@ -321,8 +333,31 @@ export function AuthSignInPanel({
         </div>
       ) : null}
 
+      <div className="mt-6 rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
+        <p className="font-medium text-[var(--brand)]">Non riesci ad entrare?</p>
+        <p className="mt-1 text-neutral-600">
+          Usa l&apos;email registrata in segreteria. Puoi{" "}
+          <Link href={forgotHref} className="font-medium text-[var(--brand)] underline-offset-2 hover:underline">
+            reimpostare la password
+          </Link>{" "}
+          o passare al tab{" "}
+          <button
+            type="button"
+            className="font-medium text-[var(--brand)] underline-offset-2 hover:underline"
+            onClick={() => {
+              setMode("magic");
+              setError(null);
+              setMessage(null);
+            }}
+          >
+            Link email
+          </button>{" "}
+          (accesso senza password).
+        </p>
+      </div>
+
       {showSignupLink ? (
-        <p className="mt-6 text-center text-sm text-neutral-600">
+        <p className="mt-4 text-center text-sm text-neutral-600">
           Non hai un account?{" "}
           <Link
             href={signupHref}
