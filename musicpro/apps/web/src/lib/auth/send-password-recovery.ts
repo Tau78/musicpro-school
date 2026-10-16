@@ -154,7 +154,7 @@ export async function sendPasswordRecoveryEmail(
     subject: mail.subject,
     text: mail.text,
     html: mail.html,
-    preferGoogleSmtp: true,
+    // Auth: Resend first (non consuma quota Gmail Workspace), poi SMTP.
   });
 
   if (!sent.sent) {

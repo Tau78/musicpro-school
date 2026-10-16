@@ -44,3 +44,10 @@ Script singolo: `node scripts/backfill-associate-auth.mjs --email nome@dominio.i
 
 - Vercel: `[forgot-password]`, `[prepare-login]`
 - Supabase Dashboard → Authentication → Logs (failed sign-in)
+
+## Email transazionali e quota Gmail
+
+- **Prenotazioni sale** → Google SMTP (`preferGoogleSmtp: true`), stesso mailbox Workspace.
+- **Auth / recupero password / magic link script** → **Resend prima** (se `RESEND_API_KEY` su Vercel), poi fallback Google.
+- Limite giornaliero Google: Admin Console → report invii su `mauro@www.musicproeventi.it` / alias notifiche.
+- Script segreteria: `npm run send:associate-magic-link -- --email nome@dominio.it --first-name Nome`
