@@ -66,8 +66,8 @@ export function ForgotPasswordForm() {
         Recupera password
       </h1>
       <p className="mt-2 text-sm text-neutral-600">
-        Inserisci l&apos;email del tuo account: ti invieremo un link per scegliere
-        una nuova password.
+        Inserisci l&apos;email in anagrafica associati (la stessa che usa la
+        segreteria): ti invieremo un link per scegliere una nuova password.
       </p>
 
       <form className="mt-8 space-y-4" onSubmit={handleSubmit}>

@@ -13,6 +13,7 @@
     "import:cespiti": "node scripts/import-libro-cespiti.mjs",
     "setup:test-associato-mauro": "node scripts/setup-test-associato-mauro.mjs",
     "backfill:associate-auth": "node scripts/backfill-associate-auth.mjs",
+    "send:associate-magic-link": "node scripts/send-associate-magic-link.mjs",
     "resolve:duplicate-emails": "npx tsx scripts/resolve-email-duplicate-associati.ts",
     "clear:invalid-emails": "node scripts/clear-invalid-member-emails.mjs",
     "smoke:documenti": "node scripts/smoke-documenti.mjs",

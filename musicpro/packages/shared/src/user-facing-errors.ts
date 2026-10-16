@@ -29,7 +29,7 @@ export function mapAuthError(message: string): string {
     text.includes("invalid login credentials") ||
     text.includes("invalid_credentials")
   ) {
-    return "Email o password non corretti.";
+    return "Email o password non corretti. Usa la stessa email in anagrafica oppure «Password dimenticata?» / «Link email».";
   }
   if (text.includes("email not confirmed")) {
     return "Conferma prima la tua email, poi riprova ad accedere.";

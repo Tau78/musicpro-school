@@ -142,7 +142,10 @@ export async function sendEnrollmentEmail(params: {
   html?: string;
   attachments?: EnrollmentAttachment[];
   timeoutMs?: number;
-  /** Prenotazioni sale: solo Google SMTP (Resend è post-V1). */
+  /**
+   * Prenotazioni sale: solo Google SMTP (Resend è post-V1).
+   * Auth / recupero password: omettere → Resend (se RESEND_API_KEY) poi Google.
+   */
   preferGoogleSmtp?: boolean;
 }): Promise<{ sent: boolean; error?: string; via?: "resend" | "smtp" }> {
   if (!params.to.length) {

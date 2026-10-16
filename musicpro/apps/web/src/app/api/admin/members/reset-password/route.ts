@@ -197,7 +197,6 @@ export async function POST(request: Request) {
     subject: mail.subject,
     text: mail.text,
     html: mail.html,
-    preferGoogleSmtp: true,
   });
 
   if (!sent.sent) {
