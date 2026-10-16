@@ -28,6 +28,10 @@ import {
   generateReimbursementHtml,
   openPrintableNotula,
 } from "@/lib/reimbursements/pdf";
+import {
+  generateReimbursementReportPdf,
+  type ReimbursementReportPdfRow,
+} from "@/lib/reimbursements/report-pdf";
 import { createClient } from "@/lib/supabase/client";
 
 interface ReimbursementsPanelProps {
@@ -108,10 +112,10 @@ export function ReimbursementsPanel({
 
   const [year, setYear] = useState(initialYear);
   const [memberFilter, setMemberFilter] = useState("");
+  const [associateQuery, setAssociateQuery] = useState("");
   const [reimbursements, setReimbursements] = useState<ReimbursementDisplay[]>(
     [],
   );
-  const [totalAmount, setTotalAmount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentMemberId, setCurrentMemberId] = useState<string | null>(null);
@@ -134,8 +138,10 @@ export function ReimbursementsPanel({
 
   const [reportYear, setReportYear] = useState(initialYear);
   const [reportMemberId, setReportMemberId] = useState("");
+  const [reportQuery, setReportQuery] = useState("");
   const [reportRows, setReportRows] = useState<ReimbursementDisplay[]>([]);
   const [reportLoading, setReportLoading] = useState(false);
+  const [reportExporting, setReportExporting] = useState(false);
   const [pdfBusyId, setPdfBusyId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
@@ -148,7 +154,6 @@ export function ReimbursementsPanel({
         memberId: memberFilter || undefined,
       });
       setReimbursements(result.reimbursements);
-      setTotalAmount(result.totalAmountEur);
       setSelectedIds(new Set());
     } catch (err) {
       setError(
@@ -428,9 +433,12 @@ export function ReimbursementsPanel({
   }
 
   async function handleBulkDelete() {
-    if (!canDelete || selectedIds.size === 0) return;
+    const ids = visibleReimbursements
+      .filter((row) => selectedIds.has(row.id))
+      .map((row) => row.id);
+    if (!canDelete || ids.length === 0) return;
     setBulkBusy(true);
-    const result = await deleteReimbursements(supabase, [...selectedIds]);
+    const result = await deleteReimbursements(supabase, ids);
     setBulkBusy(false);
     setDeleteConfirm(false);
     if (!result.success) {
@@ -441,14 +449,17 @@ export function ReimbursementsPanel({
   }
 
   async function handleBulkEmail() {
-    if (selectedIds.size === 0) return;
+    const ids = visibleReimbursements
+      .filter((row) => selectedIds.has(row.id))
+      .map((row) => row.id);
+    if (ids.length === 0) return;
     setBulkBusy(true);
     setError(null);
     try {
       const res = await fetch("/api/admin/reimbursements/email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: [...selectedIds] }),
+        body: JSON.stringify({ ids }),
       });
       const payload = (await res.json()) as {
         success?: boolean;
@@ -739,9 +750,30 @@ export function ReimbursementsPanel({
     }
   }
 
+  const associateQueryNormalized = associateQuery.trim().toLowerCase();
+  const visibleReimbursements = useMemo(() => {
+    if (!associateQueryNormalized) return reimbursements;
+    return reimbursements.filter((item) =>
+      item.associateName.toLowerCase().includes(associateQueryNormalized),
+    );
+  }, [associateQueryNormalized, reimbursements]);
+  const visibleTotal = useMemo(
+    () =>
+      visibleReimbursements.reduce((sum, item) => sum + item.grossAmountEur, 0),
+    [visibleReimbursements],
+  );
+
+  const reportQueryNormalized = reportQuery.trim().toLowerCase();
+  const filteredReportRows = useMemo(() => {
+    if (!reportQueryNormalized) return reportRows;
+    return reportRows.filter((row) =>
+      row.associateName.toLowerCase().includes(reportQueryNormalized),
+    );
+  }, [reportQueryNormalized, reportRows]);
+
   const reportSummary = useMemo(() => {
     const map = new Map<string, { name: string; total: number }>();
-    for (const row of reportRows) {
+    for (const row of filteredReportRows) {
       const prev = map.get(row.memberId);
       if (prev) {
         prev.total += row.grossAmountEur;
@@ -753,55 +785,60 @@ export function ReimbursementsPanel({
       }
     }
     return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, "it"));
-  }, [reportRows]);
+  }, [filteredReportRows]);
 
-  const reportGrandTotal = reportRows.reduce(
+  const reportGrandTotal = filteredReportRows.reduce(
     (s, r) => s + r.grossAmountEur,
     0,
   );
 
-  function downloadCsv(kind: "summary" | "detailed") {
-    const lines: string[] = [];
-    if (kind === "summary") {
-      lines.push("Associato;Totale");
-      for (const row of reportSummary) {
-        lines.push(
-          `${csvEscape(row.name)};${row.total.toFixed(2).replace(".", ",")}`,
-        );
-      }
-      lines.push(`TOTALE;${reportGrandTotal.toFixed(2).replace(".", ",")}`);
-    } else {
-      lines.push(
-        "Associato;Anno;Progressivo;Importo;Data;Ricevute;Stato;Pagamento;Data pagamento",
+  function toReportPdfRows(
+    rows: ReimbursementDisplay[],
+  ): ReimbursementReportPdfRow[] {
+    return rows.map((row) => ({
+      associateName: row.associateName,
+      fiscalYear: row.fiscalYear,
+      progressive: row.progressive,
+      grossAmountEur: row.grossAmountEur,
+      generatedAt: row.generatedAt,
+      receiptsAmountEur: row.receiptsAmountEur,
+      receiptsStatusLabel: RECEIPTS_STATUS_LABELS[row.receiptsStatus],
+      paymentMethod: row.paymentMethod,
+      paymentDate: row.paymentDate,
+    }));
+  }
+
+  async function downloadPdf(
+    kind: "summary" | "detailed" | "elenco",
+    rows: ReimbursementDisplay[],
+    yearForFile: number,
+    filterLabel?: string,
+  ) {
+    setReportExporting(true);
+    setError(null);
+    try {
+      const pdf = await generateReimbursementReportPdf({
+        kind,
+        year: yearForFile,
+        rows: toReportPdfRows(rows),
+        filterLabel,
+      });
+      const blob = new Blob([pdf.bytes as BlobPart], {
+        type: pdf.contentType,
+      });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = pdf.filename;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Impossibile creare il PDF.",
       );
-      for (const row of reportRows) {
-        lines.push(
-          [
-            csvEscape(row.associateName),
-            row.fiscalYear,
-            row.progressive,
-            row.grossAmountEur.toFixed(2).replace(".", ","),
-            formatReimbursementDateItalian(row.generatedAt),
-            row.receiptsAmountEur.toFixed(2).replace(".", ","),
-            RECEIPTS_STATUS_LABELS[row.receiptsStatus],
-            csvEscape(row.paymentMethod ?? ""),
-            row.paymentDate ?? "",
-          ].join(";"),
-        );
-      }
+    } finally {
+      setReportExporting(false);
     }
-    const blob = new Blob(["\uFEFF" + lines.join("\n")], {
-      type: "text/csv;charset=utf-8",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download =
-      kind === "summary"
-        ? `report-totale-rimborsi-${reportYear}.csv`
-        : `report-dettagliato-rimborsi-${reportYear}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
   }
 
   function openPrintableReport(kind: "summary" | "detailed") {
@@ -819,7 +856,7 @@ export function ReimbursementsPanel({
         )
         .join("")}<tr><td><strong>TOTALE</strong></td><td><strong>${escapeHtml(formatEuro(reportGrandTotal))}</strong></td></tr></tbody></table>`;
     } else {
-      body = `<table><thead><tr><th>Associato</th><th>Prog.</th><th>Importo</th><th>Data</th><th>Ricevute</th><th>Stato</th></tr></thead><tbody>${reportRows
+      body = `<table><thead><tr><th>Associato</th><th>Prog.</th><th>Importo</th><th>Data</th><th>Ricevute</th><th>Stato</th></tr></thead><tbody>${filteredReportRows
         .map(
           (r) =>
             `<tr><td>${escapeHtml(r.associateName)}</td><td>${escapeHtml(r.progressive)}</td><td>${escapeHtml(formatEuro(r.grossAmountEur))}</td><td>${escapeHtml(formatReimbursementDateItalian(r.generatedAt))}</td><td>${escapeHtml(formatEuro(r.receiptsAmountEur))}</td><td>${escapeHtml(RECEIPTS_STATUS_LABELS[r.receiptsStatus])}</td></tr>`,
@@ -833,8 +870,11 @@ export function ReimbursementsPanel({
   }
 
   const allSelected =
-    reimbursements.length > 0 &&
-    reimbursements.every((r) => selectedIds.has(r.id));
+    visibleReimbursements.length > 0 &&
+    visibleReimbursements.every((r) => selectedIds.has(r.id));
+  const selectedVisibleCount = visibleReimbursements.filter((row) =>
+    selectedIds.has(row.id),
+  ).length;
 
   const yearOptions = Array.from({ length: 6 }, (_, i) => initialYear - i);
 
@@ -946,7 +986,7 @@ export function ReimbursementsPanel({
         description={
           loading
             ? "Caricamento…"
-            : `${reimbursements.length} notul${reimbursements.length === 1 ? "a" : "e"} · ${formatEuro(totalAmount)}`
+            : `${visibleReimbursements.length} notul${visibleReimbursements.length === 1 ? "a" : "e"} · ${formatEuro(visibleTotal)}`
         }
       >
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
@@ -966,33 +1006,45 @@ export function ReimbursementsPanel({
 
           {!isDocenteOnly ? (
             <Field label="Associato">
-              <select
-                value={memberFilter}
-                onChange={(e) => setMemberFilter(e.target.value)}
-                className={selectClass}
-              >
-                <option value="">Tutti</option>
-                {members.map((member) => (
-                  <option key={member.id} value={member.id}>
-                    {member.lastName} {member.firstName}
-                  </option>
-                ))}
-              </select>
+              <input
+                type="search"
+                value={associateQuery}
+                onChange={(e) => setAssociateQuery(e.target.value)}
+                placeholder="Cerca nome…"
+                className={inputClass}
+              />
             </Field>
           ) : null}
 
-          <p className="text-sm text-neutral-600 sm:ml-auto">
-            Totale:{" "}
-            <strong className="text-[var(--brand)]">
-              {formatEuro(totalAmount)}
-            </strong>
-          </p>
+          <div className="flex items-center gap-3 sm:ml-auto">
+            <p className="text-sm text-neutral-600">
+              Totale:{" "}
+              <strong className="text-[var(--brand)]">
+                {formatEuro(visibleTotal)}
+              </strong>
+            </p>
+            <button
+              type="button"
+              disabled={reportExporting || visibleReimbursements.length === 0}
+              onClick={() =>
+                void downloadPdf(
+                  "elenco",
+                  visibleReimbursements,
+                  year,
+                  associateQuery.trim() || undefined,
+                )
+              }
+              className="rounded-lg bg-[var(--brand)] px-3 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
+            >
+              {reportExporting ? "PDF…" : "PDF"}
+            </button>
+          </div>
         </div>
 
-        {selectedIds.size > 0 ? (
+        {selectedVisibleCount > 0 ? (
           <div className="flex flex-wrap items-center justify-end gap-2">
             <span className="text-sm text-neutral-600">
-              {selectedIds.size} selezionati
+              {selectedVisibleCount} selezionati
             </span>
             <button
               type="button"
@@ -1021,6 +1073,10 @@ export function ReimbursementsPanel({
           <p className="text-sm text-neutral-500">
             Nessun rimborso per i filtri selezionati.
           </p>
+        ) : visibleReimbursements.length === 0 ? (
+          <p className="text-sm text-neutral-500">
+            Nessun associato corrisponde alla ricerca.
+          </p>
         ) : (
           <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white">
             <table className="min-w-full text-sm">
@@ -1033,7 +1089,7 @@ export function ReimbursementsPanel({
                       onChange={(e) => {
                         if (e.target.checked) {
                           setSelectedIds(
-                            new Set(reimbursements.map((r) => r.id)),
+                            new Set(visibleReimbursements.map((r) => r.id)),
                           );
                         } else {
                           setSelectedIds(new Set());
@@ -1056,7 +1112,7 @@ export function ReimbursementsPanel({
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-100">
-                {reimbursements.map((item) => (
+                {visibleReimbursements.map((item) => (
                   <tr key={item.id} className="text-neutral-800">
                     <td className="px-3 py-3">
                       <input
@@ -1189,7 +1245,7 @@ export function ReimbursementsPanel({
       <CollapsibleSection
         title="Report rimborsi"
         defaultOpen={false}
-        description="Esporta CSV o apri una versione stampabile (totale / dettagliato)."
+        description="Esporta PDF o apri una versione stampabile (totale / dettagliato)."
       >
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
           <Field label="Anno report">
@@ -1206,19 +1262,14 @@ export function ReimbursementsPanel({
             </select>
           </Field>
           {!isDocenteOnly ? (
-            <Field label="Associato (opzionale)">
-              <select
-                value={reportMemberId}
-                onChange={(e) => setReportMemberId(e.target.value)}
-                className={selectClass}
-              >
-                <option value="">Tutti</option>
-                {members.map((member) => (
-                  <option key={member.id} value={member.id}>
-                    {member.lastName} {member.firstName}
-                  </option>
-                ))}
-              </select>
+            <Field label="Associato">
+              <input
+                type="search"
+                value={reportQuery}
+                onChange={(e) => setReportQuery(e.target.value)}
+                placeholder="Cerca nome…"
+                className={inputClass}
+              />
             </Field>
           ) : null}
           <button
@@ -1231,26 +1282,42 @@ export function ReimbursementsPanel({
           </button>
         </div>
 
-        {reportRows.length > 0 ? (
+        {filteredReportRows.length > 0 ? (
           <div className="space-y-3">
             <p className="text-sm text-neutral-600">
-              {reportRows.length} righe · Totale{" "}
+              {filteredReportRows.length} righe · Totale{" "}
               <strong>{formatEuro(reportGrandTotal)}</strong>
             </p>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={() => downloadCsv("summary")}
-                className="rounded-lg bg-[var(--brand)] px-3 py-1.5 text-sm text-white hover:bg-[var(--brand)]/90"
+                disabled={reportExporting}
+                onClick={() =>
+                  void downloadPdf(
+                    "summary",
+                    filteredReportRows,
+                    reportYear,
+                    reportQuery.trim() || undefined,
+                  )
+                }
+                className="rounded-lg bg-[var(--brand)] px-3 py-1.5 text-sm text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
               >
-                CSV totale
+                PDF totale
               </button>
               <button
                 type="button"
-                onClick={() => downloadCsv("detailed")}
-                className="rounded-lg bg-[var(--brand)] px-3 py-1.5 text-sm text-white hover:bg-[var(--brand)]/90"
+                disabled={reportExporting}
+                onClick={() =>
+                  void downloadPdf(
+                    "detailed",
+                    filteredReportRows,
+                    reportYear,
+                    reportQuery.trim() || undefined,
+                  )
+                }
+                className="rounded-lg bg-[var(--brand)] px-3 py-1.5 text-sm text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
               >
-                CSV dettagliato
+                PDF dettagliato
               </button>
               <button
                 type="button"
@@ -1268,9 +1335,13 @@ export function ReimbursementsPanel({
               </button>
             </div>
           </div>
-        ) : (
+        ) : reportRows.length === 0 ? (
           <p className="text-sm text-neutral-500">
             Carica i dati per esportare il report.
+          </p>
+        ) : (
+          <p className="text-sm text-neutral-500">
+            Nessun associato corrisponde alla ricerca.
           </p>
         )}
       </CollapsibleSection>
@@ -1280,7 +1351,7 @@ export function ReimbursementsPanel({
           <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-lg">
             <h3 className="text-lg font-semibold">Conferma eliminazione</h3>
             <p className="mt-2 text-sm text-neutral-600">
-              Eliminare {selectedIds.size} rimborso/i selezionati?
+              Eliminare {selectedVisibleCount} rimborso/i selezionati?
             </p>
             <div className="mt-6 flex justify-end gap-3">
               <button
@@ -1660,13 +1731,6 @@ function Field({
       {children}
     </label>
   );
-}
-
-function csvEscape(value: string): string {
-  if (/[;"\n]/.test(value)) {
-    return `"${value.replace(/"/g, '""')}"`;
-  }
-  return value;
 }
 
 function escapeHtml(value: string): string {
