@@ -29,7 +29,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, message: "booking_id mancante" }, { status: 400 });
   }
 
-  const template = body.template === "modified" ? "modified" : "confirm";
+  const template =
+    body.template === "modified" || body.template === "cancelled"
+      ? body.template
+      : "confirm";
 
   try {
     const result = await processBookingEmail({

@@ -557,7 +557,7 @@ export type RequestBookingConfirmationEmailOptions = {
   apiBaseUrl?: string;
   /** Token Supabase per Authorization Bearer (mobile). */
   accessToken?: string;
-  template?: "confirm" | "modified";
+  template?: "confirm" | "modified" | "cancelled";
   force?: boolean;
   paymentUrl?: string;
 };

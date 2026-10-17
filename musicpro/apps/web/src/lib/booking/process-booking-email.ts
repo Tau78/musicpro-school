@@ -5,7 +5,7 @@ import { sendEnrollmentEmail } from "@/lib/iscrizione/email-transport";
 
 const ROME = "Europe/Rome";
 
-export type BookingEmailTemplate = "confirm" | "modified";
+export type BookingEmailTemplate = "confirm" | "modified" | "cancelled";
 
 type BookingRow = {
   id: string;
@@ -196,6 +196,46 @@ async function getAdminNotifyEmails(): Promise<string[]> {
   return [...emails];
 }
 
+/** Collaboratori con flag Email prenotazioni: copia sulle mail della sala. */
+async function getCollaboratorBookingCcEmails(
+  excludeEmail: string | null,
+): Promise<string[]> {
+  const client = serviceClient();
+  const { data: roles, error: roleError } = await client
+    .from("member_roles")
+    .select("member_id")
+    .eq("role", "collaboratore")
+    .is("revoked_at", null);
+
+  if (roleError || !roles?.length) {
+    if (roleError) {
+      console.error("[booking-email] cc roles:", roleError.message);
+    }
+    return [];
+  }
+
+  const ids = [...new Set(roles.map((row) => row.member_id))];
+  const { data: members, error } = await client
+    .from("members")
+    .select("email")
+    .in("id", ids)
+    .eq("booking_email_cc", true)
+    .eq("is_active", true);
+
+  if (error) {
+    console.error("[booking-email] cc emails:", error.message);
+    return [];
+  }
+
+  const exclude = excludeEmail?.trim().toLowerCase() ?? "";
+  const emails = new Set<string>();
+  for (const row of members ?? []) {
+    const email = row.email?.trim().toLowerCase();
+    if (email && email.includes("@") && email !== exclude) emails.add(email);
+  }
+  return [...emails];
+}
+
 async function getMemberCreditAvailable(memberId: string): Promise<number | null> {
   const client = serviceClient();
   const { data, error } = await client.rpc("get_member_credit_balance", {
@@ -223,8 +263,8 @@ function buildBookingEmailContent(
   text: string;
   recipientEmail: string;
 } {
-  const recipientEmail = booking.members?.email?.trim();
-  if (!recipientEmail) {
+  const recipientEmail = booking.members?.email?.trim() ?? "";
+  if (!recipientEmail && template !== "cancelled") {
     throw new Error("Email associato mancante.");
   }
 
@@ -248,15 +288,19 @@ function buildBookingEmailContent(
 
   const subject = paymentUrl
     ? "Completa il pagamento — prenotazione MusicPro"
-    : template === "modified"
-      ? "La tua prenotazione MusicPro è stata modificata"
-      : "La tua prenotazione MusicPro è stata creata";
+    : template === "cancelled"
+      ? "La tua prenotazione MusicPro è stata annullata"
+      : template === "modified"
+        ? "La tua prenotazione MusicPro è stata modificata"
+        : "La tua prenotazione MusicPro è stata creata";
 
   const intro = paymentUrl
     ? "La prenotazione è stata registrata. Per confermarla, completa il pagamento online:"
-    : template === "modified"
-      ? "La prenotazione è stata aggiornata. Ecco i dettagli:"
-      : "La prenotazione è stata creata. Ecco i dettagli:";
+    : template === "cancelled"
+      ? "La prenotazione è stata annullata. Ecco i dettagli:"
+      : template === "modified"
+        ? "La prenotazione è stata aggiornata. Ecco i dettagli:"
+        : "La prenotazione è stata creata. Ecco i dettagli:";
 
   const creditLine =
     options.creditBalance != null
@@ -287,6 +331,11 @@ function buildBookingEmailContent(
     rows.push(["Crediti", creditLine.replace("Saldo crediti residuo: ", "")]);
   }
 
+  const policyLine =
+    template === "cancelled"
+      ? "Se la prenotazione era pagata, crediti o rimborso seguono la policy di annullamento."
+      : cancelPolicy;
+
   const textRows = rows.map(([label, value]) => `${label}: ${value}`).join("\n");
 
   const text = [
@@ -297,7 +346,7 @@ function buildBookingEmailContent(
     textRows,
     "",
     ...(paymentUrl ? [`Paga online: ${paymentUrl}`, ""] : []),
-    cancelPolicy,
+    policyLine,
     "",
     `Le tue prenotazioni: ${myBookingsUrl}`,
     `Acquista crediti (SHOP): ${shopUrl}`,
@@ -320,7 +369,7 @@ function buildBookingEmailContent(
   <table style="width:100%;border-collapse:collapse;margin:20px 0;background:#fafafa;border-radius:8px;">
     ${htmlRows}
   </table>
-  <p style="font-size:14px;color:#444;">${escapeHtml(cancelPolicy)}</p>
+  <p style="font-size:14px;color:#444;">${escapeHtml(policyLine)}</p>
   ${
     paymentUrl
       ? `<p style="margin-top:24px;">
@@ -360,14 +409,18 @@ function buildAdminBookingNotifyContent(
   const adminUrl = `${appUrl()}/admin/prenotazioni`;
 
   const subject =
-    template === "modified"
-      ? `Prenotazione modificata — ${memberName}`
-      : `Nuova prenotazione — ${memberName}`;
+    template === "cancelled"
+      ? `Prenotazione annullata — ${memberName}`
+      : template === "modified"
+        ? `Prenotazione modificata — ${memberName}`
+        : `Nuova prenotazione — ${memberName}`;
 
   const intro =
-    template === "modified"
-      ? "Una prenotazione sala è stata modificata."
-      : "È stata creata una nuova prenotazione sala.";
+    template === "cancelled"
+      ? "Una prenotazione sala è stata annullata."
+      : template === "modified"
+        ? "Una prenotazione sala è stata modificata."
+        : "È stata creata una nuova prenotazione sala.";
 
   const text = [
     intro,
@@ -466,10 +519,18 @@ export async function processBookingEmail(params: {
     return { success: false, message: "Prenotazione non trovata", booking_id: bookingId };
   }
 
-  if (booking.status === "cancelled") {
+  if (booking.status === "cancelled" && template !== "cancelled") {
     return {
       success: false,
       message: "Prenotazione annullata — email non inviata",
+      booking_id: bookingId,
+    };
+  }
+
+  if (template === "cancelled" && booking.status !== "cancelled") {
+    return {
+      success: false,
+      message: "La prenotazione non risulta annullata",
       booking_id: bookingId,
     };
   }
@@ -490,7 +551,11 @@ export async function processBookingEmail(params: {
       bookingId,
       recipientEmail: booking.members?.email ?? "unknown",
       subject:
-        template === "modified" ? "Modifica prenotazione" : "Conferma prenotazione",
+        template === "cancelled"
+          ? "Annullamento prenotazione"
+          : template === "modified"
+            ? "Modifica prenotazione"
+            : "Conferma prenotazione",
       status: "failed",
       error: msg,
     });
@@ -552,8 +617,24 @@ export async function processBookingEmail(params: {
     }
   }
 
+  const cc = await getCollaboratorBookingCcEmails(content.recipientEmail || null);
+  let to = content.recipientEmail ? [content.recipientEmail] : [];
+  let ccList = cc;
+  if (to.length === 0) {
+    to = ccList;
+    ccList = [];
+  }
+  if (to.length === 0) {
+    return {
+      success: false,
+      message: "Email associato mancante.",
+      booking_id: bookingId,
+    };
+  }
+
   const delivery = await sendEnrollmentEmail({
-    to: [content.recipientEmail],
+    to,
+    cc: ccList,
     subject: content.subject,
     text: content.text,
     html: content.html,
@@ -567,7 +648,7 @@ export async function processBookingEmail(params: {
 
     await logBookingEmail({
       bookingId,
-      recipientEmail: content.recipientEmail,
+      recipientEmail: to.join(", "),
       subject: content.subject,
       status: isDevSkip ? "skipped" : "failed",
       error: delivery.error ?? "Invio fallito",
@@ -582,7 +663,7 @@ export async function processBookingEmail(params: {
           "Trasporto email non configurato — registrata come skipped (dev mode)",
         booking_id: bookingId,
         subject: content.subject,
-        recipient: content.recipientEmail,
+        recipient: to.join(", "),
       };
     }
 
@@ -595,7 +676,9 @@ export async function processBookingEmail(params: {
 
   await logBookingEmail({
     bookingId,
-    recipientEmail: content.recipientEmail,
+    recipientEmail: ccList.length
+      ? `${to.join(", ")} (cc: ${ccList.join(", ")})`
+      : to.join(", "),
     subject: content.subject,
     status: "sent",
   });
@@ -639,6 +722,6 @@ export async function processBookingEmail(params: {
     message: `Email inviata via ${delivery.via ?? "smtp"}${adminSent ? " (+ admin)" : ""}`,
     booking_id: bookingId,
     subject: content.subject,
-    recipient: content.recipientEmail,
+    recipient: to.join(", "),
   };
 }

@@ -16,6 +16,7 @@ import {
   bookingNeedsPayment,
   bookingStatusLabel,
   cancelBooking,
+  requestBookingConfirmationEmail,
   canCancelBooking,
   formatBookingDateTime,
   formatCreditsCount,
@@ -173,6 +174,17 @@ export default function MiePrenotazioniScreen() {
     }
 
     setMessage(buildCancelSuccessMessage(result));
+    const apiBaseUrl = process.env.EXPO_PUBLIC_WEB_URL?.trim();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (apiBaseUrl && session?.access_token) {
+      void requestBookingConfirmationEmail(bookingId, {
+        apiBaseUrl,
+        accessToken: session.access_token,
+        template: "cancelled",
+      });
+    }
     await loadBookings();
   }
 

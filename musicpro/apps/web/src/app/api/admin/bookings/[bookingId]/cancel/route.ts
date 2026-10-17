@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { cancelBooking, getCurrentMemberWithRoles } from "@musicpro/database";
 
 import { canManageBookings } from "@/lib/admin/roles";
+import { processBookingEmail } from "@/lib/booking/process-booking-email";
 import { executeNexiRoomBookingRefundRecord } from "@/lib/nexi/room-booking-refund";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
@@ -74,6 +75,15 @@ export async function POST(request: NextRequest, context: RouteContext) {
         refundResult.message ??
         "Prenotazione annullata ma rimborso carta non riuscito.";
     }
+  }
+
+  try {
+    await processBookingEmail({ bookingId, template: "cancelled" });
+  } catch (err) {
+    console.error(
+      "[admin/bookings/cancel] email",
+      err instanceof Error ? err.message : String(err),
+    );
   }
 
   return NextResponse.json({

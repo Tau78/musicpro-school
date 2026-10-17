@@ -29,6 +29,7 @@ import { mapUserFacingError } from "@musicpro/shared";
 import { BookingModifyPanel } from "@/components/prenotazioni/booking-modify-panel";
 import { createClient } from "@/lib/supabase/client";
 import { requestBookingCalendarSync } from "@/lib/calendar/sync-booking";
+import { requestBookingConfirmationEmail } from "@/lib/booking/send-confirmation-email";
 
 type BookingTab = "upcoming" | "past";
 
@@ -287,6 +288,7 @@ function MiePrenotazioniContent() {
     }
 
     setMessage(buildCancelSuccessMessage(result));
+    void requestBookingConfirmationEmail(bookingId, { template: "cancelled" });
     void requestBookingCalendarSync(bookingId, "delete");
     await loadBookings(tab);
   }

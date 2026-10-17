@@ -17,6 +17,7 @@ import {
   adminUpdateBooking,
   bookingStatusLabel,
   cancelBooking,
+  requestBookingConfirmationEmail,
   cancelLessonAsSchool,
   formatCreditsCount,
   getMemberCreditBalance,
@@ -349,6 +350,17 @@ export default function DashboardScreen() {
         return;
       }
       setMessage("Prenotazione cancellata.");
+      const apiBaseUrl = process.env.EXPO_PUBLIC_WEB_URL?.trim();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (apiBaseUrl && session?.access_token) {
+        void requestBookingConfirmationEmail(bookingId, {
+          apiBaseUrl,
+          accessToken: session.access_token,
+          template: "cancelled",
+        });
+      }
       setSelectedBooking(null);
       await load("refresh");
     } catch (err) {

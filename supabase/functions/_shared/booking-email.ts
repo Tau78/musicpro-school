@@ -5,7 +5,7 @@ import { edgeUrlEnvFromDeno, publicSchoolUrl } from './public-url.ts';
 const ROME = 'Europe/Rome';
 const DEFAULT_FROM = 'MusicPro School <noreply@school.musicproeventi.it>';
 
-export type BookingEmailTemplate = 'confirm' | 'modified';
+export type BookingEmailTemplate = 'confirm' | 'modified' | 'cancelled';
 
 type BookingRow = {
   id: string;
@@ -208,15 +208,19 @@ export function buildBookingEmailContent(
 
   const subject = paymentUrl
     ? 'Completa il pagamento — prenotazione MusicPro'
-    : template === 'modified'
-      ? 'La tua prenotazione MusicPro è stata modificata'
-      : 'La tua prenotazione MusicPro è stata creata';
+    : template === 'cancelled'
+      ? 'La tua prenotazione MusicPro è stata annullata'
+      : template === 'modified'
+        ? 'La tua prenotazione MusicPro è stata modificata'
+        : 'La tua prenotazione MusicPro è stata creata';
 
   const intro = paymentUrl
     ? 'La prenotazione è stata registrata. Per confermarla, completa il pagamento online:'
-    : template === 'modified'
-      ? 'La prenotazione è stata aggiornata. Ecco i dettagli:'
-      : 'La prenotazione è stata creata. Ecco i dettagli:';
+    : template === 'cancelled'
+      ? 'La prenotazione è stata annullata. Ecco i dettagli:'
+      : template === 'modified'
+        ? 'La prenotazione è stata aggiornata. Ecco i dettagli:'
+        : 'La prenotazione è stata creata. Ecco i dettagli:';
 
   const creditLine =
     options.creditBalance != null

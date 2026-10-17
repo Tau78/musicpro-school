@@ -13,9 +13,11 @@ import {
   type MemberDetail,
   type MemberInput,
 } from "@musicpro/database";
+import type { MemberRoleValue } from "@musicpro/shared";
 
 import { MemberQuotaInline } from "@/components/admin/member-quota-inline";
 import { MemberQuotaSummary } from "@/components/admin/member-quota-summary";
+import { MemberRolesPanel } from "@/components/admin/member-roles-panel";
 import { ensureMemberAuthClient } from "@/lib/admin/ensure-member-auth-client";
 import { createClient } from "@/lib/supabase/client";
 
@@ -25,6 +27,11 @@ interface MemberQuickEditProps {
   quotas: MemberAnnualQuota[];
   quotaSettings: AnnualQuotaSetting[];
   canDelete: boolean;
+  roles?: MemberRoleValue[];
+  currentStaffMemberId?: string;
+  currentStaffRoles?: MemberRoleValue[];
+  onRolesChange?: (roles: MemberRoleValue[]) => void;
+  onQuotasChange?: (quotas: MemberAnnualQuota[]) => void;
   /** Sportello collaboratore: solo crediti e quota, senza anagrafica. */
   creditsOnly?: boolean;
   onCancel: () => void;
@@ -45,6 +52,11 @@ export function MemberQuickEdit({
   quotas,
   quotaSettings,
   canDelete,
+  roles = [],
+  currentStaffMemberId = "",
+  currentStaffRoles = [],
+  onRolesChange,
+  onQuotasChange,
   creditsOnly = false,
   onCancel,
   onDeleted,
@@ -310,10 +322,11 @@ export function MemberQuickEdit({
           />
         ) : (
           <MemberQuotaSummary
+            memberId={member.id}
             quotas={quotas}
             quotaSettings={quotaSettings}
             enrolledAt={member.enrolledAt}
-            onManage={onOpenFull}
+            onQuotasChange={onQuotasChange}
           />
         )}
 
@@ -352,6 +365,15 @@ export function MemberQuickEdit({
                 </label>
               </div>
             </fieldset>
+
+            <MemberRolesPanel
+              variant="flags"
+              memberId={member.id}
+              initialRoles={roles}
+              currentStaffMemberId={currentStaffMemberId}
+              currentStaffRoles={currentStaffRoles}
+              onRolesChange={onRolesChange}
+            />
           </>
         )}
       </div>
