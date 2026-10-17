@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   getTeacherProfile,
@@ -29,6 +29,9 @@ interface MemberRolesPanelProps {
   initialRoles: MemberRoleValue[];
   currentStaffMemberId: string;
   currentStaffRoles: MemberRoleValue[];
+  /** Riga di checkbox, senza riquadro. */
+  variant?: "card" | "flags";
+  onRolesChange?: (roles: MemberRoleValue[]) => void;
 }
 
 function canToggleRole(
@@ -49,6 +52,8 @@ export function MemberRolesPanel({
   initialRoles,
   currentStaffMemberId,
   currentStaffRoles,
+  variant = "card",
+  onRolesChange,
 }: MemberRolesPanelProps) {
   const router = useRouter();
   const supabase = createClient();
@@ -56,9 +61,27 @@ export function MemberRolesPanel({
   const [roles, setRoles] = useState<Set<MemberRoleValue>>(
     () => new Set(initialRoles),
   );
+  const [bookingEmailCc, setBookingEmailCc] = useState(false);
   const [busyRole, setBusyRole] = useState<MemberRoleValue | null>(null);
+  const [busyCc, setBusyCc] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const client = createClient();
+    void client
+      .from("members")
+      .select("booking_email_cc")
+      .eq("id", memberId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) setBookingEmailCc(Boolean(data?.booking_email_cc));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [memberId]);
 
   async function handleToggle(role: MemberRoleValue, checked: boolean) {
     const label = MEMBER_ROLE_LABELS[role as MemberRole] ?? role;
@@ -99,12 +122,10 @@ export function MemberRolesPanel({
       }
     }
 
-    setRoles((prev) => {
-      const next = new Set(prev);
-      if (checked) next.add(role);
-      else next.delete(role);
-      return next;
-    });
+    const nextRoles = new Set(roles);
+    if (checked) nextRoles.add(role);
+    else nextRoles.delete(role);
+    setRoles(nextRoles);
 
     const roleResult = await setMemberHasRole(
       supabase,
@@ -156,11 +177,111 @@ export function MemberRolesPanel({
       }
     }
 
+    if (!checked && role === MemberRole.Collaboratore && bookingEmailCc) {
+      setBookingEmailCc(false);
+      const { error: ccError } = await supabase
+        .from("members")
+        .update({ booking_email_cc: false })
+        .eq("id", memberId);
+      if (ccError) {
+        setBookingEmailCc(true);
+        setBusyRole(null);
+        setError("Ruolo rimosso, ma Email prenotazioni non è stato spento.");
+        onRolesChange?.([...nextRoles]);
+        router.refresh();
+        return;
+      }
+    }
+
     setBusyRole(null);
-    setSuccess(
-      checked ? `Ruolo ${label} assegnato.` : `Ruolo ${label} rimosso.`,
-    );
+    if (variant === "card") {
+      setSuccess(
+        checked ? `Ruolo ${label} assegnato.` : `Ruolo ${label} rimosso.`,
+      );
+    }
+    onRolesChange?.([...nextRoles]);
     router.refresh();
+  }
+
+  async function handleBookingEmailCc(checked: boolean) {
+    if (!roles.has(MemberRole.Collaboratore)) return;
+    if (!canToggleRole(MemberRole.Collaboratore, currentStaffRoles)) {
+      setError("Non puoi modificare Email prenotazioni.");
+      return;
+    }
+
+    setBusyCc(true);
+    setError(null);
+    setSuccess(null);
+    setBookingEmailCc(checked);
+
+    const { error: updateError } = await supabase
+      .from("members")
+      .update({ booking_email_cc: checked })
+      .eq("id", memberId);
+
+    setBusyCc(false);
+    if (updateError) {
+      setBookingEmailCc(!checked);
+      setError("Impossibile aggiornare Email prenotazioni.");
+      return;
+    }
+    router.refresh();
+  }
+
+  const flags = ASSIGNABLE_ROLES.map((role) => {
+    const label = MEMBER_ROLE_LABELS[role as MemberRole] ?? role;
+    const allowed = canToggleRole(role, currentStaffRoles);
+    const lockedSelfAdmin =
+      role === MemberRole.Admin && memberId === currentStaffMemberId;
+    const collaboratoreOn = roles.has(MemberRole.Collaboratore);
+    return (
+      <span key={role} className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
+        <label className="inline-flex items-center gap-1.5 text-sm">
+          <input
+            type="checkbox"
+            checked={roles.has(role)}
+            disabled={busyRole != null || busyCc || !allowed || lockedSelfAdmin}
+            onChange={(e) => void handleToggle(role, e.target.checked)}
+            className="rounded border-neutral-300"
+          />
+          {label}
+        </label>
+        {role === MemberRole.Collaboratore ? (
+          <label
+            className={`inline-flex items-center gap-1.5 text-sm ${
+              collaboratoreOn ? "" : "text-neutral-400"
+            }`}
+          >
+            <input
+              type="checkbox"
+              checked={collaboratoreOn && bookingEmailCc}
+              disabled={
+                busyRole != null || busyCc || !allowed || !collaboratoreOn
+              }
+              onChange={(e) => void handleBookingEmailCc(e.target.checked)}
+              className="rounded border-neutral-300"
+              aria-label="Email prenotazioni"
+            />
+            Email prenotazioni
+          </label>
+        ) : null}
+      </span>
+    );
+  });
+
+  if (variant === "flags") {
+    return (
+      <div>
+        {error ? (
+          <p className="mb-1 text-xs text-red-700">{error}</p>
+        ) : null}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="text-xs text-neutral-600">Ruoli</span>
+          {flags}
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -180,28 +301,7 @@ export function MemberRolesPanel({
         <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
           Ruoli
         </legend>
-        <div className="grid gap-3 sm:grid-cols-3">
-          {ASSIGNABLE_ROLES.map((role) => {
-            const label = MEMBER_ROLE_LABELS[role as MemberRole] ?? role;
-            const allowed = canToggleRole(role, currentStaffRoles);
-            const lockedSelfAdmin =
-              role === MemberRole.Admin && memberId === currentStaffMemberId;
-            return (
-              <label key={role} className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={roles.has(role)}
-                  disabled={
-                    busyRole != null || !allowed || lockedSelfAdmin
-                  }
-                  onChange={(e) => void handleToggle(role, e.target.checked)}
-                  className="rounded border-neutral-300"
-                />
-                {label}
-              </label>
-            );
-          })}
-        </div>
+        <div className="grid gap-3 sm:grid-cols-3">{flags}</div>
       </fieldset>
     </div>
   );

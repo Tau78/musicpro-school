@@ -40,6 +40,7 @@ export type EnrollmentAttachment = {
 
 async function sendViaResend(params: {
   to: string[];
+  cc?: string[];
   subject: string;
   text: string;
   html?: string;
@@ -64,6 +65,7 @@ async function sendViaResend(params: {
       body: JSON.stringify({
         from: enrollmentFromAddress(),
         to: params.to,
+        cc: params.cc?.length ? params.cc : undefined,
         subject: params.subject,
         text: params.text,
         html: params.html || escapeHtml(params.text),
@@ -90,6 +92,7 @@ async function sendViaResend(params: {
 
 async function sendViaGoogleSmtp(params: {
   to: string[];
+  cc?: string[];
   subject: string;
   text: string;
   html?: string;
@@ -117,6 +120,7 @@ async function sendViaGoogleSmtp(params: {
     await transporter.sendMail({
       from: enrollmentFromAddress(),
       to: params.to.join(", "),
+      cc: params.cc?.length ? params.cc.join(", ") : undefined,
       subject: params.subject,
       text: params.text,
       html: params.html || escapeHtml(params.text),
@@ -137,6 +141,7 @@ async function sendViaGoogleSmtp(params: {
 /** Resend se configurato, altrimenti SMTP Google (APP Eventi). */
 export async function sendEnrollmentEmail(params: {
   to: string[];
+  cc?: string[];
   subject: string;
   text: string;
   html?: string;

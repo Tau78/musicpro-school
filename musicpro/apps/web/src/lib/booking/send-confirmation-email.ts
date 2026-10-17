@@ -1,4 +1,4 @@
-export type BookingEmailTemplate = "confirm" | "modified";
+export type BookingEmailTemplate = "confirm" | "modified" | "cancelled";
 
 export interface RequestBookingEmailOptions {
   template?: BookingEmailTemplate;

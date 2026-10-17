@@ -60,6 +60,7 @@ export interface Database {
           is_active: boolean;
           is_enrollment_draft: boolean;
           is_test_account: boolean;
+          booking_email_cc: boolean;
           draft_expires_at: string | null;
           membership_card_picked_up_at: string | null;
           gadgets_picked_up_at: string | null;
@@ -100,6 +101,7 @@ export interface Database {
           is_active?: boolean;
           is_enrollment_draft?: boolean;
           is_test_account?: boolean;
+          booking_email_cc?: boolean;
           draft_expires_at?: string | null;
           membership_card_picked_up_at?: string | null;
           gadgets_picked_up_at?: string | null;

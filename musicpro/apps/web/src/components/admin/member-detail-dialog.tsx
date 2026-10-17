@@ -16,7 +16,11 @@ import {
   type MemberCreditBalance,
   type MemberDetail,
 } from "@musicpro/database";
-import type { MemberRoleValue } from "@musicpro/shared";
+import {
+  MEMBER_ROLE_LABELS,
+  MemberRole,
+  type MemberRoleValue,
+} from "@musicpro/shared";
 
 import { MemberCreditsPanel } from "@/components/admin/member-credits-panel";
 import { MemberForm } from "@/components/admin/member-form";
@@ -169,8 +173,16 @@ export function MemberDetailDialog({
                 Torna alla modifica rapida
               </button>
             ) : (
-              <p className="mt-0.5 truncate text-xs text-neutral-500 sm:text-sm">
-                {title}
+              <p className="mt-0.5 flex min-w-0 flex-wrap items-center gap-1 text-xs text-neutral-500 sm:text-sm">
+                <span className="min-w-0 truncate text-neutral-800">{title}</span>
+                {(data?.roles ?? []).map((role) => (
+                  <span
+                    key={role}
+                    className="shrink-0 rounded-full bg-neutral-100 px-1.5 py-px text-[10px] font-medium text-neutral-700"
+                  >
+                    {MEMBER_ROLE_LABELS[role as MemberRole] ?? role}
+                  </span>
+                ))}
               </p>
             )}
           </div>
@@ -215,6 +227,15 @@ export function MemberDetailDialog({
               onCancel={onClose}
               onDeleted={onClose}
               onOpenFull={() => setView("full")}
+              roles={data.roles}
+              currentStaffMemberId={currentStaffMemberId}
+              currentStaffRoles={currentStaffRoles}
+              onRolesChange={(roles) =>
+                setData((prev) => (prev ? { ...prev, roles } : prev))
+              }
+              onQuotasChange={(quotas) =>
+                setData((prev) => (prev ? { ...prev, quotas } : prev))
+              }
               onSaved={(member, creditBalance) =>
                 setData((prev) =>
                   prev

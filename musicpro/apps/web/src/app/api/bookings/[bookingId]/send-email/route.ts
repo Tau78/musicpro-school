@@ -53,7 +53,7 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ success: false, message: "ID mancante" }, { status: 400 });
   }
 
-  let template: "confirm" | "modified" = "confirm";
+  let template: "confirm" | "modified" | "cancelled" = "confirm";
   let force = false;
   let paymentUrl: string | undefined;
 
@@ -63,7 +63,9 @@ export async function POST(request: Request, context: RouteContext) {
       force?: boolean;
       payment_url?: string;
     };
-    if (body.template === "modified") template = "modified";
+    if (body.template === "modified" || body.template === "cancelled") {
+      template = body.template;
+    }
     if (body.force === true) force = true;
     if (body.payment_url?.trim()) paymentUrl = body.payment_url.trim();
   } catch {

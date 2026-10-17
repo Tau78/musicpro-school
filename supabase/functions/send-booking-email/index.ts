@@ -60,7 +60,9 @@ Deno.serve(async (req) => {
 
   const templateRaw = body.template?.trim();
   const template: BookingEmailTemplate =
-    templateRaw === 'modified' ? 'modified' : 'confirm';
+    templateRaw === 'modified' || templateRaw === 'cancelled'
+      ? templateRaw
+      : 'confirm';
   const force = body.force === true;
   const paymentUrl = body.payment_url?.trim() || null;
 
