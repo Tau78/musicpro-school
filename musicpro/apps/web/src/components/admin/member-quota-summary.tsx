@@ -207,8 +207,8 @@ export function MemberQuotaSummary({
   }
 
   return (
-    <div className="min-w-0 overflow-hidden rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2">
-      <div className="mb-1.5 flex items-center justify-between gap-2">
+    <div className="min-w-0 max-w-full overflow-hidden rounded-lg border border-neutral-200 bg-neutral-50 px-2.5 py-2 sm:px-3">
+      <div className="mb-1.5 flex min-w-0 items-center justify-between gap-2">
         <p className="min-w-0 text-xs font-medium leading-snug text-neutral-800">
           Quote associative
           {history.length > 0 ? (
@@ -305,7 +305,7 @@ export function MemberQuotaSummary({
                           }));
                         }}
                         aria-label={`Data versamento ${row.fiscalYear}`}
-                        className="h-7 min-w-0 flex-1 rounded border border-neutral-300 bg-white px-1 text-[11px] text-neutral-800"
+                        className="box-border h-8 min-w-0 max-w-full flex-1 rounded border border-neutral-300 bg-white px-1 text-base text-neutral-800 sm:h-7 sm:text-[11px]"
                       />
                     ) : (
                       <span className="min-w-0 flex-1 text-right text-amber-800">
@@ -337,7 +337,7 @@ export function MemberQuotaSummary({
                     {row.fiscalYear}
                   </span>
                   <span
-                    className={`min-w-0 break-words text-right leading-snug ${
+                    className={`min-w-0 break-words text-right leading-snug [overflow-wrap:anywhere] ${
                       versata ? "text-green-700" : "text-amber-800"
                     }`}
                   >
