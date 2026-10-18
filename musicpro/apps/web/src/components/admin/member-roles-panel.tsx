@@ -272,12 +272,12 @@ export function MemberRolesPanel({
 
   if (variant === "flags") {
     return (
-      <div>
+      <div className="min-w-0 max-w-full">
         {error ? (
           <p className="mb-1 text-xs text-red-700">{error}</p>
         ) : null}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span className="text-xs text-neutral-600">Ruoli</span>
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">
+          <span className="w-full text-xs text-neutral-600 sm:w-auto">Ruoli</span>
           {flags}
         </div>
       </div>

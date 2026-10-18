@@ -211,7 +211,7 @@ export function MemberQuickEdit({
       onSubmit={(e) => void handleSubmit(e)}
       className="flex min-h-0 min-w-0 max-w-full flex-1 flex-col overflow-hidden"
     >
-      <div className="min-w-0 flex-1 space-y-2.5 overflow-x-hidden overflow-y-auto px-4 py-3 sm:space-y-3 sm:px-5 sm:py-4">
+      <div className="min-w-0 max-w-full flex-1 space-y-2.5 overflow-x-hidden overflow-y-auto overscroll-contain px-3 py-3 sm:space-y-3 sm:px-5 sm:py-4">
         {error ? (
           <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 sm:text-sm">
             {error}
@@ -259,7 +259,7 @@ export function MemberQuickEdit({
           </p>
         </QuickField>
 
-        <div className="grid min-w-0 grid-cols-2 gap-2">
+        <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2">
           <QuickField label="Nome *">
             <input
               required
@@ -332,17 +332,24 @@ export function MemberQuickEdit({
 
         {creditsOnly ? null : (
           <>
-            <label className="flex items-center gap-2 text-sm text-neutral-800">
+            <label className="flex min-w-0 items-start gap-2 text-sm text-neutral-800">
               <input
                 type="checkbox"
                 checked={isTestAccount}
                 onChange={(e) => setIsTestAccount(e.target.checked)}
+                className="mt-0.5 shrink-0"
               />
-              Account test (crediti in circolazione, ricevute/notule serie TEST)
+              <span className="min-w-0 break-words">
+                Account test
+                <span className="mt-0.5 block text-[11px] leading-snug text-neutral-500 sm:mt-0 sm:inline sm:text-sm sm:text-neutral-800">
+                  <span className="hidden sm:inline"> </span>
+                  (crediti in circolazione, ricevute/notule serie TEST)
+                </span>
+              </span>
             </label>
 
-            <fieldset>
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+            <fieldset className="min-w-0">
+              <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-sm">
                 <legend className="sr-only">Stato</legend>
                 <span className="text-xs text-neutral-600 sm:text-sm">Stato</span>
                 <label className="inline-flex items-center gap-1.5 text-sm">
@@ -378,7 +385,7 @@ export function MemberQuickEdit({
         )}
       </div>
 
-      <div className="shrink-0 border-t border-neutral-200 bg-white px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5">
+      <div className="min-w-0 shrink-0 border-t border-neutral-200 bg-white px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5">
         {creditsOnly ? null : (
           <button
             type="button"
@@ -389,11 +396,11 @@ export function MemberQuickEdit({
           </button>
         )}
 
-        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
           <button
             type="submit"
             disabled={saving}
-            className="order-1 w-full rounded-lg bg-[var(--brand)] px-4 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50 sm:order-3 sm:w-auto sm:py-2"
+            className="btn-brand order-1 w-full rounded-lg bg-[var(--brand)] px-4 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50 sm:order-3 sm:w-auto sm:py-2"
           >
             {saving
               ? "Salvataggio…"
@@ -462,7 +469,7 @@ export function MemberQuickEdit({
 }
 
 const inputClass =
-  "box-border w-full max-w-full min-w-0 rounded-md border border-neutral-300 px-2.5 py-1.5 text-sm focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)] sm:rounded-lg sm:px-3 sm:py-2";
+  "box-border w-full max-w-full min-w-0 rounded-md border border-neutral-300 px-2.5 py-2 text-base focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)] sm:rounded-lg sm:px-3 sm:py-2 sm:text-sm";
 
 function QuickField({
   label,

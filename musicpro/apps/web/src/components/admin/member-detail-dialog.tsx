@@ -142,7 +142,7 @@ export function MemberDetailDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4"
+      className="fixed inset-0 z-50 flex items-end justify-center overflow-x-hidden overscroll-none bg-black/40 p-0 sm:items-center sm:p-4"
       onClick={onClose}
     >
       <div
@@ -151,13 +151,13 @@ export function MemberDetailDialog({
         aria-labelledby="member-detail-title"
         className={
           view === "quick"
-            ? "flex max-h-[100dvh] w-full max-w-lg min-w-0 flex-col overflow-hidden bg-white shadow-xl sm:max-h-[90vh] sm:rounded-xl"
-            : "flex max-h-[100dvh] w-full max-w-3xl min-w-0 flex-col overflow-hidden bg-white shadow-xl sm:max-h-[90vh] sm:rounded-xl"
+            ? "flex max-h-[100dvh] w-full min-w-0 max-w-[min(32rem,100%)] flex-col overflow-hidden bg-white shadow-xl sm:max-h-[90vh] sm:rounded-xl"
+            : "flex max-h-[100dvh] w-full min-w-0 max-w-[min(48rem,100%)] flex-col overflow-hidden bg-white shadow-xl sm:max-h-[90vh] sm:rounded-xl"
         }
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex shrink-0 items-start justify-between gap-2 border-b border-neutral-200 px-4 py-3 sm:px-5 sm:py-3.5">
-          <div className="min-w-0">
+        <div className="flex min-w-0 shrink-0 items-start justify-between gap-2 border-b border-neutral-200 px-3 py-3 sm:px-5 sm:py-3.5">
+          <div className="min-w-0 flex-1">
             <h2
               id="member-detail-title"
               className="truncate text-base font-semibold text-[var(--brand)] sm:text-lg"
@@ -200,13 +200,13 @@ export function MemberDetailDialog({
         </div>
 
         {loading ? (
-          <p className="px-4 py-6 text-center text-sm text-neutral-500 sm:px-5">
+          <p className="px-3 py-6 text-center text-sm text-neutral-500 sm:px-5">
             Caricamento dati…
           </p>
         ) : null}
 
         {error ? (
-          <p className="mx-4 mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 sm:mx-5">
+          <p className="mx-3 mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 sm:mx-5">
             {error}
           </p>
         ) : null}
