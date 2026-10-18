@@ -12,6 +12,7 @@ import type { MemberRoleValue } from "@musicpro/shared";
 
 import { BulkMessageModal } from "@/components/admin/bulk-message-modal";
 import { MemberDetailDialog } from "@/components/admin/member-detail-dialog";
+import { memberMatchesSearch } from "@/lib/admin/member-search";
 import { createClient } from "@/lib/supabase/client";
 
 export interface MemberListProps {
@@ -64,8 +65,6 @@ export function MemberList({
   );
 
   const filtered = useMemo(() => {
-    const term = search.trim().toLowerCase();
-
     return members.filter((member) => {
       if (docentiOnly && !docenteIdSet.has(member.id)) {
         return false;
@@ -76,11 +75,7 @@ export function MemberList({
       if (quotaUnpaidOnly && !unpaidQuotaIdSet.has(member.id)) {
         return false;
       }
-      if (!term) return true;
-      return (
-        member.firstName.toLowerCase().includes(term) ||
-        member.lastName.toLowerCase().includes(term)
-      );
+      return memberMatchesSearch(member, search);
     });
   }, [
     members,
