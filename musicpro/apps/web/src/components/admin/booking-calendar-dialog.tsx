@@ -168,7 +168,7 @@ export function BookingCalendarDialog({
   const selectedRoom =
     rooms.find((room) => room.id === roomId) ?? rooms[0] ?? null;
   const durationOptions = selectedRoom
-    ? durationOptionsForRoom(selectedRoom)
+    ? durationOptionsForRoom(selectedRoom, durationMinutes)
     : [durationMinutes];
 
   const computedPrice = useMemo(() => {
