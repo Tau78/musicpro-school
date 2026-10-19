@@ -13,10 +13,14 @@ import {
   bookingStatusLabel,
   calculateBookingPrice,
   createBooking,
+  creditsForBookingPrice,
+  debitBookingCredits,
   describeBookingPaymentForAdmin,
   durationOptionsForRoom,
+  formatCreditsCount,
   formatDurationLabel,
   formatEuro,
+  getMemberCreditBalance,
   getAdminBookingById,
   listMembers,
   proviDaSoloDiscountTotalEur,
@@ -107,6 +111,8 @@ export function BookingCalendarDialog({
   const [sendEmail, setSendEmail] = useState(true);
   const [sendConfirmEmail, setSendConfirmEmail] = useState(false);
   const [includePayment, setIncludePayment] = useState(false);
+  const [creditAvailable, setCreditAvailable] = useState<number | null>(null);
+  const [useCredits, setUseCredits] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -165,6 +171,27 @@ export function BookingCalendarDialog({
     return () => window.clearTimeout(timer);
   }, [memberQuery, mode, supabase]);
 
+  useEffect(() => {
+    if (mode !== "create" || !memberId) {
+      setCreditAvailable(null);
+      setUseCredits(false);
+      return;
+    }
+    let cancelled = false;
+    setCreditAvailable(null);
+    setUseCredits(false);
+    void getMemberCreditBalance(supabase, memberId)
+      .then((balance) => {
+        if (!cancelled) setCreditAvailable(Math.max(0, balance.available));
+      })
+      .catch(() => {
+        if (!cancelled) setCreditAvailable(0);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [memberId, mode, supabase]);
+
   const selectedRoom =
     rooms.find((room) => room.id === roomId) ?? rooms[0] ?? null;
   const durationOptions = selectedRoom
@@ -193,6 +220,13 @@ export function BookingCalendarDialog({
     Math.abs(computedPrice - (booking.total_price_eur ?? 0)) > 0.009;
   const priceIncrease =
     priceChanged && computedPrice > (booking?.total_price_eur ?? 0);
+  const creditCost = creditsForBookingPrice(computedPrice);
+  const creditsToApply =
+    creditAvailable == null
+      ? 0
+      : Math.round(Math.min(creditAvailable, creditCost) * 100) / 100;
+  const creditsCoverEstimate =
+    creditsToApply > 0 && creditsToApply + 0.001 >= creditCost;
 
   useEffect(() => {
     if (!priceChanged) {
@@ -237,7 +271,31 @@ export function BookingCalendarDialog({
 
         await requestBookingCalendarSync(result.bookingId);
 
-        if (includePayment) {
+        const serverCost = creditsForBookingPrice(
+          result.totalPriceEur ?? computedPrice,
+        );
+        const creditsToDebit =
+          useCredits && creditAvailable != null
+            ? Math.round(Math.min(creditAvailable, serverCost) * 100) / 100
+            : 0;
+        if (creditsToDebit > 0) {
+          const debit = await debitBookingCredits(
+            supabase,
+            result.bookingId,
+            creditsToDebit,
+          );
+          if (!debit.success) {
+            setError(
+              debit.errorMessage ??
+                "Prenotazione creata, ma i crediti non sono stati scalati.",
+            );
+            return;
+          }
+        }
+        const creditsCoverTotal =
+          creditsToDebit > 0 && creditsToDebit + 0.001 >= serverCost;
+
+        if (includePayment && !creditsCoverTotal) {
           const paymentResp = await fetch(
             `/api/admin/bookings/${encodeURIComponent(result.bookingId)}/init-payment`,
             {
@@ -259,12 +317,10 @@ export function BookingCalendarDialog({
             );
             return;
           }
-        } else {
-          if (sendConfirmEmail) {
-            void requestBookingConfirmationEmail(result.bookingId, {
-              template: "confirm",
-            });
-          }
+        } else if (sendConfirmEmail || (includePayment && creditsCoverTotal)) {
+          void requestBookingConfirmationEmail(result.bookingId, {
+            template: "confirm",
+          });
         }
         onSaved();
         onClose();
@@ -594,6 +650,25 @@ export function BookingCalendarDialog({
 
             {mode === "create" ? (
               <div className="space-y-2 rounded-lg border border-neutral-100 bg-neutral-50 px-3 py-3">
+                {creditsToApply > 0 ? (
+                  <label className="flex items-start gap-2 text-sm text-neutral-700">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5"
+                      checked={useCredits}
+                      onChange={(e) => setUseCredits(e.target.checked)}
+                    />
+                    <span>
+                      Scala {formatCreditsCount(creditsToApply)}
+                      <span className="mt-0.5 block text-xs text-neutral-500">
+                        Saldo {formatCreditsCount(creditAvailable ?? 0)}
+                        {creditsCoverEstimate
+                          ? ". Copre il totale."
+                          : `. Resta ${formatEuro(Math.max(0, creditCost - creditsToApply))} da saldare.`}
+                      </span>
+                    </span>
+                  </label>
+                ) : null}
                 <label className="flex items-start gap-2 text-sm text-neutral-700">
                   <input
                     type="checkbox"
