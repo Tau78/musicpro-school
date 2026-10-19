@@ -566,6 +566,54 @@ export type RequestBookingConfirmationEmailOptions = {
  * Email associato + notifica admin/segreteria.
  * Best-effort: il chiamante non deve bloccare la prenotazione se fallisce.
  */
+export type RequestBookingCalendarSyncOptions = {
+  /** Base URL web app (es. EXPO_PUBLIC_WEB_URL) — richiesto fuori dal browser. */
+  apiBaseUrl?: string;
+  /** Token Supabase per Authorization Bearer (mobile). */
+  accessToken?: string;
+  action?: "upsert" | "delete";
+};
+
+/**
+ * Scrive o aggiorna subito l'evento su Google Calendar.
+ * Non blocca la prenotazione se il trasporto fallisce: il chiamante può ignorare l'esito.
+ */
+export async function requestBookingCalendarSync(
+  bookingId: string,
+  options?: RequestBookingCalendarSyncOptions,
+): Promise<{ success: boolean; message?: string }> {
+  const apiBase = options?.apiBaseUrl?.replace(/\/$/, "") ?? "";
+  const url = apiBase
+    ? `${apiBase}/api/bookings/${encodeURIComponent(bookingId)}/calendar-sync`
+    : `/api/bookings/${encodeURIComponent(bookingId)}/calendar-sync`;
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (options?.accessToken) {
+    headers.Authorization = `Bearer ${options.accessToken}`;
+  }
+
+  try {
+    const resp = await fetch(url, {
+      method: "POST",
+      credentials: apiBase ? "omit" : "same-origin",
+      headers,
+      body: JSON.stringify({ action: options?.action ?? "upsert" }),
+    });
+    const data = (await resp.json()) as { success?: boolean; message?: string };
+    return {
+      success: resp.ok && data.success !== false,
+      message: data.message,
+    };
+  } catch {
+    return {
+      success: false,
+      message: "Impossibile aggiornare Google Calendar.",
+    };
+  }
+}
+
 export async function requestBookingConfirmationEmail(
   bookingId: string,
   options?: RequestBookingConfirmationEmailOptions,
@@ -1747,6 +1795,25 @@ export async function reviewBooking(
 }
 
 export type BookingChangePayload = RealtimePostgresChangesPayload<Booking>;
+
+/** Aggiorna un calendario aperto appena una prenotazione viene scritta. */
+export function subscribeToBookingChanges(
+  client: BookingsClient,
+  callback: () => void,
+): () => void {
+  const channel: RealtimeChannel = client
+    .channel(`bookings:calendar:${Math.random().toString(36).slice(2)}`)
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "bookings" },
+      () => callback(),
+    )
+    .subscribe();
+
+  return () => {
+    void client.removeChannel(channel);
+  };
+}
 
 export function subscribeToBookings(
   client: BookingsClient,

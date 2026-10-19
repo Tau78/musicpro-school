@@ -284,12 +284,16 @@ export async function syncBookingToGoogleCalendar(
     return { success: true, action: 'delete', booking_id: bookingId };
   }
 
-  if (booking.status !== 'confirmed') {
+  if (
+    booking.status !== 'confirmed' &&
+    booking.status !== 'pending' &&
+    booking.status !== 'pending_approval'
+  ) {
     return {
       success: true,
       action: 'skip',
       booking_id: bookingId,
-      message: `Stato ${booking.status}: sync solo su confirmed.`,
+      message: `Stato ${booking.status}: nessun evento da scrivere.`,
     };
   }
 

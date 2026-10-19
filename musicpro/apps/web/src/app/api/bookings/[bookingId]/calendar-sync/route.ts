@@ -1,3 +1,4 @@
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
 import { getCurrentMemberWithRoles } from "@musicpro/database";
@@ -23,10 +24,21 @@ export async function POST(request: Request, context: RouteContext) {
     // default upsert
   }
 
-  const supabase = await createClient();
+  const authHeader = request.headers.get("authorization");
+  const bearer = authHeader?.startsWith("Bearer ")
+    ? authHeader.slice(7).trim()
+    : "";
+  const supabaseUrlForUser = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const supabase =
+    bearer && supabaseUrlForUser && anonKey
+      ? createSupabaseClient(supabaseUrlForUser, anonKey, {
+          global: { headers: { Authorization: `Bearer ${bearer}` } },
+        })
+      : await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = bearer ? await supabase.auth.getUser(bearer) : await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json({ success: false, message: "Non autenticato" }, { status: 401 });
