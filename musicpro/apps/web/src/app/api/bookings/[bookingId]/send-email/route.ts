@@ -56,18 +56,21 @@ export async function POST(request: Request, context: RouteContext) {
   let template: "confirm" | "modified" | "cancelled" = "confirm";
   let force = false;
   let paymentUrl: string | undefined;
+  let upgradeGratuito = false;
 
   try {
     const body = (await request.json()) as {
       template?: string;
       force?: boolean;
       payment_url?: string;
+      upgrade_gratuito?: boolean;
     };
     if (body.template === "modified" || body.template === "cancelled") {
       template = body.template;
     }
     if (body.force === true) force = true;
     if (body.payment_url?.trim()) paymentUrl = body.payment_url.trim();
+    if (body.upgrade_gratuito === true) upgradeGratuito = true;
   } catch {
     // defaults
   }
@@ -136,6 +139,7 @@ export async function POST(request: Request, context: RouteContext) {
       template,
       force,
       paymentUrl,
+      upgradeGratuito,
     });
     const status = result.success === false ? 500 : 200;
     return NextResponse.json(result, { status });

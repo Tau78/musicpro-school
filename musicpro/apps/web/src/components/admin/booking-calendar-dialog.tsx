@@ -191,6 +191,18 @@ export function BookingCalendarDialog({
     mode === "edit" &&
     booking != null &&
     Math.abs(computedPrice - (booking.total_price_eur ?? 0)) > 0.009;
+  const priceIncrease =
+    priceChanged && computedPrice > (booking?.total_price_eur ?? 0);
+
+  useEffect(() => {
+    if (!priceChanged) {
+      setSettlementMethod(null);
+      return;
+    }
+    if (!priceIncrease && settlementMethod === "upgrade_gratuito") {
+      setSettlementMethod(null);
+    }
+  }, [priceChanged, priceIncrease, settlementMethod]);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -284,6 +296,7 @@ export function BookingCalendarDialog({
       if (sendEmail) {
         void requestBookingConfirmationEmail(booking.id, {
           template: "modified",
+          upgradeGratuito: settlementMethod === "upgrade_gratuito",
         });
       }
       onSaved();
@@ -570,8 +583,12 @@ export function BookingCalendarDialog({
             {priceChanged ? (
               <SettlementMethodPicker
                 value={settlementMethod}
-                onChange={setSettlementMethod}
+                onChange={(method) => {
+                  setSettlementMethod(method);
+                  if (method === "upgrade_gratuito") setSendEmail(true);
+                }}
                 originalPaymentMethod={booking?.payment_method ?? null}
+                allowUpgradeGratuito={priceIncrease}
               />
             ) : null}
 

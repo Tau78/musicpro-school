@@ -599,6 +599,8 @@ export type RequestBookingConfirmationEmailOptions = {
   template?: "confirm" | "modified" | "cancelled";
   force?: boolean;
   paymentUrl?: string;
+  /** Modifica con differenza abbuonata: email «upgrade gratuito». */
+  upgradeGratuito?: boolean;
 };
 
 /**
@@ -678,6 +680,7 @@ export async function requestBookingConfirmationEmail(
         template: options?.template ?? "confirm",
         force: options?.force ?? false,
         payment_url: options?.paymentUrl?.trim() || undefined,
+        upgrade_gratuito: options?.upgradeGratuito === true ? true : undefined,
       }),
     });
 
@@ -2340,7 +2343,11 @@ export function hourInRome(now: Date = new Date()): number {
   return n === 24 ? 0 : n;
 }
 
-export type SettlementMethod = "credits" | "cash" | "original_method";
+export type SettlementMethod =
+  | "credits"
+  | "cash"
+  | "original_method"
+  | "upgrade_gratuito";
 
 export interface AdminBookingDetail extends AdminBookingListItem {}
 
@@ -2628,6 +2635,8 @@ export function settlementMethodLabel(method: SettlementMethod): string {
       return "Contanti";
     case "original_method":
       return "Metodo originale";
+    case "upgrade_gratuito":
+      return "Upgrade gratuito";
     default:
       return method;
   }

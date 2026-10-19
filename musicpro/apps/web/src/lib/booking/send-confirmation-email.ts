@@ -4,6 +4,8 @@ export interface RequestBookingEmailOptions {
   template?: BookingEmailTemplate;
   force?: boolean;
   paymentUrl?: string;
+  /** Modifica con differenza abbuonata: email «upgrade gratuito». */
+  upgradeGratuito?: boolean;
 }
 
 export interface RequestBookingEmailResult {
@@ -31,6 +33,7 @@ export async function requestBookingConfirmationEmail(
           template: options.template ?? "confirm",
           force: options.force ?? false,
           payment_url: options.paymentUrl?.trim() || undefined,
+          upgrade_gratuito: options.upgradeGratuito === true ? true : undefined,
         }),
         credentials: "same-origin",
       },
