@@ -718,30 +718,51 @@ export function applyMemberBookingDiscount(
   return Math.round(((priceEur * (100 - clipped)) / 100) * 100) / 100;
 }
 
-export function durationOptionsForRoom(room: Room): number[] {
+export function durationOptionsForRoom(
+  room: Room,
+  currentMinutes?: number,
+): number[] {
+  const step = 30;
   const options: number[] = [];
-  const step = 60;
+  const min = room.min_duration_minutes;
+  const start = Math.ceil(min / step) * step;
 
-  for (
-    let minutes = room.min_duration_minutes;
-    minutes <= room.max_duration_minutes;
-    minutes += step
-  ) {
+  for (let minutes = start; minutes <= room.max_duration_minutes; minutes += step) {
     options.push(minutes);
+  }
+
+  if (min > 0 && !options.includes(min)) {
+    options.unshift(min);
   }
 
   if (!options.includes(room.default_duration_minutes)) {
     options.push(room.default_duration_minutes);
-    options.sort((a, b) => a - b);
   }
 
+  if (
+    currentMinutes != null &&
+    currentMinutes > 0 &&
+    !options.includes(currentMinutes)
+  ) {
+    options.push(currentMinutes);
+  }
+
+  options.sort((a, b) => a - b);
   return options;
 }
 
 export function formatDurationLabel(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`;
   if (minutes % 60 === 0) {
     const hours = minutes / 60;
     return hours === 1 ? "1 ora" : `${hours} ore`;
+  }
+  if (minutes % 30 === 0) {
+    const text = (minutes / 60).toLocaleString("it-IT", {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    });
+    return `${text} ore`;
   }
   return `${minutes} min`;
 }

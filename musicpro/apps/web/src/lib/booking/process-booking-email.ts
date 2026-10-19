@@ -87,6 +87,7 @@ function formatDuration(minutes: number | null): string {
   const m = minutes % 60;
   if (h === 0) return `${m} min`;
   if (m === 0) return h === 1 ? "1 ora" : `${h} ore`;
+  if (m === 30) return `${h},5 ore`;
   return `${h} h ${m} min`;
 }
 

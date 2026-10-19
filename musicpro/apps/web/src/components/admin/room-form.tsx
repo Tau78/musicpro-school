@@ -77,6 +77,8 @@ const MAX_DURATION_OPTIONS = [
   { value: "120", label: "2 ore" },
   { value: "180", label: "3 ore" },
   { value: "240", label: "4 ore" },
+  { value: "270", label: "4,5 ore" },
+  { value: "300", label: "5 ore" },
   { value: "360", label: "6 ore" },
 ];
 

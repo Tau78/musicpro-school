@@ -110,7 +110,7 @@ export function BookingAdminDetail({ booking, rooms }: BookingAdminDetailProps) 
 
   const selectedRoom = rooms.find((room) => room.id === roomId) ?? initialRoom;
   const durationOptions = selectedRoom
-    ? durationOptionsForRoom(selectedRoom)
+    ? durationOptionsForRoom(selectedRoom, durationMinutes)
     : [durationMinutes];
 
   const computedPrice = useMemo(() => {
