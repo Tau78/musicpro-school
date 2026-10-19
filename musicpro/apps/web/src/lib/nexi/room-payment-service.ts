@@ -38,7 +38,7 @@ export async function createNexiRoomBookingPaymentSession(
   const { data: booking, error } = await service
     .from("bookings")
     .select(
-      "id, member_id, room_id, status, payment_status, total_price_eur, payment_link_url, credits_held, credits_used",
+      "id, member_id, room_id, status, payment_status, payment_method, total_price_eur, payment_link_url, credits_held, credits_used",
     )
     .eq("id", bookingId)
     .maybeSingle();
@@ -51,9 +51,17 @@ export async function createNexiRoomBookingPaymentSession(
     return { success: false, message: "Non autorizzato." };
   }
 
+  if (booking.payment_method === "cash") {
+    return {
+      success: false,
+      message: "Questa prenotazione si paga in contanti in sede.",
+    };
+  }
+
   if (
     booking.status !== "pending" &&
-    booking.status !== "pending_approval"
+    booking.status !== "pending_approval" &&
+    booking.status !== "confirmed"
   ) {
     return {
       success: false,

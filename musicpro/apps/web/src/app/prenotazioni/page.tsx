@@ -14,6 +14,7 @@ import {
   applyMemberBookingDiscount,
   proviDaSoloDiscountTotalEur,
   createBooking,
+  confirmCollaboratorBooking,
   creditsForBookingPrice,
   durationOptionsForRoom,
   formatDateItalian,
@@ -95,6 +96,7 @@ export default function PrenotazioniPage() {
   const [bookingLockedMessage, setBookingLockedMessage] = useState("");
   const [collaboratorDiscountPercent, setCollaboratorDiscountPercent] =
     useState(0);
+  const [isCollaborator, setIsCollaborator] = useState(false);
   const [companionDeclaration, setCompanionDeclaration] =
     useState<CompanionDeclaration>("all_ok");
   const [companionInviteIds, setCompanionInviteIds] = useState<string[]>([]);
@@ -302,10 +304,11 @@ export default function PrenotazioniPage() {
         setBandRequired(bookingSettings.bandRequired);
         setBookingLocked(bookingSettings.locked);
         setBookingLockedMessage(bookingSettings.lockedMessage);
+        const collaborator =
+          member?.roles.includes(MemberRole.Collaboratore) ?? false;
+        setIsCollaborator(collaborator);
         setCollaboratorDiscountPercent(
-          member?.roles.includes(MemberRole.Collaboratore)
-            ? bookingSettings.collaboratorDiscountPercent
-            : 0,
+          collaborator ? bookingSettings.collaboratorDiscountPercent : 0,
         );
         if (roomList.length > 0) {
           setSelectedRoomId(roomList[0].id);
@@ -451,7 +454,9 @@ export default function PrenotazioniPage() {
       !paidWithCredits &&
       result.requiresPayment &&
       result.bookingId &&
-      (result.status === "pending" || result.status === "pending_approval");
+      (result.status === "pending" ||
+        result.status === "pending_approval" ||
+        result.status === "confirmed");
 
     if (needsCardPayment) {
       const payment = await requestRoomBookingPaymentUrl(result.bookingId!);
@@ -540,7 +545,9 @@ export default function PrenotazioniPage() {
     return "done";
   }
 
-  async function handleConfirm(payMode: "card" | "credits_full" | "credits_partial" = "card") {
+  async function handleConfirm(
+    payMode: "card" | "credits_full" | "credits_partial" | "cash" = "card",
+  ) {
     if (!memberId || !selectedSlot) {
       setError("Seleziona uno slot disponibile.");
       return;
@@ -602,6 +609,47 @@ export default function PrenotazioniPage() {
         return;
       }
 
+      if (isCollaborator && result.bookingId && payMode === "cash") {
+        const confirmed = await confirmCollaboratorBooking(
+          supabase,
+          result.bookingId,
+          "cash",
+        );
+        if (!confirmed.success) {
+          setError(confirmed.errorMessage ?? "Impossibile confermare la prenotazione.");
+          return;
+        }
+        outcome = await finalizeBooking(
+          { ...result, ...confirmed, requiresApproval: false, requiresPayment: false },
+          false,
+        );
+        setMessage("Prenotazione confermata. Pagamento in contanti in sede.");
+        return;
+      }
+
+      if (isCollaborator && result.bookingId && payMode === "card") {
+        const confirmed = await confirmCollaboratorBooking(
+          supabase,
+          result.bookingId,
+          "nexi",
+        );
+        if (!confirmed.success) {
+          setError(confirmed.errorMessage ?? "Impossibile confermare la prenotazione.");
+          return;
+        }
+        outcome = await finalizeBooking(
+          {
+            ...result,
+            ...confirmed,
+            status: "confirmed",
+            requiresApproval: false,
+            requiresPayment: true,
+          },
+          false,
+        );
+        return;
+      }
+
       if (payMode === "credits_full" && result.bookingId) {
         const creditPayment = await requestBookingCreditsPayment(
           result.bookingId,
@@ -627,10 +675,26 @@ export default function PrenotazioniPage() {
               ? "pending_approval"
               : "confirmed";
 
+        if (isCollaborator) {
+          const confirmed = await confirmCollaboratorBooking(
+            supabase,
+            result.bookingId,
+            "credits",
+          );
+          if (!confirmed.success) {
+            setError(
+              confirmed.errorMessage ??
+                "Crediti addebitati ma la conferma non è riuscita.",
+            );
+            return;
+          }
+        }
+
         outcome = await finalizeBooking(
           {
             ...result,
-            status: afterCreditsStatus,
+            status: isCollaborator ? "confirmed" : afterCreditsStatus,
+            requiresApproval: isCollaborator ? false : result.requiresApproval,
             requiresPayment: false,
           },
           true,
@@ -654,9 +718,26 @@ export default function PrenotazioniPage() {
           return;
         }
 
+        if (isCollaborator) {
+          const confirmed = await confirmCollaboratorBooking(
+            supabase,
+            result.bookingId,
+            "nexi",
+          );
+          if (!confirmed.success) {
+            setError(
+              confirmed.errorMessage ??
+                "Crediti applicati ma la conferma non è riuscita.",
+            );
+            return;
+          }
+        }
+
         outcome = await finalizeBooking(
           {
             ...result,
+            status: isCollaborator ? "confirmed" : result.status,
+            requiresApproval: isCollaborator ? false : result.requiresApproval,
             requiresPayment: true,
           },
           false,
@@ -988,7 +1069,7 @@ export default function PrenotazioniPage() {
                       >
                         <span className="font-medium">{slot.label}</span>
                         <span className="mt-0.5 block text-xs text-neutral-600">
-                          {slot.leadTimeCategory === "approval" ? (
+                          {slot.leadTimeCategory === "approval" && !isCollaborator ? (
                             <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-900">
                               Richiede approvazione
                             </span>
@@ -1119,7 +1200,7 @@ export default function PrenotazioniPage() {
                 onInviteIds={setCompanionInviteIds}
                 onQuotaOkCount={setCompanionQuotaOkCount}
               />
-              {selectedSlot.leadTimeCategory === "approval" && (
+              {selectedSlot.leadTimeCategory === "approval" && !isCollaborator && (
                 <p className="mt-4 text-sm text-amber-800">
                   Questa fascia richiede approvazione admin (6–12 ore prima
                   dell&apos;inizio).
@@ -1128,11 +1209,25 @@ export default function PrenotazioniPage() {
             </div>
 
             <div className="flex flex-wrap gap-3">
+              {isCollaborator ? (
+                <button
+                  type="button"
+                  disabled={submitting || payingWithCredits}
+                  onClick={() => void handleConfirm("cash")}
+                  className="rounded-lg bg-[var(--brand)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-60"
+                >
+                  {submitting ? "Conferma…" : "Contanti in sede"}
+                </button>
+              ) : null}
               <button
                 type="button"
                 disabled={submitting || payingWithCredits}
                 onClick={() => void handleConfirm("card")}
-                className="rounded-lg bg-[var(--brand)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-60"
+                className={
+                  isCollaborator
+                    ? "rounded-lg border border-[var(--brand)] bg-white px-5 py-2.5 text-sm font-medium text-[var(--brand)] hover:bg-[var(--brand)]/5 disabled:opacity-60"
+                    : "rounded-lg bg-[var(--brand)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-60"
+                }
               >
                 {submitting
                   ? "Reindirizzamento…"

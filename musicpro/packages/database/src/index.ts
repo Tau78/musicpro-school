@@ -47,6 +47,7 @@ export {
   cancelBooking,
   modifyBooking,
   createBooking,
+  confirmCollaboratorBooking,
   durationOptionsForRoom,
   formatBookingDateTime,
   formatCreditsCount,

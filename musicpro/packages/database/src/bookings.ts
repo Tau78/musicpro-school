@@ -103,7 +103,7 @@ export type BookingPaymentStatus =
   | "not_required"
   | "refunded";
 
-export type BookingPaymentMethod = "stripe" | "nexi" | "credits";
+export type BookingPaymentMethod = "stripe" | "nexi" | "credits" | "cash";
 
 export type BookingErrorCode =
   | "NOT_AUTHENTICATED"
@@ -1684,6 +1684,50 @@ export async function createBooking(
   };
 }
 
+export async function confirmCollaboratorBooking(
+  client: BookingsClient,
+  bookingId: string,
+  paymentMethod: "cash" | "nexi" | "credits",
+): Promise<CreateBookingResult> {
+  const { data, error } = await client.rpc("confirm_collaborator_booking", {
+    p_booking_id: bookingId,
+    p_payment_method: paymentMethod,
+  });
+
+  if (error) {
+    return mapPostgresError(error);
+  }
+
+  const result = data as {
+    success?: boolean;
+    booking_id?: string;
+    status?: BookingStatus;
+    error_code?: BookingErrorCode;
+    error_message?: string;
+    requires_payment?: boolean;
+  } | null;
+
+  if (!result?.success) {
+    const code = result?.error_code ?? "UNKNOWN";
+    return {
+      success: false,
+      errorCode: code,
+      errorMessage:
+        result?.error_message ??
+        BOOKING_ERROR_MESSAGES_IT[code] ??
+        BOOKING_ERROR_MESSAGES_IT.UNKNOWN,
+    };
+  }
+
+  return {
+    success: true,
+    bookingId: result.booking_id ?? bookingId,
+    status: result.status ?? "confirmed",
+    requiresApproval: false,
+    requiresPayment: result.requires_payment === true,
+  };
+}
+
 export async function cancelBooking(
   client: BookingsClient,
   bookingId: string,
@@ -2064,6 +2108,8 @@ export function bookingPaymentMethodLabel(
       return "Carta";
     case "credits":
       return "Crediti";
+    case "cash":
+      return "Contanti in sede";
     default:
       return method;
   }
