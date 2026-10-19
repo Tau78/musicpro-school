@@ -50,6 +50,27 @@ export function weekBounds(
   return { from: weekStart, to: addDays(weekStart, days) };
 }
 
+/**
+ * La scuola è chiusa di domenica: la colonna sparisce solo nei calendari
+ * di sole lezioni. Prenotazioni, esterni e viste miste la mostrano sempre.
+ */
+export function calendarIncludesNonSchool(options: {
+  bookingsOnly: boolean;
+  isStaff: boolean;
+  scope: CalendarScopeParam;
+}): boolean {
+  if (options.bookingsOnly) return true;
+  if (!options.isStaff) return false;
+  return options.scope === "tutto" || options.scope === "prenotazioni";
+}
+
+export function calendarWeekShowsSunday(options: {
+  schoolSundayVisible: boolean;
+  includesNonSchool: boolean;
+}): boolean {
+  return options.includesNonSchool || options.schoolSundayVisible;
+}
+
 export function monthBounds(anchor: string): { from: string; to: string } {
   const from = `${normalizeAnchor(anchor).slice(0, 7)}-01`;
   const [year, month] = from.split("-").map(Number);

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   calendarBounds,
+  calendarIncludesNonSchool,
+  calendarWeekShowsSunday,
   dayBounds,
   parseCalendarView,
   threeDayBounds,
@@ -29,5 +31,58 @@ describe("calendarBounds", () => {
       from: "2026-09-28",
       to: "2026-10-04",
     });
+    expect(calendarBounds("week", "2026-10-19", true)).toEqual({
+      from: "2026-10-19",
+      to: "2026-10-26",
+    });
+  });
+
+  it("mostra la domenica fuori dai calendari solo scuola", () => {
+    expect(
+      calendarWeekShowsSunday({
+        schoolSundayVisible: false,
+        includesNonSchool: false,
+      }),
+    ).toBe(false);
+    expect(
+      calendarWeekShowsSunday({
+        schoolSundayVisible: true,
+        includesNonSchool: false,
+      }),
+    ).toBe(true);
+    expect(
+      calendarWeekShowsSunday({
+        schoolSundayVisible: false,
+        includesNonSchool: true,
+      }),
+    ).toBe(true);
+    expect(
+      calendarIncludesNonSchool({
+        bookingsOnly: false,
+        isStaff: true,
+        scope: "lezioni",
+      }),
+    ).toBe(false);
+    expect(
+      calendarIncludesNonSchool({
+        bookingsOnly: false,
+        isStaff: true,
+        scope: "tutto",
+      }),
+    ).toBe(true);
+    expect(
+      calendarIncludesNonSchool({
+        bookingsOnly: true,
+        isStaff: true,
+        scope: "lezioni",
+      }),
+    ).toBe(true);
+    expect(
+      calendarIncludesNonSchool({
+        bookingsOnly: false,
+        isStaff: false,
+        scope: "tutto",
+      }),
+    ).toBe(false);
   });
 });

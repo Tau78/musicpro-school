@@ -40,7 +40,11 @@ import {
   type MoveScope,
 } from "@/components/lezioni/lessons-calendar";
 import { lessonCourseId } from "@/lib/lezioni/oggi-lesson";
-import { calendarBounds } from "@/lib/lezioni/calendar-range";
+import {
+  calendarBounds,
+  calendarIncludesNonSchool,
+  calendarWeekShowsSunday,
+} from "@/lib/lezioni/calendar-range";
 import { createClient } from "@/lib/supabase/client";
 
 export type CalendarMode = "docente" | "sala";
@@ -162,7 +166,14 @@ export function LessonsCalendarPage({
     | null
   >(null);
 
-  const sundayVisible = settings.sundayVisible;
+  const sundayVisible = calendarWeekShowsSunday({
+    schoolSundayVisible: settings.sundayVisible,
+    includesNonSchool: calendarIncludesNonSchool({
+      bookingsOnly,
+      isStaff,
+      scope,
+    }),
+  });
   const filtersRef = useRef({
     view,
     anchorDate,
@@ -191,7 +202,18 @@ export function LessonsCalendarPage({
     }) => {
       const gen = ++fetchGen.current;
       setLessonsBusy(true);
-      const bounds = calendarBounds(next.view, next.date, sundayVisible);
+      const bounds = calendarBounds(
+        next.view,
+        next.date,
+        calendarWeekShowsSunday({
+          schoolSundayVisible: settings.sundayVisible,
+          includesNonSchool: calendarIncludesNonSchool({
+            bookingsOnly,
+            isStaff,
+            scope: next.scope,
+          }),
+        }),
+      );
       try {
         const effectiveScope = bookingsOnly ? "prenotazioni" : next.scope;
         const includeLessons =
@@ -251,8 +273,8 @@ export function LessonsCalendarPage({
       isStaff,
       lockTeacherId,
       memberId,
+      settings.sundayVisible,
       supabase,
-      sundayVisible,
       unified,
     ],
   );
@@ -740,7 +762,7 @@ export function LessonsCalendarPage({
           lessons={lessons}
           view={view}
           anchorDate={anchorDate}
-          sundayVisible={settings.sundayVisible}
+          sundayVisible={sundayVisible}
           gridOpenMinute={settings.gridOpenMinute}
           gridCloseMinute={settings.gridCloseMinute}
           slotGranularityMinutes={settings.slotGranularityMinutes}

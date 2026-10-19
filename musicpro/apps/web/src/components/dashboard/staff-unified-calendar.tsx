@@ -11,7 +11,8 @@ import type { CalendarScope } from "@/components/lezioni/lessons-calendar-page";
 import { LessonsCalendarPage } from "@/components/lezioni/lessons-calendar-page";
 import { loadUnifiedCalendarEvents } from "@/lib/dashboard/load-unified-calendar";
 import {
-  calendarBounds,
+  calendarIncludesNonSchool,
+  calendarWeekShowsSunday,
   isIsoDate,
   parseCalendarScope,
   parseCalendarView,
@@ -87,8 +88,14 @@ export async function StaffUnifiedCalendar({
       ? searchParams.sala
       : null;
 
-  const sundayVisible = settings?.sundayVisible ?? false;
-  void calendarBounds(view, anchorDate, sundayVisible);
+  const sundayVisible = calendarWeekShowsSunday({
+    schoolSundayVisible: settings?.sundayVisible ?? false,
+    includesNonSchool: calendarIncludesNonSchool({
+      bookingsOnly: false,
+      isStaff: showStaffLessons || showBookingsCalendar,
+      scope,
+    }),
+  });
 
   const initialLessons = await loadUnifiedCalendarEvents(supabase, {
     view,
@@ -111,7 +118,7 @@ export async function StaffUnifiedCalendar({
     <LessonsCalendarPage
         initialLessons={initialLessons}
         settings={{
-          sundayVisible,
+          sundayVisible: settings?.sundayVisible ?? false,
           gridOpenMinute: settings?.gridOpenMinute ?? 600,
           gridCloseMinute: settings?.gridCloseMinute ?? 1380,
           slotGranularityMinutes: settings?.slotGranularityMinutes ?? 15,

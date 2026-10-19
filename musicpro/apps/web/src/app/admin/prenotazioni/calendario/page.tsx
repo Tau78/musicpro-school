@@ -14,6 +14,7 @@ import { getAdminMember } from "@/lib/admin/current-member";
 import { canManageBookings } from "@/lib/admin/roles";
 import {
   calendarBounds,
+  calendarWeekShowsSunday,
   isIsoDate,
   parseCalendarView,
 } from "@/lib/lezioni/calendar-range";
@@ -55,7 +56,10 @@ export default async function AdminPrenotazioniCalendarioPage({
       ? params.sala
       : null;
 
-  const sundayVisible = settings?.sundayVisible ?? false;
+  const sundayVisible = calendarWeekShowsSunday({
+    schoolSundayVisible: settings?.sundayVisible ?? false,
+    includesNonSchool: true,
+  });
   const bounds = calendarBounds(view, anchorDate, sundayVisible);
 
   const roomFilter = roomId ?? undefined;
