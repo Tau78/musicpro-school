@@ -28,8 +28,9 @@ export const viewport: Viewport = {
  */
 const CRITICAL_FALLBACK_CSS = `
 :root{--background:#fafafa;--foreground:#171717;--brand:#1e3a5f;--brand-accent:#c9a227;--gradient-start:#faf8f5;--gradient-mid:#f5f0ea;--gradient-end:#ebe4dc;--glass-bg:rgba(255,255,255,.78);--glass-border:rgba(255,255,255,.92)}
-html{-webkit-text-size-adjust:100%}
-body{margin:0;min-height:100vh;background:var(--background);color:var(--foreground);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.5}
+html{-webkit-text-size-adjust:100%;overflow-x:clip;max-width:100%}
+body{margin:0;min-height:100vh;overflow-x:clip;max-width:100%;padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px);background:var(--background);color:var(--foreground);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.5}
+input,select,textarea{max-width:100%;min-width:0}
 a{color:inherit;text-decoration:none}
 /* Unlayered: batte @layer utilities di Tailwind (senza questo, a{color:inherit}
    vince su .text-white e i CTA blu restano illeggibili). */

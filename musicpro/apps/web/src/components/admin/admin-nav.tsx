@@ -191,7 +191,7 @@ export function AdminNav({
         className="fixed inset-x-0 bottom-0 z-40 border-t border-neutral-200 bg-white md:hidden"
         aria-label="Navigazione principale"
       >
-        <div className="flex pb-[max(0.625rem,env(safe-area-inset-bottom,0.625rem))] pt-1">
+        <div className="flex min-w-0 max-w-full pb-[max(0.625rem,env(safe-area-inset-bottom,0.625rem))] pt-1">
           {visibleItems.map((item) => {
             const href = item.mobileHref ?? item.href;
             const active = isNavItemActive(item.key, item.href, optimisticPath);

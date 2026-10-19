@@ -37,7 +37,7 @@ export function HeaderSettingsActions({
     Boolean(userFirstName?.trim()) || (userRoles != null && userRoles.length > 0);
 
   return (
-    <div className="flex shrink-0 items-center gap-2">
+    <div className="flex min-w-0 items-center gap-2">
       {showUser ? (
         <HeaderUserChip
           firstName={userFirstName?.trim() || "Utente"}

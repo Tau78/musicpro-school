@@ -23,11 +23,11 @@ export function AdminShell({
   userRoles?: MemberRoleValue[];
 }) {
   return (
-    <div className="min-h-screen bg-[var(--background)] pb-[calc(4.25rem+max(0.625rem,env(safe-area-inset-bottom,0.625rem)))] md:pb-0">
+    <div className="min-h-screen min-w-0 max-w-full overflow-x-clip bg-[var(--background)] pb-[calc(4.25rem+max(0.625rem,env(safe-area-inset-bottom,0.625rem)))] md:pb-0">
       <BlurActiveOnNavigate />
       <header className="bg-[var(--brand)] text-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-2 sm:px-6 sm:py-2.5">
-          <div className="min-w-0">
+        <div className="mx-auto flex w-full min-w-0 max-w-7xl items-center justify-between gap-2 px-4 py-2 sm:gap-3 sm:px-6 sm:py-2.5">
+          <div className="min-w-0 flex-1">
             <p className="text-[10px] font-medium uppercase tracking-wide text-[var(--brand-accent)]">
               {APP_NAME}
             </p>
@@ -43,7 +43,7 @@ export function AdminShell({
       </header>
 
       <main
-        className={`mx-auto px-4 py-4 sm:px-6 sm:py-6 ${
+        className={`mx-auto min-w-0 px-4 py-4 sm:px-6 sm:py-6 ${
           wide ? "max-w-7xl" : "max-w-6xl"
         }`}
       >
