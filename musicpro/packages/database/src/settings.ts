@@ -1,6 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { getBookingSettings, type BookingSettings } from "./bookings";
+import {
+  getBookingSettings,
+  normalizePendingHoldHours,
+  type BookingSettings,
+} from "./bookings";
 import type { Database } from "./types/database";
 
 type SettingsClient = SupabaseClient<Database>;
@@ -16,6 +20,8 @@ export interface BookingSettingsInput {
   locked: boolean;
   lockedMessage: string;
   collaboratorDiscountPercent: number;
+  pendingBlocksSlot: boolean;
+  pendingHoldHours: number;
 }
 
 export interface SettingsMutationResult {
@@ -68,6 +74,8 @@ const BOOKING_SETTING_KEYS = {
   locked: "booking_locked",
   lockedMessage: "booking_locked_message",
   collaboratorDiscountPercent: "booking_collaborator_discount_percent",
+  pendingBlocksSlot: "booking_pending_blocks_slot",
+  pendingHoldHours: "booking_pending_hold_hours",
 } as const;
 
 export async function getAppBookingSettings(
@@ -99,6 +107,13 @@ export async function updateBookingSettings(
     return {
       success: false,
       errorMessage: "Lo sconto collaboratore deve essere tra 0 e 100.",
+    };
+  }
+
+  if (normalizePendingHoldHours(input.pendingHoldHours) !== input.pendingHoldHours) {
+    return {
+      success: false,
+      errorMessage: "Durata pending non valida.",
     };
   }
 
@@ -150,6 +165,18 @@ export async function updateBookingSettings(
       value: String(input.collaboratorDiscountPercent),
       description:
         "Sconto % sul totale sala per chi ha il ruolo Collaboratore (0–100).",
+    },
+    {
+      key: BOOKING_SETTING_KEYS.pendingBlocksSlot,
+      value: input.pendingBlocksSlot ? "true" : "false",
+      description:
+        "Se true, un pending non pagato blocca la sala fino alla scadenza.",
+    },
+    {
+      key: BOOKING_SETTING_KEYS.pendingHoldHours,
+      value: String(input.pendingHoldHours),
+      description:
+        "Ore di blocco dello slot per un pending non pagato (1, 2, 4, 6, 8, 12, 24).",
     },
   ];
 
