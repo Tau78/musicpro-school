@@ -224,3 +224,5 @@ $$;
 
 COMMENT ON FUNCTION public.booking_confirm_blocked_by_slot(public.bookings) IS
   'True se un''altra prenotazione occupa la finestra, pending non pagato incluso finché è nel hold.';
+
+SELECT public.release_expired_pending_bookings();
