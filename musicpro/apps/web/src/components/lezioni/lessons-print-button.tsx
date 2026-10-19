@@ -19,7 +19,7 @@ export function LessonsPrintButton({
       <button
         type="button"
         onClick={() => window.print()}
-        className="print:hidden touch-manipulation rounded-md border border-neutral-300 bg-white px-2.5 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+        className="print:hidden max-w-full touch-manipulation rounded-md border border-neutral-300 bg-white px-2.5 py-1 text-left text-xs font-medium text-neutral-700 hover:bg-neutral-50"
       >
         {label}
       </button>

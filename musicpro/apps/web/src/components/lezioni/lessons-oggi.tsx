@@ -88,7 +88,7 @@ export function LessonsOggi({
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end">
+      <div className="flex min-w-0 max-w-full justify-end">
         <LessonsPrintButton label="Stampa registro del giorno" />
       </div>
       {todayRows.length === 0 ? (

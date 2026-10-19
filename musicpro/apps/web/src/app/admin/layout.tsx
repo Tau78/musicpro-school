@@ -112,11 +112,11 @@ export default async function AdminLayout({
   });
 
   return (
-    <div className="min-h-screen bg-[var(--background)] pb-[calc(4.25rem+max(0.625rem,env(safe-area-inset-bottom,0.625rem)))] md:pb-0">
+    <div className="min-h-screen min-w-0 max-w-full overflow-x-clip bg-[var(--background)] pb-[calc(4.25rem+max(0.625rem,env(safe-area-inset-bottom,0.625rem)))] md:pb-0">
       <BlurActiveOnNavigate />
       <header className="bg-[var(--brand)] text-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-2 sm:px-6 sm:py-2.5">
-          <div className="min-w-0">
+        <div className="mx-auto flex w-full min-w-0 max-w-6xl items-center justify-between gap-2 px-4 py-2 sm:px-6 sm:py-2.5">
+          <div className="min-w-0 flex-1">
             <p className="text-[10px] font-medium uppercase tracking-wide text-[var(--brand-accent)]">
               {APP_NAME}
             </p>
@@ -124,7 +124,7 @@ export default async function AdminLayout({
               Amministrazione
             </h1>
           </div>
-          <div className="flex min-w-0 items-center gap-3">
+          <div className="flex min-w-0 max-w-[58%] items-center gap-2 sm:max-w-none sm:gap-3">
             <Link
               href="/dashboard"
               className="hidden shrink-0 text-sm text-white/80 hover:text-white sm:inline"
@@ -154,7 +154,7 @@ export default async function AdminLayout({
         />
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-3 sm:px-6 sm:py-5">
+      <main className="mx-auto min-w-0 max-w-6xl px-4 py-3 sm:px-6 sm:py-5">
         <Suspense fallback={<AdminPageLoading />}>
           <SettingsSubNav
             showQuote={showQuote}

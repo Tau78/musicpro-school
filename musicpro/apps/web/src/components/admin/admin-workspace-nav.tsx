@@ -87,8 +87,8 @@ export function AdminWorkspaceNav({
     segmentAriaLabel ?? (title ? `Sezioni ${title}` : "Sezioni workspace");
 
   return (
-    <header className="rounded-xl bg-white/90 shadow-sm ring-1 ring-black/5">
-      <div className="pt-2 pb-1.5">
+    <header className="min-w-0 max-w-full overflow-hidden rounded-xl bg-white/90 shadow-sm ring-1 ring-black/5">
+      <div className="px-2 pt-2 pb-1.5">
         <div
           className="inline-flex max-w-full flex-wrap gap-0.5 rounded-lg bg-neutral-100/90 p-0.5"
           role="tablist"
@@ -124,7 +124,7 @@ export function AdminWorkspaceNav({
       </div>
 
       <nav
-        className="flex gap-1.5 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex min-w-0 max-w-full gap-1.5 overflow-x-auto px-2 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         aria-label={activeGroup ? `Azioni ${activeGroup.label}` : "Azioni"}
       >
         {(activeGroup?.items ?? []).map((item) => {

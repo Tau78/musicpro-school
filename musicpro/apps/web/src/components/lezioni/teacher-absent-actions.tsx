@@ -120,15 +120,15 @@ export function TeacherAbsentActions({
         </p>
       ) : null}
 
-      <div className="flex flex-wrap items-end gap-3">
+      <div className="flex min-w-0 max-w-full flex-wrap items-end gap-2">
         {showTeacherSelect ? (
-          <label className="flex min-w-[12rem] flex-col gap-1 text-xs text-neutral-600">
+          <label className="flex min-w-0 max-w-full flex-[1_1_100%] flex-col gap-1 text-xs text-neutral-600 sm:flex-[1_1_12rem]">
             Docente
             <select
               value={titularMemberId}
               disabled={busy}
               onChange={(event) => setSelectedTeacherId(event.target.value)}
-              className={inputClass}
+              className={`${inputClass} w-full min-w-0`}
               required
             >
               {teachers!.map((teacher) => (
@@ -140,32 +140,32 @@ export function TeacherAbsentActions({
           </label>
         ) : null}
 
-        <label className="flex flex-col gap-1 text-xs text-neutral-600">
+        <label className="flex min-w-0 max-w-full flex-[1_1_8.5rem] flex-col gap-1 text-xs text-neutral-600">
           Dal
           <input
             type="date"
             value={fromDate}
             disabled={busy}
             onChange={(event) => setFromDate(event.target.value)}
-            className={inputClass}
+            className={`${inputClass} w-full min-w-0`}
             required
           />
         </label>
-        <label className="flex flex-col gap-1 text-xs text-neutral-600">
+        <label className="flex min-w-0 max-w-full flex-[1_1_8.5rem] flex-col gap-1 text-xs text-neutral-600">
           Al
           <input
             type="date"
             value={toDate}
             disabled={busy}
             onChange={(event) => setToDate(event.target.value)}
-            className={inputClass}
+            className={`${inputClass} w-full min-w-0`}
             required
           />
         </label>
         <button
           type="submit"
           disabled={busy || !titularMemberId}
-          className="rounded-lg bg-[var(--brand)] px-3 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
+          className="max-w-full rounded-lg bg-[var(--brand)] px-3 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
         >
           {busy ? "Segno…" : "Docente assente"}
         </button>

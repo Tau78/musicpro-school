@@ -20,7 +20,11 @@ struct SchoolWebView: UIViewRepresentable {
     webView.navigationDelegate = context.coordinator
     webView.uiDelegate = context.coordinator
     webView.allowsBackForwardNavigationGestures = true
-    webView.scrollView.contentInsetAdjustmentBehavior = .automatic
+    // La pagina usa viewport-fit=cover e i safe-area CSS.
+    // .automatic somma un inset nativo e la pagina diventa più larga dello schermo.
+    webView.scrollView.contentInsetAdjustmentBehavior = .never
+    webView.scrollView.alwaysBounceHorizontal = false
+    webView.scrollView.showsHorizontalScrollIndicator = false
     webView.isOpaque = false
     webView.backgroundColor = UIColor(red: 0.12, green: 0.23, blue: 0.37, alpha: 1)
     context.coordinator.webView = webView

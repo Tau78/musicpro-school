@@ -41,16 +41,16 @@ export default async function LezioniLayout({
   }
 
   return (
-    <div className="min-h-screen bg-[var(--background)]">
+    <div className="min-h-screen min-w-0 max-w-full overflow-x-clip bg-[var(--background)]">
       <header className="bg-[var(--brand)] text-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <div>
+        <div className="mx-auto flex w-full min-w-0 max-w-6xl items-center justify-between gap-2 px-4 py-4 sm:px-6">
+          <div className="min-w-0 flex-1">
             <p className="text-xs font-medium uppercase tracking-wide text-[var(--brand-accent)]">
               {APP_NAME}
             </p>
-            <h1 className="text-xl font-semibold">Lezioni</h1>
+            <h1 className="truncate text-xl font-semibold">Lezioni</h1>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             <Link
               href="/dashboard"
               className="text-sm text-white/80 hover:text-white"
@@ -62,7 +62,7 @@ export default async function LezioniLayout({
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
+      <main className="mx-auto min-w-0 max-w-6xl px-4 py-4 sm:px-6">
         <div className="space-y-5 sm:space-y-6">
           <LessonsSandboxBanner />
           <LezioniSubNav />
