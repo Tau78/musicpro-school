@@ -76,8 +76,8 @@ Deno.serve(async (req) => {
       paymentUrl,
     );
 
-    // Safety net: confirm email paths (UI, scripts, webhooks) often forget
-    // calendar sync. Upsert is idempotent; skip/non-confirmed is a no-op.
+    // Safety net: le email di conferma spesso dimenticano il calendario.
+    // Upsert è idempotente. Pending e confermate si scrivono subito.
     if (result.success !== false && template === 'confirm') {
       try {
         const cal = await syncBookingToGoogleCalendar(service, bookingId, 'upsert');

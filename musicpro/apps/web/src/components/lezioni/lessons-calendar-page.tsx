@@ -1,11 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   getCurrentMemberWithRoles,
   listBookingsInRange,
+  subscribeToBookingChanges,
   listExternalCalendarEventsInRange,
   listLessonsInRange,
   moveLesson,
@@ -267,6 +268,21 @@ export function LessonsCalendarPage({
       scope: current.scope,
     });
   }
+
+  useEffect(() => {
+    if (!isStaff) return;
+    let timer = 0;
+    const unsubscribe = subscribeToBookingChanges(supabase, () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        void reloadLessons();
+      }, 200);
+    });
+    return () => {
+      window.clearTimeout(timer);
+      unsubscribe();
+    };
+  }, [isStaff, loadLessons, supabase]);
 
   function pushQuery(next: {
     view?: CalendarView;

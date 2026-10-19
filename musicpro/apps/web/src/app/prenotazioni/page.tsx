@@ -523,10 +523,11 @@ export default function PrenotazioniPage() {
           }),
         });
       }
-      if (result.status === "confirmed") {
-        void requestBookingCalendarSync(result.bookingId);
-        void requestBookingConfirmationEmail(result.bookingId, { template: "confirm" });
-      } else if (result.status === "pending_approval") {
+      await requestBookingCalendarSync(result.bookingId);
+      if (
+        result.status === "confirmed" ||
+        result.status === "pending_approval"
+      ) {
         void requestBookingConfirmationEmail(result.bookingId, { template: "confirm" });
       }
     }

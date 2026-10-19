@@ -29,6 +29,7 @@ import {
   getRoomAvailability,
   listRooms,
   peekRoomAvailabilityCache,
+  requestBookingCalendarSync,
   requestBookingConfirmationEmail,
   requestBookingCreditsPayment,
   requestRoomBookingPaymentUrl,
@@ -332,6 +333,13 @@ export default function PrenotazioniScreen() {
       const {
         data: { session },
       } = await supabase.auth.getSession();
+
+      if (result.bookingId && apiBaseUrl && session?.access_token) {
+        await requestBookingCalendarSync(result.bookingId, {
+          apiBaseUrl,
+          accessToken: session.access_token,
+        });
+      }
 
       if (payMode === "credits" && result.bookingId) {
         const creditPayment = await requestBookingCreditsPayment(

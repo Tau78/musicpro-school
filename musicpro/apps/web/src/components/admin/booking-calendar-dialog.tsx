@@ -223,6 +223,8 @@ export function BookingCalendarDialog({
           return;
         }
 
+        await requestBookingCalendarSync(result.bookingId);
+
         if (includePayment) {
           const paymentResp = await fetch(
             `/api/admin/bookings/${encodeURIComponent(result.bookingId)}/init-payment`,
@@ -246,11 +248,6 @@ export function BookingCalendarDialog({
             return;
           }
         } else {
-          // Sync calendar on confirmed even if confirm-email is unchecked
-          // (email alone must never be the only side-effect path).
-          if (result.status === "confirmed") {
-            void requestBookingCalendarSync(result.bookingId);
-          }
           if (sendConfirmEmail) {
             void requestBookingConfirmationEmail(result.bookingId, {
               template: "confirm",
@@ -283,9 +280,7 @@ export function BookingCalendarDialog({
         return;
       }
 
-      if (booking.status === "confirmed") {
-        void requestBookingCalendarSync(booking.id);
-      }
+      await requestBookingCalendarSync(booking.id);
       if (sendEmail) {
         void requestBookingConfirmationEmail(booking.id, {
           template: "modified",
@@ -333,7 +328,7 @@ export function BookingCalendarDialog({
         return;
       }
 
-      void requestBookingCalendarSync(bookingId, "delete");
+      await requestBookingCalendarSync(bookingId, "delete");
       onSaved();
       onClose();
     } catch (err) {

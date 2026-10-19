@@ -25,6 +25,7 @@ import {
   getTeacherProfile,
   hasActiveCourseEnrollment,
   listBookingsInRange,
+  subscribeToBookingChanges,
   listLessonsInRange,
   listMyBookings,
   minutesToTimeLabel,
@@ -274,6 +275,21 @@ export default function DashboardScreen() {
     if (authLoading) return;
     void load("initial");
   }, [authLoading, load]);
+
+  useEffect(() => {
+    if (!manageSala) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const unsubscribe = subscribeToBookingChanges(supabase, () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        void load("refresh");
+      }, 200);
+    });
+    return () => {
+      if (timer) clearTimeout(timer);
+      unsubscribe();
+    };
+  }, [load, manageSala, supabase]);
 
   const bookingEvents: TimeGridEvent[] = useMemo(
     () =>
