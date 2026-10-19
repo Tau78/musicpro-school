@@ -179,6 +179,10 @@ export interface BookingSettings {
   lockedMessage: string;
   /** Sconto % sul totale sala per ruolo Collaboratore (0–100). */
   collaboratorDiscountPercent: number;
+  /** Pending non pagato blocca la sala. Default true. */
+  pendingBlocksSlot: boolean;
+  /** Ore di blocco del pending non pagato. Default 4. */
+  pendingHoldHours: number;
 }
 
 export interface Booking {
@@ -216,6 +220,16 @@ export interface Booking {
 
 /** Valori ammessi per il dropdown microfoni (SuperSaaS). */
 export const BOOKING_MICROPHONE_COUNTS = [0, 1, 2, 3, 4] as const;
+
+/** Durate ammesse per il blocco slot del pending non pagato. */
+export const PENDING_HOLD_HOUR_OPTIONS = [1, 2, 4, 6, 8, 12, 24] as const;
+export type PendingHoldHours = (typeof PENDING_HOLD_HOUR_OPTIONS)[number];
+
+export function normalizePendingHoldHours(value: number): PendingHoldHours {
+  return (PENDING_HOLD_HOUR_OPTIONS as readonly number[]).includes(value)
+    ? (value as PendingHoldHours)
+    : 4;
+}
 export type BookingMicrophoneCount = (typeof BOOKING_MICROPHONE_COUNTS)[number];
 
 export interface BookingWithRoom extends Booking {
@@ -422,23 +436,48 @@ export function bookingNeedsPayment(booking: Pick<Booking, "status" | "payment_s
   );
 }
 
-/** True se la prenotazione occupa lo slot sala (non i checkout Nexi abbandonati). */
-export function bookingOccupiesSlot(booking: {
-  status: BookingStatus;
-  payment_status?: BookingPaymentStatus | string | null;
-  credits_held?: number | null;
-}): boolean {
+/** True se la prenotazione occupa lo slot sala.
+ *  Il pending non pagato blocca solo se l'impostazione è attiva e il hold non è scaduto.
+ */
+export function bookingOccupiesSlot(
+  booking: {
+    status: BookingStatus;
+    payment_status?: BookingPaymentStatus | string | null;
+    credits_held?: number | null;
+    created_at?: string | null;
+  },
+  settings?: Pick<BookingSettings, "pendingBlocksSlot" | "pendingHoldHours">,
+  nowMs: number = Date.now(),
+): boolean {
   if (booking.status === "cancelled") return false;
   const payment = booking.payment_status ?? "";
   const creditsHeld = booking.credits_held ?? 0;
-  if (
+  const unpaidPending =
     booking.status === "pending" &&
     (payment === "unpaid" || payment === "link_sent") &&
-    creditsHeld === 0
-  ) {
-    return false;
+    creditsHeld === 0;
+  if (!unpaidPending) return true;
+
+  const blocks = settings?.pendingBlocksSlot ?? true;
+  if (!blocks) return false;
+  if (!booking.created_at) return true;
+
+  const holdHours = normalizePendingHoldHours(settings?.pendingHoldHours ?? 4);
+  const createdMs = new Date(booking.created_at).getTime();
+  if (!Number.isFinite(createdMs)) return true;
+  return createdMs + holdHours * 3_600_000 > nowMs;
+}
+
+export async function releaseExpiredPendingBookings(
+  client: BookingsClient,
+): Promise<number> {
+  const { data, error } = await client.rpc("release_expired_pending_bookings");
+  if (error) {
+    throw new Error(
+      `Impossibile liberare i pending scaduti: ${error.message}`,
+    );
   }
-  return true;
+  return typeof data === "number" ? data : 0;
 }
 
 export type RequestBookingCreditsPaymentOptions = {
@@ -710,6 +749,8 @@ export async function getBookingSettings(
     "booking_locked",
     "booking_locked_message",
     "booking_collaborator_discount_percent",
+    "booking_pending_blocks_slot",
+    "booking_pending_hold_hours",
   ] as const;
 
   const { data, error } = await client
@@ -725,6 +766,9 @@ export async function getBookingSettings(
 
   const bandRequiredRaw = (map.get("booking_band_required") ?? "false").toLowerCase();
   const lockedRaw = (map.get("booking_locked") ?? "false").toLowerCase();
+  const pendingBlocksRaw = (
+    map.get("booking_pending_blocks_slot") ?? "true"
+  ).toLowerCase();
 
   return {
     autoConfirmMinHours: parseInt(
@@ -755,6 +799,10 @@ export async function getBookingSettings(
         parseInt(map.get("booking_collaborator_discount_percent") ?? "20", 10) ||
           0,
       ),
+    ),
+    pendingBlocksSlot: ["true", "1", "yes", "on"].includes(pendingBlocksRaw),
+    pendingHoldHours: normalizePendingHoldHours(
+      parseInt(map.get("booking_pending_hold_hours") ?? "4", 10) || 4,
     ),
   };
 }
@@ -978,6 +1026,8 @@ export async function getRoomAvailability(
   options?: { excludeBookingId?: string | null; prefetchNeighbors?: boolean },
 ): Promise<RoomAvailability> {
   const excludeBookingId = options?.excludeBookingId ?? null;
+  const released = await releaseExpiredPendingBookings(client);
+  if (released > 0) invalidateRoomAvailabilityCache(roomId);
   const durationHint = durationMinutes;
   if (durationHint != null) {
     const cached = peekRoomAvailabilityCache(
@@ -1032,7 +1082,9 @@ export async function getRoomAvailability(
       getBookingSettings(client),
       client
         .from("bookings")
-        .select("id, start_at, end_at, status, payment_status, credits_held")
+        .select(
+          "id, start_at, end_at, status, payment_status, credits_held, created_at",
+        )
         .eq("room_id", roomId)
         .lt("start_at", endUtc)
         .gt("end_at", startUtc)
@@ -1075,9 +1127,10 @@ export async function getRoomAvailability(
     status: BookingStatus;
     payment_status?: BookingPaymentStatus | string | null;
     credits_held?: number | null;
+    created_at?: string | null;
   }>)
     .filter((booking) => !excludeBookingId || booking.id !== excludeBookingId)
-    .filter((booking) => bookingOccupiesSlot(booking));
+    .filter((booking) => bookingOccupiesSlot(booking, settings));
 
   if (
     supersaasImportOn &&
@@ -1311,6 +1364,7 @@ export async function listMyBookings(
   memberId: string,
   filter: "upcoming" | "past" = "upcoming",
 ): Promise<BookingWithRoom[]> {
+  await releaseExpiredPendingBookings(client);
   const now = new Date().toISOString();
 
   let query = client
@@ -1361,6 +1415,7 @@ export async function listAdminBookings(
   client: BookingsClient,
   filter: AdminBookingFilter = "pending_approval",
 ): Promise<AdminBookingListItem[]> {
+  await releaseExpiredPendingBookings(client);
   const now = new Date().toISOString();
 
   let query = client.from("bookings").select(BOOKING_SELECT);
@@ -1450,6 +1505,8 @@ export async function listBookingsInRange(
   const from = resolveBookingRangeBound(input.from, "La data di inizio");
   const to = resolveBookingRangeBound(input.to, "La data di fine");
   if (from >= to) return [];
+
+  await releaseExpiredPendingBookings(client);
 
   let query = client
     .from("bookings")

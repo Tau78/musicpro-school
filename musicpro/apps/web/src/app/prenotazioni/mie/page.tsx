@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
 import {
+  type BookingSettings,
   type BookingWithRoom,
   type CancelBookingResult,
   type MemberCreditBalance,
@@ -73,7 +74,7 @@ function MiePrenotazioniContent() {
     upcoming: [],
     past: [],
   });
-  const [cancelSettings, setCancelSettings] = useState({
+  const [cancelSettings, setCancelSettings] = useState<BookingSettings>({
     cancelMinHours: 24,
     autoConfirmMinHours: 12,
     approvalMinHours: 6,
@@ -82,6 +83,8 @@ function MiePrenotazioniContent() {
     locked: false,
     lockedMessage: "",
     collaboratorDiscountPercent: 20,
+    pendingBlocksSlot: true,
+    pendingHoldHours: 4,
   });
   const [memberId, setMemberId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);

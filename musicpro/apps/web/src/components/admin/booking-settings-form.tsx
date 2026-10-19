@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import {
+  PENDING_HOLD_HOUR_OPTIONS,
   type BookingSettings,
   type BookingSettingsInput,
   updateBookingSettings,
@@ -33,6 +34,8 @@ function settingsToInput(settings: BookingSettings): BookingSettingsInput {
     locked: settings.locked,
     lockedMessage: settings.lockedMessage,
     collaboratorDiscountPercent: settings.collaboratorDiscountPercent,
+    pendingBlocksSlot: settings.pendingBlocksSlot,
+    pendingHoldHours: settings.pendingHoldHours,
   };
 }
 
@@ -170,6 +173,34 @@ export function BookingSettingsForm({ settings }: BookingSettingsFormProps) {
               className={settingsInputClass}
             />
           </label>
+          <div className="flex items-center gap-3 sm:col-span-2">
+            <label className="flex items-center gap-2 text-sm font-medium text-neutral-800">
+              <input
+                type="checkbox"
+                checked={form.pendingBlocksSlot}
+                onChange={(e) =>
+                  updateField("pendingBlocksSlot", e.target.checked)
+                }
+                className="h-4 w-4 accent-[var(--brand)]"
+              />
+              Pending blocca lo slot
+            </label>
+            <select
+              aria-label="Durata pending"
+              value={form.pendingHoldHours}
+              disabled={!form.pendingBlocksSlot}
+              onChange={(e) =>
+                updateField("pendingHoldHours", Number(e.target.value) || 4)
+              }
+              className="rounded-lg border border-neutral-300 bg-white px-2 py-1.5 text-sm text-neutral-900 disabled:opacity-50"
+            >
+              {PENDING_HOLD_HOUR_OPTIONS.map((hours) => (
+                <option key={hours} value={hours}>
+                  {hours === 1 ? "1 ora" : `${hours} ore`}
+                </option>
+              ))}
+            </select>
+          </div>
           <p className="text-xs text-neutral-500 sm:col-span-2">
             Ore prima dell&apos;inizio. Lo sconto vale per il ruolo Collaboratore
             sulla scheda associato.

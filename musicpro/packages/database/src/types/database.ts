@@ -2320,6 +2320,10 @@ export interface Database {
       [_ in never]: never;
     };
     Functions: {
+      release_expired_pending_bookings: {
+        Args: Record<string, never>;
+        Returns: number;
+      };
       deactivate_own_account: {
         Args: Record<string, never>;
         Returns: boolean;

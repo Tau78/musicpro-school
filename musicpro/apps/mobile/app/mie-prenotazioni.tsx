@@ -11,6 +11,7 @@ import {
 import { useRouter } from "expo-router";
 
 import {
+  type BookingSettings,
   type BookingWithRoom,
   type CancelBookingResult,
   bookingNeedsPayment,
@@ -55,7 +56,7 @@ export default function MiePrenotazioniScreen() {
 
   const [tab, setTab] = useState<"upcoming" | "past">("upcoming");
   const [bookings, setBookings] = useState<BookingWithRoom[]>([]);
-  const [cancelSettings, setCancelSettings] = useState({
+  const [cancelSettings, setCancelSettings] = useState<BookingSettings>({
     cancelMinHours: 24,
     autoConfirmMinHours: 12,
     approvalMinHours: 6,
@@ -64,6 +65,8 @@ export default function MiePrenotazioniScreen() {
     locked: false,
     lockedMessage: "",
     collaboratorDiscountPercent: 20,
+    pendingBlocksSlot: true,
+    pendingHoldHours: 4,
   });
   const [memberId, setMemberId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);

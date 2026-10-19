@@ -29,6 +29,8 @@ export {
 export type { Database, MemberRoleEnum } from "./types/database";
 export {
   BOOKING_MICROPHONE_COUNTS,
+  PENDING_HOLD_HOUR_OPTIONS,
+  normalizePendingHoldHours,
   BOOKING_TIMEZONE,
   SLOT_CLOSE_HOUR,
   SLOT_DURATION_MINUTES,
@@ -76,6 +78,7 @@ export {
   timeLabelToMinutes,
   bookingNeedsPayment,
   bookingOccupiesSlot,
+  releaseExpiredPendingBookings,
   requestBookingCreditsPayment,
   requestRoomBookingPaymentUrl,
   requestBookingConfirmationEmail,
