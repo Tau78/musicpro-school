@@ -14,7 +14,8 @@ import { loadUnifiedCalendarEvents } from "@/lib/dashboard/load-unified-calendar
 import { getAdminMember } from "@/lib/admin/current-member";
 import { canManageMembers } from "@/lib/admin/roles";
 import {
-  calendarBounds,
+  calendarIncludesNonSchool,
+  calendarWeekShowsSunday,
   isIsoDate,
   parseCalendarScope,
   parseCalendarView,
@@ -69,9 +70,14 @@ export default async function AdminLezioniCalendarioPage({
       ? params.sala
       : null;
 
-  const sundayVisible = settings?.sundayVisible ?? false;
-  const bounds = calendarBounds(view, anchorDate, sundayVisible);
-
+  const sundayVisible = calendarWeekShowsSunday({
+    schoolSundayVisible: settings?.sundayVisible ?? false,
+    includesNonSchool: calendarIncludesNonSchool({
+      bookingsOnly: false,
+      isStaff: true,
+      scope,
+    }),
+  });
   await repairAllCourseLessonCalendarTimes(supabase);
 
   const initialLessons = await loadUnifiedCalendarEvents(supabase, {
@@ -90,7 +96,7 @@ export default async function AdminLezioniCalendarioPage({
       <LessonsCalendarPage
         initialLessons={initialLessons}
         settings={{
-          sundayVisible,
+          sundayVisible: settings?.sundayVisible ?? false,
           gridOpenMinute: settings?.gridOpenMinute ?? 600,
           gridCloseMinute: settings?.gridCloseMinute ?? 1380,
           slotGranularityMinutes: settings?.slotGranularityMinutes ?? 15,

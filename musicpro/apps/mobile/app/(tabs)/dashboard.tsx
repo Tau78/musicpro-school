@@ -72,8 +72,8 @@ function canManageSala(roles: string[]): boolean {
   );
 }
 
-function weekLabel(weekStart: string): string {
-  const weekEnd = addRomeDays(weekStart, 5);
+function weekLabel(weekStart: string, lastOffset = 5): string {
+  const weekEnd = addRomeDays(weekStart, lastOffset);
   const startDay = Number(weekStart.slice(8, 10));
   const endDay = Number(weekEnd.slice(8, 10));
   const startMonth = MONTHS_IT[Number(weekStart.slice(5, 7)) - 1];
@@ -708,7 +708,7 @@ export default function DashboardScreen() {
           <Text style={styles.sectionTitle}>Prenotazioni</Text>
         </View>
         <WeekNav
-          label={weekLabel(salaWeekStart)}
+          label={weekLabel(salaWeekStart, 6)}
           onPrev={() => setSalaWeekStart((d) => addRomeDays(d, -7))}
           onNext={() => setSalaWeekStart((d) => addRomeDays(d, 7))}
         />
@@ -716,6 +716,7 @@ export default function DashboardScreen() {
           <TimeGridWeek
             weekStart={salaWeekStart}
             today={today}
+            dayCount={7}
             events={bookingEvents}
             selectedId={
               selectedBooking ? `booking:${selectedBooking.id}` : null

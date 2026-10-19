@@ -9,7 +9,7 @@ import {
   formatRomeTime,
 } from "@/lib/lezioni-dates";
 
-const WEEKDAY_COUNT = 6;
+const WEEKDAY_COUNT = 7;
 
 function bookingDateInRome(iso: string): string {
   return new Intl.DateTimeFormat("en-CA", {

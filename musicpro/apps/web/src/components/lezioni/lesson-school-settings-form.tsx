@@ -186,7 +186,7 @@ export function LessonSchoolSettingsForm({
             </div>
           </div>
           <ToggleRow
-            label="Mostra la domenica"
+            label="Domenica nel calendario lezioni"
             checked={form.sundayVisible}
             onChange={(checked) => updateField("sundayVisible", checked)}
           />
