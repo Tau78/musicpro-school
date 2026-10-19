@@ -12,7 +12,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   cancelLessonAsSchool,
@@ -43,6 +43,21 @@ export interface LessonsOggiProps {
   actorMemberId?: string;
   isStaff?: boolean;
 }
+
+type MarkAction = "presente" | "assente" | "annulla";
+
+type PendingState = {
+  action: MarkAction;
+  secondsLeft: number;
+};
+
+const UNDO_SECONDS = 5;
+
+const ACTION_LABEL: Record<MarkAction, string> = {
+  presente: "Presente",
+  assente: "Assente",
+  annulla: "Annullata",
+};
 
 function isHoldLesson(lesson: OggiLesson): boolean {
   return lesson.id.startsWith("hold:") || lesson.courseStatus === "in_attesa";
@@ -144,18 +159,199 @@ function LessonOggiList({
   onSaved: () => void;
   showDate?: boolean;
 }) {
+  const supabase = useMemo(() => createClient(), []);
+  const [visible, setVisible] = useState(rows);
+  const [pending, setPending] = useState<Record<string, PendingState>>({});
+  const [exiting, setExiting] = useState<Record<string, boolean>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const committingRef = useRef<Set<string>>(new Set());
+  const pendingRef = useRef(pending);
+  pendingRef.current = pending;
+
+  useEffect(() => {
+    setVisible(rows);
+    setPending({});
+    setExiting({});
+    setErrors({});
+    committingRef.current.clear();
+  }, [rows]);
+
+  const dismissLesson = useCallback(
+    (lessonId: string) => {
+      setExiting((current) => ({ ...current, [lessonId]: true }));
+      window.setTimeout(() => {
+        setVisible((current) => current.filter((row) => row.id !== lessonId));
+        setExiting((current) => {
+          const next = { ...current };
+          delete next[lessonId];
+          return next;
+        });
+        onSaved();
+      }, 280);
+    },
+    [onSaved],
+  );
+
+  const commitAction = useCallback(
+    async (lessonId: string, action: MarkAction) => {
+      if (!actorMemberId || committingRef.current.has(lessonId)) return;
+      committingRef.current.add(lessonId);
+
+      setPending((current) => {
+        if (!(lessonId in current)) return current;
+        const next = { ...current };
+        delete next[lessonId];
+        return next;
+      });
+      setErrors((current) => {
+        if (!(lessonId in current)) return current;
+        const next = { ...current };
+        delete next[lessonId];
+        return next;
+      });
+
+      try {
+        if (action === "annulla") {
+          const result = await cancelLessonAsSchool(supabase, lessonId, {
+            memberId: actorMemberId,
+            isStaff,
+          });
+          if (!result.success) {
+            throw new Error(
+              result.errorMessage ?? "Impossibile annullare la lezione.",
+            );
+          }
+          logUsage("lezioni.lesson.cancelled_school", {
+            properties: { lessonId, source: "oggi_da_segnare" },
+          });
+        } else {
+          const status: AttendanceStatus = action;
+          const roster = await getLessonRoster(supabase, lessonId, {
+            memberId: actorMemberId,
+            isStaff,
+          });
+          if (!roster) throw new Error("Lezione non trovata.");
+          if (!roster.canEdit) {
+            throw new Error(
+              roster.editBlockReason ||
+                "Non è possibile modificare le presenze.",
+            );
+          }
+          if (roster.students.length === 0) {
+            throw new Error("Nessun allievo in questa lezione.");
+          }
+          const result = await saveLessonAttendance(supabase, {
+            lessonId,
+            actorMemberId,
+            isStaff,
+            rows: roster.students.map((student) => ({
+              memberId: student.memberId,
+              status,
+            })),
+          });
+          if (!result.success) {
+            throw new Error(
+              result.errorMessage ?? "Impossibile salvare le presenze.",
+            );
+          }
+          logUsage("lezioni.attendance.saved", {
+            properties: {
+              lessonId,
+              source: "oggi_da_segnare",
+              status,
+            },
+          });
+          const opened = result.packOpenedEnrollmentIds ?? [];
+          for (const enrollmentId of opened) {
+            try {
+              await fetch("/api/lezioni/pack-payment/request", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "same-origin",
+                body: JSON.stringify({ enrollmentId, notify: true }),
+              });
+            } catch {
+              /* link rette resta in admin */
+            }
+          }
+        }
+
+        dismissLesson(lessonId);
+      } catch (err) {
+        committingRef.current.delete(lessonId);
+        setErrors((current) => ({
+          ...current,
+          [lessonId]:
+            err instanceof Error ? err.message : "Operazione non riuscita.",
+        }));
+      }
+    },
+    [actorMemberId, dismissLesson, isStaff, supabase],
+  );
+
+  const hasPending = Object.keys(pending).length > 0;
+
+  useEffect(() => {
+    if (!hasPending) return;
+
+    const timer = window.setInterval(() => {
+      const snapshot = pendingRef.current;
+      const due: { id: string; action: MarkAction }[] = [];
+      const next: Record<string, PendingState> = {};
+
+      for (const [id, state] of Object.entries(snapshot)) {
+        if (state.secondsLeft <= 1) {
+          due.push({ id, action: state.action });
+          continue;
+        }
+        next[id] = { ...state, secondsLeft: state.secondsLeft - 1 };
+      }
+
+      setPending(next);
+      for (const item of due) {
+        void commitAction(item.id, item.action);
+      }
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [hasPending, commitAction]);
+
+  function startPending(lessonId: string, action: MarkAction) {
+    setErrors((current) => {
+      if (!(lessonId in current)) return current;
+      const next = { ...current };
+      delete next[lessonId];
+      return next;
+    });
+    setPending((current) => ({
+      ...current,
+      [lessonId]: { action, secondsLeft: UNDO_SECONDS },
+    }));
+  }
+
+  function undoPending(lessonId: string) {
+    setPending((current) => {
+      const next = { ...current };
+      delete next[lessonId];
+      return next;
+    });
+  }
+
   return (
     <ul className="divide-y divide-neutral-200 overflow-hidden rounded-xl border border-neutral-200 bg-white">
-      {rows.map((lesson) => (
+      {visible.map((lesson) => (
         <LessonOggiRow
           key={lesson.id}
           lesson={lesson}
           actorMemberId={actorMemberId}
-          isStaff={isStaff}
           courseDetailBasePath={courseDetailBasePath}
           onOpenLesson={onOpenLesson}
-          onSaved={onSaved}
           showDate={showDate}
+          pending={pending[lesson.id] ?? null}
+          exiting={Boolean(exiting[lesson.id])}
+          error={errors[lesson.id] ?? null}
+          onMark={(action) => startPending(lesson.id, action)}
+          onUndo={() => undoPending(lesson.id)}
         />
       ))}
     </ul>
@@ -165,124 +361,57 @@ function LessonOggiList({
 function LessonOggiRow({
   lesson,
   actorMemberId,
-  isStaff,
   courseDetailBasePath,
   onOpenLesson,
-  onSaved,
   showDate,
+  pending,
+  exiting,
+  error,
+  onMark,
+  onUndo,
 }: {
   lesson: OggiLesson;
   actorMemberId?: string;
-  isStaff: boolean;
   courseDetailBasePath?: string;
   onOpenLesson?: (lessonId: string) => void;
-  onSaved: () => void;
   showDate: boolean;
+  pending: PendingState | null;
+  exiting: boolean;
+  error: string | null;
+  onMark: (action: MarkAction) => void;
+  onUndo: () => void;
 }) {
-  const supabase = useMemo(() => createClient(), []);
-  const [busy, setBusy] = useState<"presente" | "assente" | "annulla" | null>(
-    null,
-  );
-  const [error, setError] = useState<string | null>(null);
   const hold = isHoldLesson(lesson);
   const canMark = Boolean(actorMemberId) && !hold && !lesson.hasAttendance;
   const name = studentLabel(lesson);
   const when = whenLabel(lesson, showDate);
-
-  async function markStatus(status: AttendanceStatus) {
-    if (!actorMemberId || busy) return;
-    setError(null);
-    setBusy(status === "presente" ? "presente" : "assente");
-    try {
-      const roster = await getLessonRoster(supabase, lesson.id, {
-        memberId: actorMemberId,
-        isStaff,
-      });
-      if (!roster) throw new Error("Lezione non trovata.");
-      if (!roster.canEdit) {
-        throw new Error(
-          roster.editBlockReason || "Non è possibile modificare le presenze.",
-        );
-      }
-      if (roster.students.length === 0) {
-        throw new Error("Nessun allievo in questa lezione.");
-      }
-      const result = await saveLessonAttendance(supabase, {
-        lessonId: lesson.id,
-        actorMemberId,
-        isStaff,
-        rows: roster.students.map((student) => ({
-          memberId: student.memberId,
-          status,
-        })),
-      });
-      if (!result.success) {
-        throw new Error(result.errorMessage ?? "Impossibile salvare le presenze.");
-      }
-      logUsage("lezioni.attendance.saved", {
-        properties: {
-          lessonId: lesson.id,
-          source: "oggi_da_segnare",
-          status,
-        },
-      });
-      const opened = result.packOpenedEnrollmentIds ?? [];
-      for (const enrollmentId of opened) {
-        try {
-          await fetch("/api/lezioni/pack-payment/request", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "same-origin",
-            body: JSON.stringify({ enrollmentId, notify: true }),
-          });
-        } catch {
-          /* link rette resta in admin */
-        }
-      }
-      onSaved();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Operazione non riuscita.");
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function cancelLesson() {
-    if (!actorMemberId || busy) return;
-    const ok = window.confirm(
-      `Annullare la lezione di ${name} (${when})?\nL'orario torna libero e la lezione va in recupero.`,
-    );
-    if (!ok) return;
-    setError(null);
-    setBusy("annulla");
-    try {
-      const result = await cancelLessonAsSchool(supabase, lesson.id, {
-        memberId: actorMemberId,
-        isStaff,
-      });
-      if (!result.success) {
-        throw new Error(
-          result.errorMessage ?? "Impossibile annullare la lezione.",
-        );
-      }
-      logUsage("lezioni.lesson.cancelled_school", {
-        properties: { lessonId: lesson.id, source: "oggi_da_segnare" },
-      });
-      onSaved();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Operazione non riuscita.");
-    } finally {
-      setBusy(null);
-    }
-  }
+  const isPending = pending != null;
 
   return (
-    <li>
+    <li
+      className={`transition-all duration-300 ease-out ${
+        exiting
+          ? "max-h-0 overflow-hidden border-transparent opacity-0"
+          : isPending
+            ? "max-h-24 opacity-40"
+            : "max-h-24 opacity-100"
+      }`}
+    >
       <div className="flex items-center gap-2 px-3 py-2.5">
         <KindDot lesson={lesson} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-neutral-900">{name}</p>
-          <p className="truncate text-xs tabular-nums text-neutral-500">{when}</p>
+          <p className="truncate text-xs tabular-nums text-neutral-500">
+            {when}
+            {pending ? (
+              <>
+                {" · "}
+                <span className="font-medium text-neutral-800">
+                  {ACTION_LABEL[pending.action]} · {pending.secondsLeft}s
+                </span>
+              </>
+            ) : null}
+          </p>
           {error ? (
             <p className="mt-0.5 text-xs text-red-700">{error}</p>
           ) : null}
@@ -292,31 +421,36 @@ function LessonOggiRow({
           <span className="shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
             OK
           </span>
+        ) : isPending && pending ? (
+          <button
+            type="button"
+            onClick={onUndo}
+            className="shrink-0 rounded-md border border-neutral-300 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-800 hover:bg-neutral-50"
+          >
+            Undo
+          </button>
         ) : canMark ? (
           <div className="flex shrink-0 items-center gap-1">
             <button
               type="button"
-              disabled={busy != null}
-              onClick={() => void markStatus("presente")}
-              className="rounded-md bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+              onClick={() => onMark("presente")}
+              className="rounded-md bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700"
             >
-              {busy === "presente" ? "…" : "Presente"}
+              Presente
             </button>
             <button
               type="button"
-              disabled={busy != null}
-              onClick={() => void markStatus("assente")}
-              className="rounded-md bg-red-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+              onClick={() => onMark("assente")}
+              className="rounded-md bg-red-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-red-700"
             >
-              {busy === "assente" ? "…" : "Assente"}
+              Assente
             </button>
             <button
               type="button"
-              disabled={busy != null}
-              onClick={() => void cancelLesson()}
-              className="rounded-md bg-neutral-500 px-2 py-1 text-[11px] font-semibold text-white hover:bg-neutral-600 disabled:opacity-50"
+              onClick={() => onMark("annulla")}
+              className="rounded-md bg-neutral-500 px-2 py-1 text-[11px] font-semibold text-white hover:bg-neutral-600"
             >
-              {busy === "annulla" ? "…" : "Annulla"}
+              Annulla
             </button>
           </div>
         ) : onOpenLesson ? (
