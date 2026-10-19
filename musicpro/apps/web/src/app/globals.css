@@ -35,6 +35,35 @@ textarea {
   min-width: 0;
 }
 
+/* Overlay a tutto schermo: non più alto né più largo del telefono. */
+.fixed.inset-0 {
+  box-sizing: border-box;
+  max-width: 100%;
+  max-height: 100dvh;
+  overflow: hidden;
+}
+
+/* Il riquadro del dialog resta nel viewport e scorre dentro, non fuori. */
+[role="dialog"] {
+  box-sizing: border-box;
+  min-width: 0;
+  max-height: calc(
+    100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 1.5rem
+  );
+  overflow-x: clip;
+  overflow-y: auto;
+}
+
+[role="dialog"] * {
+  min-width: 0;
+}
+
+[role="dialog"] input[type="checkbox"],
+[role="dialog"] input[type="radio"] {
+  min-width: 1rem;
+  flex-shrink: 0;
+}
+
 .font-display {
   font-family: ui-serif, Georgia, "Times New Roman", serif;
 }

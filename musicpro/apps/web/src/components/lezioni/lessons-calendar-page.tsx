@@ -1051,12 +1051,12 @@ function Dialog({
   wide?: boolean;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+    <div className="fixed inset-0 z-50 box-border flex h-[100dvh] max-h-[100dvh] w-full max-w-full items-end justify-center overflow-hidden bg-black/40 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:items-center sm:p-4">
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="calendar-dialog-title"
-        className={`w-full ${wide ? "max-w-lg" : "max-w-md"} max-h-[90vh] overflow-y-auto rounded-xl bg-white p-6 shadow-lg`}
+        className={`w-full min-w-0 ${wide ? "max-w-lg" : "max-w-md"} overflow-x-clip overflow-y-auto rounded-xl bg-white p-4 shadow-lg sm:p-6`}
       >
         <div className="flex items-start justify-between gap-3">
           <h3
