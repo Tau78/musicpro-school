@@ -12,7 +12,8 @@ La pagina non deve diventare più larga del telefono. Header, titoli, pulsanti e
 - `html`/`body`: `overflow-x: clip` e `max-width: 100%` (già in `globals.css` e nel CSS critico). Non toglierli.
 - Guscio pagina (`header`, `main`, shell): `min-w-0 max-w-full`. Il titolo a sinistra ha `min-w-0 flex-1 truncate`.
 - Righe flex: `flex-wrap` oppure `min-w-0` sui figli. Vietato `shrink-0` + `whitespace-nowrap` su una riga che non ha un padre `overflow-x-auto max-w-full`.
-- `input`, `select`, `textarea`: `max-w-full min-w-0`. Su iPhone un `input type="date"` ha una larghezza intrinseca enorme.
+- `input`, `select`, `textarea`: `max-w-full min-w-0`. Su iPhone un `input type="date"` o `datetime-local` ha una larghezza intrinseca enorme.
+- Dialog (`fixed inset-0` + `[role="dialog"]`): alto al massimo `100dvh`, `min-w-0`, scorre **dentro** il riquadro. I pulsanti restano nel riquadro (sticky in fondo se il form è lungo).
 - Safe area: `env(safe-area-inset-left/right)` sul body. Nel WKWebView `contentInsetAdjustmentBehavior = .never` (la pagina gestisce già `viewport-fit=cover`).
 
 ## Vietato

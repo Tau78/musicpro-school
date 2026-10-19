@@ -373,11 +373,11 @@ export function BookingCalendarDialog({
         : "Prenotazione";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+    <div className="fixed inset-0 z-50 box-border flex h-[100dvh] max-h-[100dvh] w-full max-w-full items-end justify-center overflow-hidden bg-black/40 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:items-center sm:p-4">
       <div
         role="dialog"
         aria-modal="true"
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-6 shadow-lg"
+        className="w-full min-w-0 max-w-lg overflow-x-clip overflow-y-auto rounded-xl bg-white p-4 shadow-lg sm:p-6"
       >
         <div className="flex items-start justify-between gap-3">
           <h3 className="text-lg font-semibold text-[var(--brand)]">{title}</h3>
@@ -496,8 +496,8 @@ export function BookingCalendarDialog({
               </select>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
+            <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="min-w-0">
                 <label className="block text-xs font-medium text-neutral-600">
                   Inizio
                 </label>
@@ -505,10 +505,10 @@ export function BookingCalendarDialog({
                   type="datetime-local"
                   value={startLocal}
                   onChange={(e) => setStartLocal(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
+                  className="mt-1 box-border w-full min-w-0 max-w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
                 />
               </div>
-              <div>
+              <div className="min-w-0">
                 <label className="block text-xs font-medium text-neutral-600">
                   Durata
                 </label>
@@ -680,7 +680,7 @@ export function BookingCalendarDialog({
                 </div>
               </div>
             ) : (
-            <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="sticky bottom-0 z-10 -mx-4 flex flex-wrap items-center justify-between gap-2 border-t border-neutral-200 bg-white px-4 py-3 sm:-mx-6 sm:px-6">
               <div>
                 {canDelete ? (
                   <button
