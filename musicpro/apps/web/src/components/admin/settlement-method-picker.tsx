@@ -9,6 +9,8 @@ interface SettlementMethodPickerProps {
   value: SettlementMethod | null;
   onChange: (value: SettlementMethod) => void;
   originalPaymentMethod?: string | null;
+  /** Solo se il nuovo totale è più alto: la scuola tiene la differenza. */
+  allowUpgradeGratuito?: boolean;
 }
 
 const OPTIONS: SettlementMethod[] = ["credits", "cash", "original_method"];
@@ -17,7 +19,11 @@ export function SettlementMethodPicker({
   value,
   onChange,
   originalPaymentMethod,
+  allowUpgradeGratuito = false,
 }: SettlementMethodPickerProps) {
+  const options: SettlementMethod[] = allowUpgradeGratuito
+    ? [...OPTIONS, "upgrade_gratuito"]
+    : OPTIONS;
   return (
     <fieldset className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
       <legend className="px-1 text-sm font-medium text-amber-900">
@@ -43,7 +49,7 @@ export function SettlementMethodPicker({
         )}
       </p>
       <div className="flex flex-wrap gap-2">
-        {OPTIONS.map((option) => (
+        {options.map((option) => (
           <label
             key={option}
             className={`cursor-pointer rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
@@ -64,6 +70,12 @@ export function SettlementMethodPicker({
           </label>
         ))}
       </div>
+      {value === "upgrade_gratuito" ? (
+        <p className="text-xs text-amber-900">
+          Il prezzo già dovuto non cambia. L&apos;associato riceve l&apos;email
+          di upgrade gratuito.
+        </p>
+      ) : null}
     </fieldset>
   );
 }

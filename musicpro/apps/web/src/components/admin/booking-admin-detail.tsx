@@ -17,6 +17,7 @@ import {
   formatEuro,
   listBookingAuditLog,
   romeLocalInputToUtcIso,
+  settlementMethodLabel,
   type AdminBookingDetail,
   type BookingAuditLogEntry,
   type Room,
@@ -64,7 +65,16 @@ function auditSummary(entry: BookingAuditLogEntry): string {
 
   const settlement = changes.settlement_method as string | undefined;
   if (settlement) {
-    parts.push(`Saldo: ${settlement}`);
+    parts.push(
+      `Saldo: ${
+        settlement === "credits" ||
+        settlement === "cash" ||
+        settlement === "original_method" ||
+        settlement === "upgrade_gratuito"
+          ? settlementMethodLabel(settlement)
+          : settlement
+      }`,
+    );
   }
 
   return parts.length > 0 ? parts.join(" · ") : bookingAuditActionLabel(entry.action);
@@ -134,6 +144,8 @@ export function BookingAdminDetail({ booking, rooms }: BookingAdminDetailProps) 
 
   const priceChanged =
     Math.abs(computedPrice - (booking.total_price_eur ?? 0)) > 0.009;
+  const priceIncrease =
+    priceChanged && computedPrice > (booking.total_price_eur ?? 0);
 
   useEffect(() => {
     let cancelled = false;
@@ -172,8 +184,12 @@ export function BookingAdminDetail({ booking, rooms }: BookingAdminDetailProps) 
   useEffect(() => {
     if (!priceChanged) {
       setSettlementMethod(null);
+      return;
     }
-  }, [priceChanged]);
+    if (!priceIncrease && settlementMethod === "upgrade_gratuito") {
+      setSettlementMethod(null);
+    }
+  }, [priceChanged, priceIncrease, settlementMethod]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -211,13 +227,16 @@ export function BookingAdminDetail({ booking, rooms }: BookingAdminDetailProps) 
       if (sendEmail) {
         void requestBookingConfirmationEmail(booking.id, {
           template: "modified",
+          upgradeGratuito: settlementMethod === "upgrade_gratuito",
         });
       }
 
       setSuccess(
-        sendEmail
-          ? "Prenotazione aggiornata. Email di modifica inviata (se configurata)."
-          : "Prenotazione aggiornata.",
+        sendEmail && settlementMethod === "upgrade_gratuito"
+          ? "Prenotazione aggiornata. Email di upgrade gratuito inviata (se configurata)."
+          : sendEmail
+            ? "Prenotazione aggiornata. Email di modifica inviata (se configurata)."
+            : "Prenotazione aggiornata.",
       );
       const entries = await listBookingAuditLog(supabase, booking.id);
       setAuditLog(entries);
@@ -422,8 +441,12 @@ export function BookingAdminDetail({ booking, rooms }: BookingAdminDetailProps) 
         {priceChanged && (
           <SettlementMethodPicker
             value={settlementMethod}
-            onChange={setSettlementMethod}
+            onChange={(method) => {
+              setSettlementMethod(method);
+              if (method === "upgrade_gratuito") setSendEmail(true);
+            }}
             originalPaymentMethod={booking.payment_method}
+            allowUpgradeGratuito={priceIncrease}
           />
         )}
 

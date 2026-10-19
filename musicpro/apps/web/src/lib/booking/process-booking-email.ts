@@ -250,6 +250,87 @@ async function getMemberCreditAvailable(memberId: string): Promise<number | null
   return typeof result?.available === "number" ? result.available : null;
 }
 
+function buildUpgradeGratuitoEmail(booking: BookingRow): {
+  subject: string;
+  html: string;
+  text: string;
+  recipientEmail: string;
+} {
+  const recipientEmail = booking.members?.email?.trim() ?? "";
+  if (!recipientEmail) {
+    throw new Error("Email associato mancante.");
+  }
+
+  const firstName = booking.members?.first_name?.trim() || "associato";
+  const roomName = booking.rooms?.name ?? "Sala";
+  const whenLine = `${formatDateTimeRome(booking.start_at)} – ${formatTimeRome(booking.end_at)}`;
+  const duration = formatDuration(booking.duration_minutes);
+  const subject = "Upgrade gratuito sulla tua prenotazione — MusicPro School";
+  const myBookingsUrl = `${appUrl()}/prenotazioni/mie`;
+
+  const text = [
+    `Ciao ${firstName},`,
+    "",
+    "ti abbiamo omaggiato di un upgrade gratuito.",
+    "",
+    "Abbiamo aggiornato la prenotazione. La differenza di prezzo resta a carico della scuola: non devi pagare nulla in più.",
+    "",
+    `Sala: ${roomName}`,
+    `Quando: ${whenLine}`,
+    `Durata: ${duration}`,
+    "",
+    "Ti aspettiamo in sala.",
+    "MusicPro School",
+  ].join("\n");
+
+  const html = `<!DOCTYPE html>
+<html lang="it">
+<body style="margin:0;padding:24px;background:#f6f3ec;font-family:system-ui,-apple-system,sans-serif;line-height:1.5;color:#1a1a1a;">
+  <table role="presentation" style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e6dfd0;">
+    <tr>
+      <td style="background:#1e3a5f;padding:20px 24px;">
+        <p style="margin:0;color:#c9a227;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;">MusicPro School</p>
+        <p style="margin:6px 0 0;color:#ffffff;font-size:20px;font-weight:600;">Upgrade gratuito</p>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:24px;">
+        <p style="margin:0 0 12px;">Ciao <strong>${escapeHtml(firstName)}</strong>,</p>
+        <p style="margin:0 0 12px;">ti abbiamo omaggiato di un upgrade gratuito.</p>
+        <p style="margin:0 0 16px;">Abbiamo aggiornato la prenotazione. La differenza di prezzo resta a carico della scuola: non devi pagare nulla in più.</p>
+        <table style="width:100%;border-collapse:collapse;margin:0 0 16px;background:#fafafa;border-radius:8px;">
+          <tr><td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;width:110px;">Sala</td><td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:600;">${escapeHtml(roomName)}</td></tr>
+          <tr><td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;">Quando</td><td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:600;">${escapeHtml(whenLine)}</td></tr>
+          <tr><td style="padding:8px 12px;color:#666;">Durata</td><td style="padding:8px 12px;font-weight:600;">${escapeHtml(duration)}</td></tr>
+        </table>
+        <p style="margin:0 0 20px;">Ti aspettiamo in sala.</p>
+        <a href="${escapeHtml(myBookingsUrl)}" style="display:inline-block;background:#1e3a5f;color:#ffffff;text-decoration:none;padding:10px 18px;border-radius:6px;font-weight:600;">Le tue prenotazioni</a>
+        <p style="margin:24px 0 0;font-size:12px;color:#888;">MusicPro School</p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  return { subject, html, text, recipientEmail };
+}
+
+async function bookingHasUpgradeGratuito(bookingId: string): Promise<boolean> {
+  const client = serviceClient();
+  const { data, error } = await client
+    .from("booking_adjustments")
+    .select("settlement_method, direction")
+    .eq("booking_id", bookingId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) return false;
+  return (
+    data.settlement_method === "upgrade_gratuito" && data.direction === "increase"
+  );
+}
+
 function buildBookingEmailContent(
   booking: BookingRow,
   template: BookingEmailTemplate,
@@ -504,11 +585,36 @@ async function hasRecentSentEmail(
   return Boolean(data);
 }
 
+async function hasSentEmailSince(
+  bookingId: string,
+  subject: string,
+  sinceIso: string,
+): Promise<boolean> {
+  const client = serviceClient();
+  const { data, error } = await client
+    .from("booking_email_log")
+    .select("id")
+    .eq("booking_id", bookingId)
+    .eq("subject", subject)
+    .eq("status", "sent")
+    .gte("created_at", sinceIso)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[booking-email] duplicate window check failed:", error.message);
+    return false;
+  }
+
+  return Boolean(data);
+}
+
 export async function processBookingEmail(params: {
   bookingId: string;
   template?: BookingEmailTemplate;
   force?: boolean;
   paymentUrl?: string | null;
+  upgradeGratuito?: boolean;
 }): Promise<BookingEmailProcessResult> {
   const bookingId = params.bookingId.trim();
   const template = params.template ?? "confirm";
@@ -538,14 +644,20 @@ export async function processBookingEmail(params: {
 
   const cancelPolicyHours = await getCancelPolicyHours();
   const creditBalance = await getMemberCreditAvailable(booking.member_id);
+  const upgradeGratuito =
+    template === "modified" &&
+    params.upgradeGratuito === true &&
+    (await bookingHasUpgradeGratuito(bookingId));
 
   let content: ReturnType<typeof buildBookingEmailContent>;
   try {
-    content = buildBookingEmailContent(booking, template, {
-      cancelPolicyHours,
-      creditBalance,
-      paymentUrl,
-    });
+    content = upgradeGratuito
+      ? buildUpgradeGratuitoEmail(booking)
+      : buildBookingEmailContent(booking, template, {
+          cancelPolicyHours,
+          creditBalance,
+          paymentUrl,
+        });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await logBookingEmail({
@@ -564,7 +676,13 @@ export async function processBookingEmail(params: {
   }
 
   if (!force) {
-    const alreadySent = await hasRecentSentEmail(bookingId, content.subject);
+    const alreadySent = upgradeGratuito
+      ? await hasSentEmailSince(
+          bookingId,
+          content.subject,
+          new Date(Date.now() - 2 * 60_000).toISOString(),
+        )
+      : await hasRecentSentEmail(bookingId, content.subject);
     if (alreadySent) {
       await logBookingEmail({
         bookingId,
