@@ -351,7 +351,7 @@ export interface Database {
           notes: string | null;
           cancelled_at: string | null;
           cancelled_by: string | null;
-          payment_method: "stripe" | "nexi" | "credits" | null;
+          payment_method: "stripe" | "nexi" | "credits" | "cash" | null;
           credits_held: number;
           credits_used: number | null;
           google_calendar_event_id: string | null;
@@ -398,7 +398,7 @@ export interface Database {
           member_snapshot?: Json | null;
           microphone_count?: number;
           companion_declaration?: "all_ok" | "need_quota" | null;
-          payment_method?: "stripe" | "nexi" | "credits" | null;
+          payment_method?: "stripe" | "nexi" | "credits" | "cash" | null;
           credits_held?: number;
           credits_used?: number | null;
           google_calendar_event_id?: string | null;
@@ -2358,6 +2358,13 @@ export interface Database {
       ensure_member_linked: {
         Args: Record<string, never>;
         Returns: string | null;
+      };
+      confirm_collaborator_booking: {
+        Args: {
+          p_booking_id: string;
+          p_payment_method: string;
+        };
+        Returns: Json;
       };
       create_booking_safe: {
         Args: {

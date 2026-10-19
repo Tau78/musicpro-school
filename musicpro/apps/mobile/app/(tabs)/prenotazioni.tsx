@@ -18,6 +18,7 @@ import {
   calculateBookingPrice,
   applyMemberBookingDiscount,
   createBooking,
+  confirmCollaboratorBooking,
   creditsForBookingPrice,
   durationOptionsForRoom,
   formatDateItalian,
@@ -94,6 +95,7 @@ export default function PrenotazioniScreen() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [stepIndex, setStepIndex] = useState(0);
+  const [isCollaborator, setIsCollaborator] = useState(false);
   const [collaboratorDiscountPercent, setCollaboratorDiscountPercent] =
     useState(0);
 
@@ -197,8 +199,11 @@ export default function PrenotazioniScreen() {
           setDurationMinutes(roomList[0].default_duration_minutes);
         }
         setMemberId(member?.id ?? null);
+        const collaborator =
+          member?.roles.includes(MemberRole.Collaboratore) ?? false;
+        setIsCollaborator(collaborator);
         setCollaboratorDiscountPercent(
-          member?.roles.includes(MemberRole.Collaboratore)
+          collaborator
             ? (bookingSettings?.collaboratorDiscountPercent ?? 20)
             : 0,
         );
@@ -291,7 +296,7 @@ export default function PrenotazioniScreen() {
     setSelectedSlot(null);
   }
 
-  async function handleConfirm(payMode: "card" | "credits" = "card") {
+  async function handleConfirm(payMode: "card" | "credits" | "cash" = "card") {
     if (!memberId || !selectedSlot) {
       setError("Seleziona uno slot disponibile.");
       return;
@@ -328,6 +333,26 @@ export default function PrenotazioniScreen() {
         return;
       }
 
+      let bookingResult = result;
+      if (isCollaborator && result.bookingId && payMode !== "credits") {
+        const confirmed = await confirmCollaboratorBooking(
+          supabase,
+          result.bookingId,
+          payMode === "cash" ? "cash" : "nexi",
+        );
+        if (!confirmed.success) {
+          setError(confirmed.errorMessage ?? "Impossibile confermare la prenotazione.");
+          return;
+        }
+        bookingResult = {
+          ...result,
+          ...confirmed,
+          status: "confirmed",
+          requiresApproval: false,
+          requiresPayment: payMode === "card",
+        };
+      }
+
       const apiBaseUrl = process.env.EXPO_PUBLIC_WEB_URL?.trim();
       const {
         data: { session },
@@ -349,6 +374,20 @@ export default function PrenotazioniScreen() {
           );
           return;
         }
+        if (isCollaborator && result.bookingId) {
+          const confirmed = await confirmCollaboratorBooking(
+            supabase,
+            result.bookingId,
+            "credits",
+          );
+          if (!confirmed.success) {
+            setError(
+              confirmed.errorMessage ??
+                "Crediti addebitati ma la conferma non è riuscita.",
+            );
+            return;
+          }
+        }
         if (apiBaseUrl && session?.access_token) {
           void requestBookingConfirmationEmail(result.bookingId, {
             apiBaseUrl,
@@ -357,9 +396,9 @@ export default function PrenotazioniScreen() {
           });
         }
         setMessage(
-          creditPayment.status === "pending_approval"
-            ? "Richiesta inviata: crediti riservati, in attesa di approvazione."
-            : "Prenotazione confermata e pagata con crediti!",
+          isCollaborator || creditPayment.status !== "pending_approval"
+            ? "Prenotazione confermata e pagata con crediti!"
+            : "Richiesta inviata: crediti riservati, in attesa di approvazione.",
         );
         setSelectedSlot(null);
         setStepIndex(0);
@@ -368,11 +407,12 @@ export default function PrenotazioniScreen() {
       }
 
       if (
-        result.bookingId &&
-        (result.status === "confirmed" || result.status === "pending_approval")
+        bookingResult.bookingId &&
+        (bookingResult.status === "confirmed" ||
+          bookingResult.status === "pending_approval")
       ) {
         if (apiBaseUrl && session?.access_token) {
-          void requestBookingConfirmationEmail(result.bookingId, {
+          void requestBookingConfirmationEmail(bookingResult.bookingId, {
             apiBaseUrl,
             accessToken: session.access_token,
             template: "confirm",
@@ -381,12 +421,14 @@ export default function PrenotazioniScreen() {
       }
 
       const needsCardPayment =
-        result.requiresPayment &&
-        result.bookingId &&
-        (result.status === "pending" || result.status === "pending_approval");
+        bookingResult.requiresPayment &&
+        bookingResult.bookingId &&
+        (bookingResult.status === "pending" ||
+          bookingResult.status === "pending_approval" ||
+          bookingResult.status === "confirmed");
 
       if (needsCardPayment) {
-        const payment = await requestRoomBookingPaymentUrl(result.bookingId!, {
+        const payment = await requestRoomBookingPaymentUrl(bookingResult.bookingId!, {
           apiBaseUrl,
           accessToken: session?.access_token,
         });
@@ -405,7 +447,7 @@ export default function PrenotazioniScreen() {
         return;
       }
 
-      if (result.requiresPayment) {
+      if (bookingResult.requiresPayment) {
         setError("Completa il pagamento per confermare la prenotazione.");
         setSelectedSlot(null);
         await loadAvailability();
@@ -413,9 +455,11 @@ export default function PrenotazioniScreen() {
       }
 
       setMessage(
-        result.status === "pending_approval"
-          ? "Richiesta inviata: in attesa di approvazione."
-          : "Prenotazione confermata!",
+        payMode === "cash"
+          ? "Prenotazione confermata. Pagamento in contanti in sede."
+          : bookingResult.status === "pending_approval"
+            ? "Richiesta inviata: in attesa di approvazione."
+            : "Prenotazione confermata!",
       );
       setSelectedSlot(null);
       setStepIndex(0);
@@ -685,24 +729,57 @@ export default function PrenotazioniScreen() {
                     {creditCost > 0 ? ` · costo ${creditCost}` : ""}
                   </Text>
                 ) : null}
-                {selectedSlot.leadTimeCategory === "approval" && (
+                {selectedSlot.leadTimeCategory === "approval" && !isCollaborator && (
                   <Text style={styles.approvalHint}>
                     Questa fascia richiede approvazione admin.
                   </Text>
                 )}
                 <View style={styles.confirmActions}>
+                  {isCollaborator ? (
+                    <Pressable
+                      disabled={submitting || payingWithCredits}
+                      onPress={() => void handleConfirm("cash")}
+                      style={[
+                        styles.primaryButton,
+                        (submitting || payingWithCredits) && styles.buttonDisabled,
+                      ]}
+                    >
+                      {submitting ? (
+                        <ActivityIndicator color="#fff" />
+                      ) : (
+                        <Text style={styles.primaryButtonText}>
+                          Contanti in sede
+                        </Text>
+                      )}
+                    </Pressable>
+                  ) : null}
                   <Pressable
                     disabled={submitting || payingWithCredits}
                     onPress={() => void handleConfirm("card")}
-                    style={[
-                      styles.primaryButton,
-                      (submitting || payingWithCredits) && styles.buttonDisabled,
-                    ]}
+                    style={
+                      isCollaborator
+                        ? [
+                            styles.secondaryButton,
+                            (submitting || payingWithCredits) &&
+                              styles.buttonDisabled,
+                          ]
+                        : [
+                            styles.primaryButton,
+                            (submitting || payingWithCredits) &&
+                              styles.buttonDisabled,
+                          ]
+                    }
                   >
                     {submitting ? (
                       <ActivityIndicator color="#fff" />
                     ) : (
-                      <Text style={styles.primaryButtonText}>
+                      <Text
+                        style={
+                          isCollaborator
+                            ? styles.secondaryButtonText
+                            : styles.primaryButtonText
+                        }
+                      >
                         Paga con carta
                       </Text>
                     )}
