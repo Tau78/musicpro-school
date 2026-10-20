@@ -76,11 +76,15 @@ Deno.serve(async (req) => {
       paymentUrl,
     );
 
-    // Safety net: le email di conferma spesso dimenticano il calendario.
-    // Upsert è idempotente. Pending e confermate si scrivono subito.
-    if (result.success !== false && template === 'confirm') {
+    // Safety net: conferma scrive su Google; annullamento toglie l'evento
+    // (altrimenti il sync «esterno» lo rimette in calendario).
+    if (result.success !== false && (template === 'confirm' || template === 'cancelled')) {
       try {
-        const cal = await syncBookingToGoogleCalendar(service, bookingId, 'upsert');
+        const cal = await syncBookingToGoogleCalendar(
+          service,
+          bookingId,
+          template === 'cancelled' ? 'delete' : 'upsert',
+        );
         if (!cal.success) {
           console.error('[send-booking-email] calendar-sync', cal.message);
         }

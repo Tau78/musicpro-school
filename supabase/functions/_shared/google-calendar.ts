@@ -204,11 +204,26 @@ export async function upsertCalendarEvent(
 export type CalendarListEvent = {
   id?: string;
   summary?: string;
+  description?: string;
   colorId?: string;
   status?: string;
   start?: { dateTime?: string; date?: string };
   end?: { dateTime?: string; date?: string };
+  extendedProperties?: {
+    private?: Record<string, string>;
+  };
 };
+
+/** Eventi scritti da MusicPro (non vanno in cache «esterno»). */
+export function musicproBookingIdFromCalendarEvent(
+  event: CalendarListEvent,
+): string | null {
+  const fromProp = event.extendedProperties?.private?.musicpro_booking_id?.trim();
+  if (fromProp) return fromProp;
+  const desc = event.description ?? "";
+  const match = desc.match(/\bID:\s*([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b/i);
+  return match?.[1] ?? null;
+}
 
 export async function listCalendarEventsInRange(
   token: string,
