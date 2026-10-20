@@ -2,6 +2,7 @@ import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.49.8
 
 import {
   deleteCalendarEvent,
+  findCalendarEventByBookingId,
   getGoogleAccessToken,
   parseServiceAccountJson,
   upsertCalendarEvent,
@@ -270,7 +271,11 @@ export async function syncBookingToGoogleCalendar(
   const token = await getGoogleAccessToken(sa, actAs);
 
   if (action === 'delete' || booking.status === 'cancelled') {
-    const eventId = booking.google_calendar_event_id?.trim();
+    let eventId = booking.google_calendar_event_id?.trim() || null;
+    if (!eventId) {
+      const found = await findCalendarEventByBookingId(token, calendarId, bookingId);
+      eventId = found?.id ?? null;
+    }
     if (!eventId) {
       return {
         success: true,

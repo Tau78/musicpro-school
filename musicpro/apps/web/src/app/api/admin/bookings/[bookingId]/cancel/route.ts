@@ -86,6 +86,38 @@ export async function POST(request: NextRequest, context: RouteContext) {
     );
   }
 
+  // Elimina subito l'evento su Google: altrimenti il sync «esterno» lo
+  // reimporta e la prenotazione annullata resta in calendario come ghost.
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+    if (supabaseUrl && serviceKey) {
+      const syncRes = await fetch(
+        `${supabaseUrl.replace(/\/$/, "")}/functions/v1/booking-calendar-sync`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${serviceKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ booking_id: bookingId, action: "delete" }),
+        },
+      );
+      if (!syncRes.ok) {
+        console.error(
+          "[admin/bookings/cancel] calendar-sync",
+          syncRes.status,
+          await syncRes.text().catch(() => ""),
+        );
+      }
+    }
+  } catch (err) {
+    console.error(
+      "[admin/bookings/cancel] calendar-sync",
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+
   return NextResponse.json({
     success: true,
     bookingId: cancelResult.bookingId,

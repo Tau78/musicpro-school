@@ -4,6 +4,7 @@ import { isServiceRoleRequest } from '../_shared/edge-auth.ts';
 import {
   getGoogleAccessToken,
   listCalendarEventsInRange,
+  musicproBookingIdFromCalendarEvent,
   parseServiceAccountJson,
   type CalendarListEvent,
 } from '../_shared/google-calendar.ts';
@@ -135,6 +136,9 @@ Deno.serve(async (req) => {
 
       for (const event of events) {
         if (!event.id) continue;
+        // Stesso calendario «Tutte»: non rimettere in cache le prenotazioni MusicPro
+        // (annullate o attive). Quelle si vedono già da public.bookings.
+        if (musicproBookingIdFromCalendarEvent(event)) continue;
         const bounds = eventBounds(event);
         if (!bounds) continue;
 
