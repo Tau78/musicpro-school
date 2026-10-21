@@ -3,10 +3,12 @@ import { randomUUID } from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
+  emitFiscalReceiptForQuotaPayment,
   getNextMemberNumber,
   grantMemberRole,
   isMemberQuotaPaidForYear,
   listAnnualQuotaSettings,
+  markFiscalReceiptEmailed,
   resolveOnlineQuotaFiscalYear,
   upsertMemberAnnualQuotas,
   type Database,
@@ -20,7 +22,11 @@ import { generateEnrollmentPdf } from "./enrollment-pdf";
 import {
   enrollmentPdfDriveAliases,
 } from "./enrollment-pdf";
-import { sendEnrollmentEmail } from "./email-transport";
+import {
+  sendEnrollmentEmail,
+  type EnrollmentAttachment,
+} from "./email-transport";
+import { ensureFiscalReceiptAttachment } from "@/lib/lezioni/issue-receipt-copy";
 import {
   createNexiQuotaAssociativaPaymentLink,
   QUOTA_ASSOCIATIVA_CENTESIMI,
@@ -2187,6 +2193,29 @@ export async function completaInvioIscrizione(idIscrizione: string) {
     content_type: "application/pdf" as const,
   };
 
+  const quotaAttachments: EnrollmentAttachment[] = [attachment];
+  let quotaReceiptId: string | null = null;
+  const quotaFiscalYear = rec.fiscal_year ?? currentFiscalYear();
+  try {
+    const quotaReceipt = await ensureFiscalReceiptAttachment(db, () =>
+      emitFiscalReceiptForQuotaPayment(db, {
+        memberId: member.id,
+        fiscalYear: quotaFiscalYear,
+      }),
+    );
+    if (quotaReceipt) {
+      quotaAttachments.push(quotaReceipt.attachment);
+      quotaReceiptId = quotaReceipt.receiptId;
+    }
+  } catch (quotaReceiptErr) {
+    console.error(
+      "[completaInvioIscrizione] ricevuta quota:",
+      quotaReceiptErr instanceof Error
+        ? quotaReceiptErr.message
+        : String(quotaReceiptErr),
+    );
+  }
+
   const socioEmail = (formText(form.email) || rec.email || "").toLowerCase();
   const nome = formText(form.nome) || rec.first_name;
   const cognome = formText(form.cognome) || rec.last_name;
@@ -2205,7 +2234,7 @@ export async function completaInvioIscrizione(idIscrizione: string) {
         ]
           .filter((line) => line !== "")
           .join("\n"),
-        attachments: [attachment],
+        attachments: quotaAttachments,
       })
     : { sent: false, error: "Email socio mancante" };
 
@@ -2227,8 +2256,12 @@ export async function completaInvioIscrizione(idIscrizione: string) {
       `Member ID: ${member.id}`,
       adminPdfLine,
     ].join("\n"),
-    attachments: [attachment],
+    attachments: quotaAttachments,
   });
+
+  if (socioMail.sent && quotaReceiptId) {
+    await markFiscalReceiptEmailed(db, quotaReceiptId);
+  }
 
   if (!socioMail.sent && !adminMail.sent) {
     throw new Error(
