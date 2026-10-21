@@ -50,10 +50,13 @@ export type GeneratedEnrollmentPdf = {
   contentType: "application/pdf";
 };
 
-/** Stesso ID di `TEMPLATE_ISCRIZIONE_ID` in iscrizioni.js / Codice.js */
+/**
+ * Preferisci il template SA «TEMPLATE Domanda Iscrizione MusicPro (SA)» —
+ * l’ID storico GAS `1CVx…` dà 404 al service account.
+ */
 const TEMPLATE_ISCRIZIONE_ID =
   process.env.ISCRIZIONE_GOOGLE_DOC_TEMPLATE_ID?.trim() ||
-  "1CVxLAsEweuZD11N6V3CBkaNqegG6c2BeOT9WZLSw63I";
+  "1xEKw-ZF61Mb45axUo24iv_Q_USchHjFagIwPtaJ-yRE";
 
 const FIRMA_PLACEHOLDER = "{{FIRMA}}";
 
@@ -523,7 +526,8 @@ export async function generateLegacyLayoutPdf(
   let y = PAGE_H - MARGIN_TOP;
   const bodySize = 9;
   const lineGap = 11;
-  const fieldGap = 32.6; // altezza riga campo Doc ≈ sacchetti/valente
+  /** Altezza riga campo Doc (underline + testo) — compatta vs smoke precedente. */
+  const fieldGap = 26;
 
   const drawCentered = (
     text: string,
@@ -548,6 +552,16 @@ export async function generateLegacyLayoutPdf(
     y -= opts?.gap ?? lineGap;
   };
 
+  /** Underline sottile sotto una riga anagrafica (come celle Doc). */
+  const drawFieldUnderline = (atY: number) => {
+    page.drawLine({
+      start: { x: MARGIN_X, y: atY - 2.2 },
+      end: { x: CONTENT_RIGHT, y: atY - 2.2 },
+      thickness: 0.35,
+      color: rgb(0.72, 0.72, 0.72),
+    });
+  };
+
   const drawRichLine = (
     segments: Array<{
       text: string;
@@ -557,6 +571,7 @@ export async function generateLegacyLayoutPdf(
       size?: number;
     }>,
     gap = lineGap,
+    opts?: { underline?: boolean },
   ) => {
     let x = MARGIN_X;
     for (const seg of segments) {
@@ -572,6 +587,7 @@ export async function generateLegacyLayoutPdf(
       page.drawText(safe, { x, y, size, font: used, color });
       x += used.widthOfTextAtSize(safe, size);
     }
+    if (opts?.underline) drawFieldUnderline(y);
     y -= gap;
   };
 
@@ -589,7 +605,7 @@ export async function generateLegacyLayoutPdf(
   const hasTutore = Boolean(tutoreCompleto || tutoreTel || tutoreEmail || tutoreCf);
   const nomeCognomeField = [nome, cognome].filter(Boolean).join("_");
 
-  // —— Header: «Scuola Semplice» top-right + underscore lunga (oltre le sole parole) ——
+  // —— Header: «Scuola Semplice» top-right + riga solo sotto/accanto al testo ——
   {
     const scuolaLabel = "Scuola Semplice";
     const scuolaSize = 9;
@@ -602,14 +618,14 @@ export async function generateLegacyLayoutPdf(
       font,
       color: BLACK,
     });
-    // Riga lunga: da ~metà pagina fino al margine destro (non solo sotto il testo).
+    // Solo da poco prima di «Scuola Semplice» fino al margine destro (non attraversa il centro).
     page.drawLine({
-      start: { x: PAGE_W * 0.42, y: y - 2.5 },
+      start: { x: scuolaX - 6, y: y - 2.5 },
       end: { x: CONTENT_RIGHT, y: y - 2.5 },
       thickness: 0.7,
       color: BLACK,
     });
-    y -= 18;
+    y -= 16;
   }
 
   // —— Intestazione centrata (misure Doc: 14 / 8 / 8) ——
@@ -626,7 +642,7 @@ export async function generateLegacyLayoutPdf(
       font,
       color: BLUE_LINK,
     });
-    y -= 36;
+    y -= 28;
   }
 
   // —— Oggetto / Libro Soci (stessa riga) ——
@@ -656,10 +672,10 @@ export async function generateLegacyLayoutPdf(
       font: fontBold,
       color: BLACK,
     });
-    y -= fieldGap;
+    y -= 22;
   }
 
-  // —— Anagrafica (NOME_COGNOME con underscore; gap campo Doc) ——
+  // —— Anagrafica (NOME_COGNOME con underscore; gap campo Doc + underline) ——
   drawRichLine(
     [
       {
@@ -667,6 +683,7 @@ export async function generateLegacyLayoutPdf(
       },
     ],
     fieldGap,
+    { underline: true },
   );
   drawRichLine(
     [
@@ -678,6 +695,7 @@ export async function generateLegacyLayoutPdf(
       },
     ],
     fieldGap,
+    { underline: true },
   );
   drawRichLine(
     [
@@ -686,6 +704,7 @@ export async function generateLegacyLayoutPdf(
       },
     ],
     fieldGap,
+    { underline: true },
   );
   drawRichLine(
     [
@@ -693,32 +712,30 @@ export async function generateLegacyLayoutPdf(
         text: `*email ${input.email || ""} Corso ${input.corso || "---"}`,
       },
     ],
-    28,
+    18,
+    { underline: true },
   );
 
-  // —— Tutore: colonne orizzontali (Doc), non stack verticale ——
+  // —— Tutore: titolo «Tutore/Genitore» + colonne orizzontali (Doc) ——
   {
     const colXs = [MARGIN_X, 208, 362];
     const hintSize = 9;
     if (!hasTutore) {
-      // Vuoto: una riga italic grigia a 4 colonne (come placeholder Doc).
-      const emptyCols: Array<{ x: number; label: string }> = [
-        { x: colXs[0], label: "*Tutore/Genitore" },
-        { x: colXs[0] + 2, label: "*Nome e Cognome" },
-        { x: colXs[1], label: "*Telefono" },
-        { x: colXs[2], label: "*Email" },
-      ];
-      // Prima riga: Tutore/Genitore (titolo campo)
-      page.drawText(emptyCols[0].label, {
-        x: emptyCols[0].x,
+      // Vuoto: Tutore/Genitore + placeholder italic (come sacchetti).
+      page.drawText("*Tutore/Genitore", {
+        x: MARGIN_X,
         y,
         size: hintSize,
         font: fontOblique,
         color: GREY_HINT,
       });
       y -= 10.5;
-      // Seconda riga: Nome e Cognome / Telefono / Email
-      for (const col of emptyCols.slice(1)) {
+      const emptyCols: Array<{ x: number; label: string }> = [
+        { x: colXs[0], label: "*Nome e Cognome" },
+        { x: colXs[1], label: "*Telefono" },
+        { x: colXs[2], label: "*Email" },
+      ];
+      for (const col of emptyCols) {
         page.drawText(col.label, {
           x: col.x,
           y,
@@ -727,8 +744,17 @@ export async function generateLegacyLayoutPdf(
           color: GREY_HINT,
         });
       }
-      y -= 65;
+      y -= 36;
     } else {
+      // Titolo sezione (presente nel Doc quando il tutore è valorizzato).
+      page.drawText("Tutore/Genitore", {
+        x: MARGIN_X,
+        y,
+        size: bodySize,
+        font: fontBold,
+        color: BLACK,
+      });
+      y -= 12;
       const cols: Array<{ x: number; value: string; label: string }> = [
         { x: colXs[0], value: tutoreCompleto, label: "*Nome e Cognome" },
         { x: colXs[1], value: tutoreTel, label: "*Telefono" },
@@ -772,11 +798,11 @@ export async function generateLegacyLayoutPdf(
           font: fontOblique,
           color: GREY_HINT,
         });
-        y -= 14;
+        y -= 10;
       } else {
-        y -= 8;
+        y -= 4;
       }
-      y -= 28;
+      y -= 14;
     }
   }
 
@@ -826,7 +852,7 @@ export async function generateLegacyLayoutPdf(
 
   // Quota con € verde
   {
-    y -= 8;
+    y -= 6;
     const prefix = "La quota associativa prevista per l'anno in corso è di: ";
     const amount = quotaAmountOnly(input.quotaLabel);
     page.drawText(prefix, {
@@ -846,7 +872,7 @@ export async function generateLegacyLayoutPdf(
       font: fontBold,
       color: GREEN_QUOTA,
     });
-    y -= 44;
+    y -= 28;
   }
 
   // —— E DICHIARA ——
@@ -857,7 +883,7 @@ export async function generateLegacyLayoutPdf(
     font: fontBold,
     color: BLACK,
   });
-  y -= 22;
+  y -= 14;
   {
     const decl =
       "Di voler rispettare lo statuto e i regolamenti che regolano l'associazione; Di autorizzare il tacito rinnovo tramite versamento quota annuale";
@@ -872,7 +898,7 @@ export async function generateLegacyLayoutPdf(
       y -= lineGap;
     }
   }
-  y -= 40;
+  y -= 16;
 
   const sigBytes = input.signatureData
     ? decodeSignaturePng(input.signatureData)
@@ -886,7 +912,11 @@ export async function generateLegacyLayoutPdf(
     }
   }
 
-  /** Blocco data sx + firma centro (y resta sulla baseline della data). */
+  /**
+   * Blocco data sx + firma centro.
+   * Label socio = «firmare qui»; «firma» solo sotto la firma presidente.
+   * «data» italic sotto la data, allineata sotto «Carasco , DATA» (≈ sotto la cifra).
+   */
   const drawSignatureBlock = (opts?: { advanceY?: boolean }) => {
     const baseline = y;
     const dateLine = `Carasco , ${dataOggi}`;
@@ -897,19 +927,22 @@ export async function generateLegacyLayoutPdf(
       font,
       color: BLACK,
     });
-    // hint «data» sotto la data (x≈92 come Doc)
+    // «data» sotto la data: x sotto lo spazio dopo «Carasco ,» (≈ inizio DATA)
+    const dataHintX =
+      MARGIN_X + font.widthOfTextAtSize("Carasco , ", bodySize) + 4;
     page.drawText("data", {
-      x: 92,
+      x: dataHintX,
       y: baseline - 11,
-      size: bodySize,
+      size: 8,
       font: fontOblique,
       color: GREY_HINT,
     });
 
     const sigX = 180;
+    const firmareQuiX = 198;
     if (sigImage) {
       const maxWSig = 130;
-      const maxHSig = 42;
+      const maxHSig = 38;
       const scale = Math.min(
         maxWSig / sigImage.width,
         maxHSig / sigImage.height,
@@ -917,35 +950,28 @@ export async function generateLegacyLayoutPdf(
       );
       const w = sigImage.width * scale;
       const h = sigImage.height * scale;
+      // Firma sopra la baseline; «firmare qui» resta sotto (come Doc/sacchetti).
       page.drawImage(sigImage, {
         x: sigX,
-        y: baseline - h + 10,
+        y: baseline - 4,
         width: w,
         height: h,
       });
-      page.drawText("firmare qui", {
-        x: 198,
-        y: baseline - 11,
-        size: bodySize,
-        font: fontOblique,
-        color: GREY_HINT,
-      });
-    } else {
-      page.drawText("firmare qui", {
-        x: 198,
-        y: baseline - 11,
-        size: bodySize,
-        font: fontOblique,
-        color: GREY_HINT,
-      });
     }
+    page.drawText("firmare qui", {
+      x: firmareQuiX,
+      y: baseline - 11,
+      size: bodySize,
+      font: fontOblique,
+      color: GREY_HINT,
+    });
     if (opts?.advanceY !== false) {
-      y = baseline - 28;
+      y = baseline - 22;
     }
   };
 
   drawSignatureBlock();
-  y -= 4;
+  y -= 2;
 
   // GDPR fine print (5pt come Doc)
   {
@@ -975,7 +1001,7 @@ export async function generateLegacyLayoutPdf(
       y -= 6.2;
     }
   }
-  y -= 28;
+  y -= 18;
 
   // —— Firma 2 + presidente a DESTRA sulla stessa zona (niente buco A4) ——
   {
