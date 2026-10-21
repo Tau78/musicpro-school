@@ -1,7 +1,14 @@
 import { createClient } from "@supabase/supabase-js";
 
 import { authPublicOrigin } from "@/lib/auth/redirect-url";
-import { sendEnrollmentEmail } from "@/lib/iscrizione/email-transport";
+import {
+  sendEnrollmentEmail,
+  type EnrollmentAttachment,
+} from "@/lib/iscrizione/email-transport";
+import {
+  fiscalReceiptAttachmentForRoomBooking,
+  markReceiptEmailedIfSent,
+} from "@/lib/lezioni/issue-receipt-copy";
 
 const ROME = "Europe/Rome";
 
@@ -751,6 +758,25 @@ export async function processBookingEmail(params: {
     };
   }
 
+  let receiptAttachments: EnrollmentAttachment[] | undefined;
+  let receiptIdForMark: string | null = null;
+  if (template === "confirm" && booking.payment_status === "paid") {
+    try {
+      const receiptPack = await fiscalReceiptAttachmentForRoomBooking(
+        serviceClient(),
+        bookingId,
+      );
+      if (receiptPack) {
+        receiptAttachments = [receiptPack.attachment];
+        receiptIdForMark = receiptPack.receiptId;
+      }
+    } catch (receiptErr) {
+      const msg =
+        receiptErr instanceof Error ? receiptErr.message : String(receiptErr);
+      console.error("[booking-email] ricevuta:", msg);
+    }
+  }
+
   const delivery = await sendEnrollmentEmail({
     to,
     cc: ccList,
@@ -758,6 +784,7 @@ export async function processBookingEmail(params: {
     text: content.text,
     html: content.html,
     preferGoogleSmtp: true,
+    attachments: receiptAttachments,
   });
 
   if (!delivery.sent) {
@@ -801,6 +828,14 @@ export async function processBookingEmail(params: {
     subject: content.subject,
     status: "sent",
   });
+
+  if (receiptIdForMark) {
+    await markReceiptEmailedIfSent(
+      serviceClient(),
+      receiptIdForMark,
+      true,
+    );
+  }
 
   // Notifica admin/segreteria (impostazioni admin_email / segreteria_email).
   let adminSent = false;

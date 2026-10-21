@@ -1756,9 +1756,11 @@ export interface Database {
           section: string;
           code: string;
           issued_on: string;
-          status: "emessa" | "sostituita";
+          status: "emessa" | "sostituita" | "annullata";
           replaces_id: string | null;
           payment_id: string | null;
+          source_type: string | null;
+          source_id: string | null;
           member_id: string;
           payee_name: string;
           payee_tax_code: string | null;
@@ -1778,9 +1780,11 @@ export interface Database {
           section?: string;
           code: string;
           issued_on: string;
-          status?: "emessa" | "sostituita";
+          status?: "emessa" | "sostituita" | "annullata";
           replaces_id?: string | null;
           payment_id?: string | null;
+          source_type?: string | null;
+          source_id?: string | null;
           member_id: string;
           payee_name: string;
           payee_tax_code?: string | null;

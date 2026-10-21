@@ -623,13 +623,22 @@ export type { TeacherCashAdvanceRow } from "./lessons-cash";
 export {
   emailFiscalReceiptCopy,
   emitFiscalReceiptForPayment,
+  emitFiscalReceiptForQuotaPayment,
+  emitFiscalReceiptForRoomBooking,
   fiscalReceiptsCsv,
+  fiscalReceiptsXls,
   getFiscalReceipt,
   listFiscalReceipts,
   markFiscalReceiptEmailed,
   replaceFiscalReceipt,
+  updateFiscalReceipt,
+  voidFiscalReceipt,
 } from "./lessons-receipts";
-export type { FiscalReceiptRow } from "./lessons-receipts";
+export type {
+  EmitFiscalReceiptForQuotaInput,
+  FiscalReceiptRow,
+  FiscalReceiptSourceType,
+} from "./lessons-receipts";
 export {
   notifyCourseApproved,
   notifyCourseCreatedActive,
