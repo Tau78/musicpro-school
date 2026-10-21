@@ -1,7 +1,3 @@
-import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
-import path from "node:path";
-
 import {
   PDFDocument,
   StandardFonts,
@@ -207,14 +203,21 @@ function wrapText(
 async function tryEmbedLogo(
   doc: PDFDocument,
 ): Promise<PDFImage | null> {
-  const base = path.join(process.cwd(), "public");
-  const candidates = ["logo.png", "logo.jpg", "logo.jpeg", "Logo.png"];
-  for (const name of candidates) {
-    const filePath = path.join(base, name);
-    if (!existsSync(filePath)) continue;
+  const candidates = ["/logo.png", "/logo.jpg", "/Logo.png"];
+  for (const url of candidates) {
     try {
-      const bytes = await readFile(filePath);
-      if (name.toLowerCase().endsWith(".png")) {
+      const base =
+        typeof window !== "undefined"
+          ? window.location.origin
+          : process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+            process.env.VERCEL_URL?.trim()
+              ? `https://${process.env.VERCEL_URL!.trim()}`
+              : "";
+      if (!base) return null;
+      const res = await fetch(`${base}${url}`);
+      if (!res.ok) continue;
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      if (url.toLowerCase().endsWith(".png")) {
         return doc.embedPng(bytes);
       }
       return doc.embedJpg(bytes);
