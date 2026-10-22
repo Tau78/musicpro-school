@@ -6,6 +6,7 @@ import {
 } from "@musicpro/database";
 
 import { EnrollmentLessonIntentReconcileButton } from "@/components/lezioni/enrollment-lesson-intent-reconcile-button";
+import { EnrollmentLessonIntentTeacherSelect } from "@/components/lezioni/enrollment-lesson-intent-teacher-select";
 
 function formatCreatedAt(iso: string): string {
   return new Date(iso).toLocaleString("it-IT", {
@@ -35,10 +36,15 @@ export function EnrollmentLessonIntentsList({
   items,
   mode,
   actorMemberId,
+  teachersByCourseId = {},
 }: {
   items: EnrollmentLessonIntent[];
   mode: "staff" | "teacher";
   actorMemberId?: string;
+  teachersByCourseId?: Record<
+    string,
+    { memberId: string; label: string }[]
+  >;
 }) {
   if (items.length === 0) {
     return (
@@ -75,12 +81,23 @@ export function EnrollmentLessonIntentsList({
                 Corso richiesto:{" "}
                 <span className="font-medium">{item.requestedCourseName}</span>
               </p>
-              <p className="text-sm text-neutral-600">
-                Docente preferito:{" "}
-                {item.preferredTeacherLabel ?? (
-                  <span className="text-neutral-400">—</span>
-                )}
-              </p>
+              {mode === "staff" && item.paymentState !== "converted" ? (
+                <EnrollmentLessonIntentTeacherSelect
+                  intentId={item.id}
+                  requestedCourseId={item.requestedCourseId}
+                  preferredTeacherMemberId={item.preferredTeacherMemberId}
+                  teachers={
+                    teachersByCourseId[item.requestedCourseId] ?? []
+                  }
+                />
+              ) : (
+                <p className="text-sm text-neutral-600">
+                  Docente preferito:{" "}
+                  {item.preferredTeacherLabel ?? (
+                    <span className="text-neutral-400">—</span>
+                  )}
+                </p>
+              )}
               <div className="flex flex-wrap items-center gap-2 pt-1">
                 <span
                   className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${paymentBadgeClass(item.paymentState)}`}

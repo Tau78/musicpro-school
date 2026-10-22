@@ -6,6 +6,7 @@ import { MemberRole } from "@musicpro/shared";
 import { EnrollmentLessonIntentsList } from "@/components/lezioni/enrollment-lesson-intents-list";
 import { getAdminMember } from "@/lib/admin/current-member";
 import { canManageMembers } from "@/lib/admin/roles";
+import { listEnrollmentLessonOptions } from "@/lib/iscrizione/lesson-options";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function AdminRichiesteIscrizioneLezioniPage() {
@@ -21,10 +22,18 @@ export default async function AdminRichiesteIscrizioneLezioniPage() {
   }
 
   let items: Awaited<ReturnType<typeof listIntentsForStaff>> = [];
+  let teachersByCourseId: Record<
+    string,
+    { memberId: string; label: string }[]
+  > = {};
   let loadError: string | null = null;
 
   try {
     items = await listIntentsForStaff(supabase);
+    const { courses } = await listEnrollmentLessonOptions();
+    teachersByCourseId = Object.fromEntries(
+      courses.map((c) => [c.id, c.teachers]),
+    );
   } catch (err) {
     loadError =
       err instanceof Error
@@ -64,6 +73,7 @@ export default async function AdminRichiesteIscrizioneLezioniPage() {
           items={items}
           mode="staff"
           actorMemberId={member.id}
+          teachersByCourseId={teachersByCourseId}
         />
       )}
     </div>
