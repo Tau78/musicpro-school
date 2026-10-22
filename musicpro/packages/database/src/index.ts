@@ -572,6 +572,20 @@ export {
 } from "./lesson-change-requests";
 export type { LessonChangeRequest } from "./lesson-change-requests";
 export {
+  enrollmentLessonIntentPaymentLabel,
+  getIntentByMembershipEnrollment,
+  listIntentsForStaff,
+  listIntentsForTeacher,
+  paymentStateForEnrollmentLessonIntent,
+  reconcileEnrollmentLessonIntent,
+} from "./enrollment-lesson-intents";
+export type {
+  EnrollmentLessonIntent,
+  EnrollmentLessonIntentPaymentState,
+  EnrollmentLessonIntentStatus,
+  ReconcileEnrollmentLessonIntentResult,
+} from "./enrollment-lesson-intents";
+export {
   cancelLessonAsSchool,
   getLessonRoster,
   listRecoverableLessons,

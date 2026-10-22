@@ -486,6 +486,38 @@ export interface Database {
         };
         Relationships: [];
       };
+      enrollment_lesson_intents: {
+        Row: {
+          id: string;
+          membership_enrollment_id: string;
+          member_id: string | null;
+          requested_course_id: string;
+          preferred_teacher_member_id: string | null;
+          pay_first_pack_with_quota: boolean;
+          lesson_pack_payment_id: string | null;
+          status: "pending" | "paid_unreconciled" | "converted" | "cancelled";
+          converted_course_id: string | null;
+          converted_course_enrollment_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          membership_enrollment_id: string;
+          member_id?: string | null;
+          requested_course_id: string;
+          preferred_teacher_member_id?: string | null;
+          pay_first_pack_with_quota?: boolean;
+          lesson_pack_payment_id?: string | null;
+          status?: "pending" | "paid_unreconciled" | "converted" | "cancelled";
+          converted_course_id?: string | null;
+          converted_course_enrollment_id?: string | null;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["enrollment_lesson_intents"]["Insert"]
+        >;
+        Relationships: [];
+      };
       enrollments: {
         Row: {
           id: string;
@@ -1632,6 +1664,7 @@ export interface Database {
           note: string | null;
           cro: string | null;
           include_quota: boolean;
+          enrollment_lesson_intent_id: string | null;
           stripe_payment_intent_id: string | null;
           stripe_payment_link_id: string | null;
           stripe_payment_link_url: string | null;
@@ -1651,6 +1684,7 @@ export interface Database {
           note?: string | null;
           cro?: string | null;
           include_quota?: boolean;
+          enrollment_lesson_intent_id?: string | null;
           stripe_payment_intent_id?: string | null;
           stripe_payment_link_id?: string | null;
           stripe_payment_link_url?: string | null;
@@ -2566,6 +2600,13 @@ export interface Database {
       };
       apply_lesson_pack_payment: {
         Args: { p_payment_id: string };
+        Returns: Json;
+      };
+      reconcile_enrollment_lesson_intent: {
+        Args: {
+          p_intent_id: string;
+          p_actor_member_id: string;
+        };
         Returns: Json;
       };
       list_lesson_staff_emails: {
