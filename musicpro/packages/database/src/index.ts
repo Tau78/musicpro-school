@@ -578,6 +578,7 @@ export {
   listIntentsForTeacher,
   paymentStateForEnrollmentLessonIntent,
   reconcileEnrollmentLessonIntent,
+  updateEnrollmentLessonIntentPreferredTeacher,
   upsertIntentFromEnrollment,
 } from "./enrollment-lesson-intents";
 export type {

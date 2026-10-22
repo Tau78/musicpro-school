@@ -469,14 +469,36 @@ async function main() {
   const client = new ftp.Client(30000);
   client.ftp.verbose = false;
 
-  try {
+  async function connectFtp() {
     console.log("Connessione FTP a " + FTP_HOST + " come " + FTP_USER + "...");
-    await client.access({
-      host: FTP_HOST,
-      user: FTP_USER,
-      password: FTP_PASS,
-      secure: false,
-    });
+    try {
+      await client.access({
+        host: FTP_HOST,
+        user: FTP_USER,
+        password: FTP_PASS,
+        secure: false,
+      });
+      return;
+    } catch (plainErr) {
+      const msg = String(plainErr?.message || plainErr);
+      if (!/530|Login authentication failed/i.test(msg)) {
+        throw plainErr;
+      }
+      console.log(
+        "Login FTP plain fallito (530). Provo FTPS implicito (certificato hosting)...",
+      );
+      await client.access({
+        host: FTP_HOST,
+        user: FTP_USER,
+        password: FTP_PASS,
+        secure: true,
+        secureOptions: { rejectUnauthorized: false },
+      });
+    }
+  }
+
+  try {
+    await connectFtp();
 
     const remoteDir = REMOTE_PATH.replace(/\/$/, "") || "/";
     await client.ensureDir(remoteDir);

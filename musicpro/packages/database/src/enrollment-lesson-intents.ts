@@ -358,6 +358,44 @@ export async function getIntentByMembershipEnrollment(
   return item ?? null;
 }
 
+export async function updateEnrollmentLessonIntentPreferredTeacher(
+  client: IntentsClient,
+  intentId: string,
+  preferredTeacherMemberId: string | null,
+): Promise<CourseMutationResult> {
+  const trimmedId = intentId.trim();
+  if (!trimmedId) return fail("Richiesta non valida.");
+
+  const teacherId = preferredTeacherMemberId?.trim() || null;
+
+  const { data: existing, error: loadError } = await client
+    .from("enrollment_lesson_intents")
+    .select("id, status, converted_course_id")
+    .eq("id", trimmedId)
+    .maybeSingle();
+
+  if (loadError) {
+    return fail(loadError.message || "Impossibile caricare la richiesta.");
+  }
+  if (!existing) return fail("Richiesta non trovata.");
+  if (existing.status === "converted" || existing.converted_course_id) {
+    return fail("Richiesta già convertita: il docente non è modificabile.");
+  }
+
+  const { error: updateError } = await client
+    .from("enrollment_lesson_intents")
+    .update({ preferred_teacher_member_id: teacherId })
+    .eq("id", trimmedId);
+
+  if (updateError) {
+    return fail(
+      updateError.message || "Impossibile aggiornare il docente preferito.",
+    );
+  }
+
+  return ok(trimmedId);
+}
+
 export async function reconcileEnrollmentLessonIntent(
   client: IntentsClient,
   intentId: string,
