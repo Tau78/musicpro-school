@@ -160,6 +160,7 @@ export async function upsertEnrollmentLessonIntent(
     preferredTeacherMemberId,
     payFirstPackWithQuota: payFirstPackWithQuotaFromForm(input.data),
     status: "pending",
+    lessonPackPaymentId: null,
   });
 }
 
