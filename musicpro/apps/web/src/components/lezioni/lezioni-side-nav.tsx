@@ -22,6 +22,10 @@ export const ADMIN_LEZIONI_NAV: readonly LessonsNavGroup[] = [
     items: [
       { href: "/admin/lezioni/corsi", label: "Corsi" },
       { href: "/admin/lezioni/coda", label: "Da fare" },
+      {
+        href: "/admin/lezioni/richieste-iscrizione",
+        label: "Richieste iscrizione",
+      },
     ],
   },
   {
@@ -53,7 +57,10 @@ export const TEACHER_LEZIONI_NAV: readonly LessonsNavGroup[] = [
   },
   {
     label: "Corsi",
-    items: [{ href: "/lezioni/corsi", label: "Corsi" }],
+    items: [
+      { href: "/lezioni/corsi", label: "Corsi" },
+      { href: "/lezioni/richieste", label: "Richieste iscrizione" },
+    ],
   },
   {
     label: "Soldi",

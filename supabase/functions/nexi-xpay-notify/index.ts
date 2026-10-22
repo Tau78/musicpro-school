@@ -263,6 +263,8 @@ Deno.serve(async (req) => {
   if (flow === 'lesson_pack' && !duplicate) {
     const paymentId = String(result.lesson_pack_payment_id ?? '').trim();
     if (paymentId) triggerLessonPackReceipt(paymentId);
+    const iscrizioneId = String(result.enrollment_id ?? '').trim();
+    if (iscrizioneId) triggerCompletaInvioIscrizione(iscrizioneId);
   }
 
   return ackOk(duplicate ? 'duplicate' : 'paid');

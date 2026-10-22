@@ -578,12 +578,14 @@ export {
   listIntentsForTeacher,
   paymentStateForEnrollmentLessonIntent,
   reconcileEnrollmentLessonIntent,
+  upsertIntentFromEnrollment,
 } from "./enrollment-lesson-intents";
 export type {
   EnrollmentLessonIntent,
   EnrollmentLessonIntentPaymentState,
   EnrollmentLessonIntentStatus,
   ReconcileEnrollmentLessonIntentResult,
+  UpsertEnrollmentLessonIntentInput,
 } from "./enrollment-lesson-intents";
 export {
   cancelLessonAsSchool,

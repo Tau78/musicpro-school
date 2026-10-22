@@ -48,6 +48,16 @@ export type EnrollmentLessonIntent = {
 
 export type ReconcileEnrollmentLessonIntentResult = CourseMutationResult;
 
+export type UpsertEnrollmentLessonIntentInput = {
+  membershipEnrollmentId: string;
+  memberId: string;
+  requestedCourseId: string;
+  preferredTeacherMemberId: string | null;
+  payFirstPackWithQuota: boolean;
+  status?: EnrollmentLessonIntentStatus;
+  lessonPackPaymentId?: string | null;
+};
+
 const INTENT_COLUMNS =
   "id, membership_enrollment_id, member_id, requested_course_id, preferred_teacher_member_id, pay_first_pack_with_quota, lesson_pack_payment_id, status, converted_course_id, converted_course_enrollment_id, created_at";
 
@@ -265,6 +275,47 @@ export async function listIntentsForTeacher(
   client: IntentsClient,
 ): Promise<EnrollmentLessonIntent[]> {
   return listEnrollmentLessonIntents(client);
+}
+
+export async function upsertIntentFromEnrollment(
+  client: IntentsClient,
+  input: UpsertEnrollmentLessonIntentInput,
+): Promise<EnrollmentLessonIntent> {
+  const membershipEnrollmentId = input.membershipEnrollmentId.trim();
+  const memberId = input.memberId.trim();
+  const requestedCourseId = input.requestedCourseId.trim();
+  if (!membershipEnrollmentId || !memberId || !requestedCourseId) {
+    throw new Error("Dati intent lezioni incompleti.");
+  }
+
+  const row: Database["public"]["Tables"]["enrollment_lesson_intents"]["Insert"] =
+    {
+      membership_enrollment_id: membershipEnrollmentId,
+      member_id: memberId,
+      requested_course_id: requestedCourseId,
+      preferred_teacher_member_id: input.preferredTeacherMemberId,
+      pay_first_pack_with_quota: input.payFirstPackWithQuota,
+      status: input.status ?? "pending",
+      lesson_pack_payment_id: input.lessonPackPaymentId ?? null,
+    };
+
+  const { data, error } = await client
+    .from("enrollment_lesson_intents")
+    .upsert(row, { onConflict: "membership_enrollment_id" })
+    .select(INTENT_COLUMNS)
+    .single();
+
+  if (error || !data) {
+    throw new Error(
+      error?.message || "Impossibile salvare la scelta lezioni.",
+    );
+  }
+
+  const [item] = await enrichIntentRows(client, [data]);
+  if (!item) {
+    throw new Error("Impossibile caricare l'intento lezioni salvato.");
+  }
+  return item;
 }
 
 export async function getIntentByMembershipEnrollment(

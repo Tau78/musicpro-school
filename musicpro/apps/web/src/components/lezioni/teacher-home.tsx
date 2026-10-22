@@ -4,6 +4,7 @@ import { Children, type ReactNode } from "react";
 import {
   listCoordinatedCourses,
   listCourses,
+  listIntentsForTeacher,
   listLessonsInRange,
   listUnplacedLessons,
   todayInRome,
@@ -28,6 +29,7 @@ export type TeacherHomeData = {
   unplaced: Lesson[];
   courses: Course[];
   coordinatedCount: number;
+  enrollmentIntentCount: number;
 };
 
 export async function loadTeacherHomeData(
@@ -35,7 +37,8 @@ export async function loadTeacherHomeData(
 ): Promise<TeacherHomeData> {
   const supabase = await createClient();
   const today = todayInRome();
-  const [past, upcoming, unplaced, courses, coordinated] = await Promise.all([
+  const [past, upcoming, unplaced, courses, coordinated, enrollmentIntents] =
+    await Promise.all([
     listLessonsInRange(supabase, {
       from: addRomeDays(today, -14),
       to: today,
@@ -49,6 +52,7 @@ export async function loadTeacherHomeData(
     listUnplacedLessons(supabase, { titularMemberId: memberId }),
     listCourses(supabase, { titularMemberId: memberId, status: "attivo" }),
     listCoordinatedCourses(supabase, memberId),
+    listIntentsForTeacher(supabase).catch(() => []),
   ]);
 
   return {
@@ -65,6 +69,9 @@ export async function loadTeacherHomeData(
     unplaced,
     courses,
     coordinatedCount: coordinated.length,
+    enrollmentIntentCount: enrollmentIntents.filter(
+      (row) => row.paymentState !== "converted",
+    ).length,
   };
 }
 
@@ -159,6 +166,21 @@ export function TeacherHome({
           />
         ))}
       </HomeSection>
+
+      {data.enrollmentIntentCount > 0 ? (
+        <HomeSection
+          title="Richieste iscrizione"
+          href="/lezioni/richieste"
+          count={data.enrollmentIntentCount}
+          empty=""
+        >
+          <HomeRow
+            href="/lezioni/richieste"
+            title="Allievi in attesa di corso"
+            meta="Solo consultazione — pagamenti in segreteria"
+          />
+        </HomeSection>
+      ) : null}
 
       <HomeSection
         title="Corsi attivi"

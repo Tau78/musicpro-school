@@ -32,6 +32,11 @@ import {
   QUOTA_ASSOCIATIVA_CENTESIMI,
   syncNexiPaymentForEnrollment,
 } from "./nexi-quota-payment-link";
+import {
+  payFirstPackWithQuotaFromForm,
+  startEnrollmentCombinedLessonPayment,
+  upsertEnrollmentLessonIntent,
+} from "./enrollment-lesson-intents";
 
 type Db = SupabaseClient<Database>;
 type EnrollmentRow = Database["public"]["Tables"]["enrollments"]["Row"];
@@ -118,6 +123,10 @@ export interface EnrollmentFormData {
   privacy_accepted?: boolean | string;
   photo_consent?: boolean | string;
   rinnovo_associato?: boolean | string;
+  lezioni_enabled?: boolean | string;
+  lesson_course_id?: string;
+  lesson_teacher_member_id?: string;
+  pay_first_pack_with_quota?: boolean | string;
   [key: string]: unknown;
 }
 
@@ -1420,6 +1429,8 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
     ...data,
     metodo_pagamento: "Nexi",
   };
+  const useCombinedLessonCheckout = payFirstPackWithQuotaFromForm(data);
+  const quotaAlreadyPaid = false;
 
   const resumeId = String(data.idIscrizione || data.id || "").trim();
   let pending =
@@ -1460,7 +1471,18 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
       })
       .eq("id", pending.id);
 
-    if (existingUrl && existingStato !== "ERRORE" && sameYearLink) {
+    const intentReuse = await upsertEnrollmentLessonIntent(db, {
+      enrollmentId: pending.id,
+      memberId: member.id,
+      data,
+    });
+
+    if (
+      existingUrl &&
+      existingStato !== "ERRORE" &&
+      sameYearLink &&
+      !useCombinedLessonCheckout
+    ) {
       await db
         .from("enrollments")
         .update({ payment_status: "INVIATO" })
@@ -1473,6 +1495,41 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
         reused: true,
         memberId: member.id,
         formAccessToken,
+      };
+    }
+
+    if (useCombinedLessonCheckout && intentReuse) {
+      const combinedReuse = await startEnrollmentCombinedLessonPayment({
+        db,
+        enrollmentId: pending.id,
+        memberId: member.id,
+        intent: intentReuse,
+        nome: String(data.nome || ""),
+        cognome: String(data.cognome || ""),
+        email: String(data.email || "").trim(),
+        importoQuotaCents: importoCents,
+        quotaAlreadyPaid,
+      });
+
+      await db
+        .from("enrollments")
+        .update({
+          payment_status: "INVIATO",
+          payment_link_url: combinedReuse.checkoutUrl,
+          payment_link_id: combinedReuse.stripeId || null,
+          payment_total_centesimi: combinedReuse.totaleCents,
+        })
+        .eq("id", pending.id);
+
+      const formAccessTokenCombined = await issueFormAccessToken(db, pending.id);
+      return {
+        success: true,
+        idIscrizione,
+        checkoutUrl: combinedReuse.checkoutUrl,
+        reused: Boolean(combinedReuse.reused),
+        memberId: member.id,
+        formAccessToken: formAccessTokenCombined,
+        combinedLessonPack: true,
       };
     }
 
@@ -1507,6 +1564,12 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
         payment_total_centesimi: linkResReuse.totaleCents || importoCents,
       })
       .eq("id", pending.id);
+
+    await upsertEnrollmentLessonIntent(db, {
+      enrollmentId: pending.id,
+      memberId: member.id,
+      data,
+    });
 
     const formAccessTokenReuse = await issueFormAccessToken(db, pending.id);
     return {
@@ -1543,6 +1606,58 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
 
   if (insertErr || !inserted) {
     throw new Error(insertErr?.message || "Impossibile salvare l'iscrizione.");
+  }
+
+  const intentNew = await upsertEnrollmentLessonIntent(db, {
+    enrollmentId: idIscrizione,
+    memberId: member.id,
+    data,
+  });
+
+  if (useCombinedLessonCheckout && intentNew) {
+    try {
+      const combined = await startEnrollmentCombinedLessonPayment({
+        db,
+        enrollmentId: idIscrizione,
+        memberId: member.id,
+        intent: intentNew,
+        nome: String(data.nome || ""),
+        cognome: String(data.cognome || ""),
+        email: String(data.email || "").trim(),
+        importoQuotaCents: importoCents,
+        quotaAlreadyPaid,
+      });
+
+      await db
+        .from("enrollments")
+        .update({
+          payment_status: "INVIATO",
+          payment_link_url: combined.checkoutUrl,
+          payment_link_id: combined.stripeId || null,
+          payment_total_centesimi: combined.totaleCents,
+        })
+        .eq("id", idIscrizione);
+
+      const formAccessTokenCombined = await issueFormAccessToken(
+        db,
+        idIscrizione,
+      );
+      return {
+        success: true,
+        idIscrizione,
+        checkoutUrl: combined.checkoutUrl,
+        reused: Boolean(combined.reused),
+        memberId: member.id,
+        formAccessToken: formAccessTokenCombined,
+        combinedLessonPack: true,
+      };
+    } catch (combinedErr) {
+      await db
+        .from("enrollments")
+        .update({ payment_status: "ERRORE" })
+        .eq("id", idIscrizione);
+      throw combinedErr;
+    }
   }
 
   const linkRes = await createNexiQuotaAssociativaPaymentLink({

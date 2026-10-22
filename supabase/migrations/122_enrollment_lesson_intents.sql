@@ -673,3 +673,205 @@ GRANT EXECUTE ON FUNCTION public.reconcile_enrollment_lesson_intent(UUID, UUID) 
 
 COMMENT ON FUNCTION public.reconcile_enrollment_lesson_intent(UUID, UUID) IS
   'Staff: converte intento iscrizione in iscrizione corso (gruppo o clone individuale) e applica pack pagato se presente.';
+
+-- ---------------------------------------------------------------------------
+-- apply_nexi_payment — iscrizione associativa pagata via lesson_pack combinato
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.apply_nexi_payment(
+  p_cod_trans text,
+  p_cod_aut text DEFAULT NULL,
+  p_esito text DEFAULT NULL,
+  p_amount_cents integer DEFAULT NULL
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_cod text := nullif(trim(coalesce(p_cod_trans, '')), '');
+  v_esito text := upper(nullif(trim(coalesce(p_esito, '')), ''));
+  v_order public.nexi_payment_orders%ROWTYPE;
+  v_receipt public.nexi_payment_receipts%ROWTYPE;
+  v_event_id text;
+  v_inner jsonb;
+  v_amount integer;
+  v_credit_fin jsonb;
+  v_market_order_id uuid;
+  v_iscrizione_id uuid;
+BEGIN
+  IF v_cod IS NULL THEN
+    RETURN jsonb_build_object('success', false, 'message', 'codTrans mancante.');
+  END IF;
+
+  IF v_esito IS DISTINCT FROM 'OK' THEN
+    RETURN jsonb_build_object('success', false, 'message', 'esito non OK.', 'esito', v_esito);
+  END IF;
+
+  SELECT * INTO v_receipt
+  FROM public.nexi_payment_receipts
+  WHERE cod_trans = v_cod;
+
+  IF FOUND THEN
+    SELECT * INTO v_order FROM public.nexi_payment_orders WHERE id = v_receipt.order_id;
+    RETURN jsonb_build_object(
+      'success', true,
+      'duplicate', true,
+      'flow', coalesce(v_order.flow, v_receipt.flow),
+      'order_id', v_receipt.order_id,
+      'enrollment_id', v_order.enrollment_id,
+      'quota_payment_id', v_order.quota_payment_id,
+      'booking_id', v_order.booking_id,
+      'member_id', v_order.member_id,
+      'lesson_pack_payment_id', v_order.lesson_pack_payment_id
+    );
+  END IF;
+
+  SELECT * INTO v_order
+  FROM public.nexi_payment_orders
+  WHERE provider_payment_id = v_cod;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('success', false, 'message', 'Ordine Nexi non trovato.');
+  END IF;
+
+  v_amount := coalesce(p_amount_cents, v_order.amount_cents);
+  v_event_id := 'nexi:' || v_cod;
+
+  IF v_order.flow = 'quota_associativa' THEN
+    v_inner := public.apply_stripe_quota_payment(
+      v_event_id,
+      'nexi.xpay.notify',
+      v_cod,
+      v_cod,
+      v_amount,
+      'quota_associativa',
+      v_order.enrollment_id,
+      NULL
+    );
+  ELSIF v_order.flow = 'quota_multi_pay' THEN
+    v_inner := public.apply_stripe_quota_payment(
+      v_event_id,
+      'nexi.xpay.notify',
+      v_cod,
+      v_cod,
+      v_amount,
+      'quota_multi_pay',
+      NULL,
+      v_order.quota_payment_id
+    );
+  ELSIF v_order.flow = 'room_booking' THEN
+    v_inner := public.apply_stripe_room_booking_payment(
+      v_order.booking_id::text,
+      v_event_id,
+      'nexi.xpay.notify',
+      v_cod,
+      v_cod,
+      v_amount
+    );
+  ELSIF v_order.flow = 'shop_credit_package' THEN
+    v_inner := public.apply_stripe_credit_shop_payment(
+      v_order.member_id::text,
+      v_order.package_id,
+      v_event_id,
+      'nexi.xpay.notify',
+      v_cod,
+      v_cod,
+      v_amount
+    );
+  ELSIF v_order.flow = 'lesson_pack' THEN
+    v_inner := public.apply_stripe_lesson_pack_payment(
+      v_event_id,
+      'nexi.xpay.notify',
+      v_cod,
+      v_cod,
+      v_amount,
+      v_order.lesson_pack_payment_id
+    );
+  ELSIF v_order.flow = 'market' THEN
+    BEGIN
+      v_market_order_id := nullif(v_order.metadata->>'market_order_id', '')::uuid;
+    EXCEPTION
+      WHEN invalid_text_representation THEN
+        v_market_order_id := NULL;
+    END;
+    v_inner := public.apply_market_nexi_payment(v_market_order_id, v_amount);
+  ELSE
+    RETURN jsonb_build_object('success', false, 'message', 'Flusso pagamento sconosciuto.');
+  END IF;
+
+  IF coalesce(v_inner->>'success', 'false') <> 'true' THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'message', coalesce(v_inner->>'message', 'Applicazione pagamento fallita.'),
+      'flow', v_order.flow,
+      'inner', v_inner
+    );
+  END IF;
+
+  INSERT INTO public.nexi_payment_receipts (cod_trans, order_id, flow, esito, importo, cod_aut)
+  VALUES (
+    v_cod,
+    v_order.id,
+    v_order.flow,
+    v_esito,
+    v_amount,
+    nullif(trim(coalesce(p_cod_aut, '')), '')
+  );
+
+  UPDATE public.nexi_payment_orders
+  SET
+    status = 'paid',
+    paid_at = coalesce(paid_at, now()),
+    updated_at = now(),
+    metadata = coalesce(metadata, '{}'::jsonb) || jsonb_build_object(
+      'paid_amount_cents', v_amount,
+      'cod_aut', nullif(trim(coalesce(p_cod_aut, '')), '')
+    )
+  WHERE id = v_order.id;
+
+  IF v_order.flow = 'room_booking' AND v_order.booking_id IS NOT NULL THEN
+    UPDATE public.bookings
+    SET payment_method = 'nexi'
+    WHERE id = v_order.booking_id;
+
+    v_credit_fin := public.finalize_held_credits_on_booking_payment(v_order.booking_id);
+  END IF;
+
+  IF v_order.flow = 'lesson_pack' AND v_order.lesson_pack_payment_id IS NOT NULL THEN
+    UPDATE public.lesson_pack_payments
+    SET method = 'nexi'
+    WHERE id = v_order.lesson_pack_payment_id
+      AND method = 'stripe';
+
+    v_iscrizione_id := COALESCE(
+      v_order.enrollment_id,
+      NULLIF(v_order.metadata->>'mp_iscrizione_enrollment_id', '')::uuid
+    );
+    IF v_iscrizione_id IS NOT NULL THEN
+      UPDATE public.enrollments
+      SET
+        payment_status = 'PAGATO',
+        paid_at = COALESCE(paid_at, now())
+      WHERE id = v_iscrizione_id
+        AND upper(trim(coalesce(payment_status, ''))) <> 'PAGATO';
+    END IF;
+  END IF;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'duplicate', coalesce((v_inner->>'duplicate')::boolean, false),
+    'flow', v_order.flow,
+    'order_id', v_order.id,
+    'enrollment_id', v_order.enrollment_id,
+    'quota_payment_id', v_order.quota_payment_id,
+    'booking_id', coalesce(v_order.booking_id, (v_inner->>'booking_id')::uuid),
+    'member_id', v_order.member_id,
+    'lesson_pack_payment_id', v_order.lesson_pack_payment_id,
+    'credits_finalized', v_credit_fin
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.apply_nexi_payment(text, text, text, integer) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.apply_nexi_payment(text, text, text, integer) TO service_role;
