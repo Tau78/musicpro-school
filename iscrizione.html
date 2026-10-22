@@ -194,7 +194,8 @@
             margin-bottom: 24px;
         }
         .gia-associato-box > summary,
-        .guardian-box > summary {
+        .guardian-box > summary,
+        .lessons-box > summary {
             cursor: pointer;
             list-style: none;
             display: flex;
@@ -204,9 +205,11 @@
             user-select: none;
         }
         .gia-associato-box > summary::-webkit-details-marker,
-        .guardian-box > summary::-webkit-details-marker { display: none; }
+        .guardian-box > summary::-webkit-details-marker,
+        .lessons-box > summary::-webkit-details-marker { display: none; }
         .gia-associato-box > summary::after,
-        .guardian-box > summary::after {
+        .guardian-box > summary::after,
+        .lessons-box > summary::after {
             content: "+";
             color: var(--muted);
             font-size: 1.1em;
@@ -214,9 +217,11 @@
             flex: 0 0 auto;
         }
         .gia-associato-box[open] > summary::after,
-        .guardian-box[open] > summary::after { content: "−"; }
+        .guardian-box[open] > summary::after,
+        .lessons-box[open] > summary::after { content: "−"; }
         .gia-associato-box > summary .section-title,
-        .guardian-box > summary .section-title {
+        .guardian-box > summary .section-title,
+        .lessons-box > summary .section-title {
             margin: 0;
             padding: 0;
             border: none;
@@ -256,6 +261,28 @@
             margin-bottom: 15px;
         }
         .guardian-box > summary .section-title { color: var(--red); }
+        .lessons-box {
+            background: #0d0d0d;
+            border: 1px solid var(--line);
+            border-radius: 0.8rem;
+            padding: 12px 15px 15px;
+            margin-bottom: 15px;
+        }
+        .lessons-enable-label {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            font-size: 0.92em;
+            font-weight: 600;
+            margin: 0 0 10px;
+            cursor: pointer;
+        }
+        .lessons-enable-label input { width: auto; margin-top: 3px; flex: 0 0 auto; }
+        .lessons-hint {
+            color: var(--muted);
+            font-size: 0.9em;
+            margin: 0 0 10px;
+        }
         .guardian-hint {
             color: var(--muted);
             font-size: 0.9em;
@@ -365,7 +392,40 @@
         </div>
         <div class="form-group"><label>Email *</label><input type="email" name="email" required></div>
         <div class="form-group"><label>Cellulare *</label><input type="tel" name="telefono" required inputmode="tel" minlength="9"></div>
-        <div class="form-group"><label>Corso di interesse</label><input type="text" name="corso" placeholder="Es. Canto, Chitarra..."></div>
+        <div class="form-group"><label>Corso di interesse</label><input type="text" name="corso" id="corso-interesse" placeholder="Es. Canto, Chitarra..."></div>
+
+        <details id="lessons-section" class="lessons-box">
+            <summary>
+                <span class="section-title">Lezioni</span>
+            </summary>
+            <div class="collapsible-body">
+                <p class="lessons-hint">Opzionale: indica corso e docente preferito; la segreteria completerà l&apos;iscrizione didattica.</p>
+                <label class="lessons-enable-label" for="lezioni-enabled-check">
+                    <input type="checkbox" id="lezioni-enabled-check">
+                    <span>Attiva iscrizione alle lezioni</span>
+                </label>
+                <div id="lessons-fields" class="hidden">
+                    <div class="form-group">
+                        <label for="lesson-course-select">Corso lezioni *</label>
+                        <select id="lesson-course-select" disabled>
+                            <option value="">— Seleziona corso —</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="lesson-teacher-select">Docente (facoltativo)</label>
+                        <select id="lesson-teacher-select" disabled>
+                            <option value="">Segreteria assegnerà</option>
+                        </select>
+                    </div>
+                    <div class="form-group hidden" id="pay-first-pack-wrap">
+                        <label class="lessons-enable-label" for="pay-first-pack-check" style="margin-bottom:0;">
+                            <input type="checkbox" id="pay-first-pack-check">
+                            <span>Versa anche il primo pacchetto lezioni insieme alla quota</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </details>
 
         <div class="section-title">Firma Digitale</div>
         <div class="form-group">
@@ -408,6 +468,10 @@
     // Preferisci Next diretto (CORS *): il proxy FTP /api.php a volte hangua (0 byte).
     var API_URL = 'https://school.musicproeventi.it/api/iscrizione';
     var API_FALLBACK_URL = '/api.php';
+    var LESSON_OPTIONS_URL = 'https://school.musicproeventi.it/api/iscrizione/lesson-options';
+    var lessonOptionsCourses = [];
+    var lessonOptionsLoaded = false;
+    var pendingLessonFieldsRestore = null;
     var isRinnovoAssociato = false;
     var quotaGiaPagata = false;
     var PENDING_KEY = 'mp_iscrizione_pending_v1';
@@ -491,6 +555,173 @@
         window.location.href = url;
     }
 
+    function isPaySectionVisible() {
+        var payTitle = document.getElementById('pay-section-title');
+        return !!(payTitle && !payTitle.classList.contains('hidden'));
+    }
+
+    function updatePayFirstPackVisibility() {
+        var wrap = document.getElementById('pay-first-pack-wrap');
+        var check = document.getElementById('pay-first-pack-check');
+        var lezioniOn = document.getElementById('lezioni-enabled-check');
+        if (!wrap) return;
+        var show = isPaySectionVisible()
+            && lezioniOn
+            && lezioniOn.checked
+            && !document.getElementById('lessons-fields').classList.contains('hidden');
+        wrap.classList.toggle('hidden', !show);
+        if (!show && check) check.checked = false;
+    }
+
+    function syncLessonsFieldsVisibility() {
+        var enabled = document.getElementById('lezioni-enabled-check');
+        var fields = document.getElementById('lessons-fields');
+        var courseSel = document.getElementById('lesson-course-select');
+        var teacherSel = document.getElementById('lesson-teacher-select');
+        if (!enabled || !fields) return;
+        var on = enabled.checked;
+        fields.classList.toggle('hidden', !on);
+        if (courseSel) courseSel.disabled = !on || !lessonOptionsLoaded;
+        if (teacherSel) teacherSel.disabled = !on || !courseSel || !courseSel.value;
+        updatePayFirstPackVisibility();
+    }
+
+    function normalizeLessonOptions(data) {
+        if (!data) return [];
+        var raw = data.courses || data.items || (Array.isArray(data) ? data : []);
+        if (!Array.isArray(raw)) return [];
+        return raw.map(function(c) {
+            var id = c.id || c.course_id || c.courseId || '';
+            var name = c.name || c.label || c.course_name || c.title || '';
+            var teachersRaw = c.teachers || c.docenti || [];
+            var teachers = (Array.isArray(teachersRaw) ? teachersRaw : []).map(function(t) {
+                return {
+                    member_id: String(t.member_id || t.memberId || t.id || ''),
+                    name: String(t.name || t.label || t.display_name || t.nome || '').trim()
+                };
+            }).filter(function(t) { return t.member_id; });
+            return { id: String(id), name: String(name).trim(), teachers: teachers };
+        }).filter(function(c) { return c.id && c.name; });
+    }
+
+    function fillLessonCourseSelect(selectedId) {
+        var sel = document.getElementById('lesson-course-select');
+        if (!sel) return;
+        var prev = selectedId != null ? String(selectedId) : sel.value;
+        sel.innerHTML = '<option value="">— Seleziona corso —</option>';
+        lessonOptionsCourses.forEach(function(c) {
+            var opt = document.createElement('option');
+            opt.value = c.id;
+            opt.textContent = c.name;
+            sel.appendChild(opt);
+        });
+        if (prev) sel.value = prev;
+        refillLessonTeacherSelect();
+    }
+
+    function findLessonCourse(courseId) {
+        var id = String(courseId || '');
+        for (var i = 0; i < lessonOptionsCourses.length; i++) {
+            if (lessonOptionsCourses[i].id === id) return lessonOptionsCourses[i];
+        }
+        return null;
+    }
+
+    function refillLessonTeacherSelect(selectedMemberId) {
+        var courseSel = document.getElementById('lesson-course-select');
+        var teacherSel = document.getElementById('lesson-teacher-select');
+        if (!teacherSel) return;
+        var prev = selectedMemberId != null ? String(selectedMemberId) : teacherSel.value;
+        teacherSel.innerHTML = '<option value="">Segreteria assegnerà</option>';
+        var course = courseSel ? findLessonCourse(courseSel.value) : null;
+        if (course && course.teachers) {
+            course.teachers.forEach(function(t) {
+                var opt = document.createElement('option');
+                opt.value = t.member_id;
+                opt.textContent = t.name || 'Docente';
+                teacherSel.appendChild(opt);
+            });
+        }
+        if (prev && teacherSel.querySelector('option[value="' + prev.replace(/"/g, '') + '"]')) {
+            teacherSel.value = prev;
+        }
+        teacherSel.disabled = !document.getElementById('lezioni-enabled-check').checked
+            || !courseSel
+            || !courseSel.value;
+    }
+
+    function syncCorsoFromLessonCourse() {
+        var courseSel = document.getElementById('lesson-course-select');
+        var corsoInput = document.getElementById('corso-interesse');
+        if (!courseSel || !corsoInput) return;
+        var course = findLessonCourse(courseSel.value);
+        if (course && course.name) corsoInput.value = course.name;
+    }
+
+    function loadLessonOptions() {
+        fetchApi(LESSON_OPTIONS_URL, { method: 'GET' }, 20000)
+            .then(function(pack) {
+                var data = parseApiJson(pack);
+                lessonOptionsCourses = normalizeLessonOptions(data);
+                lessonOptionsLoaded = lessonOptionsCourses.length > 0;
+                fillLessonCourseSelect();
+                syncLessonsFieldsVisibility();
+                if (pendingLessonFieldsRestore) {
+                    applyLessonFieldsFromStored(pendingLessonFieldsRestore);
+                    pendingLessonFieldsRestore = null;
+                }
+            })
+            .catch(function() {
+                lessonOptionsLoaded = false;
+                syncLessonsFieldsVisibility();
+            });
+    }
+
+    function lessonPayloadFromForm() {
+        var enabledEl = document.getElementById('lezioni-enabled-check');
+        var enabled = !!(enabledEl && enabledEl.checked);
+        var courseSel = document.getElementById('lesson-course-select');
+        var teacherSel = document.getElementById('lesson-teacher-select');
+        var payPack = document.getElementById('pay-first-pack-check');
+        return {
+            lezioni_enabled: enabled,
+            lesson_course_id: enabled && courseSel ? String(courseSel.value || '').trim() : '',
+            lesson_teacher_member_id: enabled && teacherSel ? String(teacherSel.value || '').trim() : '',
+            pay_first_pack_with_quota: enabled
+                && isPaySectionVisible()
+                && payPack
+                && payPack.checked
+        };
+    }
+
+    function applyLessonFieldsFromStored(fields) {
+        if (!fields) return;
+        var enabledEl = document.getElementById('lezioni-enabled-check');
+        if (enabledEl) {
+            enabledEl.checked = isFormFlagTrue(fields.lezioni_enabled);
+        }
+        syncLessonsFieldsVisibility();
+        var courseId = fields.lesson_course_id != null ? String(fields.lesson_course_id) : '';
+        if (courseId && !lessonOptionsLoaded) {
+            pendingLessonFieldsRestore = fields;
+            return;
+        }
+        var teacherId = fields.lesson_teacher_member_id != null ? String(fields.lesson_teacher_member_id) : '';
+        if (courseId) fillLessonCourseSelect(courseId);
+        if (teacherId) refillLessonTeacherSelect(teacherId);
+        var payPack = document.getElementById('pay-first-pack-check');
+        if (payPack) {
+            payPack.checked = isFormFlagTrue(fields.pay_first_pack_with_quota);
+        }
+        updatePayFirstPackVisibility();
+    }
+
+    function isFormFlagTrue(value) {
+        return value === true
+            || String(value || '').toLowerCase() === 'true'
+            || String(value || '') === 'on';
+    }
+
     function applyQuotaGiaPagataUi() {
         var payTitle = document.getElementById('pay-section-title');
         var payBox = document.getElementById('pay-info-box');
@@ -511,6 +742,7 @@
             }
             if (btn) btn.textContent = 'PROCEDI AL PAGAMENTO QUOTA';
         }
+        updatePayFirstPackVisibility();
     }
 
     function parseApiJson(pack) {
@@ -709,6 +941,7 @@
         if (dati.signatureData && signaturePad) {
             try { signaturePad.fromDataURL(dati.signatureData); } catch (eSig) {}
         }
+        applyLessonFieldsFromStored(fields);
         if (dati.idIscrizione) {
             pendingIdIscrizione = String(dati.idIscrizione);
             savePendingIscrizione(pendingIdIscrizione, {
@@ -983,6 +1216,28 @@
         sec.querySelectorAll('input').forEach(function(i) { i.required = isMinor; });
     });
 
+    (function initLessonsSection() {
+        var enabled = document.getElementById('lezioni-enabled-check');
+        var courseSel = document.getElementById('lesson-course-select');
+        if (enabled) {
+            enabled.addEventListener('change', function() {
+                syncLessonsFieldsVisibility();
+                if (enabled.checked) {
+                    var sec = document.getElementById('lessons-section');
+                    if (sec) sec.open = true;
+                }
+            });
+        }
+        if (courseSel) {
+            courseSel.addEventListener('change', function() {
+                refillLessonTeacherSelect();
+                syncCorsoFromLessonCourse();
+                updatePayFirstPackVisibility();
+            });
+        }
+        loadLessonOptions();
+    })();
+
     function populateFormFromToken(dati) {
         if (!dati || !dati.fields) return;
         var fields = dati.fields;
@@ -1008,6 +1263,7 @@
                 || rawPhoto === 'on'
                 || !!dati.photoAccepted;
         }
+        applyLessonFieldsFromStored(fields);
         isRinnovoAssociato = true;
         quotaGiaPagata = !!dati.quotaGiaPagata;
         document.getElementById('rinnovo-banner').classList.remove('hidden');
@@ -1096,6 +1352,13 @@
             data.token = activeIscrizioneToken;
         }
         if (pendingIdIscrizione) data.idIscrizione = pendingIdIscrizione;
+
+        var lessonsPayload = lessonPayloadFromForm();
+        Object.assign(data, lessonsPayload);
+        if (lessonsPayload.lezioni_enabled && !lessonsPayload.lesson_course_id) {
+            Swal.fire('Lezioni', 'Seleziona il corso lezioni oppure disattiva «Attiva iscrizione alle lezioni».', 'warning');
+            return;
+        }
 
         var anagErr = validateAnagraficaClient(data);
         if (anagErr) {

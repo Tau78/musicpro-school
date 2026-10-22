@@ -186,22 +186,29 @@ export async function syncNexiPaymentForEnrollment(
     }
   }
 
-  let orderQuery = service
-    .from("nexi_payment_orders")
-    .select("status, provider_payment_id")
-    .eq("flow", "quota_associativa")
-    .limit(1);
+  const paidFlows: NexiFlow[] = ["quota_associativa", "lesson_pack"];
 
-  if (enrollmentId) orderQuery = orderQuery.eq("enrollment_id", enrollmentId);
-  else orderQuery = orderQuery.eq("provider_payment_id", codTrans);
+  for (const flow of paidFlows) {
+    let orderQuery = service
+      .from("nexi_payment_orders")
+      .select("status, provider_payment_id")
+      .eq("flow", flow)
+      .limit(1);
 
-  const { data: order } = await orderQuery.maybeSingle();
-  if (order?.status === "paid") {
-    return {
-      pagato: true,
-      synced: true,
-      piId: String(order.provider_payment_id || codTrans),
-    };
+    if (enrollmentId) {
+      orderQuery = orderQuery.eq("enrollment_id", enrollmentId);
+    } else {
+      orderQuery = orderQuery.eq("provider_payment_id", codTrans);
+    }
+
+    const { data: order } = await orderQuery.maybeSingle();
+    if (order?.status === "paid") {
+      return {
+        pagato: true,
+        synced: true,
+        piId: String(order.provider_payment_id || codTrans),
+      };
+    }
   }
 
   return { pagato: false };
