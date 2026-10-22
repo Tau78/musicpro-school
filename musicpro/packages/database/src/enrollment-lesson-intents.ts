@@ -288,22 +288,39 @@ export async function upsertIntentFromEnrollment(
     throw new Error("Dati intent lezioni incompleti.");
   }
 
-  const row: Database["public"]["Tables"]["enrollment_lesson_intents"]["Insert"] =
+  const { data: existingRow } = await client
+    .from("enrollment_lesson_intents")
+    .select("id, status, lesson_pack_payment_id")
+    .eq("membership_enrollment_id", membershipEnrollmentId)
+    .neq("status", "cancelled")
+    .maybeSingle();
+
+  const patch: Database["public"]["Tables"]["enrollment_lesson_intents"]["Insert"] =
     {
       membership_enrollment_id: membershipEnrollmentId,
       member_id: memberId,
       requested_course_id: requestedCourseId,
       preferred_teacher_member_id: input.preferredTeacherMemberId,
       pay_first_pack_with_quota: input.payFirstPackWithQuota,
-      status: input.status ?? "pending",
-      lesson_pack_payment_id: input.lessonPackPaymentId ?? null,
+      status: input.status ?? existingRow?.status ?? "pending",
+      lesson_pack_payment_id:
+        input.lessonPackPaymentId ??
+        existingRow?.lesson_pack_payment_id ??
+        null,
     };
 
-  const { data, error } = await client
-    .from("enrollment_lesson_intents")
-    .upsert(row, { onConflict: "membership_enrollment_id" })
-    .select(INTENT_COLUMNS)
-    .single();
+  const { data, error } = existingRow
+    ? await client
+        .from("enrollment_lesson_intents")
+        .update(patch)
+        .eq("id", existingRow.id)
+        .select(INTENT_COLUMNS)
+        .single()
+    : await client
+        .from("enrollment_lesson_intents")
+        .insert(patch)
+        .select(INTENT_COLUMNS)
+        .single();
 
   if (error || !data) {
     throw new Error(

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import {
+  generateCourseLessons,
   getCurrentMemberWithRoles,
   listIntentsForStaff,
   reconcileEnrollmentLessonIntent,
@@ -89,9 +90,25 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       );
     }
+
+    const courseId = result.id?.trim() || "";
+    const lessonWarnings: string[] = [];
+    if (courseId) {
+      const generated = await generateCourseLessons(db, courseId);
+      if (!generated.success) {
+        lessonWarnings.push(
+          generated.errorMessage ||
+            "Corso creato ma le lezioni non sono state generate.",
+        );
+      } else if (generated.warnings?.length) {
+        lessonWarnings.push(...generated.warnings);
+      }
+    }
+
     return NextResponse.json({
       success: true,
-      courseId: result.id ?? null,
+      courseId: courseId || null,
+      lessonWarnings,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
