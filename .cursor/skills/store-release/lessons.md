@@ -172,6 +172,16 @@ Più «Mostra password», così il reviewer digita il demo a mano.
 
 ---
 
+## MusicPro School — 2026-10-24 — 1.1.0 eligible / READY_FOR_SALE
+
+**Mail Apple:** review completata, eligible for distribution. Submission `2adbc706-…`, inviata 22 ott da API Key. Item accettato: **1.1.0 iOS**.
+
+**ASC:** versione 1.1.0 `READY_FOR_SALE`, build **21**, `releaseType=AFTER_APPROVAL`, `downloadable=true`. Submission `COMPLETE`.
+
+**Link Unlisted:** https://apps.apple.com/app/musicpro-school/id6806407450 (pagina IT risponde 200). Apple: fino a 24 h perché sia visibile a tutti. Android Play ancora non pubblicato.
+
+---
+
 ## MusicPro Eventi — Listing, Privacy, dati veri
 
 - **Listing pubblica** = solo il ruolo utente (giocatore). Staff / host solo in Review Notes.
