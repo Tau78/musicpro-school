@@ -15,8 +15,8 @@ import {
   type PDFImage,
 } from "pdf-lib";
 
-import { getGoogleDriveAccessToken } from "@/lib/reimbursements/google-drive";
-import { PRESIDENT_SIGNATURE_PNG_BASE64 } from "@/lib/reimbursements/assets/firma-presidente-base64";
+import { getGoogleDriveAccessToken } from "../reimbursements/google-drive";
+import { PRESIDENT_SIGNATURE_PNG_BASE64 } from "../reimbursements/assets/firma-presidente-base64";
 
 export type EnrollmentPdfInput = {
   memberNumber: number | null;
@@ -50,10 +50,13 @@ export type GeneratedEnrollmentPdf = {
   contentType: "application/pdf";
 };
 
-/** Stesso ID di `TEMPLATE_ISCRIZIONE_ID` in iscrizioni.js / Codice.js */
+/**
+ * Preferisci il template SA «TEMPLATE Domanda Iscrizione MusicPro (SA)» —
+ * l’ID storico GAS `1CVx…` dà 404 al service account.
+ */
 const TEMPLATE_ISCRIZIONE_ID =
   process.env.ISCRIZIONE_GOOGLE_DOC_TEMPLATE_ID?.trim() ||
-  "1CVxLAsEweuZD11N6V3CBkaNqegG6c2BeOT9WZLSw63I";
+  "1xEKw-ZF61Mb45axUo24iv_Q_USchHjFagIwPtaJ-yRE";
 
 const FIRMA_PLACEHOLDER = "{{FIRMA}}";
 
@@ -120,11 +123,13 @@ function quotaAmountOnly(quotaLabel: string): string {
   return digits || "15,00";
 }
 
-const PAGE_W = 595.28;
-const PAGE_H = 841.89;
-/** Margini ≈ Google Doc (2.5 cm). */
-const MARGIN_X = 70;
-const MARGIN_TOP = 52;
+/** Letter US — stessi MediaBox dei PDF GAS (sacchetti/valente = 612×792). */
+const PAGE_W = 612;
+const PAGE_H = 792;
+/** Margini ≈ export Google Doc Skia (~19.8 pt). */
+const MARGIN_X = 20;
+const MARGIN_TOP = 28;
+const CONTENT_RIGHT = PAGE_W - 20;
 const GREEN_QUOTA = rgb(0.094, 0.502, 0.22);
 const BLUE_LINK = rgb(0.06, 0.28, 0.75);
 const GREY_HINT = rgb(0.55, 0.55, 0.55);
@@ -265,7 +270,14 @@ async function tryGenerateViaGoogleDoc(
     `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(TEMPLATE_ISCRIZIONE_ID)}?fields=id&supportsAllDrives=true`,
     { headers: { Authorization: `Bearer ${token}` } },
   );
-  if (!probe.ok) return null;
+  if (!probe.ok) {
+    const detail = await probe.text().catch(() => "");
+    console.warn(
+      `[iscrizione] template Google Doc non raggiungibile (${probe.status}) id=${TEMPLATE_ISCRIZIONE_ID}` +
+        (detail ? `: ${detail.slice(0, 240)}` : ""),
+    );
+    return null;
+  }
 
   const docTitle = `Iscrizione - ${input.cognome || ""} ${input.nome || ""}`.trim();
   const copyRes = await fetch(
@@ -495,7 +507,12 @@ function wrapText(
   return lines.length ? lines : [""];
 }
 
-async function generateLegacyLayoutPdf(
+/**
+ * Replica Letter-perfect del PDF esportato dal Google Doc GAS
+ * (coordinate misurate su legacy-sacchetti / legacy-valente: 612×792).
+ * Esportata per smoke locale senza passare dal path Docs.
+ */
+export async function generateLegacyLayoutPdf(
   input: EnrollmentPdfInput,
 ): Promise<GeneratedEnrollmentPdf> {
   const doc = await PDFDocument.create();
@@ -505,40 +522,21 @@ async function generateLegacyLayoutPdf(
   const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
   const fontOblique = await doc.embedFont(StandardFonts.HelveticaOblique);
 
-  const maxW = PAGE_W - MARGIN_X * 2;
+  const maxW = CONTENT_RIGHT - MARGIN_X;
   let y = PAGE_H - MARGIN_TOP;
-  const bodySize = 10.5;
-  const lineGap = 14;
-
-  const draw = (
-    text: string,
-    opts?: {
-      bold?: boolean;
-      italic?: boolean;
-      size?: number;
-      gap?: number;
-      color?: ReturnType<typeof rgb>;
-      x?: number;
-    },
-  ) => {
-    const size = opts?.size ?? bodySize;
-    const used = opts?.bold
-      ? fontBold
-      : opts?.italic
-        ? fontOblique
-        : font;
-    const color = opts?.color ?? BLACK;
-    const x = opts?.x ?? MARGIN_X;
-    const lines = wrapText(text, used, size, maxW - (x - MARGIN_X));
-    for (const line of lines) {
-      drawTextWithEuro(page, used, line, x, y, size, color);
-      y -= opts?.gap ?? lineGap;
-    }
-  };
+  const bodySize = 9;
+  const lineGap = 11;
+  /** Altezza riga campo Doc (underline + testo) — compatta vs smoke precedente. */
+  const fieldGap = 26;
 
   const drawCentered = (
     text: string,
-    opts?: { bold?: boolean; size?: number; gap?: number },
+    opts?: {
+      bold?: boolean;
+      size?: number;
+      gap?: number;
+      color?: ReturnType<typeof rgb>;
+    },
   ) => {
     const size = opts?.size ?? bodySize;
     const used = opts?.bold ? fontBold : font;
@@ -549,9 +547,48 @@ async function generateLegacyLayoutPdf(
       y,
       size,
       font: used,
-      color: BLACK,
+      color: opts?.color ?? BLACK,
     });
     y -= opts?.gap ?? lineGap;
+  };
+
+  /** Underline sottile sotto una riga anagrafica (come celle Doc). */
+  const drawFieldUnderline = (atY: number) => {
+    page.drawLine({
+      start: { x: MARGIN_X, y: atY - 2.2 },
+      end: { x: CONTENT_RIGHT, y: atY - 2.2 },
+      thickness: 0.35,
+      color: rgb(0.72, 0.72, 0.72),
+    });
+  };
+
+  const drawRichLine = (
+    segments: Array<{
+      text: string;
+      bold?: boolean;
+      italic?: boolean;
+      color?: ReturnType<typeof rgb>;
+      size?: number;
+    }>,
+    gap = lineGap,
+    opts?: { underline?: boolean },
+  ) => {
+    let x = MARGIN_X;
+    for (const seg of segments) {
+      if (!seg.text) continue;
+      const size = seg.size ?? bodySize;
+      const used = seg.bold
+        ? fontBold
+        : seg.italic
+          ? fontOblique
+          : font;
+      const color = seg.color ?? BLACK;
+      const safe = sanitizeWinAnsi(seg.text);
+      page.drawText(safe, { x, y, size, font: used, color });
+      x += used.widthOfTextAtSize(safe, size);
+    }
+    if (opts?.underline) drawFieldUnderline(y);
+    y -= gap;
   };
 
   const nome = String(input.nome || "").trim();
@@ -562,35 +599,41 @@ async function generateLegacyLayoutPdf(
   const dataOggi = String(input.dataOggi || "").trim();
   const tutoreCompleto =
     `${input.tutoreNome || ""} ${input.tutoreCognome || ""}`.trim();
+  const tutoreTel = String(input.tutoreTelefono || "").trim();
+  const tutoreEmail = String(input.tutoreEmail || "").trim();
+  const tutoreCf = String(input.tutoreCf || "").trim().toUpperCase();
+  const hasTutore = Boolean(tutoreCompleto || tutoreTel || tutoreEmail || tutoreCf);
   const nomeCognomeField = [nome, cognome].filter(Boolean).join("_");
 
-  // —— Header: «Scuola Semplice» in alto a destra + riga ——
-  const scuolaLabel = "Scuola Semplice";
-  const scuolaSize = 10;
-  const scuolaW = font.widthOfTextAtSize(scuolaLabel, scuolaSize);
-  const scuolaX = PAGE_W - MARGIN_X - scuolaW;
-  page.drawText(scuolaLabel, {
-    x: scuolaX,
-    y,
-    size: scuolaSize,
-    font,
-    color: BLACK,
-  });
-  page.drawLine({
-    start: { x: scuolaX - 8, y: y - 3 },
-    end: { x: PAGE_W - MARGIN_X + 4, y: y - 3 },
-    thickness: 0.8,
-    color: BLACK,
-  });
-  y -= 28;
+  // —— Header: «Scuola Semplice» top-right + riga solo sotto/accanto al testo ——
+  {
+    const scuolaLabel = "Scuola Semplice";
+    const scuolaSize = 9;
+    const scuolaW = font.widthOfTextAtSize(scuolaLabel, scuolaSize);
+    const scuolaX = CONTENT_RIGHT - scuolaW;
+    page.drawText(scuolaLabel, {
+      x: scuolaX,
+      y,
+      size: scuolaSize,
+      font,
+      color: BLACK,
+    });
+    // Solo da poco prima di «Scuola Semplice» fino al margine destro (non attraversa il centro).
+    page.drawLine({
+      start: { x: scuolaX - 6, y: y - 2.5 },
+      end: { x: CONTENT_RIGHT, y: y - 2.5 },
+      thickness: 0.7,
+      color: BLACK,
+    });
+    y -= 16;
+  }
 
-  // —— Intestazione centrata (come export Google Doc) ——
-  drawCentered("Associazione Culturale M.P.", { bold: true, size: 13, gap: 13 });
-  drawCentered("Zona Loreto, 42, 16042 Carasco (GE)", { size: 10, gap: 12 });
-  // Link blu stile Docs
+  // —— Intestazione centrata (misure Doc: 14 / 8 / 8) ——
+  drawCentered("Associazione Culturale M.P.", { bold: true, size: 14, gap: 17 });
+  drawCentered("Zona Loreto, 42, 16042 Carasco (GE)", { size: 8, gap: 11 });
   {
     const link = "www.musicproeventi.it - musicproeventi@gmail.com";
-    const size = 10;
+    const size = 8;
     const w = font.widthOfTextAtSize(link, size);
     page.drawText(link, {
       x: (PAGE_W - w) / 2,
@@ -599,138 +642,128 @@ async function generateLegacyLayoutPdf(
       font,
       color: BLUE_LINK,
     });
+    y -= 28;
+  }
+
+  // —— Oggetto / Libro Soci (stessa riga) ——
+  {
+    const size = 10;
+    page.drawText("Oggetto:", {
+      x: MARGIN_X,
+      y,
+      size,
+      font,
+      color: BLACK,
+    });
+    const oggettoW = font.widthOfTextAtSize("Oggetto:", size);
+    page.drawText("DOMANDA D'ISCRIZIONE", {
+      x: MARGIN_X + oggettoW + 4,
+      y,
+      size,
+      font: fontBold,
+      color: BLACK,
+    });
+    // X fissa ≈ Doc (sacchetti/valente: 418.7), non flush-right.
+    const right = `Libro Soci ${numero}`.trim();
+    page.drawText(right, {
+      x: 419,
+      y,
+      size,
+      font: fontBold,
+      color: BLACK,
+    });
     y -= 22;
   }
 
-  // —— Oggetto / Libro Soci ——
+  // —— Anagrafica (NOME_COGNOME con underscore; gap campo Doc + underline) ——
+  drawRichLine(
+    [
+      {
+        text: `Il/la sottoscritto/a ${nomeCognomeField} *nato/a ${input.luogoNascita || ""} ${(input.provNascita || "").toUpperCase()}`.trim(),
+      },
+    ],
+    fieldGap,
+    { underline: true },
+  );
+  drawRichLine(
+    [
+      {
+        text: `*il ${dataNascita} *Residente in via ${input.indirizzo || ""} ${input.citta || ""} ${(input.prov || "").toUpperCase()} ${input.cap || ""}`.replace(
+          /\s+/g,
+          " ",
+        ),
+      },
+    ],
+    fieldGap,
+    { underline: true },
+  );
+  drawRichLine(
+    [
+      {
+        text: `*Codice Fiscale ${(input.cf || "").toUpperCase()} Cellulare ${input.telefono || ""}`,
+      },
+    ],
+    fieldGap,
+    { underline: true },
+  );
+  drawRichLine(
+    [
+      {
+        text: `*email ${input.email || ""} Corso ${input.corso || "---"}`,
+      },
+    ],
+    18,
+    { underline: true },
+  );
+
+  // —— Tutore: titolo «Tutore/Genitore» + colonne orizzontali (Doc) ——
   {
-    const left = "Oggetto: DOMANDA D'ISCRIZIONE";
-    const right = `Libro Soci ${numero}`.trim();
-    page.drawText(left, {
-      x: MARGIN_X,
-      y,
-      size: 11,
-      font: fontBold,
-      color: BLACK,
-    });
-    const rightW = fontBold.widthOfTextAtSize(right, 11);
-    page.drawText(right, {
-      x: PAGE_W - MARGIN_X - rightW,
-      y,
-      size: 11,
-      font: fontBold,
-      color: BLACK,
-    });
-    y -= 20;
-  }
-
-  // —— Anagrafica (underscore NOME_COGNOME come nel template Doc) ——
-  draw(
-    `Il/la sottoscritto/a ${nomeCognomeField} *nato/a ${input.luogoNascita || ""} ${(input.provNascita || "").toUpperCase()}`.trim(),
-  );
-  draw(
-    `*il ${dataNascita} *Residente in via ${input.indirizzo || ""} ${input.citta || ""} ${(input.prov || "").toUpperCase()} ${input.cap || ""}`.replace(
-      /\s+/g,
-      " ",
-    ),
-  );
-  draw(
-    `*Codice Fiscale ${(input.cf || "").toUpperCase()} Cellulare ${input.telefono || ""}`,
-  );
-  draw(`*email ${input.email || ""} Corso ${input.corso || "---"}`);
-  y -= 6;
-
-  // —— Tutore/Genitore (etichette grigie italic come nel Doc; valori se presenti) ——
-  draw("Tutore/Genitore", { bold: true, size: 11, gap: 12 });
-  const tutoreRows: Array<{ label: string; value: string }> = [
-    { label: "Nome e Cognome", value: tutoreCompleto },
-    { label: "Telefono", value: String(input.tutoreTelefono || "").trim() },
-    { label: "Email", value: String(input.tutoreEmail || "").trim() },
-    {
-      label: "Codice Fiscale",
-      value: String(input.tutoreCf || "").trim().toUpperCase(),
-    },
-  ];
-  for (const row of tutoreRows) {
-    if (row.value) {
-      page.drawText(sanitizeWinAnsi(row.value), {
+    const colXs = [MARGIN_X, 208, 362];
+    const hintSize = 9;
+    if (!hasTutore) {
+      // Vuoto: Tutore/Genitore + placeholder italic (come sacchetti).
+      page.drawText("*Tutore/Genitore", {
+        x: MARGIN_X,
+        y,
+        size: hintSize,
+        font: fontOblique,
+        color: GREY_HINT,
+      });
+      y -= 10.5;
+      const emptyCols: Array<{ x: number; label: string }> = [
+        { x: colXs[0], label: "*Nome e Cognome" },
+        { x: colXs[1], label: "*Telefono" },
+        { x: colXs[2], label: "*Email" },
+      ];
+      for (const col of emptyCols) {
+        page.drawText(col.label, {
+          x: col.x,
+          y,
+          size: hintSize,
+          font: fontOblique,
+          color: GREY_HINT,
+        });
+      }
+      y -= 36;
+    } else {
+      // Titolo sezione (presente nel Doc quando il tutore è valorizzato).
+      page.drawText("Tutore/Genitore", {
         x: MARGIN_X,
         y,
         size: bodySize,
-        font,
+        font: fontBold,
         color: BLACK,
       });
-      y -= 11;
-      page.drawText(`*${row.label}`, {
-        x: MARGIN_X,
-        y,
-        size: 8.5,
-        font: fontOblique,
-        color: GREY_HINT,
-      });
-      y -= 13;
-    } else {
-      page.drawText(`*${row.label}`, {
-        x: MARGIN_X,
-        y,
-        size: 9,
-        font: fontOblique,
-        color: GREY_HINT,
-      });
-      y -= 14;
-    }
-  }
-  y -= 4;
-
-  // —— CHIEDE ——
-  draw("CHIEDE", { bold: true, size: 11, gap: 13 });
-  {
-    const p1 =
-      "a codesta spettabile Associazione, con sede legale in Zona Loreto, 42, 16042 Carasco (GE) di essere iscritto in qualità di Socio Ordinario. Tale iscrizione permette l'accesso alla struttura per l'utilizzo come sala prove/studio/scuola, il coinvolgimento negli Eventi Associativi e l'iscrizione al sito www.musicproeventi.it";
-    const lines = wrapText(p1, font, bodySize, maxW);
-    for (const line of lines) {
-      // colora il pezzo URL se presente nella riga
-      const url = "www.musicproeventi.it";
-      const at = line.indexOf(url);
-      if (at >= 0) {
-        const before = line.slice(0, at);
-        const after = line.slice(at + url.length);
-        let x = MARGIN_X;
-        if (before) {
-          page.drawText(before, { x, y, size: bodySize, font, color: BLACK });
-          x += font.widthOfTextAtSize(before, bodySize);
-        }
-        page.drawText(url, { x, y, size: bodySize, font, color: BLUE_LINK });
-        x += font.widthOfTextAtSize(url, bodySize);
-        if (after) {
-          page.drawText(after, { x, y, size: bodySize, font, color: BLACK });
-        }
-      } else {
-        // grassetto su "Socio Ordinario." se nella riga
-        const boldNeedle = "Socio Ordinario.";
-        const bi = line.indexOf(boldNeedle);
-        if (bi >= 0) {
-          let x = MARGIN_X;
-          const before = line.slice(0, bi);
-          const after = line.slice(bi + boldNeedle.length);
-          if (before) {
-            page.drawText(before, { x, y, size: bodySize, font, color: BLACK });
-            x += font.widthOfTextAtSize(before, bodySize);
-          }
-          page.drawText(boldNeedle, {
-            x,
-            y,
-            size: bodySize,
-            font: fontBold,
-            color: BLACK,
-          });
-          x += fontBold.widthOfTextAtSize(boldNeedle, bodySize);
-          if (after) {
-            page.drawText(after, { x, y, size: bodySize, font, color: BLACK });
-          }
-        } else {
-          page.drawText(line, {
-            x: MARGIN_X,
+      y -= 12;
+      const cols: Array<{ x: number; value: string; label: string }> = [
+        { x: colXs[0], value: tutoreCompleto, label: "*Nome e Cognome" },
+        { x: colXs[1], value: tutoreTel, label: "*Telefono" },
+        { x: colXs[2], value: tutoreEmail, label: "*Email" },
+      ];
+      for (const col of cols) {
+        if (col.value) {
+          page.drawText(sanitizeWinAnsi(col.value), {
+            x: col.x,
             y,
             size: bodySize,
             font,
@@ -738,12 +771,88 @@ async function generateLegacyLayoutPdf(
           });
         }
       }
-      y -= lineGap;
+      y -= 11;
+      for (const col of cols) {
+        page.drawText(col.label, {
+          x: col.x,
+          y,
+          size: 8,
+          font: fontOblique,
+          color: GREY_HINT,
+        });
+      }
+      y -= 12;
+      if (tutoreCf) {
+        page.drawText(sanitizeWinAnsi(tutoreCf), {
+          x: MARGIN_X,
+          y,
+          size: bodySize,
+          font,
+          color: BLACK,
+        });
+        y -= 10;
+        page.drawText("*Codice Fiscale", {
+          x: MARGIN_X,
+          y,
+          size: 8,
+          font: fontOblique,
+          color: GREY_HINT,
+        });
+        y -= 10;
+      } else {
+        y -= 4;
+      }
+      y -= 14;
     }
+  }
+
+  // —— CHIEDE (line break fissi come export Doc Arial→Helvetica) ——
+  page.drawText("CHIEDE", {
+    x: MARGIN_X,
+    y,
+    size: bodySize,
+    font: fontBold,
+    color: BLACK,
+  });
+  y -= 11;
+  {
+    const drawChiedeLine = (
+      parts: Array<{
+        text: string;
+        bold?: boolean;
+        color?: ReturnType<typeof rgb>;
+      }>,
+    ) => {
+      let x = MARGIN_X;
+      for (const part of parts) {
+        const used = part.bold ? fontBold : font;
+        const color = part.color ?? BLACK;
+        const safe = sanitizeWinAnsi(part.text);
+        page.drawText(safe, { x, y, size: bodySize, font: used, color });
+        x += used.widthOfTextAtSize(safe, bodySize);
+      }
+      y -= lineGap;
+    };
+    drawChiedeLine([
+      {
+        text: "a codesta spettabile Associazione, con sede legale in Zona Loreto, 42, 16042 Carasco (GE) di essere iscritto in qualità di ",
+      },
+      { text: "Socio Ordinario.", bold: true },
+    ]);
+    drawChiedeLine([
+      {
+        text: "Tale iscrizione permette l'accesso alla struttura per l'utilizzo come sala prove/studio/scuola, il coinvolgimento negli Eventi Associativi e",
+      },
+    ]);
+    drawChiedeLine([
+      { text: "l'iscrizione al sito " },
+      { text: "www.musicproeventi.it", color: BLUE_LINK },
+    ]);
   }
 
   // Quota con € verde
   {
+    y -= 6;
     const prefix = "La quota associativa prevista per l'anno in corso è di: ";
     const amount = quotaAmountOnly(input.quotaLabel);
     page.drawText(prefix, {
@@ -763,15 +872,33 @@ async function generateLegacyLayoutPdf(
       font: fontBold,
       color: GREEN_QUOTA,
     });
-    y -= 18;
+    y -= 28;
   }
 
   // —— E DICHIARA ——
-  draw("E DICHIARA CONTESTUALMENTE", { bold: true, size: 11, gap: 13 });
-  draw(
-    "Di voler rispettare lo statuto e i regolamenti che regolano l'associazione; Di autorizzare il tacito rinnovo tramite versamento quota annuale",
-  );
-  y -= 2;
+  page.drawText("E DICHIARA CONTESTUALMENTE", {
+    x: MARGIN_X,
+    y,
+    size: bodySize,
+    font: fontBold,
+    color: BLACK,
+  });
+  y -= 14;
+  {
+    const decl =
+      "Di voler rispettare lo statuto e i regolamenti che regolano l'associazione; Di autorizzare il tacito rinnovo tramite versamento quota annuale";
+    for (const line of wrapText(decl, font, bodySize, maxW)) {
+      page.drawText(line, {
+        x: MARGIN_X,
+        y,
+        size: bodySize,
+        font,
+        color: BLACK,
+      });
+      y -= lineGap;
+    }
+  }
+  y -= 16;
 
   const sigBytes = input.signatureData
     ? decodeSignaturePng(input.signatureData)
@@ -785,28 +912,37 @@ async function generateLegacyLayoutPdf(
     }
   }
 
-  const drawSignatureBlock = () => {
-    // Riga data a sinistra, firma a destra (come Doc)
+  /**
+   * Blocco data sx + firma centro.
+   * Label socio = «firmare qui»; «firma» solo sotto la firma presidente.
+   * «data» italic sotto la data, allineata sotto «Carasco , DATA» (≈ sotto la cifra).
+   */
+  const drawSignatureBlock = (opts?: { advanceY?: boolean }) => {
+    const baseline = y;
     const dateLine = `Carasco , ${dataOggi}`;
     page.drawText(dateLine, {
       x: MARGIN_X,
-      y,
+      y: baseline,
       size: bodySize,
       font,
       color: BLACK,
     });
+    // «data» sotto la data: x sotto lo spazio dopo «Carasco ,» (≈ inizio DATA)
+    const dataHintX =
+      MARGIN_X + font.widthOfTextAtSize("Carasco , ", bodySize) + 4;
     page.drawText("data", {
-      x: MARGIN_X,
-      y: y - 11,
-      size: 8.5,
+      x: dataHintX,
+      y: baseline - 11,
+      size: 8,
       font: fontOblique,
       color: GREY_HINT,
     });
 
-    const sigX = MARGIN_X + 220;
+    const sigX = 180;
+    const firmareQuiX = 198;
     if (sigImage) {
       const maxWSig = 130;
-      const maxHSig = 48;
+      const maxHSig = 38;
       const scale = Math.min(
         maxWSig / sigImage.width,
         maxHSig / sigImage.height,
@@ -814,40 +950,34 @@ async function generateLegacyLayoutPdf(
       );
       const w = sigImage.width * scale;
       const h = sigImage.height * scale;
+      // Firma sopra la baseline; «firmare qui» resta sotto (come Doc/sacchetti).
       page.drawImage(sigImage, {
         x: sigX,
-        y: y - h + 8,
+        y: baseline - 4,
         width: w,
         height: h,
       });
-      page.drawText("firmare qui", {
-        x: sigX,
-        y: y - h - 2,
-        size: 8.5,
-        font: fontOblique,
-        color: GREY_HINT,
-      });
-      y -= h + 16;
-    } else {
-      page.drawText("firmare qui", {
-        x: sigX,
-        y,
-        size: 9,
-        font: fontOblique,
-        color: GREY_HINT,
-      });
-      y -= 22;
+    }
+    page.drawText("firmare qui", {
+      x: firmareQuiX,
+      y: baseline - 11,
+      size: bodySize,
+      font: fontOblique,
+      color: GREY_HINT,
+    });
+    if (opts?.advanceY !== false) {
+      y = baseline - 22;
     }
   };
 
   drawSignatureBlock();
-  y -= 4;
+  y -= 2;
 
-  // GDPR
+  // GDPR fine print (5pt come Doc)
   {
     const gdpr =
       'e di essere a conoscenza che il trattamento dei dati personali è gestito, anche elettronicamente, ai soli fini associativi e di autorizzare alla gestione dei dati medesimi, con le garanzie e i diritti previsti dall\'articolo 13 del GDPR 2016/679, n. 196., e di aver letto l\'allegato "ISTRUZIONI OPERATIVE E INFORMATIVA SUL TRATTAMENTO DEI DATI" presente all\'URL www.musicproeventi.it/gdpr.pdf .';
-    const size = 9;
+    const size = 5;
     const lines = wrapText(gdpr, font, size, maxW);
     for (const line of lines) {
       const url = "www.musicproeventi.it/gdpr.pdf";
@@ -868,84 +998,87 @@ async function generateLegacyLayoutPdf(
       } else {
         page.drawText(line, { x: MARGIN_X, y, size, font, color: BLACK });
       }
-      y -= 12;
+      y -= 6.2;
     }
   }
-  y -= 6;
+  y -= 18;
 
-  drawSignatureBlock();
-  y -= 10;
-
-  // —— Presidente (blocco destro come Doc) ——
+  // —— Firma 2 + presidente a DESTRA sulla stessa zona (niente buco A4) ——
   {
-    const rightX = PAGE_W - MARGIN_X;
-    const line1 = "per accettazione";
-    const line2 = "IL PRESIDENTE";
-    const name = "Mauro Andreoni";
-    const w1 = font.widthOfTextAtSize(line1, 10);
-    const w2 = fontBold.widthOfTextAtSize(line2, 11);
-    const w3 = fontOblique.widthOfTextAtSize(name, 10);
-    page.drawText(line1, {
-      x: rightX - w1,
-      y,
-      size: 10,
+    const sig2Baseline = y;
+    drawSignatureBlock({ advanceY: false });
+    y = sig2Baseline;
+
+    const presBytes = loadPresidentSignaturePng();
+    let presImage: PDFImage | null = null;
+    if (presBytes) {
+      try {
+        presImage = await doc.embedPng(presBytes);
+      } catch {
+        presImage = null;
+      }
+    }
+
+    // Coordinate Doc: «per accettazione» ~308, IL PRESIDENTE ~416, stessa fascia della firma 2
+    const acceptY = sig2Baseline - 32;
+    page.drawText("per accettazione", {
+      x: 308,
+      y: acceptY,
+      size: bodySize,
       font,
       color: BLACK,
     });
-    y -= 13;
-    page.drawText(line2, {
-      x: rightX - w2,
-      y,
-      size: 11,
+    page.drawText("IL PRESIDENTE", {
+      x: 416,
+      y: acceptY,
+      size: bodySize,
       font: fontBold,
       color: BLACK,
     });
-    y -= 13;
-    page.drawText(name, {
-      x: rightX - w3,
-      y,
-      size: 10,
+    page.drawText("Mauro Andreoni", {
+      x: 416,
+      y: acceptY - 11,
+      size: bodySize,
       font: fontOblique,
       color: BLACK,
     });
 
-    const presBytes = loadPresidentSignaturePng();
-    if (presBytes) {
-      try {
-        const png = await doc.embedPng(presBytes);
-        const maxW = 160;
-        const maxH = 55;
-        const scale = Math.min(maxW / png.width, maxH / png.height);
-        const w = png.width * scale;
-        const h = png.height * scale;
-        page.drawImage(png, {
-          x: rightX - w,
-          y: y - h - 4,
-          width: w,
-          height: h,
-        });
-        page.drawText("firma", {
-          x: rightX - w,
-          y: y - h - 14,
-          size: 8,
-          font: fontOblique,
-          color: GREY_HINT,
-        });
-        y -= h + 20;
-      } catch {
-        y -= 8;
-      }
-    } else {
-      y -= 8;
+    if (presImage) {
+      const maxW = 140;
+      const maxH = 48;
+      const scale = Math.min(maxW / presImage.width, maxH / presImage.height);
+      const w = presImage.width * scale;
+      const h = presImage.height * scale;
+      page.drawImage(presImage, {
+        x: CONTENT_RIGHT - w,
+        y: acceptY - 14 - h,
+        width: w,
+        height: h,
+      });
+      page.drawText("firma", {
+        x: CONTENT_RIGHT - w,
+        y: acceptY - 14 - h - 10,
+        size: 8,
+        font: fontOblique,
+        color: GREY_HINT,
+      });
     }
   }
 
-  // Footer
-  y = Math.min(y, 48);
-  drawCentered(
-    "Associazione Culturale M.P. - Zona Loreto, 42, 16042 Carasco (GE)",
-    { size: 9, gap: 10 },
-  );
+  // Footer centrato in fondo pagina (y≈24.5 nel Doc)
+  {
+    const footer =
+      "Associazione Culturale M.P. - Zona Loreto, 42, 16042 Carasco (GE)";
+    const size = 10;
+    const w = font.widthOfTextAtSize(footer, size);
+    page.drawText(footer, {
+      x: (PAGE_W - w) / 2,
+      y: 24.5,
+      size,
+      font,
+      color: BLACK,
+    });
+  }
 
   const bytes = await doc.save();
   return {

@@ -26,6 +26,7 @@ import {
   sendEnrollmentEmail,
   type EnrollmentAttachment,
 } from "./email-transport";
+import { enrollmentPdfEmailBodyHint } from "./enrollment-email-pdf-hint";
 import { ensureFiscalReceiptAttachment } from "@/lib/lezioni/issue-receipt-copy";
 import {
   createNexiQuotaAssociativaPaymentLink,
@@ -679,11 +680,18 @@ async function finalizeCashEnrollmentDocuments(input: {
     content_type: "application/pdf" as const,
   };
 
-  const adminPdfLine = pdfUrl
-    ? `PDF: ${pdfUrl}`
-    : stored.storagePath
-      ? `PDF allegato (path interno: ${stored.storagePath}).`
-      : "PDF allegato (storage/Drive non disponibili).";
+  const adminPdfLine = enrollmentPdfEmailBodyHint({
+    pdfUrl,
+    storagePdfUrl: stored.pdfUrl,
+    storagePath: stored.storagePath,
+    role: "admin",
+  });
+  const socioPdfHint = enrollmentPdfEmailBodyHint({
+    pdfUrl,
+    storagePdfUrl: stored.pdfUrl,
+    storagePath: stored.storagePath,
+    role: "socio",
+  });
 
   const adminMail = await sendResendEmail({
     to: segreteriaRecipients(),
@@ -713,7 +721,7 @@ async function finalizeCashEnrollmentDocuments(input: {
         `Ciao ${nome},`,
         "",
         "in allegato trovi la tua domanda di iscrizione firmata.",
-        pdfUrl ? `\nCopia online:\n${pdfUrl}\n` : "",
+        socioPdfHint,
         "Cordiali saluti,",
         "MusicPro Eventi",
       ]
@@ -2335,6 +2343,19 @@ export async function completaInvioIscrizione(idIscrizione: string) {
   const nome = formText(form.nome) || rec.first_name;
   const cognome = formText(form.cognome) || rec.last_name;
 
+  const socioPdfHint = enrollmentPdfEmailBodyHint({
+    pdfUrl: durablePdfUrl,
+    storagePdfUrl: stored.pdfUrl,
+    storagePath: stored.storagePath,
+    role: "socio",
+  });
+  const adminPdfLine = enrollmentPdfEmailBodyHint({
+    pdfUrl: durablePdfUrl,
+    storagePdfUrl: stored.pdfUrl,
+    storagePath: stored.storagePath,
+    role: "admin",
+  });
+
   const socioMail = socioEmail
     ? await sendResendEmail({
         to: [socioEmail],
@@ -2343,7 +2364,7 @@ export async function completaInvioIscrizione(idIscrizione: string) {
           `Ciao ${nome},`,
           "",
           "in allegato trovi la tua domanda di iscrizione firmata.",
-          durablePdfUrl ? `\nCopia online:\n${durablePdfUrl}\n` : "",
+          socioPdfHint,
           "Cordiali saluti,",
           "MusicPro Eventi",
         ]
@@ -2352,12 +2373,6 @@ export async function completaInvioIscrizione(idIscrizione: string) {
         attachments: quotaAttachments,
       })
     : { sent: false, error: "Email socio mancante" };
-
-  const adminPdfLine = durablePdfUrl
-    ? `PDF: ${durablePdfUrl}`
-    : stored.storagePath
-      ? `PDF allegato (path interno: ${stored.storagePath}).`
-      : "PDF allegato (storage/Drive non disponibili).";
 
   const adminMail = await sendResendEmail({
     to: segreteriaRecipients(),
