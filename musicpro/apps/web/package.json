@@ -7,8 +7,9 @@
     "build": "next build",
     "postbuild": "node scripts/vercel-seed-school-next.mjs",
     "start": "next start",
-    "lint": "node scripts/check-rsc-client-function-props.mjs && tsc --noEmit",
+    "lint": "node scripts/check-rsc-client-function-props.mjs && node scripts/check-client-server-boundary.mjs && tsc --noEmit",
     "check:rsc-client-props": "node scripts/check-rsc-client-function-props.mjs",
+    "check:client-server-boundary": "node scripts/check-client-server-boundary.mjs",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"
   },

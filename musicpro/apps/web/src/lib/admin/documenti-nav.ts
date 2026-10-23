@@ -5,7 +5,7 @@ import {
   canAccessDocumentiSubsection,
   canManageDocumentiPermissions,
   type DocumentiSegreteriaFlags,
-} from "@/lib/admin/documenti-permissions";
+} from "@/lib/admin/documenti-permissions-core";
 import {
   DOCUMENTI_PATH_PREFIX,
   DOCUMENTI_SUBSECTION_HREFS,

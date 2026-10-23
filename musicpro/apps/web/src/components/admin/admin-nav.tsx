@@ -25,6 +25,8 @@ interface AdminNavProps {
   showWebsite: boolean;
   documentiHref: string;
   settingsHref: string;
+  /** `inline`: menu nella stessa riga dell’header. `bar`: riga sotto. */
+  placement?: "bar" | "inline";
 }
 
 type NavKey =
@@ -115,6 +117,7 @@ export function AdminNav({
   showSchoolMarket,
   showRimborsi,
   documentiHref,
+  placement = "bar",
 }: AdminNavProps) {
   const pathname = usePathname();
   const [, startTransition] = useTransition();
@@ -147,7 +150,8 @@ export function AdminNav({
   ]);
 
   function navLinkClass(active: boolean) {
-    return `touch-manipulation border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
+    const pad = placement === "inline" ? "px-2.5 py-1.5" : "px-4 py-3";
+    return `touch-manipulation border-b-2 ${pad} text-sm font-medium transition-colors ${
       active
         ? "border-[var(--brand-accent)] text-white"
         : "border-transparent text-white/70 hover:text-white"
@@ -162,8 +166,20 @@ export function AdminNav({
 
   return (
     <>
-      <nav className="hidden border-b border-white/10 md:block">
-        <div className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-4 sm:px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <nav
+        className={
+          placement === "inline"
+            ? "hidden min-w-0 flex-1 md:flex md:justify-center"
+            : "hidden border-b border-white/10 md:block"
+        }
+      >
+        <div
+          className={
+            placement === "inline"
+              ? "flex min-w-0 max-w-full gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              : "mx-auto flex max-w-6xl gap-1 overflow-x-auto px-4 sm:px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          }
+        >
           {visibleItems.map((item) => {
             const active = isNavItemActive(
               item.key,
