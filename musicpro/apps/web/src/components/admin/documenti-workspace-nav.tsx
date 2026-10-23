@@ -7,7 +7,7 @@ import {
   AdminWorkspaceNav,
   type AdminWorkspaceNavGroup,
 } from "@/components/admin/admin-workspace-nav";
-import { DOCUMENTI_SUBSECTION_HREFS } from "@/lib/admin/documenti-nav";
+import { DOCUMENTI_SUBSECTION_HREFS } from "@/lib/admin/documenti-paths";
 
 export type DocumentiNavGroup = AdminWorkspaceNavGroup;
 

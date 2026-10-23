@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
-import { isDocumentiPath } from "@/lib/admin/documenti-nav";
+import { isDocumentiPath } from "@/lib/admin/documenti-paths";
 
 interface DocumentiSubNavProps {
   children: ReactNode;
