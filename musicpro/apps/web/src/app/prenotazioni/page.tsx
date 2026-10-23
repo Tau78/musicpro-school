@@ -759,10 +759,14 @@ export default function PrenotazioniPage() {
       <SiteHeader
         eyebrow="Sale prova"
         title="Prenota una sala"
-        navLinks={[
-          { href: "/prenotazioni/mie", label: "Le mie prenotazioni" },
-          { href: "/dashboard", label: "Dashboard" },
-        ]}
+        navLinks={
+          hasSession
+            ? [
+                { href: "/prenotazioni/mie", label: "Le mie prenotazioni" },
+                { href: "/dashboard", label: "Dashboard" },
+              ]
+            : []
+        }
         actions={hasSession ? <SignOutButton className="rounded-lg border border-neutral-200 px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50" /> : null}
       />
 

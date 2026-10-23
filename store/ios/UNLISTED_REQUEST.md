@@ -1,13 +1,10 @@
-# Unlisted App Distribution — richiesta Apple (manuale)
+# Unlisted App Distribution — richiesta Apple
 
-**Stop resubmit.** Apple (review 2026-10-01, submission `6a3355ab-…`, build 10) ha ripetuto Guideline **3.2** e ha scritto esplicitamente:
+**Approved** (Developer Support, case `102994976557`, mail a Mauro). Distribution method in ASC → Pricing and Availability dovrebbe essere **Unlisted App**; link diretto lì.
 
-> do not resubmit the app until you've received email confirmation regarding the outcome of your [unlisted] request.
+Dopo approvazione: `node scripts/asc-prepare-unlisted-resubmit.mjs` → `bash scripts/asc-metadata.sh` → `ASC_SUBMIT=1 bash scripts/asc-submit.sh`.
 
-1. Invia (o verifica di aver inviato) il form Unlisted.
-2. Aspetta la mail di esito.
-3. Solo se **approved** → poi `asc-metadata` + Submit di nuovo.
-4. Se **declined** → Custom App (ABM/ASM), non un altro giro Public.
+Storico: Apple (review 2026-10-01, submission `6a3355ab-…`, build 10) aveva ripetuto Guideline **3.2** e chiesto di non risottomettere finché non arrivava la mail Unlisted.
 
 Form:
 

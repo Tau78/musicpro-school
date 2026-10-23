@@ -164,6 +164,14 @@ Più «Mostra password», così il reviewer digita il demo a mano.
 
 ---
 
+## MusicPro School — 2026-10-22 — Unlisted approved → resubmit
+
+**Mail Developer Support:** Unlisted **approved**, case `102994976557` (SB). Link diretto in ASC → Pricing and Availability dopo Approve App Review.
+
+**Fatto:** cancel submission stale → attach build **21** → `asc-metadata` (Notes: Unlisted approved) → `ASC_SUBMIT=1` → submission `2adbc706-…` **WAITING_FOR_REVIEW** (v1.1.0).
+
+---
+
 ## MusicPro Eventi — Listing, Privacy, dati veri
 
 - **Listing pubblica** = solo il ruolo utente (giocatore). Staff / host solo in Review Notes.
