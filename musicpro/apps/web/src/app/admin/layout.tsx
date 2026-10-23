@@ -7,6 +7,7 @@ import { AdminNav } from "@/components/admin/admin-nav";
 import { DocumentiSubNav } from "@/components/admin/documenti-sub-nav";
 import { SettingsSubNav } from "@/components/admin/settings-sub-nav";
 import { HeaderSettingsActions } from "@/components/dashboard/header-settings-actions";
+import { HeaderIdentity } from "@/components/dashboard/header-user-chip";
 import { getAdminMember } from "@/lib/admin/current-member";
 import {
   canAccessAdmin,
@@ -95,38 +96,38 @@ export default async function AdminLayout({
   return (
     <div className="min-h-screen min-w-0 max-w-full overflow-x-clip bg-[var(--background)] pb-[calc(4.25rem+max(0.625rem,env(safe-area-inset-bottom,0.625rem)))] md:pb-0">
       <BlurActiveOnNavigate />
-      <header className="bg-[var(--brand)] text-white">
-        <div className="mx-auto flex w-full min-w-0 max-w-6xl items-center justify-between gap-2 px-4 py-2 sm:px-6 sm:py-2.5">
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-medium uppercase tracking-wide text-[var(--brand-accent)]">
-              {APP_NAME}
-            </p>
-            <h1 className="truncate text-base font-semibold sm:text-lg">
-              Amministrazione
-            </h1>
-          </div>
-          <div className="flex min-w-0 max-w-[58%] items-center gap-2 sm:max-w-none sm:gap-3">
-            <HeaderSettingsActions
-              variant="onBrand"
-              userFirstName={member.firstName}
-              userRoles={member.roles}
+      <header className="border-b border-white/10 bg-[var(--brand)] text-white">
+        <div className="mx-auto flex w-full min-w-0 max-w-6xl items-center gap-2 px-4 py-1.5 sm:gap-3 sm:px-6">
+          <div className="min-w-0 flex-1 md:max-w-[26rem] md:flex-none">
+            <HeaderIdentity
+              eyebrow={APP_NAME}
+              title={
+                member.firstName?.trim()
+                  ? `Ciao ${member.firstName.trim()}`
+                  : "Amministrazione"
+              }
+              roles={member.roles}
             />
           </div>
+          <AdminNav
+            placement="inline"
+            showRubrica={showRubrica}
+            showLezioni={
+              canManageMembers(member.roles) && isLessonsModuleEnabled()
+            }
+            showPrenotazioni={showPrenotazioni}
+            showDocumenti={showDocumentiSection}
+            showSchoolMarket={isSchoolMarketDeskOnly(member.roles)}
+            showRimborsi={showRimborsi}
+            showImpostazioni={showImpostazioni}
+            showWebsite={canManageSettings(member.roles)}
+            documentiHref={documentiHref}
+            settingsHref={settingsHref}
+          />
+          <div className="shrink-0">
+            <HeaderSettingsActions variant="onBrand" />
+          </div>
         </div>
-        <AdminNav
-          showRubrica={showRubrica}
-          showLezioni={
-            canManageMembers(member.roles) && isLessonsModuleEnabled()
-          }
-          showPrenotazioni={showPrenotazioni}
-          showDocumenti={showDocumentiSection}
-          showSchoolMarket={isSchoolMarketDeskOnly(member.roles)}
-          showRimborsi={showRimborsi}
-          showImpostazioni={showImpostazioni}
-          showWebsite={canManageSettings(member.roles)}
-          documentiHref={documentiHref}
-          settingsHref={settingsHref}
-        />
       </header>
 
       <main className="mx-auto min-w-0 max-w-6xl px-4 py-3 sm:px-6 sm:py-5">

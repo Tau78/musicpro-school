@@ -6,7 +6,7 @@ import { useState } from "react";
 import { upsertAppSetting } from "@musicpro/database";
 
 import { ToggleRow } from "@/components/admin/settings-chrome";
-import type { DocumentiSegreteriaFlags } from "@/lib/admin/documenti-permissions";
+import type { DocumentiSegreteriaFlags } from "@/lib/admin/documenti-permissions-core";
 import { createClient } from "@/lib/supabase/client";
 
 const FLAG_CONFIG: {

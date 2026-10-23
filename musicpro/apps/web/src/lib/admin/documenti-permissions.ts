@@ -1,17 +1,23 @@
 import { cache } from "react";
 
 import { listAppSettings } from "@musicpro/database";
-import { MemberRole, type MemberRoleValue } from "@musicpro/shared";
 
-import { canManageMembers, canManageSettings } from "@/lib/admin/roles";
+import {
+  type DocumentiSegreteriaFlags,
+  type DocumentiSubsection,
+} from "@/lib/admin/documenti-permissions-core";
 import { createClient } from "@/lib/supabase/server";
 
-export type DocumentiSubsection =
-  | "libro_associati"
-  | "verbali"
-  | "libro_cespiti";
-
-export type DocumentiSegreteriaFlags = Record<DocumentiSubsection, boolean>;
+export type {
+  DocumentiSegreteriaFlags,
+  DocumentiSubsection,
+} from "@/lib/admin/documenti-permissions-core";
+export {
+  canAccessDocumentiRicevute,
+  canAccessDocumentiSubsection,
+  canManageDocumentiPermissions,
+  hasAnyDocumentiSubsection,
+} from "@/lib/admin/documenti-permissions-core";
 
 const FLAG_KEYS: Record<DocumentiSubsection, string> = {
   libro_associati: "documenti_segreteria_libro_associati",
@@ -30,7 +36,7 @@ function parseBool(value: string | undefined, defaultValue: boolean): boolean {
   return value === "true" || value === "1";
 }
 
-/** Una lettura impostazioni documenti per richiesta (layout + pagine). */
+/** Una lettura impostazioni documenti per richiesta (layout + pagine). Server-only. */
 export const getDocumentiSegreteriaFlags = cache(
   async (): Promise<DocumentiSegreteriaFlags> => {
     try {
@@ -55,44 +61,3 @@ export const getDocumentiSegreteriaFlags = cache(
     }
   },
 );
-
-export function canAccessDocumentiSubsection(
-  roles: MemberRoleValue[],
-  subsection: DocumentiSubsection,
-  flags: DocumentiSegreteriaFlags,
-): boolean {
-  if (roles.includes(MemberRole.Admin)) return true;
-  if (
-    roles.includes(MemberRole.Collaboratore) &&
-    subsection === "libro_cespiti"
-  ) {
-    return true;
-  }
-  if (!canManageSettings(roles)) return false;
-  if (roles.includes(MemberRole.Segreteria)) return flags[subsection];
-  return false;
-}
-
-export function canManageDocumentiPermissions(
-  roles: MemberRoleValue[],
-): boolean {
-  return roles.includes(MemberRole.Admin);
-}
-
-/** Registro ricevute fiscali (segreteria / admin). */
-export function canAccessDocumentiRicevute(
-  roles: MemberRoleValue[],
-): boolean {
-  return canManageMembers(roles);
-}
-
-export function hasAnyDocumentiSubsection(
-  roles: MemberRoleValue[],
-  flags: DocumentiSegreteriaFlags,
-): boolean {
-  if (roles.includes(MemberRole.Admin)) return true;
-  if (roles.includes(MemberRole.Collaboratore)) return true;
-  if (canAccessDocumentiRicevute(roles)) return true;
-  if (!canManageSettings(roles)) return false;
-  return flags.libro_associati || flags.verbali || flags.libro_cespiti;
-}

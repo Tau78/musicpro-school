@@ -1,0 +1,15 @@
+# Client → niente moduli server
+
+Un Client Component (`"use client"`) **non** deve importare (neanche in transitivo) `next/headers` o `@/lib/supabase/server`. Su Vercel il build esplode:
+
+`You're importing a component that needs "next/headers"…`
+
+## Obbligatorio
+
+- Path / costanti / tipi / pure helpers in file **senza** `createClient` (es. `documenti-paths.ts`, `documenti-permissions-core.ts`)
+- Loader server (`getDocumentiSegreteriaFlags`, auth) restano in `*-permissions.ts` / `supabase/server`
+- Client: importa solo i moduli “core/paths”
+
+## Check
+
+`npm run lint -w @musicpro/web` esegue `scripts/check-client-server-boundary.mjs` (bloccante in VAI).

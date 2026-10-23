@@ -19,11 +19,10 @@ const loadDashboardShell = cache(async () => {
     return null;
   }
   const firstName = member.firstName.trim();
-  const title = firstName ? `Ciao, ${firstName}` : "Dashboard";
+  const title = firstName ? `Ciao ${firstName}` : "Dashboard";
   return {
     nav,
     title,
-    userFirstName: firstName || member.firstName,
     userRoles: member.roles,
   };
 });
@@ -43,7 +42,6 @@ export default async function DashboardLayout({
       nav={shell.nav}
       title={shell.title}
       wide
-      userFirstName={shell.userFirstName}
       userRoles={shell.userRoles}
     >
       {children}

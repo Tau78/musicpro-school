@@ -3,6 +3,7 @@
   "framework": "nextjs",
   "installCommand": "cd ../.. && npm install",
   "buildCommand": "cd ../.. && npm run build --workspace=@musicpro/web",
+  "ignoreCommand": "[ \"$VERCEL_ENV\" = \"production\" ]",
   "crons": [
     {
       "path": "/api/cron/external-calendar-sync",

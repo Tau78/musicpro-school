@@ -27,6 +27,34 @@ export function formatRoleLabels(roles: MemberRoleValue[]): string {
     .join(" · ");
 }
 
+/** Brand + «Ciao Nome (ruoli)» a sinistra dell’header blu. */
+export function HeaderIdentity({
+  eyebrow,
+  title,
+  roles,
+}: {
+  eyebrow: string;
+  title: string;
+  roles?: MemberRoleValue[];
+}) {
+  const privileges = roles?.length ? formatRoleLabels(roles) : "";
+  const full = privileges ? `${title} (${privileges})` : title;
+
+  return (
+    <div className="min-w-0" title={full}>
+      <p className="text-[10px] font-medium uppercase leading-none tracking-wide text-[var(--brand-accent)]">
+        {eyebrow}
+      </p>
+      <h1 className="mt-0.5 truncate text-sm font-semibold leading-tight">
+        {title}
+        {privileges ? (
+          <span className="font-normal text-white/75"> ({privileges})</span>
+        ) : null}
+      </h1>
+    </div>
+  );
+}
+
 /** Nome + privilegi a sinistra della rotella (header blu). */
 export function HeaderUserChip({
   firstName,
