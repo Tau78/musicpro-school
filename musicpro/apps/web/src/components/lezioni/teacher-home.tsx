@@ -17,6 +17,7 @@ import {
   AttendanceToastStack,
   type AttendanceToastLesson,
 } from "@/components/lezioni/attendance-toast-stack";
+import { TeacherAbsenceOpenButton } from "@/components/lezioni/teacher-absent-actions";
 import { courseSlotLabel } from "@/components/lezioni/course-labels";
 import { formatLessonWhen } from "@/lib/ui/associate-theme";
 import { createClient } from "@/lib/supabase/server";
@@ -101,6 +102,12 @@ export function TeacherHome({
           Ciao, {firstName}
         </h1>
         <p className="mt-1 text-sm text-neutral-600">La tua giornata in scuola</p>
+        <div className="mt-2 flex min-w-0 max-w-full flex-wrap items-center gap-2">
+          <TeacherAbsenceOpenButton
+            actorMemberId={actorMemberId}
+            isStaff={false}
+          />
+        </div>
       </div>
 
       {showAttendanceToasts ? (

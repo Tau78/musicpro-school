@@ -167,6 +167,7 @@ async function sendEmailViaResend(params: {
   to: string;
   subject: string;
   body: string;
+  html?: string;
   attachments?: EmailAttachment[];
 }): Promise<{ ok: true } | { ok: false; error: string; skipped?: boolean }> {
   const apiKey = process.env.RESEND_API_KEY?.trim();
@@ -189,7 +190,7 @@ async function sendEmailViaResend(params: {
       to: [params.to],
       subject: params.subject,
       text: params.body,
-      html: textToHtml(params.body),
+      html: params.html ?? textToHtml(params.body),
       ...(params.attachments?.length
         ? {
             attachments: params.attachments.map((file) => ({
@@ -386,6 +387,7 @@ export type SendSingleEmailInput = {
   to: string;
   subject: string;
   body: string;
+  html?: string;
   attachments?: EmailAttachment[];
 };
 
@@ -410,6 +412,7 @@ export async function sendSingleEmail(
     to,
     subject: input.subject,
     body: input.body,
+    html: input.html,
     attachments: input.attachments,
   });
 }
@@ -421,6 +424,7 @@ export async function sendLessonFamilyEmail(
   input: {
     subject: string;
     body: string;
+    html?: string;
     attachments?: EmailAttachment[];
   },
 ): Promise<{ sent: number; skipped: number; warnings: string[] }> {
@@ -455,6 +459,7 @@ export async function sendLessonFamilyEmail(
       to,
       subject: input.subject,
       body: input.body,
+      html: input.html,
       attachments: input.attachments,
     });
     if (result.ok) sent += 1;
