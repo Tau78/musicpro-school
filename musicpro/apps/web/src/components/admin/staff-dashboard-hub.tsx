@@ -12,6 +12,7 @@ import {
 } from "@musicpro/database";
 
 import { StaffQuickBookingAction } from "@/components/admin/staff-quick-booking-action";
+import { TeacherAbsenceOpenButton } from "@/components/lezioni/teacher-absent-actions";
 import {
   lessonCourseId,
   oggiLessonTitle,
@@ -34,6 +35,7 @@ export interface StaffDashboardHubProps {
   creditAvailable?: number;
   creditsInCirculation?: number | null;
   today?: string;
+  actorMemberId?: string;
 }
 
 function TodoPill({ href, label }: { href: string; label: string }) {
@@ -166,6 +168,7 @@ export function StaffDashboardHub({
   creditAvailable = 0,
   creditsInCirculation = null,
   today = "",
+  actorMemberId,
   embeddedCalendar = null,
 }: StaffDashboardHubProps & {
   embeddedCalendar?: ReactNode;
@@ -290,11 +293,17 @@ export function StaffDashboardHub({
         ) : null}
       </div>
 
-      {todoItems.length > 0 ? (
-        <div className="flex flex-wrap gap-2">
+      {todoItems.length > 0 || (showTeacherLessons && actorMemberId) ? (
+        <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
           {todoItems.map((item) => (
             <TodoPill key={item.href} href={item.href} label={item.label} />
           ))}
+          {showTeacherLessons && actorMemberId ? (
+            <TeacherAbsenceOpenButton
+              actorMemberId={actorMemberId}
+              isStaff={showStaffLessons}
+            />
+          ) : null}
         </div>
       ) : null}
 

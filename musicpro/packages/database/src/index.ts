@@ -604,6 +604,19 @@ export type {
   LessonRosterStudent,
 } from "./lessons-attendance";
 export {
+  cancelTeacherAbsence,
+  listTeacherAbsenceLessons,
+  moveTeacherAbsence,
+  previewTeacherAbsenceMove,
+} from "./teacher-absence";
+export type {
+  TeacherAbsenceApplyResult,
+  TeacherAbsenceConflict,
+  TeacherAbsenceLesson,
+  TeacherAbsencePreview,
+  TeacherAbsenceTarget,
+} from "./teacher-absence";
+export {
   adjustEnrollmentCredits,
   ensureOpenPackFee,
   ensureOpenPackFeeForCollection,

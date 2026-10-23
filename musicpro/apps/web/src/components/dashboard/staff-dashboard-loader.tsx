@@ -56,6 +56,7 @@ export async function StaffDashboardLoader({
       {...hubProps}
       canManageShop={manageShop}
       today={today}
+      actorMemberId={memberId}
       embeddedCalendar={
         showUnifiedCalendar ? (
           <StaffUnifiedCalendar
