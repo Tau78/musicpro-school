@@ -857,25 +857,29 @@ export interface Database {
         Row: {
           id: string;
           member_id: string;
-          package_id: string;
+          package_id: string | null;
           credits_granted: number;
           amount_paid_eur: number;
           stripe_payment_intent_id: string | null;
           stripe_event_id: string | null;
           payment_link_id: string | null;
           payment_status: string;
+          payment_method: "contanti" | "bonifico" | "nexi" | null;
+          paid_on: string | null;
           created_at: string;
         };
         Insert: {
           id?: string;
           member_id: string;
-          package_id: string;
+          package_id?: string | null;
           credits_granted: number;
           amount_paid_eur: number;
           stripe_payment_intent_id?: string | null;
           stripe_event_id?: string | null;
           payment_link_id?: string | null;
           payment_status?: string;
+          payment_method?: "contanti" | "bonifico" | "nexi" | null;
+          paid_on?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["credit_purchases"]["Insert"]>;
         Relationships: [];
@@ -2510,6 +2514,16 @@ export interface Database {
           p_member_id: string;
           p_amount: number;
           p_reason: string;
+        };
+        Returns: Json;
+      };
+      admin_record_manual_credit_purchase: {
+        Args: {
+          p_member_id: string;
+          p_paid_on: string;
+          p_amount_eur: number;
+          p_method: string;
+          p_credits: number;
         };
         Returns: Json;
       };

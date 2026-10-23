@@ -798,6 +798,88 @@ export async function emitFiscalReceiptForQuotaPayment(
   return ok(created.id);
 }
 
+export async function emitFiscalReceiptForCreditPurchase(
+  client: ReceiptsClient,
+  input: {
+    purchaseId: string;
+    actorMemberId?: string | null;
+    pdfBase64?: string | null;
+  },
+): Promise<CourseMutationResult> {
+  const purchaseId = input.purchaseId.trim();
+  if (!purchaseId) return fail("Manca l'acquisto crediti.");
+
+  const existingId = await findEmessaFiscalReceiptId(client, {
+    sourceType: "credit_shop",
+    sourceId: purchaseId,
+  });
+  if (existingId) return ok(existingId);
+
+  const { data: purchase, error: purchaseError } = await client
+    .from("credit_purchases")
+    .select(
+      "id, member_id, package_id, credits_granted, amount_paid_eur, payment_status, payment_method, paid_on, created_at",
+    )
+    .eq("id", purchaseId)
+    .maybeSingle();
+  if (purchaseError) {
+    return fail(purchaseError.message || "Impossibile caricare l'acquisto crediti.");
+  }
+  if (!purchase) return fail("Acquisto crediti non trovato.");
+  if (purchase.payment_status !== "paid") {
+    return fail("L'acquisto crediti non è pagato.");
+  }
+
+  const amountEur = toEur(purchase.amount_paid_eur);
+  if (amountEur <= 0) {
+    return fail("Importo zero: nessuna ricevuta fiscale.");
+  }
+
+  const member = await loadMemberPayee(client, purchase.member_id);
+  if ("error" in member) return fail(member.error);
+
+  let title = "Acquisto crediti";
+  if (purchase.package_id) {
+    const { data: pkg } = await client
+      .from("credit_packages")
+      .select("name")
+      .eq("id", purchase.package_id)
+      .maybeSingle();
+    const name = pkg?.name?.trim();
+    if (name) title = `Pacchetto crediti ${name}`;
+  }
+
+  const credits = toEur(purchase.credits_granted);
+  const payee = payeeFromMember(member);
+  const issuedOn =
+    purchase.paid_on?.slice(0, 10) ||
+    purchase.created_at?.slice(0, 10) ||
+    todayInRome();
+
+  const created = await insertReceiptWithLines(client, {
+    issuedOn,
+    paymentId: null,
+    sourceType: "credit_shop",
+    sourceId: purchase.id,
+    memberId: purchase.member_id,
+    payeeName: payee.payeeName,
+    payeeTaxCode: payee.payeeTaxCode,
+    payeeEmail: payee.payeeEmail,
+    amountEur,
+    method: purchase.payment_method?.trim() || "nexi",
+    lines: [
+      {
+        description: `${title} (${credits} crediti)`,
+        amountEur,
+      },
+    ],
+    createdBy: input.actorMemberId ?? null,
+    pdfBase64: input.pdfBase64 ?? null,
+  });
+  if ("error" in created) return fail(created.error);
+  return ok(created.id);
+}
+
 export async function getFiscalReceipt(
   client: ReceiptsClient,
   receiptId: string,

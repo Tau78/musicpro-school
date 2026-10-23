@@ -45,13 +45,15 @@ export interface CreditTransaction {
 export interface CreditPurchase {
   id: string;
   memberId: string;
-  packageId: string;
+  packageId: string | null;
   creditsGranted: number;
   amountPaidEur: number;
   stripePaymentIntentId: string | null;
   stripeEventId: string | null;
   paymentLinkId: string | null;
   paymentStatus: string;
+  paymentMethod: "contanti" | "bonifico" | "nexi" | null;
+  paidOn: string | null;
   createdAt: string;
   package?: Pick<CreditPackage, "id" | "name" | "credits" | "priceEur"> | null;
 }
@@ -114,13 +116,15 @@ type CreditTransactionRow = {
 type CreditPurchaseRow = {
   id: string;
   member_id: string;
-  package_id: string;
+  package_id: string | null;
   credits_granted: number;
   amount_paid_eur: number;
   stripe_payment_intent_id: string | null;
   stripe_event_id: string | null;
   payment_link_id: string | null;
   payment_status: string;
+  payment_method: "contanti" | "bonifico" | "nexi" | null;
+  paid_on: string | null;
   created_at: string;
 };
 
@@ -131,7 +135,7 @@ const CREDIT_TRANSACTION_COLUMNS =
   "id, member_id, amount, type, booking_id, purchase_id, reason, created_by, created_at";
 
 const CREDIT_PURCHASE_COLUMNS =
-  "id, member_id, package_id, credits_granted, amount_paid_eur, stripe_payment_intent_id, stripe_event_id, payment_link_id, payment_status, created_at";
+  "id, member_id, package_id, credits_granted, amount_paid_eur, stripe_payment_intent_id, stripe_event_id, payment_link_id, payment_status, payment_method, paid_on, created_at";
 
 interface MemberCreditBalanceResponse {
   available?: number;
@@ -203,8 +207,20 @@ function mapCreditPurchase(row: CreditPurchaseRow): CreditPurchase {
     stripeEventId: row.stripe_event_id,
     paymentLinkId: row.payment_link_id,
     paymentStatus: row.payment_status,
+    paymentMethod: row.payment_method,
+    paidOn: row.paid_on,
     createdAt: row.created_at,
   };
+}
+
+function purchasePackageIds(purchases: CreditPurchase[]): string[] {
+  return [
+    ...new Set(
+      purchases
+        .map((purchase) => purchase.packageId)
+        .filter((id): id is string => id != null),
+    ),
+  ];
 }
 
 function creditPackageInputToRow(
@@ -584,6 +600,66 @@ export async function adminAdjustMemberCredits(
   };
 }
 
+interface ManualCreditPurchaseResponse {
+  success?: boolean;
+  error_message?: string;
+  message?: string;
+  purchase_id?: string;
+  available?: number | string | null;
+}
+
+export async function recordManualCreditPurchase(
+  client: CreditsClient,
+  input: {
+    memberId: string;
+    paidOn: string;
+    amountEur: number;
+    method: "contanti" | "bonifico";
+    credits: number;
+  },
+): Promise<{
+  success: boolean;
+  errorMessage?: string;
+  purchaseId?: string;
+  available?: number;
+}> {
+  const { data, error } = await client.rpc("admin_record_manual_credit_purchase", {
+    p_member_id: input.memberId,
+    p_paid_on: input.paidOn,
+    p_amount_eur: input.amountEur,
+    p_method: input.method,
+    p_credits: input.credits,
+  });
+
+  if (error) {
+    return {
+      success: false,
+      errorMessage: error.message,
+    };
+  }
+
+  const result = data as ManualCreditPurchaseResponse | null;
+
+  if (!result?.success) {
+    return {
+      success: false,
+      errorMessage:
+        result?.error_message ??
+        result?.message ??
+        "Impossibile registrare l'acquisto crediti.",
+    };
+  }
+
+  return {
+    success: true,
+    purchaseId: result.purchase_id,
+    available:
+      result.available != null && result.available !== ""
+        ? Number(result.available)
+        : undefined,
+  };
+}
+
 export async function listMemberCreditPurchases(
   client: CreditsClient,
   memberId: string,
@@ -606,38 +682,44 @@ export async function listMemberCreditPurchases(
     return [];
   }
 
-  const packageIds = [...new Set(purchases.map((purchase) => purchase.packageId))];
-  const { data: packages, error: packagesError } = await client
-    .from("credit_packages")
-    .select("id, name, credits, price_eur")
-    .in("id", packageIds);
+  const packageIds = purchasePackageIds(purchases);
+  const packageById = new Map<
+    string,
+    Pick<CreditPackage, "id" | "name" | "credits" | "priceEur">
+  >();
 
-  if (packagesError) {
-    throw new Error(
-      `Impossibile caricare i pacchetti crediti: ${packagesError.message}`,
-    );
-  }
+  if (packageIds.length > 0) {
+    const { data: packages, error: packagesError } = await client
+      .from("credit_packages")
+      .select("id, name, credits, price_eur")
+      .in("id", packageIds);
 
-  const packageById = new Map(
-    ((packages ?? []) as Array<{
+    if (packagesError) {
+      throw new Error(
+        `Impossibile caricare i pacchetti crediti: ${packagesError.message}`,
+      );
+    }
+
+    for (const pkg of (packages ?? []) as Array<{
       id: string;
       name: string;
       credits: number;
       price_eur: number;
-    }>).map((pkg) => [
-      pkg.id,
-      {
+    }>) {
+      packageById.set(pkg.id, {
         id: pkg.id,
         name: pkg.name,
         credits: pkg.credits,
         priceEur: Number(pkg.price_eur),
-      },
-    ]),
-  );
+      });
+    }
+  }
 
   return purchases.map((purchase) => ({
     ...purchase,
-    package: packageById.get(purchase.packageId) ?? null,
+    package: purchase.packageId
+      ? (packageById.get(purchase.packageId) ?? null)
+      : null,
   }));
 }
 
@@ -668,14 +750,16 @@ export async function listAdminCreditPurchases(
   const purchases = ((data ?? []) as CreditPurchaseRow[]).map(mapCreditPurchase);
   if (purchases.length === 0) return [];
 
-  const packageIds = [...new Set(purchases.map((row) => row.packageId))];
+  const packageIds = purchasePackageIds(purchases);
   const memberIds = [...new Set(purchases.map((row) => row.memberId))];
 
   const [packagesRes, membersRes] = await Promise.all([
-    client
-      .from("credit_packages")
-      .select("id, name, credits, price_eur")
-      .in("id", packageIds),
+    packageIds.length === 0
+      ? Promise.resolve({ data: [], error: null })
+      : client
+          .from("credit_packages")
+          .select("id, name, credits, price_eur")
+          .in("id", packageIds),
     client
       .from("members")
       .select("id, first_name, last_name, email")
@@ -723,7 +807,9 @@ export async function listAdminCreditPurchases(
 
   return purchases.map((purchase) => ({
     ...purchase,
-    package: packageById.get(purchase.packageId) ?? null,
+    package: purchase.packageId
+      ? (packageById.get(purchase.packageId) ?? null)
+      : null,
     member: memberById.get(purchase.memberId) ?? null,
   }));
 }

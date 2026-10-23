@@ -12,6 +12,11 @@ import {
 } from "@musicpro/database";
 
 import {
+  creditsFromDiscount,
+  discountPercentFromPrice,
+  formatDiscountInput,
+} from "@/components/admin/credit-package-discount";
+import {
   FieldLabel,
   ToggleRow,
   settingsInputClass,
@@ -59,6 +64,17 @@ export function CreditPackageForm({
       ? creditPackageToInput(creditPackage)
       : emptyCreditPackageInput(),
   );
+  const [discountText, setDiscountText] = useState(() => {
+    const initial = creditPackage
+      ? creditPackageToInput(creditPackage)
+      : emptyCreditPackageInput();
+    return formatDiscountInput(
+      discountPercentFromPrice(initial.priceEur, initial.credits),
+    );
+  });
+  const [discountDriver, setDiscountDriver] = useState<"credits" | "discount">(
+    "credits",
+  );
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -94,6 +110,15 @@ export function CreditPackageForm({
       setError("Il prezzo non può essere negativo.");
       setSaving(false);
       return;
+    }
+
+    if (discountDriver === "discount") {
+      const discount = Number(discountText.trim().replace(",", "."));
+      if (Number.isFinite(discount) && discount >= 100) {
+        setError("Lo sconto deve essere inferiore al 100%.");
+        setSaving(false);
+        return;
+      }
     }
 
     const result = isEdit
@@ -159,33 +184,80 @@ export function CreditPackageForm({
             className={settingsInputClass}
           />
         </label>
-        <label className="block">
-          <FieldLabel>Crediti</FieldLabel>
-          <input
-            type="number"
-            min={1}
-            required
-            value={form.credits}
-            onChange={(e) =>
-              updateField("credits", Number(e.target.value) || 0)
-            }
-            className={settingsInputClass}
-          />
-        </label>
-        <label className="block">
-          <FieldLabel>Prezzo</FieldLabel>
-          <input
-            type="number"
-            min={0}
-            step="0.01"
-            required
-            value={form.priceEur}
-            onChange={(e) =>
-              updateField("priceEur", Number(e.target.value) || 0)
-            }
-            className={settingsInputClass}
-          />
-        </label>
+        <div className="grid min-w-0 gap-4 sm:col-span-2 sm:grid-cols-3">
+          <label className="block min-w-0">
+            <FieldLabel>Crediti</FieldLabel>
+            <input
+              type="number"
+              min={0.01}
+              step="0.01"
+              required
+              value={form.credits}
+              onChange={(e) => {
+                const credits = Number(e.target.value) || 0;
+                setDiscountDriver("credits");
+                updateField("credits", credits);
+                setDiscountText(
+                  formatDiscountInput(
+                    discountPercentFromPrice(form.priceEur, credits),
+                  ),
+                );
+              }}
+              className={`${settingsInputClass} w-full min-w-0 max-w-full`}
+            />
+          </label>
+          <label className="block min-w-0">
+            <FieldLabel>Prezzo (€)</FieldLabel>
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              required
+              value={form.priceEur}
+              onChange={(e) => {
+                const priceEur = Number(e.target.value) || 0;
+                if (discountDriver === "discount") {
+                  const discount = Number(discountText.trim().replace(",", "."));
+                  const credits = Number.isFinite(discount)
+                    ? creditsFromDiscount(priceEur, discount)
+                    : null;
+                  setForm((prev) => ({
+                    ...prev,
+                    priceEur,
+                    credits: credits ?? prev.credits,
+                  }));
+                  return;
+                }
+                updateField("priceEur", priceEur);
+                setDiscountText(
+                  formatDiscountInput(
+                    discountPercentFromPrice(priceEur, form.credits),
+                  ),
+                );
+              }}
+              className={`${settingsInputClass} w-full min-w-0 max-w-full`}
+            />
+          </label>
+          <label className="block min-w-0">
+            <FieldLabel>% sconto</FieldLabel>
+            <input
+              type="number"
+              step="0.01"
+              value={discountText}
+              title="Si calcola da euro e crediti. Con euro e %, si aggiornano i crediti."
+              onChange={(e) => {
+                const raw = e.target.value;
+                setDiscountDriver("discount");
+                setDiscountText(raw);
+                const discount = Number(raw.trim().replace(",", "."));
+                if (!Number.isFinite(discount) || discount >= 100) return;
+                const credits = creditsFromDiscount(form.priceEur, discount);
+                if (credits != null && credits > 0) updateField("credits", credits);
+              }}
+              className={`${settingsInputClass} w-full min-w-0 max-w-full`}
+            />
+          </label>
+        </div>
         <label className="block">
           <FieldLabel>Ordine</FieldLabel>
           <input
