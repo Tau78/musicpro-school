@@ -17,7 +17,10 @@ import {
   canAccessDocumentiSubsection,
   getDocumentiSegreteriaFlags,
 } from "@/lib/admin/documenti-permissions";
-import { firstDocumentiHref } from "@/lib/admin/documenti-nav";
+import {
+  buildDocumentiNavFlags,
+  firstDocumentiHref,
+} from "@/lib/admin/documenti-nav";
 import { signedPhotoUrl } from "@/lib/admin/cespiti-auth";
 import { createClient } from "@/lib/supabase/server";
 
@@ -31,20 +34,7 @@ export default async function DocumentiLibroCespitiPage() {
     !canAccessDocumentiSubsection(member.roles, "libro_cespiti", flags)
   ) {
     redirect(
-      firstDocumentiHref({
-        showAssociati: canAccessDocumentiSubsection(
-          member?.roles ?? [],
-          "libro_associati",
-          flags,
-        ),
-        showVerbali: canAccessDocumentiSubsection(
-          member?.roles ?? [],
-          "verbali",
-          flags,
-        ),
-        showCespiti: false,
-        showPermessi: false,
-      }),
+      firstDocumentiHref(buildDocumentiNavFlags(member?.roles ?? [], flags)),
     );
   }
 

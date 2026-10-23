@@ -15,10 +15,11 @@ import {
   canManageStaffUsers,
   canManageTemplates,
 } from "@/lib/admin/roles";
-import { firstDocumentiHref } from "@/lib/admin/documenti-nav";
 import {
-  canAccessDocumentiSubsection,
-  canManageDocumentiPermissions,
+  buildDocumentiNavFlags,
+  firstDocumentiHref,
+} from "@/lib/admin/documenti-nav";
+import {
   getDocumentiSegreteriaFlags,
   hasAnyDocumentiSubsection,
   type DocumentiSegreteriaFlags,
@@ -75,24 +76,9 @@ export async function getAdminShellNavConfig(
 
   const documentiFlags = await getDocumentiSegreteriaFlags();
   const showDocumentiSection = buildShowDocumenti(roles, documentiFlags);
-  const documentiHref = firstDocumentiHref({
-    showAssociati: canAccessDocumentiSubsection(
-      roles,
-      "libro_associati",
-      documentiFlags,
-    ),
-    showVerbali: canAccessDocumentiSubsection(
-      roles,
-      "verbali",
-      documentiFlags,
-    ),
-    showCespiti: canAccessDocumentiSubsection(
-      roles,
-      "libro_cespiti",
-      documentiFlags,
-    ),
-    showPermessi: canManageDocumentiPermissions(roles),
-  });
+  const documentiHref = firstDocumentiHref(
+    buildDocumentiNavFlags(roles, documentiFlags),
+  );
 
   return {
     showRubrica,

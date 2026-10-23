@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 
@@ -25,10 +24,11 @@ import {
   isSchoolMarketDeskOnly,
   canManageTemplates,
 } from "@/lib/admin/roles";
-import { firstDocumentiHref } from "@/lib/admin/documenti-nav";
 import {
-  canAccessDocumentiSubsection,
-  canManageDocumentiPermissions,
+  buildDocumentiNavFlags,
+  firstDocumentiHref,
+} from "@/lib/admin/documenti-nav";
+import {
   getDocumentiSegreteriaFlags,
   hasAnyDocumentiSubsection,
 } from "@/lib/admin/documenti-permissions";
@@ -88,28 +88,9 @@ export default async function AdminLayout({
     member.roles,
     documentiFlags,
   );
-  const showDocumentiAssociati = canAccessDocumentiSubsection(
-    member.roles,
-    "libro_associati",
-    documentiFlags,
+  const documentiHref = firstDocumentiHref(
+    buildDocumentiNavFlags(member.roles, documentiFlags),
   );
-  const showDocumentiVerbali = canAccessDocumentiSubsection(
-    member.roles,
-    "verbali",
-    documentiFlags,
-  );
-  const showDocumentiCespiti = canAccessDocumentiSubsection(
-    member.roles,
-    "libro_cespiti",
-    documentiFlags,
-  );
-  const showDocumentiPermessi = canManageDocumentiPermissions(member.roles);
-  const documentiHref = firstDocumentiHref({
-    showAssociati: showDocumentiAssociati,
-    showVerbali: showDocumentiVerbali,
-    showCespiti: showDocumentiCespiti,
-    showPermessi: showDocumentiPermessi,
-  });
 
   return (
     <div className="min-h-screen min-w-0 max-w-full overflow-x-clip bg-[var(--background)] pb-[calc(4.25rem+max(0.625rem,env(safe-area-inset-bottom,0.625rem)))] md:pb-0">
@@ -125,12 +106,6 @@ export default async function AdminLayout({
             </h1>
           </div>
           <div className="flex min-w-0 max-w-[58%] items-center gap-2 sm:max-w-none sm:gap-3">
-            <Link
-              href="/dashboard"
-              className="hidden shrink-0 text-sm text-white/80 hover:text-white sm:inline"
-            >
-              Dashboard
-            </Link>
             <HeaderSettingsActions
               variant="onBrand"
               userFirstName={member.firstName}

@@ -8,7 +8,7 @@ Voci recenti in cima. Marca `✓ letto YYYY-MM-DD` dopo lettura.
 
 **Da:** agente ONDA lezioni iscrizione  
 **Per:** Mauro / hosting panel  
-**Stato:** aperto
+**Stato:** ✓ letto 2026-10-23 — aperto (azione hosting: reset password FTP)
 
 `npm run deploy:iscrizione` e passo VAI 12 falliscono con **530 Login authentication failed** su `iscrizione.musicproeventi.it` (user `ISCRIZIONE_FTP_USER` in `.env`). Il form live **non** ha ancora il capitolo Lezioni (`curl` senza match `LESSON_OPTIONS_URL`).  
 **Azione:** reset password FTP nel pannello (dnshigh/motti), aggiornare `FTP_PASS_ISCRIZIONE` in `.env` Mac mini, poi `npm run deploy:iscrizione`. Backend School + migration 122 già in prod.

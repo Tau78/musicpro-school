@@ -2,6 +2,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { todayInRome } from "./bookings";
 import type { CourseMutationResult } from "./courses";
+import {
+  FISCAL_RECEIPT_SECTION,
+  fiscalReceiptSectionFilterCodes,
+  type FiscalReceiptSectionCode,
+} from "./fiscal-receipt-sections";
 import { sendLessonFamilyEmail } from "./messaging";
 import type { Database } from "./types/database";
 
@@ -16,7 +21,9 @@ const DEFAULT_QUOTA_EUR = 15;
 export type FiscalReceiptSourceType =
   | "lesson_pack"
   | "room_booking"
-  | "quota_payment";
+  | "quota_payment"
+  | "credit_shop"
+  | "manual";
 
 const MEMBER_PAYEE_COLUMNS =
   "id, first_name, last_name, email, tax_code, manual_tutor_first_name, manual_tutor_last_name, manual_tutor_email, manual_tutor_tax_code";
@@ -106,10 +113,15 @@ function inferSourceType(row: ReceiptRow): FiscalReceiptSourceType | null {
   if (row.source_type === "lesson_pack") return "lesson_pack";
   if (row.source_type === "room_booking") return "room_booking";
   if (row.source_type === "quota_payment") return "quota_payment";
+  if (row.source_type === "credit_shop") return "credit_shop";
+  if (row.source_type === "manual") return "manual";
   if (row.payment_id) return "lesson_pack";
-  if (row.section === "SA") return "room_booking";
-  if (row.section === "QU") return "quota_payment";
-  if (row.section === "LE" || row.section === "S") return "lesson_pack";
+  if (row.section === "SA" || row.section === "SAL") return "room_booking";
+  if (row.section === "QU" || row.section === "QUO") return "quota_payment";
+  if (row.section === "LE" || row.section === "S" || row.section === "SCH") {
+    return "lesson_pack";
+  }
+  if (row.section === "SER") return "credit_shop";
   return null;
 }
 
@@ -241,6 +253,39 @@ async function loadLinesByReceiptIds(
   return byReceipt;
 }
 
+async function memberHasActiveAssociatoRole(
+  client: ReceiptsClient,
+  memberId: string,
+): Promise<boolean> {
+  const { data } = await client
+    .from("member_roles")
+    .select("id")
+    .eq("member_id", memberId)
+    .eq("role", "associato")
+    .is("revoked_at", null)
+    .limit(1)
+    .maybeSingle();
+  return Boolean(data);
+}
+
+function sectionForSourceType(
+  sourceType: FiscalReceiptSourceType,
+): FiscalReceiptSectionCode {
+  switch (sourceType) {
+    case "lesson_pack":
+      return FISCAL_RECEIPT_SECTION.SCH;
+    case "room_booking":
+      return FISCAL_RECEIPT_SECTION.SAL;
+    case "quota_payment":
+      return FISCAL_RECEIPT_SECTION.QUO;
+    case "credit_shop":
+    case "manual":
+      return FISCAL_RECEIPT_SECTION.SER;
+    default:
+      return FISCAL_RECEIPT_SECTION.SCH;
+  }
+}
+
 async function resolveFiscalReceiptSection(
   client: ReceiptsClient,
   memberId: string,
@@ -251,18 +296,12 @@ async function resolveFiscalReceiptSection(
     .select("is_test_account")
     .eq("id", memberId)
     .maybeSingle();
-  if (data?.is_test_account) return "TEST";
+  if (data?.is_test_account) return FISCAL_RECEIPT_SECTION.TEST;
 
-  switch (sourceType) {
-    case "lesson_pack":
-      return "LE";
-    case "room_booking":
-      return "SA";
-    case "quota_payment":
-      return "QU";
-    default:
-      return "LE";
-  }
+  const isAssociato = await memberHasActiveAssociatoRole(client, memberId);
+  if (!isAssociato) return FISCAL_RECEIPT_SECTION.EST;
+
+  return sectionForSourceType(sourceType);
 }
 
 async function findEmessaFiscalReceiptId(
@@ -797,7 +836,10 @@ export async function listFiscalReceipts(
   if (options?.to) query = query.lte("issued_on", options.to);
   if (options?.memberId) query = query.eq("member_id", options.memberId);
   if (options?.section && options.section !== "all") {
-    query = query.eq("section", options.section);
+    const sections = fiscalReceiptSectionFilterCodes(
+      options.section as FiscalReceiptSectionCode,
+    );
+    query = query.in("section", sections);
   }
   if (!options?.includeReplaced) query = query.eq("status", "emessa");
 

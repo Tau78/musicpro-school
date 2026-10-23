@@ -459,7 +459,7 @@
 </div>
 </div>
 
-<footer class="site-footer">v__ISCRIZIONE_VERSION__ &middot; __ISCRIZIONE_DATE__</footer>
+<footer class="site-footer">v1.2.0 &middot; 2026-10-23</footer>
 
 <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
 <script>
@@ -471,6 +471,7 @@
     var LESSON_OPTIONS_URL = 'https://school.musicproeventi.it/api/iscrizione/lesson-options';
     var lessonOptionsCourses = [];
     var lessonOptionsLoaded = false;
+    var pendingLessonFieldsRestore = null;
     var isRinnovoAssociato = false;
     var quotaGiaPagata = false;
     var PENDING_KEY = 'mp_iscrizione_pending_v1';
@@ -665,6 +666,10 @@
                 lessonOptionsLoaded = lessonOptionsCourses.length > 0;
                 fillLessonCourseSelect();
                 syncLessonsFieldsVisibility();
+                if (pendingLessonFieldsRestore) {
+                    applyLessonFieldsFromStored(pendingLessonFieldsRestore);
+                    pendingLessonFieldsRestore = null;
+                }
             })
             .catch(function() {
                 lessonOptionsLoaded = false;
@@ -697,6 +702,10 @@
         }
         syncLessonsFieldsVisibility();
         var courseId = fields.lesson_course_id != null ? String(fields.lesson_course_id) : '';
+        if (courseId && !lessonOptionsLoaded) {
+            pendingLessonFieldsRestore = fields;
+            return;
+        }
         var teacherId = fields.lesson_teacher_member_id != null ? String(fields.lesson_teacher_member_id) : '';
         if (courseId) fillLessonCourseSelect(courseId);
         if (teacherId) refillLessonTeacherSelect(teacherId);

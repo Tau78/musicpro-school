@@ -7,10 +7,14 @@ import {
   fiscalReceiptsCsv,
   formatEuro,
   getFiscalReceipt,
+  FISCAL_RECEIPT_SECTION_CODES,
+  fiscalReceiptSectionFilterCodes,
+  fiscalReceiptSectionLabel,
   listFiscalReceipts,
   replaceFiscalReceipt,
   todayInRome,
   type FiscalReceiptRow,
+  type FiscalReceiptSectionCode,
 } from "@musicpro/database";
 
 import {
@@ -22,7 +26,7 @@ import { generateFiscalReceiptPdf } from "@/lib/lezioni/fiscal-receipt-pdf";
 import { createClient } from "@/lib/supabase/client";
 
 type ReceiptStatus = FiscalReceiptRow["status"] | "annullata";
-type SectionFilter = "all" | "QU" | "SA" | "LE" | "TEST";
+type SectionFilter = "all" | FiscalReceiptSectionCode;
 type PeriodPreset = "last_month" | "quarter" | "year" | "custom";
 
 const inputClass =
@@ -30,10 +34,10 @@ const inputClass =
 
 const SECTION_CHIPS: { id: SectionFilter; label: string }[] = [
   { id: "all", label: "Tutte" },
-  { id: "QU", label: "QU" },
-  { id: "SA", label: "SA" },
-  { id: "LE", label: "LE" },
-  { id: "TEST", label: "TEST" },
+  ...FISCAL_RECEIPT_SECTION_CODES.map((id) => ({
+    id,
+    label: id,
+  })),
 ];
 
 const PERIOD_OPTIONS: { id: PeriodPreset; label: string }[] = [
@@ -130,8 +134,7 @@ function statusLabel(status: ReceiptStatus): string {
 }
 
 function receiptSection(row: FiscalReceiptRow): string {
-  const part = row.code.split("/")[0]?.trim();
-  return part || "S";
+  return row.section?.trim() || row.code.split("/")[0]?.trim() || "SCH";
 }
 
 function bytesToBase64(bytes: Uint8Array): string {
@@ -235,7 +238,8 @@ export function FiscalReceiptsPanel({
 
   const filteredRows = useMemo(() => {
     if (sectionFilter === "all") return rows;
-    return rows.filter((row) => receiptSection(row) === sectionFilter);
+    const codes = fiscalReceiptSectionFilterCodes(sectionFilter);
+    return rows.filter((row) => codes.includes(receiptSection(row)));
   }, [rows, sectionFilter]);
 
   const issuedRows = useMemo(
@@ -411,6 +415,11 @@ export function FiscalReceiptsPanel({
             type="button"
             onClick={() => setSectionFilter(chip.id)}
             className={chipClass(sectionFilter === chip.id)}
+            title={
+              chip.id === "all"
+                ? "Tutti i sezionali"
+                : fiscalReceiptSectionLabel(chip.id)
+            }
           >
             {chip.label}
           </button>

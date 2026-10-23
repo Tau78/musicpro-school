@@ -25,6 +25,8 @@ export interface StaffDashboardHubProps {
   canManageShop?: boolean;
   pendingApprovalCount: number;
   codaCount: number;
+  /** Dove porta il numerino Lezioni: coda operativa o richieste corso. */
+  lessonsAlertHref?: string;
   arrearsCount: number;
   upcomingBookings: AdminBookingListItem[];
   bookingRooms?: Room[];
@@ -52,6 +54,8 @@ function ActionChip({
   title,
   description,
   badge,
+  countBadge,
+  countAria = "da approvare",
 }: {
   href: string;
   emoji: string;
@@ -59,14 +63,36 @@ function ActionChip({
   title: string;
   description: string;
   badge?: string;
+  /** Numerino bianco su fondo rosso. */
+  countBadge?: number;
+  countAria?: string;
 }) {
+  const countLabel =
+    countBadge != null && countBadge > 0
+      ? countBadge > 99
+        ? "99+"
+        : String(countBadge)
+      : null;
+
   return (
     <Link
       href={href}
       className="glass-card group relative flex min-h-[4.5rem] items-start gap-2.5 p-3 transition hover:border-[var(--brand)]/20"
     >
+      {countLabel ? (
+        <span
+          className="absolute right-2 top-2 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[11px] font-semibold leading-none text-white"
+          aria-label={`${countLabel} ${countAria}`}
+        >
+          {countLabel}
+        </span>
+      ) : null}
       {badge ? (
-        <span className="absolute right-2 top-2 max-w-[46%] truncate rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900">
+        <span
+          className={`absolute top-2 max-w-[46%] truncate rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900 ${
+            countLabel ? "right-9" : "right-2"
+          }`}
+        >
           {badge}
         </span>
       ) : null}
@@ -75,7 +101,11 @@ function ActionChip({
       >
         {emoji}
       </span>
-      <div className={`min-w-0 ${badge ? "pr-14" : ""}`}>
+      <div
+        className={`min-w-0 ${
+          countLabel && badge ? "pr-20" : countLabel ? "pr-8" : badge ? "pr-14" : ""
+        }`}
+      >
         <p className="text-sm font-semibold text-[var(--brand)] group-hover:underline">
           {title}
         </p>
@@ -128,6 +158,7 @@ export function StaffDashboardHub({
   canManageShop = false,
   pendingApprovalCount,
   codaCount,
+  lessonsAlertHref = "/admin/lezioni/coda",
   arrearsCount,
   upcomingBookings,
   bookingRooms = [],
@@ -145,7 +176,7 @@ export function StaffDashboardHub({
     : "/lezioni/oggi";
   const lessonsHubHref = showStaffLessons
     ? codaCount > 0
-      ? "/admin/lezioni/coda"
+      ? lessonsAlertHref
       : "/admin/lezioni/oggi"
     : "/lezioni/oggi";
   const courseDetailBasePath = showStaffLessons
@@ -164,8 +195,8 @@ export function StaffDashboardHub({
   }
   if (showStaffLessons && codaCount > 0) {
     todoItems.push({
-      href: "/admin/lezioni/coda",
-      label: `${codaCount} in coda`,
+      href: lessonsAlertHref,
+      label: `${codaCount} da fare`,
     });
   }
   if (showStaffLessons && arrearsCount > 0) {
@@ -176,13 +207,10 @@ export function StaffDashboardHub({
   }
 
   const lessonsBadgeParts: string[] = [];
-  if (showStaffLessons && codaCount > 0) {
-    lessonsBadgeParts.push(`${codaCount} coda`);
-  }
   if (arrearsCount > 0) {
     lessonsBadgeParts.push(`${arrearsCount} da segnare`);
   }
-  if (todayLessons.length > 0 && lessonsBadgeParts.length === 0) {
+  if (todayLessons.length > 0 && lessonsBadgeParts.length === 0 && codaCount === 0) {
     lessonsBadgeParts.push(`${todayLessons.length} oggi`);
   }
 
@@ -202,11 +230,7 @@ export function StaffDashboardHub({
       emojiBg="bg-[var(--brand-accent)]/15"
       title="Lista prenotazioni"
       description="Approva, modifica, cerca"
-      badge={
-        pendingApprovalCount > 0
-          ? `${pendingApprovalCount} da approvare`
-          : undefined
-      }
+      countBadge={pendingApprovalCount}
     />
   ) : null;
 
@@ -223,6 +247,8 @@ export function StaffDashboardHub({
             ? `${todayLessons.length} in programma`
             : "Registro e presenze"
       }
+      countBadge={showStaffLessons ? codaCount : 0}
+      countAria="in attesa"
       badge={
         lessonsBadgeParts.length > 0
           ? lessonsBadgeParts.join(" · ")

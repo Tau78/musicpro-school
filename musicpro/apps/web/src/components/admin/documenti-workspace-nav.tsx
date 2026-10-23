@@ -28,6 +28,7 @@ function resolveActiveHref(
 
 function buildDocumentiGroups(flags: {
   showAssociati: boolean;
+  showRicevute: boolean;
   showVerbali: boolean;
   showCespiti: boolean;
   showPermessi: boolean;
@@ -37,6 +38,12 @@ function buildDocumentiGroups(flags: {
     registriItems.push({
       href: DOCUMENTI_SUBSECTION_HREFS.associati,
       label: "Libro Associati",
+    });
+  }
+  if (flags.showRicevute) {
+    registriItems.push({
+      href: DOCUMENTI_SUBSECTION_HREFS.ricevute,
+      label: "Ricevute",
     });
   }
   if (flags.showVerbali) {
@@ -129,6 +136,7 @@ function IconLock({ className = "h-3.5 w-3.5" }: { className?: string }) {
 
 const ITEM_ICONS: Record<string, ReactNode> = {
   "Libro Associati": <IconBook />,
+  Ricevute: <IconFile />,
   Verbali: <IconFile />,
   "Libro Cespiti": <IconBook />,
   Permessi: <IconLock />,
@@ -136,11 +144,13 @@ const ITEM_ICONS: Record<string, ReactNode> = {
 
 export function DocumentiWorkspaceNav({
   showAssociati,
+  showRicevute,
   showVerbali,
   showCespiti,
   showPermessi,
 }: {
   showAssociati: boolean;
+  showRicevute: boolean;
   showVerbali: boolean;
   showCespiti: boolean;
   showPermessi: boolean;
@@ -150,11 +160,12 @@ export function DocumentiWorkspaceNav({
     () =>
       buildDocumentiGroups({
         showAssociati,
+        showRicevute,
         showVerbali,
         showCespiti,
         showPermessi,
       }),
-    [showAssociati, showVerbali, showCespiti, showPermessi],
+    [showAssociati, showRicevute, showVerbali, showCespiti, showPermessi],
   );
   const activeHref = useMemo(
     () => resolveActiveHref(pathname, groups),
