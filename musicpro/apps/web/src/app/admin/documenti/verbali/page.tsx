@@ -6,7 +6,10 @@ import {
   canAccessDocumentiSubsection,
   getDocumentiSegreteriaFlags,
 } from "@/lib/admin/documenti-permissions";
-import { firstDocumentiHref } from "@/lib/admin/documenti-nav";
+import {
+  buildDocumentiNavFlags,
+  firstDocumentiHref,
+} from "@/lib/admin/documenti-nav";
 import { createClient } from "@/lib/supabase/server";
 
 const CASELLARIO_CATEGORIES = [
@@ -37,20 +40,7 @@ export default async function VerbaliPage() {
     !canAccessDocumentiSubsection(member.roles, "verbali", flags)
   ) {
     redirect(
-      firstDocumentiHref({
-        showAssociati: canAccessDocumentiSubsection(
-          member?.roles ?? [],
-          "libro_associati",
-          flags,
-        ),
-        showVerbali: false,
-        showCespiti: canAccessDocumentiSubsection(
-          member?.roles ?? [],
-          "libro_cespiti",
-          flags,
-        ),
-        showPermessi: false,
-      }),
+      firstDocumentiHref(buildDocumentiNavFlags(member?.roles ?? [], flags)),
     );
   }
 

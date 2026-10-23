@@ -3,7 +3,7 @@ import { cache } from "react";
 import { listAppSettings } from "@musicpro/database";
 import { MemberRole, type MemberRoleValue } from "@musicpro/shared";
 
-import { canManageSettings } from "@/lib/admin/roles";
+import { canManageMembers, canManageSettings } from "@/lib/admin/roles";
 import { createClient } from "@/lib/supabase/server";
 
 export type DocumentiSubsection =
@@ -79,12 +79,20 @@ export function canManageDocumentiPermissions(
   return roles.includes(MemberRole.Admin);
 }
 
+/** Registro ricevute fiscali (segreteria / admin). */
+export function canAccessDocumentiRicevute(
+  roles: MemberRoleValue[],
+): boolean {
+  return canManageMembers(roles);
+}
+
 export function hasAnyDocumentiSubsection(
   roles: MemberRoleValue[],
   flags: DocumentiSegreteriaFlags,
 ): boolean {
   if (roles.includes(MemberRole.Admin)) return true;
   if (roles.includes(MemberRole.Collaboratore)) return true;
+  if (canAccessDocumentiRicevute(roles)) return true;
   if (!canManageSettings(roles)) return false;
   return flags.libro_associati || flags.verbali || flags.libro_cespiti;
 }

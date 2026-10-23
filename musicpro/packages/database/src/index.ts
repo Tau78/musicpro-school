@@ -657,6 +657,15 @@ export type {
   FiscalReceiptSourceType,
 } from "./lessons-receipts";
 export {
+  FISCAL_RECEIPT_LEGACY_SECTION,
+  FISCAL_RECEIPT_SECTION,
+  FISCAL_RECEIPT_SECTION_CODES,
+  FISCAL_RECEIPT_SECTION_LABELS,
+  fiscalReceiptSectionFilterCodes,
+  fiscalReceiptSectionLabel,
+} from "./fiscal-receipt-sections";
+export type { FiscalReceiptSectionCode } from "./fiscal-receipt-sections";
+export {
   notifyCourseApproved,
   notifyCourseCreatedActive,
   notifyLessonScheduleChange,

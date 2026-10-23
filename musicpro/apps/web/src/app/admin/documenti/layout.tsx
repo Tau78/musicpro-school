@@ -6,6 +6,7 @@ import { MemberRole } from "@musicpro/shared";
 import { DocumentiWorkspaceNav } from "@/components/admin/documenti-workspace-nav";
 import { getAdminMember } from "@/lib/admin/current-member";
 import {
+  canAccessDocumentiRicevute,
   canAccessDocumentiSubsection,
   canManageDocumentiPermissions,
   getDocumentiSegreteriaFlags,
@@ -38,10 +39,11 @@ export default async function DocumentiLayout({
     flags,
   );
   const showPermessi = canManageDocumentiPermissions(member.roles);
+  const showRicevute = canAccessDocumentiRicevute(member.roles);
 
   const isAdmin = member.roles.includes(MemberRole.Admin);
   const hasSubsection =
-    showAssociati || showVerbali || showCespiti || showPermessi;
+    showAssociati || showRicevute || showVerbali || showCespiti || showPermessi;
 
   if (!isAdmin && !hasSubsection) {
     redirect("/dashboard?error=unauthorized");
@@ -52,6 +54,7 @@ export default async function DocumentiLayout({
       <Suspense fallback={null}>
         <DocumentiWorkspaceNav
           showAssociati={showAssociati}
+          showRicevute={showRicevute}
           showVerbali={showVerbali}
           showCespiti={showCespiti}
           showPermessi={showPermessi}

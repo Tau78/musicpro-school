@@ -9,7 +9,8 @@ export function PrenotazioniWelcomeHero() {
       </h1>
       <p className="text-lg leading-relaxed text-neutral-600">
         Benvenuto nel sistema di prenotazione delle sale prova. Scegli sala,
-        data e orario — pagamento sicuro online quando serve.
+        data e orario, procedi al pagamento con carta di credito per confermare
+        la prenotazione.
       </p>
       <ul className="space-y-3 text-sm text-neutral-600">
         <li className="flex gap-3">

@@ -32,7 +32,6 @@ export const ADMIN_LEZIONI_NAV: readonly LessonsNavGroup[] = [
     label: "Soldi",
     items: [
       { href: "/admin/lezioni/rette", label: "Rette" },
-      { href: "/admin/ricevute", label: "Ricevute" },
       { href: "/admin/lezioni/notule", label: "Notule" },
     ],
   },

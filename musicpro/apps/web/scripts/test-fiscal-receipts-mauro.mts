@@ -66,6 +66,8 @@ if (!env.RESEND_API_KEY?.trim() && !env.GOOGLE_SMTP_USER?.trim()) {
 }
 
 const sendOnly = process.argv.includes("--send-only");
+const resendArg = process.argv.find((a) => a.startsWith("--resend="));
+const resendCode = resendArg?.slice("--resend=".length).trim();
 
 async function emailReceiptToTestInbox(
   receiptId: string,
@@ -76,7 +78,7 @@ async function emailReceiptToTestInbox(
   const pdf = await generateFiscalReceiptPdf(row);
   const delivery = await sendEnrollmentEmail({
     to: [TEST_EMAIL],
-    subject: `[TEST] Ricevuta ${code} — MusicPro School`,
+    subject: `[TEST layout] Ricevuta ${code} — MusicPro School`,
     text: [
       "Ciao Mauro,",
       "",
@@ -113,6 +115,21 @@ function logStep(label: string, ok: boolean, detail: string) {
 }
 
 async function main() {
+  if (resendCode) {
+    const { data: rec } = await service
+      .from("fiscal_receipts")
+      .select("id, code")
+      .eq("code", resendCode)
+      .maybeSingle();
+    if (!rec) {
+      console.error(`Ricevuta ${resendCode} non trovata`);
+      process.exit(1);
+    }
+    const sent = await emailReceiptToTestInbox(rec.id, rec.code);
+    console.log(sent ? `OK → ${TEST_EMAIL}` : "FAIL");
+    process.exit(sent ? 0 : 1);
+  }
+
   if (sendOnly) {
     const { data: member } = await service
       .from("members")

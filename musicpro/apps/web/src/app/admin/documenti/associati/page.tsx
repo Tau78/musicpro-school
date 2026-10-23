@@ -8,7 +8,10 @@ import {
   canAccessDocumentiSubsection,
   getDocumentiSegreteriaFlags,
 } from "@/lib/admin/documenti-permissions";
-import { firstDocumentiHref } from "@/lib/admin/documenti-nav";
+import {
+  buildDocumentiNavFlags,
+  firstDocumentiHref,
+} from "@/lib/admin/documenti-nav";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function DocumentiLibroAssociatiPage() {
@@ -21,20 +24,9 @@ export default async function DocumentiLibroAssociatiPage() {
     !canAccessDocumentiSubsection(member.roles, "libro_associati", flags)
   ) {
     redirect(
-      firstDocumentiHref({
-        showAssociati: false,
-        showVerbali: canAccessDocumentiSubsection(
-          member?.roles ?? [],
-          "verbali",
-          flags,
-        ),
-        showCespiti: canAccessDocumentiSubsection(
-          member?.roles ?? [],
-          "libro_cespiti",
-          flags,
-        ),
-        showPermessi: false,
-      }),
+      firstDocumentiHref(
+        buildDocumentiNavFlags(member?.roles ?? [], flags),
+      ),
     );
   }
 
