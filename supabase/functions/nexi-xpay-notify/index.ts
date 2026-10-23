@@ -129,6 +129,47 @@ async function afterRoomPaid(
   }
 }
 
+function triggerCreditShopReceipt(codTrans: string): void {
+  const id = codTrans.trim();
+  if (!id) return;
+  const cronSecret = Deno.env.get('CRON_SECRET') ?? '';
+  if (!cronSecret) {
+    console.error('[nexi-xpay-notify] ricevuta shop saltata: manca CRON_SECRET');
+    return;
+  }
+  const appUrl = internalAppUrl(edgeUrlEnvFromDeno());
+  const run = async () => {
+    try {
+      const emitRes = await fetch(`${appUrl}/api/shop/receipts/from-purchase`, {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${cronSecret}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ codTrans: id }),
+      });
+      if (!emitRes.ok) {
+        console.error(
+          '[nexi-xpay-notify] shop receipt HTTP',
+          emitRes.status,
+          await emitRes.text(),
+        );
+      }
+    } catch (emitError) {
+      console.error(
+        '[nexi-xpay-notify] shop receipt',
+        emitError instanceof Error ? emitError.message : String(emitError),
+      );
+    }
+  };
+  const pending = run();
+  try {
+    EdgeRuntime.waitUntil(pending);
+  } catch {
+    void pending;
+  }
+}
+
 function triggerLessonPackReceipt(paymentId: string): void {
   const id = paymentId.trim();
   if (!id) return;
@@ -258,6 +299,10 @@ Deno.serve(async (req) => {
         void afterRoomPaid(service, bookingId);
       }
     }
+  }
+
+  if (flow === 'shop_credit_package') {
+    triggerCreditShopReceipt(codTrans);
   }
 
   if (flow === 'lesson_pack' && !duplicate) {

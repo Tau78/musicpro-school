@@ -2,11 +2,16 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
   emailFiscalReceiptCopy,
+  emitFiscalReceiptForCreditPurchase,
   emitFiscalReceiptForPayment,
   emitFiscalReceiptForQuotaPayment,
   emitFiscalReceiptForRoomBooking,
+  formatCreditsCount,
+  formatEuro,
   getFiscalReceipt,
+  getMemberCreditBalance,
   markFiscalReceiptEmailed,
+  sendLessonFamilyEmail,
   type CourseMutationResult,
   type Database,
   type EmitFiscalReceiptForQuotaInput,
@@ -147,6 +152,149 @@ export async function fiscalReceiptAttachmentForRoomBooking(
   return ensureFiscalReceiptAttachment(client, () =>
     emitFiscalReceiptForRoomBooking(client, { bookingId }),
   );
+}
+
+function creditShopMethodLabel(method: string | null | undefined): string {
+  if (method === "contanti") return "Contanti";
+  if (method === "bonifico") return "Bonifico";
+  return "Carta";
+}
+
+function creditShopDateLabel(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const match = iso.slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return iso;
+  return `${match[3]}/${match[2]}/${match[1]}`;
+}
+
+async function spendableCredits(
+  client: ReceiptsClient,
+  memberId: string,
+): Promise<number | null> {
+  try {
+    const balance = await getMemberCreditBalance(client, memberId);
+    return balance.available;
+  } catch {
+    const { data, error } = await client
+      .from("credit_transactions")
+      .select("amount")
+      .eq("member_id", memberId);
+    if (error || !data) return null;
+    const sum = data.reduce((total, row) => total + Number(row.amount), 0);
+    return Math.round(sum * 100) / 100;
+  }
+}
+
+/** Emette la ricevuta shop (se l'importo è positivo) e la manda all'associato col saldo. */
+export async function issueAndEmailCreditShopPurchase(
+  client: ReceiptsClient,
+  purchaseId: string,
+  actorMemberId?: string | null,
+): Promise<CourseMutationResult> {
+  const id = purchaseId.trim();
+  if (!id) {
+    return { success: false, errorMessage: "Manca l'acquisto crediti." };
+  }
+
+  const { data: purchase, error: purchaseError } = await client
+    .from("credit_purchases")
+    .select(
+      "id, member_id, credits_granted, amount_paid_eur, payment_status, payment_method, paid_on, created_at",
+    )
+    .eq("id", id)
+    .maybeSingle();
+  if (purchaseError) {
+    return {
+      success: false,
+      errorMessage: purchaseError.message || "Impossibile caricare l'acquisto.",
+    };
+  }
+  if (!purchase) {
+    return { success: false, errorMessage: "Acquisto crediti non trovato." };
+  }
+  if (purchase.payment_status !== "paid") {
+    return { success: false, errorMessage: "L'acquisto crediti non è pagato." };
+  }
+
+  const amountEur = Math.round(Number(purchase.amount_paid_eur) * 100) / 100;
+  let receipt: FiscalReceiptRow | null = null;
+
+  if (amountEur > 0) {
+    const emitted = await emitFiscalReceiptForCreditPurchase(client, {
+      purchaseId: purchase.id,
+      actorMemberId,
+    });
+    if (!emitted.success || !emitted.id) return emitted;
+    receipt = await getFiscalReceipt(client, emitted.id);
+    if (!receipt) {
+      return {
+        success: false,
+        errorMessage: "Ricevuta emessa ma non ricaricata.",
+        id: emitted.id,
+      };
+    }
+    if (receipt.emailedAt) return { success: true, id: receipt.id };
+  }
+
+  const { data: member } = await client
+    .from("members")
+    .select("first_name")
+    .eq("id", purchase.member_id)
+    .maybeSingle();
+  const greeting = member?.first_name?.trim() || "Ciao";
+  const available = await spendableCredits(client, purchase.member_id);
+  const paidOn = purchase.paid_on || purchase.created_at;
+
+  const lines = [
+    greeting === "Ciao" ? "Ciao," : `Ciao ${greeting},`,
+    "",
+    "l'acquisto crediti è andato a buon fine.",
+    "",
+    `Data: ${creditShopDateLabel(paidOn)}`,
+    `Metodo: ${creditShopMethodLabel(purchase.payment_method)}`,
+    `Importo: ${formatEuro(amountEur)}`,
+    `Crediti caricati: ${formatCreditsCount(Number(purchase.credits_granted))}`,
+    available == null
+      ? "Saldo crediti aggiornato: non disponibile"
+      : `Saldo crediti aggiornato: ${formatCreditsCount(available)}`,
+    "",
+  ];
+  if (receipt) {
+    lines.push(`In allegato la ricevuta ${receipt.code}.`, "");
+  }
+  lines.push("Grazie,", "MusicPro School");
+
+  const pdf = receipt ? await generateFiscalReceiptPdf(receipt) : null;
+  const result = await sendLessonFamilyEmail(client, purchase.member_id, {
+    subject: receipt
+      ? `Ricevuta crediti ${receipt.code} — MusicPro School`
+      : "Acquisto crediti — MusicPro School",
+    body: lines.join("\n"),
+    attachments: pdf
+      ? [
+          {
+            filename: pdf.filename,
+            contentBase64: bytesToBase64(pdf.bytes),
+          },
+        ]
+      : undefined,
+  });
+
+  if (result.sent === 0) {
+    return {
+      success: false,
+      errorMessage:
+        result.warnings.join(" ") || "Impossibile inviare l'email dei crediti.",
+      id: receipt?.id,
+    };
+  }
+
+  if (receipt) {
+    const marked = await markFiscalReceiptEmailed(client, receipt.id);
+    if (!marked.success) return marked;
+  }
+
+  return { success: true, id: receipt?.id, warnings: result.warnings };
 }
 
 export async function markReceiptEmailedIfSent(
