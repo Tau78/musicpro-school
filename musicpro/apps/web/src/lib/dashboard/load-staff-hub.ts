@@ -3,11 +3,14 @@ import {
   getCreditsCirculationSummary,
   getMemberCreditBalance,
   listAdminBookings,
+  listIntentsForStaff,
   listLessonsInRange,
   listLessonsOnDate,
+  listPendingCourseCloseRequests,
   listPendingCourses,
   listPendingLessonChangeRequests,
   listRooms,
+  listTeacherCashAdvances,
   type Room,
 } from "@musicpro/database";
 
@@ -45,6 +48,9 @@ export async function loadStaffDashboardHub(
     bookingRooms,
     pendingCourses,
     changeRequests,
+    cashAdvances,
+    closeRequests,
+    lessonIntents,
     todayLessons,
     arrearsRange,
     creditBalance,
@@ -64,6 +70,15 @@ export async function loadStaffDashboardHub(
       : Promise.resolve([]),
     showStaffLessons
       ? listPendingLessonChangeRequests(supabase)
+      : Promise.resolve([]),
+    showStaffLessons
+      ? listTeacherCashAdvances(supabase, { status: "pending" })
+      : Promise.resolve([]),
+    showStaffLessons
+      ? listPendingCourseCloseRequests(supabase)
+      : Promise.resolve([]),
+    showStaffLessons
+      ? listIntentsForStaff(supabase)
       : Promise.resolve([]),
     showLessons
       ? listLessonsOnDate(supabase, today, {
@@ -92,6 +107,20 @@ export async function loadStaffDashboardHub(
       ).length
     : 0;
 
+  const lessonDeskCount =
+    pendingCourses.length +
+    changeRequests.length +
+    cashAdvances.length +
+    closeRequests.length;
+  const lessonIntentCount = lessonIntents.filter(
+    (intent) => intent.paymentState !== "converted",
+  ).length;
+  const codaCount = lessonDeskCount + lessonIntentCount;
+  const lessonsAlertHref =
+    lessonDeskCount > 0
+      ? "/admin/lezioni/coda"
+      : "/admin/lezioni/richieste-iscrizione";
+
   const creditsInCirculation =
     circulation == null ? null : circulation.totalAvailable;
 
@@ -100,7 +129,8 @@ export async function loadStaffDashboardHub(
     showStaffLessons,
     showTeacherLessons,
     pendingApprovalCount,
-    codaCount: pendingCourses.length + changeRequests.length,
+    codaCount,
+    lessonsAlertHref,
     arrearsCount,
     upcomingBookings: upcomingBookingsRaw.slice(0, 4),
     bookingRooms,
