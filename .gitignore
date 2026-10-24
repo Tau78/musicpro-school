@@ -59,9 +59,12 @@ docs/scuola-semplice/archivio/*.csv
 
 # Android local
 school-shell-android/local.properties
+school-shell-android/keystore.properties
 school-shell-android/**/*.jks
 school-shell-android/**/*.keystore
-
+school-shell-android/**/*.p12
+.env.play
+google-play-service-account.json
 
 school-shell-android/.gradle/
 school-shell-android/build/
