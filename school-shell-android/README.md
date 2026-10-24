@@ -1,30 +1,50 @@
-# MusicPro School — guscio Android (Play)
+# MusicPro School — guscio Android (Play, pubblico)
 
-App **nativa** (Kotlin + WebView, niente Expo/EAS). Apre la dashboard web:
+App **nativa** (Kotlin + WebView, niente Expo/EAS). Apre:
 
 `https://school.musicproeventi.it/dashboard`
 
 | Campo | Valore |
 | --- | --- |
 | applicationId | `it.musicproeventi.school` |
-| versionName | `1.1.0` |
+| versionName / versionCode | `1.1.0` / `1` |
 | Service account Play | `musicpro-play-submit@rewavier-app.iam.gserviceaccount.com` |
+| Upload keystore | `~/.config/musicpro-school/upload.p12` (+ `keystore.env`) — **backup** |
+| Distribuzione | **Pubblica** su Play (prove + associazione) |
 
-## Build AAB
+Listing: `store/android/it-IT/` · Playbook primo rilascio: `store/android/PLAY_FIRST_PUBLISH.md`
 
-Serve Android SDK (`ANDROID_HOME`) + JDK 17+.
+## Build AAB firmato
+
+Serve Android SDK (`ANDROID_HOME`) + **JDK 17** (`openjdk@17`, non OpenJDK 27).
 
 ```bash
 export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
-export PATH="/opt/homebrew/opt/openjdk/bin:$PATH"
-# una tantum (serve rete a dl.google.com):
-# sdkmanager --sdk_root="$ANDROID_HOME" "platforms;android-35" "build-tools;35.0.0" "platform-tools"
-bash scripts/build-aab.sh
-# oppure: npm run android:aab
+export JAVA_HOME=/opt/homebrew/opt/openjdk@17
+export PATH="$JAVA_HOME/bin:$PATH"
+# keystore.properties viene generato da ~/.config/musicpro-school/keystore.env
+npm run android:aab
 ```
 
-Su questo Mac mini (2026-10-01) `sdkmanager` non raggiunge `dl.google.com` → pacchetti SDK non scaricabili finché non c’è egress. Il codice del guscio è pronto; l’AAB si genera quando la rete Google è ok.
+AAB: `school-shell-android/app/build/outputs/bundle/release/app-release.aab`
 
-Listing: `store/android/it-IT/`.
+### Nota Mac mini (DNS Java → Google)
 
-Prima pubblicazione: crea l’app in Play Console (`it.musicproeventi.school`), invita `musicpro-play-submit@rewavier-app.iam.gserviceaccount.com` con permesso Release, genera upload keystore, upload AAB (internal → production).
+Su questo Mac `java` non risolve `dl.google.com` (curl sì). Workaround già usato: mirror Maven in `/tmp/android-maven-local` (curl) + `settings.gradle.kts` che lo preferisce se presente. Build tools 34: zip `build-tools_r34-macosx.zip` in `$ANDROID_HOME/build-tools/34.0.0`.
+
+## Upload Play
+
+Dopo che l’app esiste in Play Console e il SA è invitato:
+
+```bash
+node scripts/play-submit.mjs                 # dry-run
+PLAY_TRACK=internal node scripts/play-submit.mjs --yes
+PLAY_TRACK=production PLAY_STATUS=draft node scripts/play-submit.mjs --yes
+```
+
+## Prima pubblicazione (manuale Console)
+
+1. Crea app `it.musicproeventi.school` (pubblica, gratis, IT).
+2. Invita il SA con permesso Release.
+3. Privacy, Data safety, IARC, screenshot, feature graphic.
+4. Carica AAB → Production → Invia per revisione.

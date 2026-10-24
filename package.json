@@ -44,7 +44,9 @@
     "smoke:lesson-pack": "node scripts/smoke-lesson-pack-nexi.mjs",
     "smoke:lesson-pack:live": "node scripts/smoke-lesson-pack-nexi.mjs --live",
     "asc:prepare-unlisted": "node scripts/asc-prepare-unlisted-resubmit.mjs",
-    "android:aab": "bash school-shell-android/scripts/build-aab.sh"
+    "android:aab": "bash school-shell-android/scripts/build-aab.sh",
+    "play:submit": "node scripts/play-submit.mjs",
+    "play:submit:yes": "node scripts/play-submit.mjs --yes"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.8",
