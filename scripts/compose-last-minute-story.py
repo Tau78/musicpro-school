@@ -627,89 +627,146 @@ def _slot_rows_from_args(args: argparse.Namespace) -> list[tuple[str, str, str]]
     return rows
 
 
+DIGEST_BG = ROOT / "docs" / "assets" / "school" / "lm-digest-bg.jpg"
+
+
+def _left_scrim(base: Image.Image) -> Image.Image:
+    """Più scuro a sinistra (testo), kit visibile a destra."""
+    scrim = Image.new("L", (W, H))
+    px = scrim.load()
+    for x in range(W):
+        t = x / max(W - 1, 1)
+        a = int(210 * (1.0 - min(1.0, t * 1.15) ** 1.35))
+        for y in range(H):
+            px[x, y] = a
+    overlay = Image.new("RGBA", (W, H), (*NAVY_DARK, 255))
+    overlay.putalpha(scrim)
+    return Image.alpha_composite(base.convert("RGBA"), overlay)
+
+
+def _fit_line_width(path: Path, text: str, max_w: int, start: int, min_size: int = 48) -> ImageFont.FreeTypeFont:
+    dummy = ImageDraw.Draw(Image.new("RGB", (8, 8)))
+    size = start
+    while size > min_size:
+        font = load_font(path, size)
+        if text_size(dummy, text, font)[0] <= max_w:
+            return font
+        size -= 4
+    return load_font(path, min_size)
+
+
 def compose_digest(args: argparse.Namespace) -> Image.Image:
-    """LAST MINUTE in evidenza, niente logo, copy + esempi slot. Testo dal brief."""
+    """Poster 9:16: LAST MINUTE enorme, scena sala, card slot. Niente logo."""
     require_fonts()
     rows = _slot_rows_from_args(args)
-    canvas = vertical_gradient(NAVY_DARK, NAVY).convert("RGBA")
-    canvas = add_accent_glow(canvas, ROOM_ACCENT["Rossa"], center=(280, 1600), radius=420, alpha=55)
-    canvas = add_accent_glow(canvas, ROOM_ACCENT["Verde"], center=(820, 1500), radius=380, alpha=50)
-    draw = ImageDraw.Draw(canvas)
-    cx = SAFE_X + SAFE_W / 2
-    y = SAFE_Y + 8
-    variant = getattr(args, "variant", "manifesto") or "manifesto"
+    bg_path = Path(args.bg).expanduser() if args.bg else DIGEST_BG
+    if bg_path.is_file():
+        canvas = cover_crop(Image.open(bg_path), W, H)
+        canvas = _left_scrim(canvas)
+    else:
+        canvas = vertical_gradient(NAVY_DARK, NAVY).convert("RGBA")
+        canvas = add_accent_glow(canvas, GOLD, center=(200, 420), radius=520, alpha=70)
 
+    draw = ImageDraw.Draw(canvas)
+    x0 = SAFE_X
+    y = 252
+    max_w = SAFE_W
     kicker = (args.kicker or "LAST MINUTE").strip().upper()
-    path = FONT_BEBAS if FONT_BEBAS.is_file() else FONT_EXTRABOLD
-    title_size = 188 if variant == "manifesto" else 156
-    title_font = load_font(path, title_size)
-    _kw, kh = draw_tracked(
-        draw,
-        (cx, y),
-        kicker,
-        title_font,
-        GOLD,
-        tracking=12.0 if path == FONT_BEBAS else 2.0,
-        anchor="mt",
-        stroke_width=1,
-        stroke_fill=BLACK,
-    )
-    y += kh + 22
+    words = kicker.split()
+    line1 = words[0] if words else "LAST"
+    line2 = " ".join(words[1:]) if len(words) > 1 else ""
+    title_path = FONT_BEBAS if FONT_BEBAS.is_file() else FONT_EXTRABOLD
+
+    f1 = _fit_line_width(title_path, line1, max_w + 40, 250)
+    draw.text((x0 - 4, y), line1, font=f1, fill=GOLD, anchor="lt", stroke_width=2, stroke_fill=BLACK)
+    _w, h1 = text_size(draw, line1, f1)
+    y += h1 - 18
+    if line2:
+        f2 = _fit_line_width(title_path, line2, max_w + 40, 250)
+        draw.text((x0 - 4, y), line2, font=f2, fill=WHITE, anchor="lt", stroke_width=2, stroke_fill=BLACK)
+        _w, h2 = text_size(draw, line2, f2)
+        y += h2 + 8
+    draw.rectangle((x0, y, x0 + 160, y + 6), fill=GOLD)
+    y += 28
 
     lead = (
         args.subtitle
         or "Approfitta del LAST MINUTE per prenotare alcuni slot della sala prove."
     )
-    body_font = load_font(FONT_BOLD, 34)
-    for line in wrap_text(lead, body_font, SAFE_W - 20, max_lines=4):
-        draw_shadow_text(draw, (cx, y), line, body_font, WHITE, anchor="mt", stroke_width=2)
+    body_font = load_font(FONT_BOLD, 30)
+    for line in wrap_text(lead, body_font, 620, max_lines=4):
+        draw_shadow_text(draw, (x0, y), line, body_font, WHITE, anchor="lt", stroke_width=2)
         _tw, th = text_size(draw, line, body_font)
-        y += th + 8
+        y += th + 6
     y += 22
 
     app_line = "IN APP MUSICPRO SCHOOL"
-    app_font = load_font(FONT_EXTRABOLD, 38)
-    draw_shadow_text(draw, (cx, y), app_line, app_font, WHITE, anchor="mt", stroke_width=2)
-    _tw, th = text_size(draw, app_line, app_font)
-    y += th + 14
+    app_font = load_font(FONT_EXTRABOLD, 26)
+    tw, th = text_size(draw, app_line, app_font)
+    pad_x, pad_y = 22, 14
+    pill = (x0, y, x0 + tw + pad_x * 2, y + th + pad_y * 2)
+    draw.rounded_rectangle(pill, radius=28, fill=GOLD)
+    draw.text(
+        (x0 + pad_x, y + pad_y + th / 2 - 2),
+        app_line,
+        font=app_font,
+        fill=NAVY_DARK,
+        anchor="lm",
+    )
+    y += th + pad_y * 2 + 14
 
-    or_font = load_font(FONT_BOLD, 28)
-    draw_shadow_text(draw, (cx, y), "o sul sito", or_font, GOLD, anchor="mt", stroke_width=1)
+    or_font = load_font(FONT_BOLD, 24)
+    draw.text((x0, y), "o sul sito", font=or_font, fill=GOLD, anchor="lt")
     _tw, th = text_size(draw, "o sul sito", or_font)
-    y += th + 8
-
+    y += th + 6
     site = (getattr(args, "site", None) or "school.musicproeventi.it/prenotazioni").strip()
-    site_font = load_font(FONT_BOLD, 30)
-    draw_shadow_text(draw, (cx, y), site, site_font, WHITE, anchor="mt", stroke_width=2)
+    site_font = load_font(FONT_BOLD, 24)
+    draw_shadow_text(draw, (x0, y), site, site_font, WHITE, anchor="lt", stroke_width=1)
     _tw, th = text_size(draw, site, site_font)
-    y += th + 36
+    y += th + 28
 
     if args.date:
-        day_label = format_it_date(args.date)
-        day_font = load_font(FONT_EXTRABOLD, 36)
-        draw_shadow_text(draw, (cx, y), day_label, day_font, GOLD, anchor="mt")
+        day_label = format_it_date(args.date).upper()
+        day_font = load_font(FONT_EXTRABOLD, 22)
+        draw.text((x0, y), day_label, font=day_font, fill=GOLD, anchor="lt")
         _tw, th = text_size(draw, day_label, day_font)
-        y += th + 18
+        y += th + 16
 
-    row_font = load_font(FONT_BOLD, 36)
-    price_font = load_font(FONT_EXTRABOLD, 36)
-    row_h = 78
-    row_fill = (16, 30, 48)
+    # Raggruppa per sala → due colonne card.
+    by_sala: dict[str, list[tuple[str, str]]] = {}
     for sala, fascia, price_text in rows:
-        if y + row_h > SAFE_BOTTOM - 4:
-            break
+        by_sala.setdefault(sala, []).append((fascia, price_text))
+    salas = list(by_sala.keys())
+    gap = 16
+    col_w = (SAFE_W - gap) // 2 if len(salas) >= 2 else SAFE_W
+    card_top = y
+    header_h = 48
+    line_h = 56
+    name_font = load_font(FONT_EXTRABOLD, 22)
+    time_font = load_font(FONT_BOLD, 28)
+    price_font = load_font(FONT_EXTRABOLD, 26)
+    for i, sala in enumerate(salas):
+        items = by_sala[sala]
+        left = x0 + i * (col_w + gap)
+        right = left + col_w
+        card_h = header_h + 16 + len(items) * line_h + 12
         accent = ROOM_ACCENT[sala]
-        left = SAFE_X
-        right = SAFE_RIGHT
-        top = y
-        bot = y + row_h - 10
-        mid = (top + bot) / 2
-        draw.rounded_rectangle((left, top, right, bot), radius=16, fill=row_fill)
-        draw.rounded_rectangle((left, top, left + 14, bot), radius=6, fill=accent)
-        label = f"{sala}   {fascia}"
-        draw.text((left + 40, mid), label, font=row_font, fill=WHITE, anchor="lm")
-        draw.text((right - 28, mid), price_text, font=price_font, fill=GOLD, anchor="rm")
-        y += row_h
+        draw.rounded_rectangle((left, card_top, right, card_top + card_h), radius=22, fill=(8, 16, 28, 230))
+        draw.rounded_rectangle((left, card_top, right, card_top + header_h), radius=22, fill=accent)
+        # raddrizza il basso dell'header (solo angoli alti tondi)
+        draw.rectangle((left, card_top + 20, right, card_top + header_h), fill=accent)
+        draw.text(
+            ((left + right) / 2, card_top + header_h / 2),
+            sala.upper(),
+            font=name_font,
+            fill=WHITE,
+            anchor="mm",
+        )
+        iy = card_top + header_h + 12
+        for fascia, price_text in items:
+            draw.text((left + 18, iy + line_h / 2), fascia, font=time_font, fill=WHITE, anchor="lm")
+            draw.text((right - 16, iy + line_h / 2), price_text, font=price_font, fill=GOLD, anchor="rm")
+            iy += line_h
 
     return canvas
 
