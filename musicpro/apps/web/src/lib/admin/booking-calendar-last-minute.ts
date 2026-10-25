@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   enrichAvailabilitySlots,
   getActiveCampaignsForRoomDate,
+  getOperationalWeekSchedule,
   getRomeMinutesFromMidnight,
   getRoomAvailability,
   type Database,
@@ -42,11 +43,24 @@ async function markersForRoomDate(
   date: string,
   now: Date,
 ): Promise<BookingCalendarLastMinuteMarker[]> {
-  const [availability, campaigns] = await Promise.all([
-    getRoomAvailability(client, roomId, date, undefined, {
+  const { data: roomRow } = await client
+    .from("rooms")
+    .select("default_duration_minutes")
+    .eq("id", roomId)
+    .maybeSingle();
+
+  const anchorDuration =
+    typeof roomRow?.default_duration_minutes === "number" &&
+    roomRow.default_duration_minutes > 0
+      ? roomRow.default_duration_minutes
+      : 120;
+
+  const [availability, campaigns, operationalSchedule] = await Promise.all([
+    getRoomAvailability(client, roomId, date, anchorDuration, {
       prefetchNeighbors: false,
     }),
     getActiveCampaignsForRoomDate(client, roomId, date),
+    getOperationalWeekSchedule(client),
   ]);
 
   if (!campaigns.length) return [];
@@ -56,6 +70,7 @@ async function markersForRoomDate(
     campaigns,
     true,
     now,
+    { operationalSchedule, anchorDurationMinutes: anchorDuration },
   );
 
   const markers: BookingCalendarLastMinuteMarker[] = [];

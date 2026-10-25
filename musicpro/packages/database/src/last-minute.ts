@@ -1,6 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { getRomeDayBoundsUtc, type TimeSlot } from "./bookings";
+import {
+  getRomeDayBoundsUtc,
+  getRomeMinutesFromMidnight,
+  type TimeSlot,
+} from "./bookings";
 import type { SettingsMutationResult } from "./settings";
 import { upsertAppSetting } from "./settings";
 import type { Database } from "./types/database";
@@ -14,6 +18,9 @@ export const LAST_MINUTE_PHASE2_HOURS = 12;
 
 /** Default prodotto (percentuale su tariffa slot) finché non c'è regola admin dedicata. */
 export const LAST_MINUTE_DEFAULT_DISCOUNT_PERCENT = 30;
+
+/** Durata blocco LM commerciale (di solito = default_duration_minutes sala). */
+export const LAST_MINUTE_ANCHOR_DURATION_MINUTES = 120;
 
 export type LastMinuteCampaignPhase =
   | "phase1"
@@ -290,24 +297,127 @@ export function computeLastMinuteFinalPriceEur(basePriceEur: number): number {
   return Math.round(basePriceEur * factor * 100) / 100;
 }
 
-function slotMatchesCampaign(
-  slot: Pick<TimeSlot, "startAt" | "endAt">,
-  campaign: LastMinuteCampaign,
+function hhmmToMinutes(hhmm: string): number {
+  if (hhmm === "24:00") return 24 * 60;
+  const [h, m] = hhmm.split(":").map(Number);
+  return h * 60 + m;
+}
+
+const ROME_WEEKDAY_TO_KEY: Record<string, WeekdayKey> = {
+  Mon: "mon",
+  Tue: "tue",
+  Wed: "wed",
+  Thu: "thu",
+  Fri: "fri",
+  Sat: "sat",
+  Sun: "sun",
+};
+
+export function romeWeekdayKeyForInstant(startAtIso: string): WeekdayKey {
+  const label = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Europe/Rome",
+    weekday: "short",
+  }).format(new Date(startAtIso));
+  return ROME_WEEKDAY_TO_KEY[label] ?? "mon";
+}
+
+/**
+ * Inizio slot allineato alla griglia LM nella fascia operativa (es. 20:00 e 22:00, non 21:00).
+ */
+export function isLastMinuteAnchorStart(
+  startAtIso: string,
+  schedule: OperationalWeekSchedule,
+  anchorDurationMinutes: number = LAST_MINUTE_ANCHOR_DURATION_MINUTES,
 ): boolean {
+  const dayKey = romeWeekdayKeyForInstant(startAtIso);
+  const day = schedule[dayKey];
+  if (!day?.enabled) return false;
+
+  const bandStart = hhmmToMinutes(day.bandStart);
+  const bandEnd = hhmmToMinutes(day.bandEnd);
+  const startMin = getRomeMinutesFromMidnight(startAtIso);
+  if (!Number.isFinite(startMin)) return false;
+  if (startMin < bandStart || startMin + anchorDurationMinutes > bandEnd) {
+    return false;
+  }
+  return (startMin - bandStart) % anchorDurationMinutes === 0;
+}
+
+/** Slot esatto da anchorDuration (per cron campagne). */
+export function isLastMinuteAnchorSlot(
+  startAtIso: string,
+  endAtIso: string,
+  schedule: OperationalWeekSchedule,
+  anchorDurationMinutes: number = LAST_MINUTE_ANCHOR_DURATION_MINUTES,
+): boolean {
+  const startMs = Date.parse(startAtIso);
+  const endMs = Date.parse(endAtIso);
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return false;
+  const slotMinutes = (endMs - startMs) / 60_000;
+  if (slotMinutes !== anchorDurationMinutes) return false;
+  return isLastMinuteAnchorStart(startAtIso, schedule, anchorDurationMinutes);
+}
+
+/**
+ * Prezzo totale con LM sulle prime `anchorDurationMinutes` e listino sul resto (es. 3h = 2h scontate + 1h piena).
+ */
+export function computeLastMinuteTotalPriceEur(
+  slotPriceEur: number,
+  slotDurationMinutes: number,
+  anchorDurationMinutes: number = LAST_MINUTE_ANCHOR_DURATION_MINUTES,
+): number {
+  if (!Number.isFinite(slotPriceEur) || slotPriceEur <= 0) {
+    return slotPriceEur;
+  }
+  if (
+    !Number.isFinite(slotDurationMinutes) ||
+    slotDurationMinutes <= anchorDurationMinutes
+  ) {
+    return computeLastMinuteFinalPriceEur(slotPriceEur);
+  }
+  const anchorPortion =
+    Math.round(
+      (slotPriceEur * (anchorDurationMinutes / slotDurationMinutes)) * 100,
+    ) / 100;
+  const remainder = Math.round((slotPriceEur - anchorPortion) * 100) / 100;
   return (
-    slot.startAt === campaign.start_at && slot.endAt === campaign.end_at
+    Math.round(
+      (computeLastMinuteFinalPriceEur(anchorPortion) + remainder) * 100,
+    ) / 100
   );
+}
+
+function anchorBlockEndIso(
+  startAtIso: string,
+  anchorDurationMinutes: number,
+): string {
+  return new Date(
+    Date.parse(startAtIso) + anchorDurationMinutes * 60_000,
+  ).toISOString();
 }
 
 function findCampaignForSlot(
   campaigns: LastMinuteCampaign[],
   slot: Pick<TimeSlot, "startAt" | "endAt">,
+  anchorDurationMinutes: number = LAST_MINUTE_ANCHOR_DURATION_MINUTES,
 ): LastMinuteCampaign | null {
+  const anchorEnd = anchorBlockEndIso(slot.startAt, anchorDurationMinutes);
+  const slotMs = Date.parse(slot.endAt) - Date.parse(slot.startAt);
+  const anchorMs = anchorDurationMinutes * 60_000;
+  if (slotMs < anchorMs) return null;
+
   for (const campaign of campaigns) {
-    if (slotMatchesCampaign(slot, campaign)) return campaign;
+    if (campaign.start_at !== slot.startAt) continue;
+    if (campaign.end_at !== anchorEnd) continue;
+    return campaign;
   }
   return null;
 }
+
+export type EnrichLastMinuteOptions = {
+  operationalSchedule?: OperationalWeekSchedule;
+  anchorDurationMinutes?: number;
+};
 
 export function hoursUntilSlotStart(slotStartIso: string, now: Date): number {
   const startMs = Date.parse(slotStartIso);
@@ -341,7 +451,12 @@ export function enrichAvailabilitySlots<T extends TimeSlot>(
   campaigns: LastMinuteCampaign[],
   memberPriceEligible: boolean,
   now: Date = new Date(),
+  options?: EnrichLastMinuteOptions,
 ): Array<T & { lastMinute?: LastMinuteSlotOffer }> {
+  const anchorDuration =
+    options?.anchorDurationMinutes ?? LAST_MINUTE_ANCHOR_DURATION_MINUTES;
+  const schedule = options?.operationalSchedule;
+
   if (!memberPriceEligible) {
     return slots.map((slot) => withoutLastMinute(slot as SlotWithOptionalLm) as T);
   }
@@ -351,10 +466,20 @@ export function enrichAvailabilitySlots<T extends TimeSlot>(
       return withoutLastMinute(slot as SlotWithOptionalLm) as T;
     }
 
-    const campaign = findCampaignForSlot(campaigns, slot);
+    if (
+      schedule &&
+      !isLastMinuteAnchorStart(slot.startAt, schedule, anchorDuration)
+    ) {
+      return withoutLastMinute(slot as SlotWithOptionalLm) as T;
+    }
+
+    const campaign = findCampaignForSlot(campaigns, slot, anchorDuration);
     if (!campaign || !isWithinLastMinuteWindow(slot.startAt, now)) {
       return withoutLastMinute(slot as SlotWithOptionalLm) as T;
     }
+
+    const slotDurationMinutes =
+      (Date.parse(slot.endAt) - Date.parse(slot.startAt)) / 60_000;
 
     if (campaign.phase === "phase1") {
       return {
@@ -369,7 +494,11 @@ export function enrichAvailabilitySlots<T extends TimeSlot>(
         campaignId: campaign.id,
       };
       if (slot.priceEur != null) {
-        offer.finalPriceEur = computeLastMinuteFinalPriceEur(slot.priceEur);
+        offer.finalPriceEur = computeLastMinuteTotalPriceEur(
+          slot.priceEur,
+          slotDurationMinutes,
+          anchorDuration,
+        );
       }
       return { ...slot, lastMinute: offer };
     }
