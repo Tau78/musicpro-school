@@ -1,13 +1,15 @@
 ---
 name: file-grafici
 description: >-
-  Compone banner, card, icone, foto sale, screenshot store e sfondi senza
-  ritagliare l'originale e senza testo inventato dal modello. Use when the user
-  asks for a graphic file, banner, locandina, card, sfondo, logo, og-image,
-  app icon, foto sala, screenshot App Store, or says rifai, rigenera, più
-  cartoonesca, tutto lo sfondo, solo queste scritte, #grafico, or opens a
-  jpg/png to fix. In MusicPro School this agent is the repo graphic designer
-  and always runs ONDA with this skill.
+  Compone banner, card, icone, foto sale, screenshot store, sfondi e storie
+  last-minute Instagram/Facebook 9:16 senza ritagliare l'originale e senza
+  testo inventato dal modello. Use when the user asks for a graphic file,
+  banner, locandina, card, sfondo, logo, og-image, app icon, foto sala,
+  screenshot App Store, last minute, storie, Instagram, LM-URGENZA,
+  LM-PREZZO, or says rifai, rigenera, più cartoonesca, tutto lo sfondo,
+  solo queste scritte, #grafico, or opens a jpg/png to fix. In MusicPro
+  School this agent is the repo graphic designer and always runs ONDA
+  with this skill.
 ---
 
 # File grafici
@@ -22,6 +24,7 @@ Quando Mauro chiede un file grafico, il deliverable è il file che ha aperto. Si
 In **MusicPro School** questo agente è il grafico del repo. Ogni task grafico usa **questa skill** e **sempre ONDA** (`~/.cursor/skills/onda/`): backlog → wave → supervisione → smoke → VAI se smoke verde. Non chiedere «vuoi che faccia VAI?».
 
 Dettagli School: [reference-school.md](reference-school.md).  
+Storie last minute sale (IG/FB 9:16): [reference-storie-last-minute.md](reference-storie-last-minute.md).  
 Dettagli Eventi / Giochi: [reference-eventi.md](reference-eventi.md).
 
 ## Quale prodotto
@@ -29,9 +32,10 @@ Dettagli Eventi / Giochi: [reference-eventi.md](reference-eventi.md).
 | Repo / segnale | Reference | Palette |
 |---|---|---|
 | MusicPro School, `school.musicproeventi.it`, `school-shell`, iscrizione School | [reference-school.md](reference-school.md) | Navy `#1e3a5f` + gold `#c9a227` |
+| last minute, storie, Instagram, Facebook 9:16, `LM-URGENZA`, `LM-PREZZO`, STANZE last-minute | [reference-storie-last-minute.md](reference-storie-last-minute.md) | Navy + gold + accenti sala; **NON** glass app, **NON** iscrizione rossa |
 | APP Eventi, Giochi, Enigma, Shop gettoni, 1200×520 | [reference-eventi.md](reference-eventi.md) | Non mischiare con School |
 
-Non copiare Enigma (cubo viola, verde smeraldo, Cinzel) su materiale School. Non copiare navy/gold School su card Giochi.
+Non copiare Enigma (cubo viola, verde smeraldo, Cinzel) su materiale School. Non copiare navy/gold School su card Giochi. Non copiare glass app o CTA rosso iscrizione sulle storie last minute.
 
 ## Metodo
 
@@ -39,7 +43,7 @@ Non copiare Enigma (cubo viola, verde smeraldo, Cinzel) su materiale School. Non
 2. Se il formato di destinazione è diverso, componi una scena nuova **ispirata** all'originale. Il soggetto (personaggio, oggetto, pile) resta intero, dai bordi estremi in dentro.
 3. Le scritte ufficiali non le ridisegna il generatore di immagini: sbaglia l'italiano. Due strade:
    - stacca le lettere dal file originale (maschera colore, riquadro stretto, senza il sole o lo sfondo intorno);
-   - oppure scrivile con un font vero (Cinzel, Montserrat, Bebas in Eventi; in School titoli UI = Georgia/ui-serif, wordmark = system-ui).
+   - oppure scrivile con un font vero (Cinzel, Montserrat, Bebas in Eventi; in School titoli UI = Georgia/ui-serif, wordmark = system-ui; **storie last minute School** = Montserrat/Bebas, vedi [reference-storie-last-minute.md](reference-storie-last-minute.md)).
 4. Il generatore di immagini serve solo per la scena, senza parole. Poi si sovrappongono le scritte vere.
 5. «Tutto lo sfondo» = l'immagine copre il rettangolo fino ai bordi. Niente fascia nera, niente foto incollata a sinistra, niente lati sfocati del poster.
 6. «Solo queste scritte» = via tutto il resto (montepremi, legale, sottotitolo). Non aggiungere righe non chieste.

@@ -70,3 +70,6 @@ school-shell-android/.gradle/
 school-shell-android/build/
 school-shell-android/app/build/
 school-shell-android/local.properties
+
+# Last-minute Instagram story smoke (generated)
+docs/assets/school/storie-last-minute/_smoke*
