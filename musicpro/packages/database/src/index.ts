@@ -287,9 +287,14 @@ export {
   isMemberPriceEligible,
   getActiveCampaignsForRoomDate,
   computeLastMinuteFinalPriceEur,
+  computeLastMinuteTotalPriceEur,
+  isLastMinuteAnchorStart,
+  isLastMinuteAnchorSlot,
+  romeWeekdayKeyForInstant,
   hoursUntilSlotStart,
   isWithinLastMinuteWindow,
   enrichAvailabilitySlots,
+  LAST_MINUTE_ANCHOR_DURATION_MINUTES,
 } from "./last-minute";
 export type {
   LastMinuteCampaignPhase,
@@ -299,6 +304,7 @@ export type {
   LastMinuteCampaign,
   LastMinuteSlotOffer,
   AvailabilitySlotWithLastMinute,
+  EnrichLastMinuteOptions,
 } from "./last-minute";
 export {
   createMember,

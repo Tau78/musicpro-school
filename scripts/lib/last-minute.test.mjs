@@ -4,8 +4,10 @@ import test from "node:test";
 import {
   LAST_MINUTE_PHASE1_HOURS,
   LAST_MINUTE_PHASE2_HOURS,
+  computeLastMinuteTotalPriceEur,
   defaultOperationalWeekSchedule,
   enrichAvailabilitySlots,
+  isLastMinuteAnchorStart,
   parseOperationalWeekScheduleJson,
 } from "./last-minute.mjs";
 
@@ -117,4 +119,66 @@ test("enrichAvailabilitySlots blacklisted member stays silent", () => {
 test("product constants phase1 48h and phase2 12h", () => {
   assert.equal(LAST_MINUTE_PHASE1_HOURS, 48);
   assert.equal(LAST_MINUTE_PHASE2_HOURS, 12);
+});
+
+test("isLastMinuteAnchorStart 20:00 and 22:00 yes, 21:00 no (band 20-24)", () => {
+  const schedule = defaultOperationalWeekSchedule();
+  schedule.mon = {
+    enabled: true,
+    bandStart: "20:00",
+    bandEnd: "24:00",
+    approvalMinHoursOperational: 0,
+    autoConfirmMinHoursOperational: 0,
+  };
+  const at20 = "2026-10-26T19:00:00.000Z";
+  const at21 = "2026-10-26T20:00:00.000Z";
+  const at22 = "2026-10-26T21:00:00.000Z";
+  assert.equal(isLastMinuteAnchorStart(at20, schedule, 120), true);
+  assert.equal(isLastMinuteAnchorStart(at21, schedule, 120), false);
+  assert.equal(isLastMinuteAnchorStart(at22, schedule, 120), true);
+});
+
+test("computeLastMinuteTotalPriceEur 3h = 2h scontate + 1h listino", () => {
+  const total3h = 90;
+  const priced = computeLastMinuteTotalPriceEur(total3h, 180, 120);
+  const twoH = 60;
+  const oneH = 30;
+  const expected =
+    Math.round((twoH * 0.7 + oneH) * 100) / 100;
+  assert.equal(priced, expected);
+});
+
+test("enrich skips staggered 21-23 when schedule requires anchors", () => {
+  const now = new Date("2026-10-26T04:00:00.000Z");
+  const schedule = defaultOperationalWeekSchedule();
+  schedule.mon = {
+    enabled: true,
+    bandStart: "20:00",
+    bandEnd: "24:00",
+    approvalMinHoursOperational: 0,
+    autoConfirmMinHoursOperational: 0,
+  };
+  const slot = {
+    startAt: "2026-10-26T20:00:00.000Z",
+    endAt: "2026-10-26T22:00:00.000Z",
+    label: "21-23",
+    available: true,
+    priceEur: 50,
+  };
+  const campaigns = [
+    {
+      id: "camp-stagger",
+      start_at: slot.startAt,
+      end_at: slot.endAt,
+      phase: "phase2",
+    },
+  ];
+  const enriched = enrichAvailabilitySlots(
+    [slot],
+    campaigns,
+    true,
+    now,
+    { operationalSchedule: schedule, anchorDurationMinutes: 120 },
+  );
+  assert.equal(enriched[0].lastMinute, undefined);
 });

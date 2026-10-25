@@ -1,7 +1,9 @@
 import {
   type Database,
+  getOperationalWeekSchedule,
   getRoomAvailability,
   hoursUntilSlotStart,
+  isLastMinuteAnchorSlot,
   LAST_MINUTE_PHASE2_HOURS,
   romeToday,
 } from "@musicpro/database";
@@ -96,6 +98,8 @@ export async function GET(request: Request) {
       });
     }
 
+    const operationalSchedule = await getOperationalWeekSchedule(service);
+
     const { data: rooms, error: roomsError } = await service
       .from("rooms")
       .select("id, default_duration_minutes")
@@ -141,6 +145,17 @@ export async function GET(request: Request) {
 
         const inBand = await slotInOperationalBand(service, slot.startAt, dayRome);
         if (!inBand) continue;
+
+        if (
+          !isLastMinuteAnchorSlot(
+            slot.startAt,
+            slot.endAt,
+            operationalSchedule,
+            durationMinutes,
+          )
+        ) {
+          continue;
+        }
 
         candidateSlots.push({
           roomId,

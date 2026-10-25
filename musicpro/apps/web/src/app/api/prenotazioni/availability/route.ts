@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import {
   enrichAvailabilitySlots,
   getActiveCampaignsForRoomDate,
+  getOperationalWeekSchedule,
   getRoomAvailability,
   isMemberPriceEligible,
 } from "@musicpro/database";
@@ -84,9 +85,22 @@ export async function GET(request: Request) {
       .maybeSingle();
 
     if (memberRow?.id) {
-      const [campaigns, memberEligible] = await Promise.all([
+      const { data: roomRow } = await supabase
+        .from("rooms")
+        .select("default_duration_minutes")
+        .eq("id", roomId)
+        .maybeSingle();
+
+      const anchorDuration =
+        typeof roomRow?.default_duration_minutes === "number" &&
+        roomRow.default_duration_minutes > 0
+          ? roomRow.default_duration_minutes
+          : 120;
+
+      const [campaigns, memberEligible, operationalSchedule] = await Promise.all([
         getActiveCampaignsForRoomDate(supabase, roomId, date),
         isMemberPriceEligible(supabase, memberRow.id),
+        getOperationalWeekSchedule(supabase),
       ]);
       availability = {
         ...availability,
@@ -95,6 +109,7 @@ export async function GET(request: Request) {
           campaigns,
           memberEligible,
           new Date(),
+          { operationalSchedule, anchorDurationMinutes: anchorDuration },
         ),
       };
     }

@@ -2754,6 +2754,14 @@ export interface Database {
           auto_confirm_min_hours: number;
         }[];
       };
+      booking_lm_anchor_duration_minutes: {
+        Args: { p_room_id: string };
+        Returns: number;
+      };
+      booking_is_lm_anchor_start: {
+        Args: { p_start_at: string; p_room_id: string };
+        Returns: boolean;
+      };
     };
     Enums: {
       member_role: MemberRoleEnum;
