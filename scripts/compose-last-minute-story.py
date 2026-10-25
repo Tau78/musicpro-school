@@ -605,26 +605,30 @@ def compose_story(args: argparse.Namespace) -> Image.Image:
     return canvas
 
 
-def _slot_rows_from_args(args: argparse.Namespace) -> list[tuple[str, str, str]]:
-    """[(sala, fascia, 'da N €'), ...] — solo da --slot, niente inventati."""
-    rows: list[tuple[str, str, str]] = []
+def _slot_rows_from_args(args: argparse.Namespace) -> list[tuple[str, str, str | None]]:
+    """[(sala, fascia, price_text|None), ...] — solo da --slot, niente inventati."""
+    rows: list[tuple[str, str, str | None]] = []
     for raw in getattr(args, "slots", None) or []:
         parts = [p.strip() for p in str(raw).split(",")]
-        if len(parts) != 4:
-            die(f"error: --slot deve essere Sala,HH:MM,HH:MM,prezzo (ricevuto: {raw})")
-        sala, start, end, price_raw = parts
+        if len(parts) not in (3, 4):
+            die(f"error: --slot deve essere Sala,HH:MM,HH:MM[,prezzo] (ricevuto: {raw})")
+        sala, start, end = parts[0], parts[1], parts[2]
+        price_raw = parts[3] if len(parts) == 4 else ""
         if sala not in ROOM_ACCENT:
             die(f"error: --slot sala sconosciuta: {sala}")
         sh, _ = parse_hhmm(start, "--slot start")
         eh, _ = parse_hhmm(end, "--slot end")
-        try:
-            price = float(price_raw.replace(",", "."))
-        except ValueError:
-            die(f"error: --slot prezzo non numerico: {price_raw}")
+        price_text: str | None = None
+        if price_raw:
+            try:
+                price = float(price_raw.replace(",", "."))
+            except ValueError:
+                die(f"error: --slot prezzo non numerico: {price_raw}")
+            price_text = format_price(price)
         fascia = f"{sh:02d}–{eh:02d}"
-        rows.append((sala, fascia, format_price(price)))
+        rows.append((sala, fascia, price_text))
     if not rows:
-        die("error: --digest richiede almeno un --slot Sala,inizio,fine,prezzo")
+        die("error: --digest richiede --date e almeno un --slot")
     return rows
 
 
@@ -792,11 +796,15 @@ def compose_digest(args: argparse.Namespace) -> Image.Image:
             cy = body_top + j * cell_h
             if j > 0:
                 draw.line((left + 24, cy, right - 24, cy), fill=(255, 255, 255, 36), width=2)
-            time_font = _fit_line_width(title_path, fascia, col_w - 36, 92, min_size=40)
-            price_font = load_font(FONT_EXTRABOLD, 32)
             mid = cy + cell_h / 2
-            draw.text(((left + right) / 2, mid - 18), fascia, font=time_font, fill=WHITE, anchor="mm")
-            draw.text(((left + right) / 2, mid + 42), price_text, font=price_font, fill=ALERT, anchor="mm")
+            if price_text:
+                time_font = _fit_line_width(title_path, fascia, col_w - 36, 92, min_size=40)
+                price_font = load_font(FONT_EXTRABOLD, 32)
+                draw.text(((left + right) / 2, mid - 18), fascia, font=time_font, fill=WHITE, anchor="mm")
+                draw.text(((left + right) / 2, mid + 42), price_text, font=price_font, fill=ALERT, anchor="mm")
+            else:
+                time_font = _fit_line_width(title_path, fascia, col_w - 36, 112, min_size=48)
+                draw.text(((left + right) / 2, mid), fascia, font=time_font, fill=WHITE, anchor="mm")
 
     return canvas
 
@@ -825,6 +833,9 @@ def build_parser() -> argparse.ArgumentParser:
             "  python3 scripts/compose-last-minute-story.py \\\n"
             "    --sala Rossa --date 2026-10-25 --start 20:00 --end 22:00 \\\n"
             "    --phase prezzo --price 35 --publish\n"
+            "  python3 scripts/compose-last-minute-story.py --digest --date 2026-10-25 \\\n"
+            "    --slot Verde,18:00,20:00 --slot Verde,20:00,22:00 \\\n"
+            "    --slot Rossa,19:00,21:00 --slot Rossa,21:00,23:00 --draft\n"
         ),
     )
     parser.add_argument(
@@ -875,7 +886,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--slot",
         action="append",
         dest="slots",
-        help="Ripetibile: Sala,HH:MM,HH:MM,prezzo  es. Rossa,20:00,22:00,16",
+        help="Ripetibile: Sala,HH:MM,HH:MM[,prezzo]  es. Rossa,20:00,22:00,16 o Rossa,20:00,22:00",
     )
     parser.add_argument(
         "--site",

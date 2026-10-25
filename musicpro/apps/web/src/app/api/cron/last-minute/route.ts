@@ -10,6 +10,8 @@ import {
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
+import { publishSchoolLastMinuteDigestStories } from "@/lib/queue-school-lm-story-to-eventi";
+
 export const runtime = "nodejs";
 
 function isAuthorized(request: Request): boolean {
@@ -264,6 +266,24 @@ export async function GET(request: Request) {
       }
     }
 
+    let digest: Awaited<
+      ReturnType<typeof publishSchoolLastMinuteDigestStories>
+    > | null = null;
+    try {
+      digest = await publishSchoolLastMinuteDigestStories(service);
+    } catch (digestError) {
+      const digestMessage =
+        digestError instanceof Error
+          ? digestError.message
+          : String(digestError);
+      console.warn("[cron/last-minute] digest stories:", digestMessage);
+      digest = {
+        success: false,
+        reason: "digest_publish_error",
+        days: [],
+      };
+    }
+
     return NextResponse.json({
       success: true,
       dayRome,
@@ -272,6 +292,7 @@ export async function GET(request: Request) {
       candidates: candidateSlots.length,
       phase1Created,
       phase2Advanced,
+      digest,
     });
   } catch (error) {
     const message =

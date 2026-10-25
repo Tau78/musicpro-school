@@ -35,6 +35,10 @@ const BUCKET = 'social-story-media';
 const MARKER_KIND = 'school-last-minute';
 const ALLOWED_ACCOUNTS = new Set([DEFAULT_ACCOUNT]);
 const BLOCKED_ACCOUNTS = new Set(['ilcervellonegenova', 'ilcervellonelaspezia']);
+/** Slot da sostituire nello stesso giorno Roma (mai published). */
+const SLOT_REPLACE_STATUSES = ['pending', 'failed', 'partial'];
+/** Se dopo cancel non restano slot «vivi», il piano va in cancelled. */
+const PLAN_LIVE_SLOT_STATUSES = ['pending', 'processing', 'failed', 'partial'];
 
 const USAGE = `Ponte School → publisher storie Eventi (account @${DEFAULT_ACCOUNT}).
 
@@ -51,6 +55,9 @@ Default: --dry-run (stampa piano, niente write, niente Meta).
 
 --scheduled-at: ISO. Senza timezone = Europe/Rome.
 --apply: upload bucket Eventi + insert piano/slot. Serve OK Mauro + secret Eventi.
+--replace-pending-day: prima dell’insert, annulla slot school-last-minute pending/failed/partial
+  dello stesso giorno calendario Roma su @musicproeventi (default ON con --apply e in dry-run).
+--no-replace-pending-day: non annullare; rischio doppia storia lo stesso giorno.
 Prima release / compose --draft: NON usare --apply.
 
 Vietato: @ilcervellonegenova, Edge admin-social-story-manual-package, Meta da School.
@@ -84,6 +91,8 @@ function parseArgs(argv) {
     scheduledAt: '',
     caption: '',
     link: DEFAULT_LINK,
+    replacePendingDay: true,
+    noReplacePendingDay: false,
   };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
@@ -104,6 +113,8 @@ function parseArgs(argv) {
     else if (a === '--scheduled-at') out.scheduledAt = next();
     else if (a === '--caption') out.caption = next();
     else if (a === '--link') out.link = next();
+    else if (a === '--replace-pending-day') out.replacePendingDay = true;
+    else if (a === '--no-replace-pending-day') out.noReplacePendingDay = true;
     else {
       console.error(`Flag sconosciuto: ${a}`);
       printUsageAndExit(1);
@@ -114,6 +125,7 @@ function parseArgs(argv) {
     process.exit(1);
   }
   if (out.apply) out.dryRun = false;
+  out.replacePendingDay = !out.noReplacePendingDay;
   return out;
 }
 
@@ -275,6 +287,47 @@ function romeLocalToUtc(y, m, d, hh, mm, ss = 0) {
   return new Date(guess.getTime() - (asUtc - guess.getTime()));
 }
 
+function stickerConfigHasKind(stickerConfig, kind) {
+  return (
+    Array.isArray(stickerConfig) &&
+    stickerConfig.some((row) => String(row?.kind ?? '') === kind)
+  );
+}
+
+function romeCalendarYmd(date) {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Europe/Rome',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const parts = Object.fromEntries(
+    dtf
+      .formatToParts(date)
+      .filter((p) => p.type !== 'literal')
+      .map((p) => [p.type, p.value]),
+  );
+  return { y: Number(parts.year), m: Number(parts.month), d: Number(parts.day) };
+}
+
+/** [start, endExclusive) UTC per il giorno calendario Europe/Rome di `date`. */
+function romeDayUtcRange(date) {
+  const { y, m, d } = romeCalendarYmd(date);
+  const start = romeLocalToUtc(y, m, d, 0, 0, 0);
+  const cal = new Date(Date.UTC(y, m - 1, d));
+  cal.setUTCDate(cal.getUTCDate() + 1);
+  const endExclusive = romeLocalToUtc(
+    cal.getUTCFullYear(),
+    cal.getUTCMonth() + 1,
+    cal.getUTCDate(),
+    0,
+    0,
+    0,
+  );
+  const label = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  return { start, endExclusive, label };
+}
+
 function romeLabel(date) {
   return new Intl.DateTimeFormat('it-IT', {
     timeZone: 'Europe/Rome',
@@ -326,6 +379,9 @@ function printPlan(plan) {
   console.log(`storage path    ${plan.storagePath}`);
   console.log(`Eventi host     ${plan.eventiHost || '—'}`);
   console.log(`creds source    ${plan.credsSource}`);
+  console.log(
+    `replace day     ${plan.replacePendingDay ? 'sì (annulla pending/failed/partial school-LM stesso giorno Roma)' : 'no (--no-replace-pending-day)'}`,
+  );
   if (plan.accountRow) {
     console.log(
       `account row     id=${plan.accountRow.id} slug=${plan.accountRow.slug} ig=@${plan.accountRow.ig_username} default=${plan.accountRow.is_default} active=${plan.accountRow.is_active}`,
@@ -379,6 +435,105 @@ function guardResolvedAccount(row, wanted) {
     return `STOP: @${slug} non è attivo.`;
   }
   return null;
+}
+
+async function findSchoolLmSlotsForRomeDay(supabase, accountId, scheduledDate) {
+  const { start, endExclusive, label } = romeDayUtcRange(scheduledDate);
+  const { data: plans, error: planErr } = await supabase
+    .from('social_story_plans')
+    .select('id, sticker_config, status')
+    .eq('instagram_account_id', accountId)
+    .eq('status', 'active');
+  if (planErr) return { error: planErr.message };
+  const lmPlanIds = (plans ?? [])
+    .filter((p) => stickerConfigHasKind(p.sticker_config, MARKER_KIND))
+    .map((p) => p.id);
+  if (lmPlanIds.length === 0) {
+    return { slots: [], affectedPlanIds: [], dayLabel: label, start, endExclusive };
+  }
+  const { data: slots, error: slotErr } = await supabase
+    .from('social_story_slots')
+    .select('id, plan_id, scheduled_at, status, meta_publish_status, tiktok_publish_status')
+    .in('plan_id', lmPlanIds)
+    .in('status', SLOT_REPLACE_STATUSES)
+    .gte('scheduled_at', start.toISOString())
+    .lt('scheduled_at', endExclusive.toISOString())
+    .order('scheduled_at', { ascending: true });
+  if (slotErr) return { error: slotErr.message };
+  const rows = slots ?? [];
+  const affectedPlanIds = [...new Set(rows.map((s) => s.plan_id))];
+  return { slots: rows, affectedPlanIds, dayLabel: label, start, endExclusive };
+}
+
+async function replacePendingSchoolLmForRomeDay(supabase, plan, { dryRun }) {
+  const scheduled = new Date(plan.scheduledAtUtc);
+  const found = await findSchoolLmSlotsForRomeDay(supabase, plan.accountRow.id, scheduled);
+  if (found.error) {
+    console.error(`replace-pending-day: lookup fallito: ${found.error}`);
+    process.exit(1);
+  }
+  const { slots, affectedPlanIds, dayLabel, start, endExclusive } = found;
+  console.log('');
+  console.log(
+    `--- replace-pending-day (Rome ${dayLabel}) @${plan.account} kind=${MARKER_KIND} ---`,
+  );
+  console.log(
+    `    finestra UTC  [${start.toISOString()}, ${endExclusive.toISOString()})`,
+  );
+  if (slots.length === 0) {
+    console.log('    nessuno slot pending/failed/partial da annullare (published intatti).');
+    console.log('');
+    return;
+  }
+  for (const s of slots) {
+    console.log(
+      `    ${dryRun ? 'would cancel' : 'cancel'}  slot=${s.id}  plan=${s.plan_id}  status=${s.status}  scheduled=${romeLabel(new Date(s.scheduled_at))}`,
+    );
+  }
+  if (dryRun) {
+    console.log(`    dry-run: ${slots.length} slot · ${affectedPlanIds.length} piano/i (nessun write).`);
+    console.log('');
+    return;
+  }
+  const ts = new Date().toISOString();
+  const slotIds = slots.map((s) => s.id);
+  const { error: slotUpdErr } = await supabase
+    .from('social_story_slots')
+    .update({
+      status: 'cancelled',
+      meta_publish_status: 'skipped',
+      tiktok_publish_status: 'skipped',
+      updated_at: ts,
+    })
+    .in('id', slotIds);
+  if (slotUpdErr) {
+    console.error(`replace-pending-day: cancel slot fallito: ${slotUpdErr.message}`);
+    process.exit(1);
+  }
+  for (const planId of affectedPlanIds) {
+    const { data: remaining, error: remErr } = await supabase
+      .from('social_story_slots')
+      .select('id')
+      .eq('plan_id', planId)
+      .in('status', PLAN_LIVE_SLOT_STATUSES)
+      .limit(1);
+    if (remErr) {
+      console.error(`replace-pending-day: check residui piano ${planId}: ${remErr.message}`);
+      process.exit(1);
+    }
+    if (remaining?.length) continue;
+    const { error: planUpdErr } = await supabase
+      .from('social_story_plans')
+      .update({ status: 'cancelled', updated_at: ts })
+      .eq('id', planId);
+    if (planUpdErr) {
+      console.error(`replace-pending-day: cancel piano ${planId}: ${planUpdErr.message}`);
+      process.exit(1);
+    }
+    console.log(`    piano ${planId} → cancelled (nessuno slot pending/processing/failed/partial).`);
+  }
+  console.log(`    ok: ${slotIds.length} slot annullati.`);
+  console.log('');
 }
 
 async function applyQueue(supabase, plan, filePath) {
@@ -524,6 +679,7 @@ async function main() {
     eventiHost: hostOf(creds.url),
     credsSource: creds.source,
     accountRow: null,
+    replacePendingDay: args.replacePendingDay,
   };
 
   if (!args.apply) {
@@ -548,6 +704,9 @@ async function main() {
     }
     plan.accountRow = resolved.row;
     printPlan(plan);
+    if (plan.replacePendingDay) {
+      await replacePendingSchoolLmForRomeDay(supabase, plan, { dryRun: true });
+    }
     console.log('Dry-run: niente upload, niente insert, niente Meta.');
     console.log('Lookup Eventi ok (solo lettura). Per accodare: stesso comando + --apply.');
     return;
@@ -574,6 +733,9 @@ async function main() {
   }
   plan.accountRow = resolved.row;
   printPlan(plan);
+  if (plan.replacePendingDay) {
+    await replacePendingSchoolLmForRomeDay(supabase, plan, { dryRun: false });
+  }
   await applyQueue(supabase, plan, filePath);
 }
 
