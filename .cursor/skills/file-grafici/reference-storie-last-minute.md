@@ -83,7 +83,11 @@ Soggetto intero, dai bordi estremi in dentro. Sorgente pulita (foto sala), non i
 
 ## Copy — obiettivo 3 secondi
 
-Quale sala, quando, CTA **oppure** quanto costa. Max **5 righe**. Placeholder solo dal brief.
+Siamo già sulla pagina MusicPro: **niente logo grande**. Il soggetto è **LAST MINUTE**.
+
+Se ci sono più slot, **una storia digest** (`--digest`): titolo LAST MINUTE, copy dal brief, «IN APP MUSICPRO SCHOOL» + URL sito bruciato, poi esempi `data / sala / fascia / da N €`.
+
+Quale sala, quando, CTA **oppure** quanto costa. Placeholder solo dal brief.
 
 **URGENZA** (niente prezzo promo) — struttura, non testo fisso; riempire dal brief:
 
@@ -113,7 +117,7 @@ Slot occupato
 a presto
 ```
 
-Data/fascia: Europe/Rome dal brief. Orari come nel brief. CTA default **Prenota su MusicPro** (navy testo bianco). URL `school.musicproeventi.it` solo se il brief lo chiede in grafica (di solito è link sticker, non testo).
+Data/fascia: Europe/Rome dal brief. Orari come nel brief. CTA default **Prenota su MusicPro** (navy testo bianco). URL sito in grafica se il brief lo chiede (digest: `school.musicproeventi.it/prenotazioni`).
 
 Font overlay (veri, non dal modello): **Bebas** titolo sala, **Montserrat** orario / prezzo / CTA. Non Cinzel, non Georgia/ui-serif, non Bricolage/Manrope.
 
