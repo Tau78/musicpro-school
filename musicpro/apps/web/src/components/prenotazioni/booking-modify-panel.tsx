@@ -6,9 +6,10 @@ import {
   type BookingWithRoom,
   type BookingSettings,
   type TimeSlot,
+  fetchRoomAvailability,
   formatDateItalian,
   formatDurationLabel,
-  getRoomAvailability,
+  formatEuro,
   modifyBooking,
   peekRoomAvailabilityCache,
   todayInRome,
@@ -72,8 +73,7 @@ export function BookingModifyPanel({
     setSelectedSlot(null);
 
     try {
-      const availability = await getRoomAvailability(
-        supabase,
+      const availability = await fetchRoomAvailability(
         booking.room_id,
         selectedDate,
         durationMinutes,
@@ -96,7 +96,7 @@ export function BookingModifyPanel({
         setLoadingSlots(false);
       }
     }
-  }, [booking.id, booking.room_id, durationMinutes, selectedDate, supabase]);
+  }, [booking.id, booking.room_id, durationMinutes, selectedDate]);
 
   useEffect(() => {
     if (!open) return;
@@ -189,18 +189,61 @@ export function BookingModifyPanel({
         <ul className="mt-2 flex flex-wrap gap-1.5">
           {bookableSlots.map((slot) => {
             const selected = selectedSlot?.startAt === slot.startAt;
+            const hasLastMinuteHint =
+              slot.lastMinute?.phase === 1 ||
+              (slot.lastMinute?.phase === 2 &&
+                slot.lastMinute.finalPriceEur != null);
             return (
               <li key={slot.startAt}>
                 <button
                   type="button"
                   onClick={() => setSelectedSlot(slot)}
-                  className={`rounded border px-2 py-1 text-xs ${
+                  className={`rounded border px-2 py-1 text-left text-xs ${
                     selected
                       ? "border-[var(--brand)] bg-[var(--brand)] text-white"
                       : "border-neutral-200 bg-white text-neutral-700 hover:border-[var(--brand)]"
                   }`}
                 >
-                  {slot.label}
+                  <span className="font-medium">{slot.label}</span>
+                  {hasLastMinuteHint ? (
+                    <span
+                      className={`mt-0.5 block ${selected ? "text-white/90" : ""}`}
+                    >
+                      {slot.lastMinute?.phase === 1 ? (
+                        <span
+                          className={`inline-flex rounded-full px-2 py-0.5 font-medium ${
+                            selected
+                              ? "bg-white/20 text-white"
+                              : "bg-rose-100 text-rose-900"
+                          }`}
+                        >
+                          Last minute
+                        </span>
+                      ) : slot.lastMinute?.phase === 2 &&
+                        slot.lastMinute.finalPriceEur != null ? (
+                        <span className="mt-0.5 block">
+                          <span
+                            className={
+                              selected
+                                ? "text-white/70 line-through"
+                                : "text-neutral-400 line-through"
+                            }
+                          >
+                            {slot.priceEur != null
+                              ? formatEuro(slot.priceEur)
+                              : null}
+                          </span>
+                          <span
+                            className={`ml-1 font-semibold ${
+                              selected ? "text-white" : "text-rose-700"
+                            }`}
+                          >
+                            {formatEuro(slot.lastMinute.finalPriceEur)}
+                          </span>
+                        </span>
+                      ) : null}
+                    </span>
+                  ) : null}
                 </button>
               </li>
             );

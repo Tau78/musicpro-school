@@ -10,6 +10,7 @@ import {
 
 import { mergeCalendarEvents } from "@/components/lezioni/calendar-bookings";
 import { LessonsCalendarPage } from "@/components/lezioni/lessons-calendar-page";
+import { loadBookingCalendarLastMinuteMarkers } from "@/lib/admin/booking-calendar-last-minute";
 import { getAdminMember } from "@/lib/admin/current-member";
 import { canManageBookings } from "@/lib/admin/roles";
 import {
@@ -63,7 +64,7 @@ export default async function AdminPrenotazioniCalendarioPage({
   const bounds = calendarBounds(view, anchorDate, sundayVisible);
 
   const roomFilter = roomId ?? undefined;
-  const [bookings, externals] = await Promise.all([
+  const [bookings, externals, initialLastMinuteMarkers] = await Promise.all([
     listBookingsInRange(supabase, {
       from: bounds.from,
       to: bounds.to,
@@ -74,6 +75,13 @@ export default async function AdminPrenotazioniCalendarioPage({
       to: bounds.to,
       roomId: roomFilter,
     }),
+    roomId
+      ? loadBookingCalendarLastMinuteMarkers(supabase, {
+          roomId,
+          from: bounds.from,
+          to: bounds.to,
+        })
+      : Promise.resolve([]),
   ]);
 
   return (
@@ -104,6 +112,7 @@ export default async function AdminPrenotazioniCalendarioPage({
         highlightDay={highlightDay}
         memberId={member.id}
         bookingsOnly
+        initialLastMinuteMarkers={initialLastMinuteMarkers}
       />
     </div>
   );

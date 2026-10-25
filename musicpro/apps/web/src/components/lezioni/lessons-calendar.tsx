@@ -13,6 +13,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import {
+  formatEuro,
   getRomeMinutesFromMidnight,
   googleEventColorStyle,
   minutesToTimeLabel,
@@ -21,6 +22,8 @@ import {
   type CourseKind,
   type CourseStatus,
 } from "@musicpro/database";
+
+import type { BookingCalendarLastMinuteMarker } from "@/lib/admin/booking-calendar-last-minute";
 
 import {
   EVENT_DRAG_ARM_MS,
@@ -114,6 +117,8 @@ export interface LessonsCalendarProps {
   onAnchorDateChange?: (date: string) => void;
   /** YYYY-MM-DD evidenziato (click da mese). */
   highlightDay?: string | null;
+  /** Indicatori last minute su slot liberi (admin prenotazioni). */
+  lastMinuteMarkers?: BookingCalendarLastMinuteMarker[];
 }
 
 const ROME = "Europe/Rome";
@@ -196,6 +201,7 @@ export function LessonsCalendar({
   onViewChange,
   onAnchorDateChange,
   highlightDay,
+  lastMinuteMarkers,
 }: LessonsCalendarProps) {
   const openMinute = Number.isFinite(gridOpenMinute) ? gridOpenMinute : 600;
   const configuredCloseMinute =
@@ -546,6 +552,7 @@ export function LessonsCalendar({
             onRangeGestureActiveChange={(active) => {
               navGestureBlockedRef.current = active;
             }}
+            lastMinuteMarkers={lastMinuteMarkers}
           />
         ) : (
           <MonthGrid
@@ -607,6 +614,7 @@ function WeekGrid({
   onSlotDoubleClick,
   onSlotRangeSelect,
   onRangeGestureActiveChange,
+  lastMinuteMarkers,
 }: {
   dates: string[];
   lessons: PlacedLesson[];
@@ -635,6 +643,7 @@ function WeekGrid({
     durationMinutes: number,
   ) => void;
   onRangeGestureActiveChange?: (active: boolean) => void;
+  lastMinuteMarkers?: BookingCalendarLastMinuteMarker[];
 }) {
   const today = useTodayRome();
   const nowMinute = useNowMinute();
@@ -650,6 +659,15 @@ function WeekGrid({
     }
     return map;
   }, [dates, lessons]);
+  const lastMinuteByDate = useMemo(() => {
+    const map = new Map<string, BookingCalendarLastMinuteMarker[]>();
+    if (!lastMinuteMarkers?.length) return map;
+    for (const date of dates) map.set(date, []);
+    for (const marker of lastMinuteMarkers) {
+      map.get(marker.date)?.push(marker);
+    }
+    return map;
+  }, [dates, lastMinuteMarkers]);
 
   const showNow =
     dates.includes(today) &&
@@ -736,6 +754,7 @@ function WeekGrid({
             onSlotDoubleClick={onSlotDoubleClick}
             onSlotRangeSelect={onSlotRangeSelect}
             onRangeGestureActiveChange={onRangeGestureActiveChange}
+            lastMinuteMarkers={lastMinuteByDate.get(date) ?? []}
           />
         ))}
       </div>
@@ -773,6 +792,7 @@ function DayColumn({
   onSlotDoubleClick,
   onSlotRangeSelect,
   onRangeGestureActiveChange,
+  lastMinuteMarkers = [],
 }: {
   date: string;
   lessons: PlacedLesson[];
@@ -807,6 +827,7 @@ function DayColumn({
     durationMinutes: number,
   ) => void;
   onRangeGestureActiveChange?: (active: boolean) => void;
+  lastMinuteMarkers?: BookingCalendarLastMinuteMarker[];
 }) {
   const layouts = useMemo(() => layoutOverlaps(lessons), [lessons]);
   const columnRef = useRef<HTMLDivElement>(null);
@@ -1057,6 +1078,42 @@ function DayColumn({
           aria-hidden
         />
       ) : null}
+
+      {lastMinuteMarkers.map((marker) => {
+        const top = minuteToPx(marker.startMinute, openMinute, pxPerHour);
+        const heightPx = Math.max(
+          14,
+          (marker.durationMinutes / 60) * pxPerHour,
+        );
+        return (
+          <div
+            key={`lm-${marker.startMinute}-${marker.durationMinutes}`}
+            className="pointer-events-none absolute inset-x-0.5 z-[2] rounded-sm border border-rose-200/70 bg-rose-50/40"
+            style={{ top, height: heightPx }}
+            title={
+              marker.phase === 2 && marker.finalPriceEur != null
+                ? `Last minute ${formatEuro(marker.finalPriceEur)}`
+                : "Last minute"
+            }
+          >
+            <div className="absolute right-0 top-0 max-w-full truncate px-0.5 pt-px leading-none">
+              {marker.phase === 1 ? (
+                <span className="text-[9px] font-medium text-rose-800/90">
+                  Last minute
+                </span>
+              ) : marker.finalPriceEur != null ? (
+                <span className="text-[9px] font-semibold tabular-nums text-rose-800">
+                  {formatEuro(marker.finalPriceEur)}
+                </span>
+              ) : (
+                <span className="text-[9px] font-medium text-rose-800/90">
+                  LM
+                </span>
+              )}
+            </div>
+          </div>
+        );
+      })}
 
       {rangePreview ? (
         <div

@@ -6,6 +6,8 @@ import { useEffect, useState } from "react";
 import {
   type BookingSettings,
   type CancellationPenaltyRule,
+  type LastMinuteCampaign,
+  type OperationalWeekSchedule,
 } from "@musicpro/database";
 
 import { BookingSettingsForm } from "@/components/admin/booking-settings-form";
@@ -34,6 +36,8 @@ function sectionHref(section: PrenotazioniSettingsSection): string {
 export function PrenotazioniSettingsWorkspace({
   initialSection,
   settings,
+  operationalSchedule,
+  recentLastMinuteCampaigns,
   rules,
   exportRooms = [],
   exportDefaultFrom,
@@ -41,6 +45,8 @@ export function PrenotazioniSettingsWorkspace({
 }: {
   initialSection: PrenotazioniSettingsSection;
   settings: BookingSettings;
+  operationalSchedule: OperationalWeekSchedule;
+  recentLastMinuteCampaigns: LastMinuteCampaign[];
   rules: CancellationPenaltyRule[];
   exportRooms?: { id: string; name: string }[];
   exportDefaultFrom?: string;
@@ -69,7 +75,13 @@ export function PrenotazioniSettingsWorkspace({
         onChange={selectSection}
       />
 
-      {section === "soglie" ? <BookingSettingsForm settings={settings} /> : null}
+      {section === "soglie" ? (
+        <BookingSettingsForm
+          settings={settings}
+          operationalSchedule={operationalSchedule}
+          recentLastMinuteCampaigns={recentLastMinuteCampaigns}
+        />
+      ) : null}
 
       {section === "penali" ? <PenaltyRulesPanel rules={rules} /> : null}
 

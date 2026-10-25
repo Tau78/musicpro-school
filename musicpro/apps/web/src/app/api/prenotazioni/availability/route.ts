@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 
-import { getRoomAvailability } from "@musicpro/database";
+import {
+  enrichAvailabilitySlots,
+  getActiveCampaignsForRoomDate,
+  getRoomAvailability,
+  isMemberPriceEligible,
+} from "@musicpro/database";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
 import { createClient } from "@/lib/supabase/server";
@@ -64,13 +69,36 @@ export async function GET(request: Request) {
 
   try {
     // Solo DB (prenotazioni + calendari esterni già sync): niente Google live.
-    const availability = await getRoomAvailability(
+    let availability = await getRoomAvailability(
       supabase,
       roomId,
       date,
       durationMinutes,
       { excludeBookingId, prefetchNeighbors: false },
     );
+
+    const { data: memberRow } = await supabase
+      .from("members")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (memberRow?.id) {
+      const [campaigns, memberEligible] = await Promise.all([
+        getActiveCampaignsForRoomDate(supabase, roomId, date),
+        isMemberPriceEligible(supabase, memberRow.id),
+      ]);
+      availability = {
+        ...availability,
+        slots: enrichAvailabilitySlots(
+          availability.slots,
+          campaigns,
+          memberEligible,
+          new Date(),
+        ),
+      };
+    }
+
     return NextResponse.json(availability);
   } catch (err) {
     const message =
