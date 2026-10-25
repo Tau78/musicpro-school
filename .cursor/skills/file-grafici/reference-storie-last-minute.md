@@ -86,7 +86,7 @@ Soggetto intero, dai bordi estremi in dentro. Sorgente pulita (foto sala), non i
 
 Siamo già sulla pagina MusicPro: **niente logo grande**. Il soggetto è **LAST MINUTE**.
 
-Se ci sono più slot, **una storia digest** (`--digest`): titolo LAST MINUTE, copy dal brief, «IN APP MUSICPRO SCHOOL» + URL sito bruciato. La **data** (es. LUNEDÌ 26 OTTOBRE) è grande e occupa tutta la larghezza delle colonne sala; sotto, card sala a tutta altezza con fascia / da N €.
+Se ci sono più slot, **una storia digest** (`--digest`): titolo LAST MINUTE, copy dal brief, «IN APP MUSICPRO SCHOOL» + URL sito bruciato. La **data** (es. LUNEDÌ 26 OTTOBRE) è grande e occupa tutta la larghezza delle colonne sala; sotto, card sala a tutta altezza. **URGENZA digest:** solo fasce, niente `da N €`. **PREZZO digest:** fascia / da N €.
 
 Quale sala, quando, CTA **oppure** quanto costa. Placeholder solo dal brief.
 
@@ -162,6 +162,10 @@ node scripts/queue-lm-story-to-eventi.mjs \
 
 `--scheduled-at` senza timezone = Europe/Rome. `--apply` solo se esplicito (OK Mauro + secret Eventi). Prima release / compose `--draft`: **NON** chiamare il ponte `--apply`.
 
+**Automatico in produzione:** cron School `/api/cron/last-minute-stories` (orario) + hook dopo `/api/cron/last-minute`. Compone la digest URGENZA (niente prezzi) da `last_minute_campaigns` reali (Rossa/Verde/Arancio, 48h), fingerprint in `app_settings.last_minute_ig_digest`, accoda su @musicproeventi. **Una digest per giorno Roma.** Se lo hash è uguale: skip. Se i slot cambiano: cancella pending/failed/partial dello stesso giorno e ne inserisce una. Se c’è già una storia **pubblicata** per quel giorno e non c’è fingerprint: non accodare un’altra copia (bootstrap). Serve `EVENTI_SUPABASE_URL` + `EVENTI_SUPABASE_SERVICE_ROLE_KEY` su Vercel; senza, il cron campagne resta 200 e salta le storie.
+
+**Una coda, non una per ritocco.** Ritocco layout/colori/copy a mano = solo PNG locale. Non `--apply` di nuovo. CLI: `--replace-pending-day` è il default. Token Meta scaduto: gli slot restano pending e poi partono **tutti insieme** — non accodare un altro giro sopra.
+
 ### Vietato sul ponte
 
 - Pubblicare su **@ilcervellonegenova** (account DEFAULT Eventi)
@@ -176,7 +180,7 @@ node scripts/queue-lm-story-to-eventi.mjs \
 3. Compose `--draft` (prima release). 1–3 varianti. **Non** accodare al publisher Eventi.
 4. Apri i PNG: safe area, overlay, CTA navy testo bianco, sala/orario/prezzo = brief, max 5 righe, niente % sconto, niente testo da modello.
 5. `--smoke` = solo layout, senza slot reale, senza prezzi finti da campagna.
-6. Ponte `--apply` solo dopo OK Mauro, PNG definitivo, account **@musicproeventi**. Prima: dry-run.
+6. Ponte `--apply` solo dopo OK Mauro, PNG definitivo, account **@musicproeventi**. Prima: dry-run. I ritocchi dopo quella coda **non** si ri-accodano.
 
 ## Vietato (riepilogo, non parafrasare)
 
@@ -191,4 +195,5 @@ node scripts/queue-lm-story-to-eventi.mjs \
 - Copy critico y>1248
 - Generare la campagna se manca un campo del brief (eccezione `--smoke`)
 - Ponte `--apply` in prima release / `--draft`
+- `--apply` a ogni ritocco grafico (duplica le storie)
 - Coda su @ilcervellonegenova o Edge `admin-social-story-manual-package`

@@ -52,6 +52,8 @@ const nextConfig: NextConfig = {
       "musicpro/node_modules/next/dist/compiled/**/*",
       "musicpro/node_modules/next/dist/server/**/*",
       "musicpro/apps/web/src/lib/reimbursements/assets/**/*",
+      "docs/assets/school/fonts/**/*",
+      "docs/assets/school/lm-digest-bg.jpg",
     ],
   },
   serverExternalPackages: ["nodemailer"],
