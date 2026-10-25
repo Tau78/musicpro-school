@@ -133,21 +133,13 @@ export function CreditPurchasesPanel() {
     <div className="min-w-0 max-w-full space-y-3">
       <ManualCreditLoadForm onLoaded={reload} />
       <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
-        <input
-          type="search"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Cerca per prodotto o associato…"
-          aria-label="Cerca nello storico"
-          className={`${fieldClass} flex-[1_1_12rem] sm:max-w-sm`}
-        />
         <label className="flex min-w-0 max-w-full flex-[1_1_14rem] items-center gap-2 text-sm text-neutral-700">
           <span>Associato</span>
           <select
             value={memberFilter}
             onChange={(event) => setMemberFilter(event.target.value)}
             aria-label="Filtra per associato"
-            className={`${fieldClass} min-w-0 flex-1`}
+            className={`${fieldClass} min-w-0 w-full max-w-full flex-1`}
           >
             <option value="">Tutti</option>
             {associates.map((member) => (
@@ -157,6 +149,14 @@ export function CreditPurchasesPanel() {
             ))}
           </select>
         </label>
+        <input
+          type="search"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Cerca per prodotto o associato…"
+          aria-label="Cerca nello storico"
+          className={`${fieldClass} w-full min-w-0 max-w-full flex-[1_1_12rem] sm:max-w-sm`}
+        />
       </div>
       {error ? (
         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

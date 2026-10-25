@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { todayInRome } from "./bookings";
+import { formatCreditsCount, todayInRome } from "./bookings";
 import type { CourseMutationResult } from "./courses";
 import {
   FISCAL_RECEIPT_SECTION,
@@ -840,16 +840,18 @@ export async function emitFiscalReceiptForCreditPurchase(
 
   let title = "Acquisto crediti";
   if (purchase.package_id) {
-    const { data: pkg } = await client
+    const { data: pkg, error: pkgError } = await client
       .from("credit_packages")
       .select("name")
       .eq("id", purchase.package_id)
       .maybeSingle();
+    if (pkgError) {
+      return fail(pkgError.message || "Impossibile caricare il pacchetto crediti.");
+    }
     const name = pkg?.name?.trim();
-    if (name) title = `Pacchetto crediti ${name}`;
+    title = name ? `Pacchetto crediti ${name}` : "Pacchetto crediti";
   }
 
-  const credits = toEur(purchase.credits_granted);
   const payee = payeeFromMember(member);
   const issuedOn =
     purchase.paid_on?.slice(0, 10) ||
@@ -866,10 +868,10 @@ export async function emitFiscalReceiptForCreditPurchase(
     payeeTaxCode: payee.payeeTaxCode,
     payeeEmail: payee.payeeEmail,
     amountEur,
-    method: purchase.payment_method?.trim() || "nexi",
+    method: purchase.payment_method || "nexi",
     lines: [
       {
-        description: `${title} (${credits} crediti)`,
+        description: `${title} — ${formatCreditsCount(purchase.credits_granted)}`,
         amountEur,
       },
     ],
