@@ -60,10 +60,11 @@ Usare: sala, stasera, adesso, prova, prenota, scrivici — parole da locale, non
 | Accento Verde | `#38764B` | Sala Verde |
 | Accento Arancio | `#D2762A` | Sala Arancio |
 | Brand navy | `#1e3a5f` | CTA pieni, scena senza foto |
-| Brand gold | `#c9a227` | Eyebrow / traccia, non CTA |
+| Brand gold | `#c9a227` | Solo UI School — **non** sulle storie last-minute (non comunica urgenza) |
+| Alert / offerta | `#F2453A` | LAST, data, prezzi, pill IN APP (corallo, non iscrizione) |
 | CTA | navy `#1e3a5f` + **testo bianco** | Sempre `text-white` sul pieno |
 
-Mai navy su navy. Mai CTA rosso iscrizione `#e10600`. Mai glass-card.
+Mai navy su navy. Mai CTA rosso iscrizione `#e10600`. Mai glass-card. Oro School fuori dalle storie LM.
 
 ## Canvas e safe area IG
 
