@@ -1,8 +1,13 @@
-MusicPro School è l’app per associati e docenti di MusicPro Eventi: area personale, prenotazioni delle sale prova e gestione delle lezioni.
+MusicPro School è l’app ufficiale di MusicPro Eventi per associarsi e prenotare le sale prova dal telefono.
 
-Accedi con email e password dell’anagrafica scuola. Nella tab Area personale trovi i tuoi dati e lo stato. In Prenotazioni richiedi o gestisci le sale. I docenti vedono anche Lezioni: Oggi, Calendario, presenze e Nuova prova.
+Con l’app puoi:
+• completare o seguire l’iscrizione / associazione alla scuola
+• prenotare le sale prova e gestire le tue prenotazioni
+• consultare l’area personale e lo stato associativo
+• (docenti) usare Lezioni: Oggi, Calendario, presenze e Nuova prova
 
-Accesso riservato agli iscritti in anagrafica. Niente social, niente pubblicità in-app.
+Accedi con email e password dell’anagrafica. Niente social login, niente pubblicità in-app.
 
 Supporto: https://school.musicproeventi.it
 Privacy: https://www.musicproeventi.it/privacy
+Iscrizione: https://iscrizione.musicproeventi.it

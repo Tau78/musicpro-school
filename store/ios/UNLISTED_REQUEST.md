@@ -1,8 +1,16 @@
-# Unlisted App Distribution — richiesta Apple
+# Unlisted App Distribution — MusicPro School
 
-**Approved** (Developer Support, case `102994976557`, mail a Mauro). Distribution method in ASC → Pricing and Availability dovrebbe essere **Unlisted App**; link diretto lì.
+**In distribuzione.** App Review ha accettato la 1.1.0 (build 21). ASC: `READY_FOR_SALE`, release `AFTER_APPROVAL`, `downloadable`. Submission `2adbc706-…` → `COMPLETE`.
 
-Dopo approvazione: `node scripts/asc-prepare-unlisted-resubmit.mjs` → `bash scripts/asc-metadata.sh` → `ASC_SUBMIT=1 bash scripts/asc-submit.sh`.
+Link da condividere (soci / docenti; non compare in ricerca Store):
+
+https://apps.apple.com/app/musicpro-school/id6806407450
+
+Italia: https://apps.apple.com/it/app/musicpro-school/id6806407450
+
+Unlisted approved prima della review (Developer Support, case `102994976557`). Accesso in app resta roster (login).
+
+Android Play: ancora da creare / firmare / caricare.
 
 Storico: Apple (review 2026-10-01, submission `6a3355ab-…`, build 10) aveva ripetuto Guideline **3.2** e chiesto di non risottomettere finché non arrivava la mail Unlisted.
 

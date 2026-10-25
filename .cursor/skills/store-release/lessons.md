@@ -172,6 +172,31 @@ Più «Mostra password», così il reviewer digita il demo a mano.
 
 ---
 
+## MusicPro School — 2026-10-24 — 1.1.0 eligible / READY_FOR_SALE
+
+**Mail Apple:** review completata, eligible for distribution. Submission `2adbc706-…`, inviata 22 ott da API Key. Item accettato: **1.1.0 iOS**.
+
+**ASC:** versione 1.1.0 `READY_FOR_SALE`, build **21**, `releaseType=AFTER_APPROVAL`, `downloadable=true`. Submission `COMPLETE`.
+
+**Link Unlisted:** https://apps.apple.com/app/musicpro-school/id6806407450 (pagina IT risponde 200). Apple: fino a 24 h perché sia visibile a tutti.
+
+---
+
+## MusicPro School — 2026-10-24 — Google Play pubblico (prove)
+
+**Decisione prodotto:** Play **pubblico** (non Unlisted), perché l’app serve ad associarsi e prenotare le sale prova.
+
+**Fatto in repo / Mac:**
+- Listing IT aggiornato (`store/android/it-IT/`)
+- Upload keystore `~/.config/musicpro-school/upload.p12` + firma Gradle
+- AAB firmato 1.1.0 (1) in `~/.config/musicpro-school/dist/musicpro-school-1.1.0-1.aab`
+- Script `scripts/play-submit.mjs` (API, no EAS)
+- Playbook `store/android/PLAY_FIRST_PUBLISH.md`
+
+**Blocco API:** `Package not found: it.musicproeventi.school` — manca ancora **Crea app** in Play Console + invite SA `musicpro-play-submit@rewavier-app.iam.gserviceaccount.com`. Poi screenshot / Data safety / IARC / production review.
+
+---
+
 ## MusicPro Eventi — Listing, Privacy, dati veri
 
 - **Listing pubblica** = solo il ruolo utente (giocatore). Staff / host solo in Review Notes.
