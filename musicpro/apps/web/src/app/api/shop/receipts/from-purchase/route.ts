@@ -58,29 +58,38 @@ export async function POST(request: Request) {
     client = await createClient();
   }
 
-  if (!purchaseId && codTrans) {
+  if (!purchaseId && !codTrans) {
+    return NextResponse.json(
+      { success: false, message: "Manca purchaseId o codTrans" },
+      { status: 400 },
+    );
+  }
+
+  if (!purchaseId) {
     const { data, error } = await client
       .from("credit_purchases")
       .select("id")
       .eq("stripe_payment_intent_id", codTrans)
       .eq("payment_status", "paid")
       .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .limit(1);
     if (error) {
       return NextResponse.json(
-        { success: false, message: error.message },
+        {
+          success: false,
+          message: error.message || "Impossibile cercare l'acquisto.",
+        },
         { status: 500 },
       );
     }
-    purchaseId = data?.id ?? "";
-  }
-
-  if (!purchaseId) {
-    return NextResponse.json(
-      { success: false, message: "Manca l'acquisto crediti" },
-      { status: 400 },
-    );
+    const found = data?.[0]?.id;
+    if (!found) {
+      return NextResponse.json(
+        { success: false, message: "Acquisto non trovato." },
+        { status: 500 },
+      );
+    }
+    purchaseId = found;
   }
 
   const result = await issueAndEmailCreditShopPurchase(

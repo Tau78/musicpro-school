@@ -175,14 +175,25 @@ async function spendableCredits(
     const balance = await getMemberCreditBalance(client, memberId);
     return balance.available;
   } catch {
-    const { data, error } = await client
-      .from("credit_transactions")
-      .select("amount")
-      .eq("member_id", memberId);
-    if (error || !data) return null;
-    const sum = data.reduce((total, row) => total + Number(row.amount), 0);
-    return Math.round(sum * 100) / 100;
+    // get_member_credit_balance nega il service_role: stesso numero di member_credit_available.
   }
+
+  const untyped = client as unknown as SupabaseClient;
+  const { data, error } = await untyped.rpc("member_credit_available", {
+    p_member_id: memberId,
+  });
+  if (!error && data != null && data !== "") {
+    const available = Number(data);
+    if (Number.isFinite(available)) return available;
+  }
+
+  const { data: rows, error: sumError } = await client
+    .from("credit_transactions")
+    .select("amount")
+    .eq("member_id", memberId);
+  if (sumError || !rows) return null;
+  const sum = rows.reduce((total, row) => total + Number(row.amount), 0);
+  return Math.round(sum * 100) / 100;
 }
 
 /** Emette la ricevuta shop (se l'importo è positivo) e la manda all'associato col saldo. */
@@ -241,12 +252,20 @@ export async function issueAndEmailCreditShopPurchase(
     .select("first_name")
     .eq("id", purchase.member_id)
     .maybeSingle();
-  const greeting = member?.first_name?.trim() || "Ciao";
   const available = await spendableCredits(client, purchase.member_id);
+  if (available == null) {
+    return {
+      success: false,
+      errorMessage: "Impossibile leggere il saldo crediti.",
+      id: receipt?.id,
+    };
+  }
+
+  const nome = member?.first_name?.trim() || "associato";
   const paidOn = purchase.paid_on || purchase.created_at;
 
   const lines = [
-    greeting === "Ciao" ? "Ciao," : `Ciao ${greeting},`,
+    `Ciao ${nome},`,
     "",
     "l'acquisto crediti è andato a buon fine.",
     "",
@@ -254,9 +273,7 @@ export async function issueAndEmailCreditShopPurchase(
     `Metodo: ${creditShopMethodLabel(purchase.payment_method)}`,
     `Importo: ${formatEuro(amountEur)}`,
     `Crediti caricati: ${formatCreditsCount(Number(purchase.credits_granted))}`,
-    available == null
-      ? "Saldo crediti aggiornato: non disponibile"
-      : `Saldo crediti aggiornato: ${formatCreditsCount(available)}`,
+    `Saldo crediti aggiornato: ${formatCreditsCount(available)}`,
     "",
   ];
   if (receipt) {
@@ -285,6 +302,7 @@ export async function issueAndEmailCreditShopPurchase(
       success: false,
       errorMessage:
         result.warnings.join(" ") || "Impossibile inviare l'email dei crediti.",
+      warnings: result.warnings,
       id: receipt?.id,
     };
   }

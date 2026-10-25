@@ -5,11 +5,19 @@ import { useEffect, useMemo, useState } from "react";
 import {
   listMembers,
   recordManualCreditPurchase,
-  todayInRome,
   type MemberSummary,
 } from "@musicpro/database";
 
 import { createClient } from "@/lib/supabase/client";
+
+function todayRomeIsoDate(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Rome",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
 
 const controlClass =
   "min-w-0 max-w-full rounded-lg border border-neutral-300 bg-white px-2 py-1.5 text-sm focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)] disabled:bg-neutral-50";
@@ -35,13 +43,37 @@ function memberOptionLabel(member: MemberSummary): string {
   return member.memberNumber != null ? `${name} (#${member.memberNumber})` : name;
 }
 
+function emailFailureNotice(message: string): string {
+  const detail = message.trim() || "errore sconosciuto";
+  return `Crediti caricati. Email non inviata: ${detail}`;
+}
+
+async function emailCreditPurchase(purchaseId: string): Promise<string> {
+  try {
+    const response = await fetch("/api/shop/receipts/from-purchase", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ purchaseId }),
+    });
+    const body = (await response.json().catch(() => null)) as {
+      success?: boolean;
+      message?: string;
+    } | null;
+    if (response.ok && body?.success) return "Crediti caricati.";
+    return emailFailureNotice(body?.message ?? "errore sconosciuto");
+  } catch (err: unknown) {
+    const detail = err instanceof Error ? err.message : "errore sconosciuto";
+    return emailFailureNotice(detail);
+  }
+}
+
 export function ManualCreditLoadForm({
   onLoaded,
 }: {
   onLoaded: () => void | Promise<void>;
 }) {
   const supabase = useMemo(() => createClient(), []);
-  const [paidOn, setPaidOn] = useState(() => todayInRome());
+  const [paidOn, setPaidOn] = useState(todayRomeIsoDate);
   const [memberQuery, setMemberQuery] = useState("");
   const [memberId, setMemberId] = useState("");
   const [members, setMembers] = useState<MemberSummary[]>([]);
@@ -142,24 +174,7 @@ export function ManualCreditLoadForm({
 
       let nextNotice = "Crediti caricati.";
       if (recorded.purchaseId) {
-        try {
-          const response = await fetch("/api/shop/receipts/from-purchase", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ purchaseId: recorded.purchaseId }),
-          });
-          const payload = (await response.json().catch(() => null)) as {
-            success?: boolean;
-            message?: string;
-          } | null;
-          if (!response.ok || payload?.success === false) {
-            nextNotice = `Crediti caricati. Email non inviata: ${payload?.message ?? "errore sconosciuto"}`;
-          }
-        } catch (err: unknown) {
-          const detail =
-            err instanceof Error ? err.message : "errore sconosciuto";
-          nextNotice = `Crediti caricati. Email non inviata: ${detail}`;
-        }
+        nextNotice = await emailCreditPurchase(recorded.purchaseId);
       }
 
       setAmount("");
@@ -191,7 +206,7 @@ export function ManualCreditLoadForm({
             value={paidOn}
             onChange={(event) => setPaidOn(event.target.value)}
             aria-label="Data pagamento"
-            className={dateClass}
+            className={`${dateClass} w-full min-w-0 max-w-full`}
           />
         </label>
         <input
