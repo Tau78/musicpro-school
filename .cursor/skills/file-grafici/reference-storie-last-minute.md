@@ -77,6 +77,7 @@ Formato **1080×1920**.
 
 - Cover 9:16, non stretch, overlay scuro
 - Se manca foto: scena scura navy, non bande nere
+- CDN `img/sale.jpg` è un **mosaico 720×720** (4 riquadri), non una lastra 9:16: non usarlo come `--bg` cover. Serve uno scatto singolo della sala, almeno ~1080 px sul lato corto.
 
 Soggetto intero, dai bordi estremi in dentro. Sorgente pulita (foto sala), non il PNG di output.
 
