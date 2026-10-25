@@ -23,7 +23,8 @@ BG_OVERLAY_ALPHA = round(255 * 0.55)
 
 NAVY_DARK = (12, 24, 40)  # #0c1828
 NAVY = (30, 58, 95)  # #1e3a5f  CTA / brand
-GOLD = (201, 162, 39)  # #c9a227
+GOLD = (201, 162, 39)  # #c9a227 — School UI, non last-minute
+ALERT = (242, 69, 58)  # #F2453A corallo/alert storie LM — mai iscrizione #e10600
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 
@@ -665,7 +666,7 @@ def compose_digest(args: argparse.Namespace) -> Image.Image:
         canvas = _left_scrim(canvas)
     else:
         canvas = vertical_gradient(NAVY_DARK, NAVY).convert("RGBA")
-        canvas = add_accent_glow(canvas, GOLD, center=(200, 420), radius=520, alpha=70)
+        canvas = add_accent_glow(canvas, ALERT, center=(200, 420), radius=520, alpha=70)
 
     draw = ImageDraw.Draw(canvas)
     x0 = SAFE_X
@@ -678,7 +679,7 @@ def compose_digest(args: argparse.Namespace) -> Image.Image:
     title_path = FONT_BEBAS if FONT_BEBAS.is_file() else FONT_EXTRABOLD
 
     f1 = _fit_line_width(title_path, line1, max_w + 40, 250)
-    draw.text((x0 - 4, y), line1, font=f1, fill=GOLD, anchor="lt", stroke_width=2, stroke_fill=BLACK)
+    draw.text((x0 - 4, y), line1, font=f1, fill=ALERT, anchor="lt", stroke_width=2, stroke_fill=BLACK)
     _w, h1 = text_size(draw, line1, f1)
     y += h1 - 18
     if line2:
@@ -686,7 +687,7 @@ def compose_digest(args: argparse.Namespace) -> Image.Image:
         draw.text((x0 - 4, y), line2, font=f2, fill=WHITE, anchor="lt", stroke_width=2, stroke_fill=BLACK)
         _w, h2 = text_size(draw, line2, f2)
         y += h2 + 8
-    draw.rectangle((x0, y, x0 + 160, y + 6), fill=GOLD)
+    draw.rectangle((x0, y, x0 + 160, y + 6), fill=ALERT)
     y += 28
 
     lead = (
@@ -705,18 +706,18 @@ def compose_digest(args: argparse.Namespace) -> Image.Image:
     tw, th = text_size(draw, app_line, app_font)
     pad_x, pad_y = 22, 14
     pill = (x0, y, x0 + tw + pad_x * 2, y + th + pad_y * 2)
-    draw.rounded_rectangle(pill, radius=28, fill=GOLD)
+    draw.rounded_rectangle(pill, radius=28, fill=ALERT)
     draw.text(
         (x0 + pad_x, y + pad_y + th / 2 - 2),
         app_line,
         font=app_font,
-        fill=NAVY_DARK,
+        fill=WHITE,
         anchor="lm",
     )
     y += th + pad_y * 2 + 14
 
     or_font = load_font(FONT_BOLD, 24)
-    draw.text((x0, y), "o sul sito", font=or_font, fill=GOLD, anchor="lt")
+    draw.text((x0, y), "o sul sito", font=or_font, fill=ALERT, anchor="lt")
     _tw, th = text_size(draw, "o sul sito", or_font)
     y += th + 6
     site = (getattr(args, "site", None) or "school.musicproeventi.it/prenotazioni").strip()
@@ -766,7 +767,7 @@ def compose_digest(args: argparse.Namespace) -> Image.Image:
             ((x0 + SAFE_RIGHT) / 2, card_top + date_bar_h / 2 - 2),
             date_label,
             font=date_font,
-            fill=GOLD,
+            fill=ALERT,
             anchor="mm",
         )
     for i, sala in enumerate(salas):
@@ -795,7 +796,7 @@ def compose_digest(args: argparse.Namespace) -> Image.Image:
             price_font = load_font(FONT_EXTRABOLD, 32)
             mid = cy + cell_h / 2
             draw.text(((left + right) / 2, mid - 18), fascia, font=time_font, fill=WHITE, anchor="mm")
-            draw.text(((left + right) / 2, mid + 42), price_text, font=price_font, fill=GOLD, anchor="mm")
+            draw.text(((left + right) / 2, mid + 42), price_text, font=price_font, fill=ALERT, anchor="mm")
 
     return canvas
 
