@@ -26,4 +26,4 @@ Banner, card, icone, foto sale, screenshot: skill `file-grafici` (`.cursor/skill
 
 ## Manutenzione
 
-*Aggiungi alla skill file-grafici* → aggiorna **globale + copia repo** nello stesso task. Eventi resta in `reference-eventi.md`; School in `reference-school.md`.
+*Aggiungi alla skill file-grafici* → aggiorna **globale + copia repo** nello stesso task. Eventi resta in `reference-eventi.md`; School in `reference-school.md`; storie last minute IG/FB 9:16 in `reference-storie-last-minute.md`.

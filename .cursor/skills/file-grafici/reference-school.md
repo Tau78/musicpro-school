@@ -24,12 +24,13 @@ Viola Tailwind = solo stato «lezione online», mai logo.
 
 **CTA navy pieno → testo bianco** (`text-white` / `btn-brand`). Mai navy su navy. Secondari: bordo navy + testo navy su fondo chiaro.
 
-## Due canali, due identità
+## Tre canali, tre identità
 
 | Canale | Look | Non usare per |
 |---|---|---|
-| **App** (dashboard, shell, email) | Navy + gold, system-ui, titoli `.font-display` (Georgia / ui-serif) | Locandine Eventi, Enigma |
-| **Iscrizione FTP** (`iscrizione.html`) | Dark `#070707` / `#111`, CTA rosso `#e10600`, Bricolage Grotesque + Manrope | Materiale che deve sembrare l’app |
+| **App** (dashboard, shell, email) | Navy + gold, system-ui, titoli `.font-display` (Georgia / ui-serif) | Locandine Eventi, Enigma, storie last minute |
+| **Iscrizione FTP** (`iscrizione.html`) | Dark `#070707` / `#111`, CTA rosso `#e10600`, Bricolage Grotesque + Manrope | Materiale che deve sembrare l’app, storie last minute |
+| **Storie last minute sale** (IG/FB 9:16) | Dark/foto + Montserrat/Bebas. **NON** glass app, **NON** iscrizione rossa. Formato **1080×1920**. Script `scripts/compose-last-minute-story.py`. Naming `LM-YYYY-MM-DD-Sala-HH-HH-phase.png`. Prima release = solo bozza (`--draft`). Playbook: [reference-storie-last-minute.md](reference-storie-last-minute.md) | Dashboard, iscrizione FTP, Eventi/Enigma |
 
 Wordmark app: **MusicPro School**. Sottotitolo istituzionale: **Associazione MusicPro**.  
 Mark: quadrato navy `rx=12` + «M» stroke gold — vedi `musicpro/apps/web/src/components/brand/brand-logo.tsx`. Non reinterpretare con cubi, viole, Cinzel.
@@ -64,6 +65,7 @@ Sorgenti pulite di compose: `docs/assets/school/` (creala al primo asset; non le
 | Screenshot iPad 13″ | 2064×2752 |
 | Play (quando servono) | icona 512×512, feature **1024×500** — oggi `store/android/` è vuoto |
 | og:image landing | logo social WP 1024; `layout.tsx` Next **non** ha ancora `openGraph.images` |
+| Storie last minute IG/FB | **1080×1920** PNG; [reference-storie-last-minute.md](reference-storie-last-minute.md); naming `LM-YYYY-MM-DD-Sala-HH-HH-phase.png`; prima release `--draft` |
 
 ## Card già in School
 
@@ -80,11 +82,13 @@ Sorgenti pulite di compose: `docs/assets/school/` (creala al primo asset; non le
 - Iscrizione: `deploy-iscrizione.js` copia `assets/music-pro-logo.png` (non compone raster).
 - Firma presidente: aggiorna PNG **e** `firma-presidente-base64.ts`.
 - Foto sale Rossa/Arancio: oggi solo CDN; un nuovo JPG locale va in `musicpro/apps/web/public/rooms/` **e** va aggiornato il picker se il path cambia.
+- Storie last minute: `scripts/compose-last-minute-story.py` → `docs/assets/school/storie-last-minute/`. Sempre `--draft` alla prima release. Se manca un campo del brief: non generare (eccezione `--smoke`).
 
 ## Vietato (School)
 
 - Estetica Eventi/Enigma (cubo viola, smeraldo, Cinzel oro Giochi, 1200×520).
-- Dark/rosso iscrizione su materiale dashboard.
+- Dark/rosso iscrizione su materiale dashboard. Glass app o iscrizione rossa sulle storie last minute.
+- Inventare prezzi, orari, nomi sala. −30% gigante / % sconto giganti. Linguaggio app sulle storie.
 - Testo italiano uscito dal generatore di immagini.
 - Stirare il logo 1027×322 a icona 1024 senza `generate-ios-appicon.sh` (letterbox/pad, non squash).
 - Commit di `.env` o PUT FTP senza confronto live.
