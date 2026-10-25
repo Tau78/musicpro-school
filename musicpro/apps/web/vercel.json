@@ -20,10 +20,6 @@
     {
       "path": "/api/cron/last-minute",
       "schedule": "0 16 * * *"
-    },
-    {
-      "path": "/api/cron/last-minute-stories",
-      "schedule": "0 * * * *"
     }
   ]
 }
