@@ -19,7 +19,7 @@
     },
     {
       "path": "/api/cron/last-minute",
-      "schedule": "*/15 * * * *"
+      "schedule": "0 16 * * *"
     }
   ]
 }
