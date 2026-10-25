@@ -604,6 +604,116 @@ def compose_story(args: argparse.Namespace) -> Image.Image:
     return canvas
 
 
+def _slot_rows_from_args(args: argparse.Namespace) -> list[tuple[str, str, str]]:
+    """[(sala, fascia, 'da N €'), ...] — solo da --slot, niente inventati."""
+    rows: list[tuple[str, str, str]] = []
+    for raw in getattr(args, "slots", None) or []:
+        parts = [p.strip() for p in str(raw).split(",")]
+        if len(parts) != 4:
+            die(f"error: --slot deve essere Sala,HH:MM,HH:MM,prezzo (ricevuto: {raw})")
+        sala, start, end, price_raw = parts
+        if sala not in ROOM_ACCENT:
+            die(f"error: --slot sala sconosciuta: {sala}")
+        sh, _ = parse_hhmm(start, "--slot start")
+        eh, _ = parse_hhmm(end, "--slot end")
+        try:
+            price = float(price_raw.replace(",", "."))
+        except ValueError:
+            die(f"error: --slot prezzo non numerico: {price_raw}")
+        fascia = f"{sh:02d}–{eh:02d}"
+        rows.append((sala, fascia, format_price(price)))
+    if not rows:
+        die("error: --digest richiede almeno un --slot Sala,inizio,fine,prezzo")
+    return rows
+
+
+def compose_digest(args: argparse.Namespace) -> Image.Image:
+    """LAST MINUTE in evidenza, niente logo, copy + esempi slot. Testo dal brief."""
+    require_fonts()
+    rows = _slot_rows_from_args(args)
+    canvas = vertical_gradient(NAVY_DARK, NAVY).convert("RGBA")
+    canvas = add_accent_glow(canvas, ROOM_ACCENT["Rossa"], center=(280, 1600), radius=420, alpha=55)
+    canvas = add_accent_glow(canvas, ROOM_ACCENT["Verde"], center=(820, 1500), radius=380, alpha=50)
+    draw = ImageDraw.Draw(canvas)
+    cx = SAFE_X + SAFE_W / 2
+    y = SAFE_Y + 8
+    variant = getattr(args, "variant", "manifesto") or "manifesto"
+
+    kicker = (args.kicker or "LAST MINUTE").strip().upper()
+    path = FONT_BEBAS if FONT_BEBAS.is_file() else FONT_EXTRABOLD
+    title_size = 188 if variant == "manifesto" else 156
+    title_font = load_font(path, title_size)
+    _kw, kh = draw_tracked(
+        draw,
+        (cx, y),
+        kicker,
+        title_font,
+        GOLD,
+        tracking=12.0 if path == FONT_BEBAS else 2.0,
+        anchor="mt",
+        stroke_width=1,
+        stroke_fill=BLACK,
+    )
+    y += kh + 22
+
+    lead = (
+        args.subtitle
+        or "Approfitta del LAST MINUTE per prenotare alcuni slot della sala prove."
+    )
+    body_font = load_font(FONT_BOLD, 34)
+    for line in wrap_text(lead, body_font, SAFE_W - 20, max_lines=4):
+        draw_shadow_text(draw, (cx, y), line, body_font, WHITE, anchor="mt", stroke_width=2)
+        _tw, th = text_size(draw, line, body_font)
+        y += th + 8
+    y += 22
+
+    app_line = "IN APP MUSICPRO SCHOOL"
+    app_font = load_font(FONT_EXTRABOLD, 38)
+    draw_shadow_text(draw, (cx, y), app_line, app_font, WHITE, anchor="mt", stroke_width=2)
+    _tw, th = text_size(draw, app_line, app_font)
+    y += th + 14
+
+    or_font = load_font(FONT_BOLD, 28)
+    draw_shadow_text(draw, (cx, y), "o sul sito", or_font, GOLD, anchor="mt", stroke_width=1)
+    _tw, th = text_size(draw, "o sul sito", or_font)
+    y += th + 8
+
+    site = (getattr(args, "site", None) or "school.musicproeventi.it/prenotazioni").strip()
+    site_font = load_font(FONT_BOLD, 30)
+    draw_shadow_text(draw, (cx, y), site, site_font, WHITE, anchor="mt", stroke_width=2)
+    _tw, th = text_size(draw, site, site_font)
+    y += th + 36
+
+    if args.date:
+        day_label = format_it_date(args.date)
+        day_font = load_font(FONT_EXTRABOLD, 36)
+        draw_shadow_text(draw, (cx, y), day_label, day_font, GOLD, anchor="mt")
+        _tw, th = text_size(draw, day_label, day_font)
+        y += th + 18
+
+    row_font = load_font(FONT_BOLD, 36)
+    price_font = load_font(FONT_EXTRABOLD, 36)
+    row_h = 78
+    row_fill = (16, 30, 48)
+    for sala, fascia, price_text in rows:
+        if y + row_h > SAFE_BOTTOM - 4:
+            break
+        accent = ROOM_ACCENT[sala]
+        left = SAFE_X
+        right = SAFE_RIGHT
+        top = y
+        bot = y + row_h - 10
+        mid = (top + bot) / 2
+        draw.rounded_rectangle((left, top, right, bot), radius=16, fill=row_fill)
+        draw.rounded_rectangle((left, top, left + 14, bot), radius=6, fill=accent)
+        label = f"{sala}   {fascia}"
+        draw.text((left + 40, mid), label, font=row_font, fill=WHITE, anchor="lm")
+        draw.text((right - 28, mid), price_text, font=price_font, fill=GOLD, anchor="rm")
+        y += row_h
+
+    return canvas
+
+
 def save_rgb(canvas: Image.Image, dest: Path) -> None:
     dest.parent.mkdir(parents=True, exist_ok=True)
     rgb = canvas.convert("RGB")
@@ -663,6 +773,28 @@ def build_parser() -> argparse.ArgumentParser:
         help="Foto full-bleed, cover-crop 9:16 centrato",
     )
     parser.add_argument("--out", help="Path file di output (png/jpg)")
+    parser.add_argument(
+        "--digest",
+        action="store_true",
+        help="Una storia: LAST MINUTE + copy + elenco slot. Niente logo.",
+    )
+    parser.add_argument(
+        "--variant",
+        choices=("manifesto", "compatta"),
+        default="manifesto",
+        help="Solo con --digest",
+    )
+    parser.add_argument(
+        "--slot",
+        action="append",
+        dest="slots",
+        help="Ripetibile: Sala,HH:MM,HH:MM,prezzo  es. Rossa,20:00,22:00,16",
+    )
+    parser.add_argument(
+        "--site",
+        default="school.musicproeventi.it/prenotazioni",
+        help="URL bruciato in grafica (digest)",
+    )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--draft", action="store_true", help="Watermark BOZZA (default)")
     mode.add_argument("--publish", action="store_true", help="Senza watermark")
@@ -673,6 +805,21 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     draft = not args.publish  # prima release: default bozza
+
+    if args.digest:
+        if not args.date:
+            die("error: --digest richiede --date")
+        canvas = compose_digest(args)
+        if draft:
+            canvas = apply_draft_watermark(canvas)
+        if args.out:
+            dest = Path(args.out).expanduser().resolve()
+        else:
+            OUT_DIR.mkdir(parents=True, exist_ok=True)
+            suffix = "-bozza" if draft else ""
+            dest = OUT_DIR / f"LM-{args.date}-digest-{args.variant}{suffix}.png"
+        save_rgb(canvas, dest)
+        return 0
 
     if args.smoke:
         canvas = compose_smoke()

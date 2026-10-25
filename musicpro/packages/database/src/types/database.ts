@@ -414,6 +414,53 @@ export interface Database {
         };
         Relationships: [];
       };
+      last_minute_campaigns: {
+        Row: {
+          id: string;
+          room_id: string;
+          start_at: string;
+          end_at: string;
+          phase: "phase1" | "phase2" | "filled" | "cancelled";
+          phase1_started_at: string | null;
+          phase2_started_at: string | null;
+          filled_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          room_id: string;
+          start_at: string;
+          end_at: string;
+          phase?: "phase1" | "phase2" | "filled" | "cancelled";
+          phase1_started_at?: string | null;
+          phase2_started_at?: string | null;
+          filled_at?: string | null;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["last_minute_campaigns"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      member_last_minute_eligibility: {
+        Row: {
+          member_id: string;
+          price_blocked_until: string | null;
+          discounted_count_window: number | null;
+          last_discounted_at: string | null;
+          last_early_booking_at: string | null;
+        };
+        Insert: {
+          member_id: string;
+          price_blocked_until?: string | null;
+          discounted_count_window?: number | null;
+          last_discounted_at?: string | null;
+          last_early_booking_at?: string | null;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["member_last_minute_eligibility"]["Insert"]
+        >;
+        Relationships: [];
+      };
       booking_companion_invites: {
         Row: {
           id: string;
@@ -2691,6 +2738,21 @@ export interface Database {
           p_member_id: string;
         };
         Returns: undefined;
+      };
+      booking_evening_operational_active: {
+        Args: { p_day: string };
+        Returns: boolean;
+      };
+      booking_start_in_operational_band: {
+        Args: { p_start_at: string; p_day: string };
+        Returns: boolean;
+      };
+      booking_resolve_lead_hours: {
+        Args: { p_start_at: string };
+        Returns: {
+          approval_min_hours: number;
+          auto_confirm_min_hours: number;
+        }[];
       };
     };
     Enums: {

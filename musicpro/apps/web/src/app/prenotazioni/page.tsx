@@ -23,7 +23,7 @@ import {
   getBookingSettings,
   getCurrentMemberWithRoles,
   getMemberCreditBalance,
-  getRoomAvailability,
+  fetchRoomAvailability,
   isSlotInProviSchedule,
   listMyBands,
   listProviSchedule,
@@ -127,6 +127,7 @@ export default function PrenotazioniPage() {
   const previewPrice = useMemo(() => {
     if (!selectedRoom) return null;
     const base =
+      selectedSlot?.lastMinute?.finalPriceEur ??
       selectedSlot?.priceEur ??
       calculateBookingPrice(selectedRoom, durationMinutes);
     let total = base;
@@ -250,8 +251,7 @@ export default function PrenotazioniPage() {
     }
 
     try {
-      const availability = await getRoomAvailability(
-        supabase,
+      const availability = await fetchRoomAvailability(
         selectedRoomId,
         selectedDate,
         durationMinutes,
@@ -1073,9 +1073,26 @@ export default function PrenotazioniPage() {
                       >
                         <span className="font-medium">{slot.label}</span>
                         <span className="mt-0.5 block text-xs text-neutral-600">
+                          {slot.lastMinute?.phase === 1 ? (
+                            <span className="inline-flex rounded-full bg-rose-100 px-2 py-0.5 font-medium text-rose-900">
+                              Last minute
+                            </span>
+                          ) : null}
                           {slot.leadTimeCategory === "approval" && !isCollaborator ? (
-                            <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-900">
+                            <span className="mt-0.5 inline-flex rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-900">
                               Richiede approvazione
+                            </span>
+                          ) : slot.lastMinute?.phase === 2 &&
+                            slot.lastMinute.finalPriceEur != null ? (
+                            <span className="mt-0.5 block">
+                              <span className="text-neutral-400 line-through">
+                                {slot.priceEur != null
+                                  ? formatEuro(slot.priceEur)
+                                  : null}
+                              </span>
+                              <span className="ml-1 font-semibold text-rose-700">
+                                {formatEuro(slot.lastMinute.finalPriceEur)}
+                              </span>
                             </span>
                           ) : slot.priceEur != null ? (
                             formatEuro(slot.priceEur)

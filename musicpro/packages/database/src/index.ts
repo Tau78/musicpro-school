@@ -274,6 +274,33 @@ export type {
   TimeSlot,
 } from "./bookings";
 export {
+  OPERATIONAL_WEEK_SCHEDULE_KEY,
+  LAST_MINUTE_PHASE1_HOURS,
+  LAST_MINUTE_PHASE2_HOURS,
+  LAST_MINUTE_DEFAULT_DISCOUNT_PERCENT,
+  defaultOperationalWeekSchedule,
+  parseOperationalWeekScheduleJson,
+  getOperationalWeekSchedule,
+  listRecentLastMinuteCampaigns,
+  updateOperationalWeekSchedule,
+  validateOperationalWeekSchedule,
+  isMemberPriceEligible,
+  getActiveCampaignsForRoomDate,
+  computeLastMinuteFinalPriceEur,
+  hoursUntilSlotStart,
+  isWithinLastMinuteWindow,
+  enrichAvailabilitySlots,
+} from "./last-minute";
+export type {
+  LastMinuteCampaignPhase,
+  WeekdayKey,
+  OperationalDaySchedule,
+  OperationalWeekSchedule,
+  LastMinuteCampaign,
+  LastMinuteSlotOffer,
+  AvailabilitySlotWithLastMinute,
+} from "./last-minute";
+export {
   createMember,
   deleteMember,
   getMemberById,

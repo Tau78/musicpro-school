@@ -259,6 +259,12 @@ export interface TimeSlot {
   status?: BookingStatus;
   priceEur?: number;
   leadTimeCategory?: LeadTimeCategory;
+  /** Present when API enriches availability with an active last-minute campaign. */
+  lastMinute?: {
+    phase: 1 | 2;
+    campaignId: string;
+    finalPriceEur?: number;
+  };
 }
 
 export type LeadTimeCategory = "auto" | "approval" | "too_late";
@@ -397,7 +403,8 @@ const BOOKING_ERROR_MESSAGES_IT: Record<BookingErrorCode, string> = {
   INVALID_TIME: "L'orario di fine deve essere successivo all'inizio.",
   INVALID_DURATION: "Durata non valida per questa sala.",
   ROOM_NOT_FOUND: "Sala non trovata o non disponibile.",
-  SLOT_TAKEN: "Questo slot è già prenotato. Scegli un altro orario.",
+  SLOT_TAKEN:
+    "Ops, qualcuno è stato più veloce di te. Scegli un altro orario.",
   TOO_LATE: "Anticipo insufficiente per prenotare in questo orario.",
   NOT_FOUND: "Prenotazione non trovata.",
   ALREADY_CANCELLED: "Prenotazione già annullata.",

@@ -45,6 +45,10 @@ import {
   calendarIncludesNonSchool,
   calendarWeekShowsSunday,
 } from "@/lib/lezioni/calendar-range";
+import {
+  loadBookingCalendarLastMinuteMarkers,
+  type BookingCalendarLastMinuteMarker,
+} from "@/lib/admin/booking-calendar-last-minute";
 import { createClient } from "@/lib/supabase/client";
 
 export type CalendarMode = "docente" | "sala";
@@ -83,6 +87,8 @@ export interface LessonsCalendarPageProps {
   availableScopes?: readonly CalendarScope[];
   /** Docente fisso (es. dashboard docente). */
   lockTeacherId?: string | null;
+  /** Campagne last minute su slot liberi (calendario prenotazioni + sala). */
+  initialLastMinuteMarkers?: BookingCalendarLastMinuteMarker[];
 }
 
 type RequestForm = {
@@ -114,6 +120,7 @@ export function LessonsCalendarPage({
   initialScope = "tutto",
   availableScopes = ["tutto", "lezioni", "prenotazioni"],
   lockTeacherId = null,
+  initialLastMinuteMarkers = [],
 }: LessonsCalendarPageProps) {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
@@ -144,6 +151,9 @@ export function LessonsCalendarPage({
   const [highlight, setHighlight] = useState<string | null>(highlightDay);
   const [lessons, setLessons] = useState(initialLessons);
   const [lessonsBusy, setLessonsBusy] = useState(false);
+  const [lastMinuteMarkers, setLastMinuteMarkers] = useState(
+    initialLastMinuteMarkers,
+  );
 
   const [requestForm, setRequestForm] = useState<RequestForm | null>(null);
   const [requestBusy, setRequestBusy] = useState(false);
@@ -260,8 +270,17 @@ export function LessonsCalendarPage({
               roomId: roomFilter,
             })
           : [];
+        let markers: BookingCalendarLastMinuteMarker[] = [];
+        if (bookingsOnly && next.roomId) {
+          markers = await loadBookingCalendarLastMinuteMarkers(supabase, {
+            roomId: next.roomId,
+            from: bounds.from,
+            to: bounds.to,
+          });
+        }
         if (gen !== fetchGen.current) return;
         setLessons(mergeCalendarEvents(rows, bookings, externals));
+        setLastMinuteMarkers(markers);
       } catch {
         if (gen !== fetchGen.current) return;
       } finally {
@@ -790,6 +809,7 @@ export function LessonsCalendarPage({
           }
           onViewChange={(next) => pushQuery({ view: next })}
           onAnchorDateChange={(date) => pushQuery({ date })}
+          lastMinuteMarkers={bookingsOnly ? lastMinuteMarkers : undefined}
         />
       </div>
 

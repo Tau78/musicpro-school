@@ -2,7 +2,9 @@ import { redirect } from "next/navigation";
 
 import {
   getAppBookingSettings,
+  getOperationalWeekSchedule,
   listCancellationPenaltyRules,
+  listRecentLastMinuteCampaigns,
   listRooms,
   todayInRome,
 } from "@musicpro/database";
@@ -41,11 +43,14 @@ export default async function ImpostazioniPage({
     redirect("/admin/rimborsi");
   }
 
-  const [settings, rules, rooms] = await Promise.all([
-    getAppBookingSettings(supabase),
-    listCancellationPenaltyRules(supabase).catch(() => []),
-    listRooms(supabase),
-  ]);
+  const [settings, operationalSchedule, recentLastMinuteCampaigns, rules, rooms] =
+    await Promise.all([
+      getAppBookingSettings(supabase),
+      getOperationalWeekSchedule(supabase),
+      listRecentLastMinuteCampaigns(supabase, 5),
+      listCancellationPenaltyRules(supabase).catch(() => []),
+      listRooms(supabase),
+    ]);
 
   const today = todayInRome();
   const exportBounds = weekBounds(today, false);
@@ -55,6 +60,8 @@ export default async function ImpostazioniPage({
     <PrenotazioniSettingsWorkspace
       initialSection={section}
       settings={settings}
+      operationalSchedule={operationalSchedule}
+      recentLastMinuteCampaigns={recentLastMinuteCampaigns}
       rules={rules}
       exportRooms={roomOptions}
       exportDefaultFrom={exportBounds.from}

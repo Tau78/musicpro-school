@@ -7,9 +7,12 @@ import {
   PENDING_HOLD_HOUR_OPTIONS,
   type BookingSettings,
   type BookingSettingsInput,
+  type LastMinuteCampaign,
+  type OperationalWeekSchedule,
   updateBookingSettings,
 } from "@musicpro/database";
 
+import { BookingOperationalSettingsSection } from "@/components/admin/booking-operational-settings-section";
 import {
   FieldLabel,
   SettingsTabs,
@@ -20,6 +23,8 @@ import { createClient } from "@/lib/supabase/client";
 
 interface BookingSettingsFormProps {
   settings: BookingSettings;
+  operationalSchedule: OperationalWeekSchedule;
+  recentLastMinuteCampaigns: LastMinuteCampaign[];
 }
 
 type BookingTab = "soglie" | "band" | "blocco";
@@ -39,7 +44,11 @@ function settingsToInput(settings: BookingSettings): BookingSettingsInput {
   };
 }
 
-export function BookingSettingsForm({ settings }: BookingSettingsFormProps) {
+export function BookingSettingsForm({
+  settings,
+  operationalSchedule,
+  recentLastMinuteCampaigns,
+}: BookingSettingsFormProps) {
   const router = useRouter();
   const supabase = createClient();
 
@@ -100,6 +109,7 @@ export function BookingSettingsForm({ settings }: BookingSettingsFormProps) {
       />
 
       {tab === "soglie" ? (
+        <>
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block">
             <FieldLabel>Conferma automatica</FieldLabel>
@@ -206,6 +216,12 @@ export function BookingSettingsForm({ settings }: BookingSettingsFormProps) {
             sulla scheda associato.
           </p>
         </div>
+
+        <BookingOperationalSettingsSection
+          initialSchedule={operationalSchedule}
+          recentCampaigns={recentLastMinuteCampaigns}
+        />
+        </>
       ) : null}
 
       {tab === "band" ? (
