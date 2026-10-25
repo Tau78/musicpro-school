@@ -732,29 +732,33 @@ def compose_digest(args: argparse.Namespace) -> Image.Image:
         _tw, th = text_size(draw, day_label, day_font)
         y += th + 16
 
-    # Raggruppa per sala → due colonne card.
+    # Basso: griglia che riempie fino a quasi il fondo (lascia chrome IG).
     by_sala: dict[str, list[tuple[str, str]]] = {}
     for sala, fascia, price_text in rows:
         by_sala.setdefault(sala, []).append((fascia, price_text))
     salas = list(by_sala.keys())
-    gap = 16
-    col_w = (SAFE_W - gap) // 2 if len(salas) >= 2 else SAFE_W
+    floor = 1728
     card_top = y
-    header_h = 48
-    line_h = 56
-    name_font = load_font(FONT_EXTRABOLD, 22)
-    time_font = load_font(FONT_BOLD, 28)
-    price_font = load_font(FONT_EXTRABOLD, 26)
+    gap = 18
+    n_cols = max(len(salas), 1)
+    col_w = (SAFE_W - gap * (n_cols - 1)) // n_cols
+    header_h = 56
+    name_font = load_font(FONT_EXTRABOLD, 26)
+    title_path = FONT_BEBAS if FONT_BEBAS.is_file() else FONT_EXTRABOLD
+    # Pannello unico dietro le card: riempie il vuoto del pavimento.
+    draw.rounded_rectangle(
+        (x0 - 8, card_top - 12, SAFE_RIGHT + 8, floor + 8),
+        radius=28,
+        fill=(6, 12, 22, 236),
+    )
     for i, sala in enumerate(salas):
         items = by_sala[sala]
         left = x0 + i * (col_w + gap)
         right = left + col_w
-        card_h = header_h + 16 + len(items) * line_h + 12
         accent = ROOM_ACCENT[sala]
-        draw.rounded_rectangle((left, card_top, right, card_top + card_h), radius=22, fill=(8, 16, 28, 230))
-        draw.rounded_rectangle((left, card_top, right, card_top + header_h), radius=22, fill=accent)
-        # raddrizza il basso dell'header (solo angoli alti tondi)
-        draw.rectangle((left, card_top + 20, right, card_top + header_h), fill=accent)
+        draw.rounded_rectangle((left, card_top, right, floor), radius=24, fill=(10, 18, 32))
+        draw.rounded_rectangle((left, card_top, right, card_top + header_h), radius=24, fill=accent)
+        draw.rectangle((left, card_top + 22, right, card_top + header_h), fill=accent)
         draw.text(
             ((left + right) / 2, card_top + header_h / 2),
             sala.upper(),
@@ -762,11 +766,18 @@ def compose_digest(args: argparse.Namespace) -> Image.Image:
             fill=WHITE,
             anchor="mm",
         )
-        iy = card_top + header_h + 12
-        for fascia, price_text in items:
-            draw.text((left + 18, iy + line_h / 2), fascia, font=time_font, fill=WHITE, anchor="lm")
-            draw.text((right - 16, iy + line_h / 2), price_text, font=price_font, fill=GOLD, anchor="rm")
-            iy += line_h
+        n = max(len(items), 1)
+        body_top = card_top + header_h
+        cell_h = (floor - body_top) / n
+        for j, (fascia, price_text) in enumerate(items):
+            cy = body_top + j * cell_h
+            if j > 0:
+                draw.line((left + 24, cy, right - 24, cy), fill=(255, 255, 255, 36), width=2)
+            time_font = _fit_line_width(title_path, fascia, col_w - 36, 92, min_size=40)
+            price_font = load_font(FONT_EXTRABOLD, 32)
+            mid = cy + cell_h / 2
+            draw.text(((left + right) / 2, mid - 18), fascia, font=time_font, fill=WHITE, anchor="mm")
+            draw.text(((left + right) / 2, mid + 42), price_text, font=price_font, fill=GOLD, anchor="mm")
 
     return canvas
 
