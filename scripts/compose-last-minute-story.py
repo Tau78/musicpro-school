@@ -723,16 +723,9 @@ def compose_digest(args: argparse.Namespace) -> Image.Image:
     site_font = load_font(FONT_BOLD, 24)
     draw_shadow_text(draw, (x0, y), site, site_font, WHITE, anchor="lt", stroke_width=1)
     _tw, th = text_size(draw, site, site_font)
-    y += th + 28
+    y += th + 20
 
-    if args.date:
-        day_label = format_it_date(args.date).upper()
-        day_font = load_font(FONT_EXTRABOLD, 22)
-        draw.text((x0, y), day_label, font=day_font, fill=GOLD, anchor="lt")
-        _tw, th = text_size(draw, day_label, day_font)
-        y += th + 16
-
-    # Basso: griglia che riempie fino a quasi il fondo (lascia chrome IG).
+    # Basso: data a tutta larghezza delle colonne, poi griglia fino al fondo.
     by_sala: dict[str, list[tuple[str, str]]] = {}
     for sala, fascia, price_text in rows:
         by_sala.setdefault(sala, []).append((fascia, price_text))
@@ -745,29 +738,54 @@ def compose_digest(args: argparse.Namespace) -> Image.Image:
     header_h = 56
     name_font = load_font(FONT_EXTRABOLD, 26)
     title_path = FONT_BEBAS if FONT_BEBAS.is_file() else FONT_EXTRABOLD
+    date_label = format_it_date(args.date).upper() if args.date else ""
+    date_bar_h = 0
+    date_font = None
+    if date_label:
+        date_font = _fit_line_width(title_path, date_label, SAFE_W - 8, 200, min_size=72)
+        _dw, dh = text_size(draw, date_label, date_font)
+        date_bar_h = max(dh + 16, 108)
+    sala_top = card_top + date_bar_h
     # Pannello unico dietro le card: riempie il vuoto del pavimento.
     draw.rounded_rectangle(
         (x0 - 8, card_top - 12, SAFE_RIGHT + 8, floor + 8),
         radius=28,
         fill=(6, 12, 22, 236),
     )
+    if date_label and date_font:
+        draw.rounded_rectangle(
+            (x0, card_top, SAFE_RIGHT, card_top + date_bar_h),
+            radius=24,
+            fill=(10, 18, 32),
+        )
+        draw.rectangle(
+            (x0, card_top + date_bar_h // 2, SAFE_RIGHT, card_top + date_bar_h),
+            fill=(10, 18, 32),
+        )
+        draw.text(
+            ((x0 + SAFE_RIGHT) / 2, card_top + date_bar_h / 2 - 2),
+            date_label,
+            font=date_font,
+            fill=GOLD,
+            anchor="mm",
+        )
     for i, sala in enumerate(salas):
         items = by_sala[sala]
         left = x0 + i * (col_w + gap)
         right = left + col_w
         accent = ROOM_ACCENT[sala]
-        draw.rounded_rectangle((left, card_top, right, floor), radius=24, fill=(10, 18, 32))
-        draw.rounded_rectangle((left, card_top, right, card_top + header_h), radius=24, fill=accent)
-        draw.rectangle((left, card_top + 22, right, card_top + header_h), fill=accent)
+        draw.rounded_rectangle((left, sala_top, right, floor), radius=24, fill=(10, 18, 32))
+        draw.rounded_rectangle((left, sala_top, right, sala_top + header_h), radius=24, fill=accent)
+        draw.rectangle((left, sala_top + 22, right, sala_top + header_h), fill=accent)
         draw.text(
-            ((left + right) / 2, card_top + header_h / 2),
+            ((left + right) / 2, sala_top + header_h / 2),
             sala.upper(),
             font=name_font,
             fill=WHITE,
             anchor="mm",
         )
         n = max(len(items), 1)
-        body_top = card_top + header_h
+        body_top = sala_top + header_h
         cell_h = (floor - body_top) / n
         for j, (fascia, price_text) in enumerate(items):
             cy = body_top + j * cell_h

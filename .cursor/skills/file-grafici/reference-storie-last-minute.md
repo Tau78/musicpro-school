@@ -85,7 +85,7 @@ Soggetto intero, dai bordi estremi in dentro. Sorgente pulita (foto sala), non i
 
 Siamo già sulla pagina MusicPro: **niente logo grande**. Il soggetto è **LAST MINUTE**.
 
-Se ci sono più slot, **una storia digest** (`--digest`): titolo LAST MINUTE, copy dal brief, «IN APP MUSICPRO SCHOOL» + URL sito bruciato, poi esempi `data / sala / fascia / da N €`.
+Se ci sono più slot, **una storia digest** (`--digest`): titolo LAST MINUTE, copy dal brief, «IN APP MUSICPRO SCHOOL» + URL sito bruciato. La **data** (es. LUNEDÌ 26 OTTOBRE) è grande e occupa tutta la larghezza delle colonne sala; sotto, card sala a tutta altezza con fascia / da N €.
 
 Quale sala, quando, CTA **oppure** quanto costa. Placeholder solo dal brief.
 
