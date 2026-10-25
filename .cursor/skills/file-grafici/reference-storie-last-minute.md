@@ -134,13 +134,44 @@ Flag minimi = campi brief: `--sala` `--date` `--start` `--end` `--phase` (alias 
 
 Non chiamare il generatore di immagini per le lettere. Non produrre PNG campagna se manca un campo (salvo `--smoke`).
 
+## Ponte verso publisher Eventi
+
+School **non** ha Meta Graph. APP Eventi **sì**: Edge `admin-social-story-publish-cron` + tabelle `social_story_plans` / `social_story_slots`.
+
+Ponte (solo coda, non publish da School):
+
+1. PNG compose → `docs/assets/school/storie-last-minute/`
+2. Upload bucket pubblico Eventi `social-story-media` (`images/musicproeventi/…`)
+3. Insert piano + slot con `instagram_account_id` di **@musicproeventi** (slug `musicproeventi`)
+4. Il cron Eventi pubblica a `scheduled_at`
+
+Script: `scripts/queue-lm-story-to-eventi.mjs` (default `--dry-run`).
+
+```bash
+node scripts/queue-lm-story-to-eventi.mjs \
+  --file docs/assets/school/storie-last-minute/LM-YYYY-MM-DD-Sala-HH-HH-phase.png \
+  --account musicproeventi \
+  --scheduled-at 2026-10-26T19:30:00 \
+  --link https://school.musicproeventi.it/prenotazioni
+```
+
+`--scheduled-at` senza timezone = Europe/Rome. `--apply` solo se esplicito (OK Mauro + secret Eventi). Prima release / compose `--draft`: **NON** chiamare il ponte `--apply`.
+
+### Vietato sul ponte
+
+- Pubblicare su **@ilcervellonegenova** (account DEFAULT Eventi)
+- Chiamare Edge `admin-social-story-manual-package` (non inoltra `accountId`, cade sul DEFAULT)
+- Duplicare Meta Graph in School / chiamare Meta da School
+- Link sticker verso Eventi app / `musicproeventiapp.html` — usare landing **prenotazioni School**: `https://school.musicproeventi.it/prenotazioni`
+
 ## Flusso
 
 1. Brief completo. Campo mancante → AskQuestion (o attendi). Stop. Niente campagna.
 2. ONDA (sempre in School).
-3. Compose `--draft` (prima release). 1–3 varianti.
+3. Compose `--draft` (prima release). 1–3 varianti. **Non** accodare al publisher Eventi.
 4. Apri i PNG: safe area, overlay, CTA navy testo bianco, sala/orario/prezzo = brief, max 5 righe, niente % sconto, niente testo da modello.
 5. `--smoke` = solo layout, senza slot reale, senza prezzi finti da campagna.
+6. Ponte `--apply` solo dopo OK Mauro, PNG definitivo, account **@musicproeventi**. Prima: dry-run.
 
 ## Vietato (riepilogo, non parafrasare)
 
@@ -154,3 +185,5 @@ Non chiamare il generatore di immagini per le lettere. Non produrre PNG campagna
 - Stretch della foto
 - Copy critico y>1248
 - Generare la campagna se manca un campo del brief (eccezione `--smoke`)
+- Ponte `--apply` in prima release / `--draft`
+- Coda su @ilcervellonegenova o Edge `admin-social-story-manual-package`

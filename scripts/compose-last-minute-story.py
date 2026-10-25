@@ -312,6 +312,9 @@ def parse_hhmm(value: str, flag: str) -> tuple[int, int]:
         minute = int(parts[1])
     except ValueError:
         die(f"error: {flag} deve essere HH:MM (es. 20:00), ricevuto: {value}")
+    # 24:00 = mezzanotte (fine fascia 22–24).
+    if hour == 24 and minute == 0:
+        return 24, 0
     if not (0 <= hour <= 23 and 0 <= minute <= 59):
         die(f"error: {flag} orario non valido: {value}")
     return hour, minute
