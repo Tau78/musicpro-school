@@ -73,6 +73,7 @@ school-shell-android/local.properties
 
 # Last-minute Instagram story smoke (generated)
 docs/assets/school/storie-last-minute/_smoke*
+docs/assets/school/storie-app/_smoke*
 
 # Python
 __pycache__/

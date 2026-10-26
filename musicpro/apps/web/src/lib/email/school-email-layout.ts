@@ -62,13 +62,18 @@ export function schoolEmailHeroHtml(
   kicker: string,
   title: string,
   subtitle: string,
+  detail?: string,
 ): string {
+  const detailLine = detail
+    ? `<p style="margin:6px 0 0;font-size:18px;line-height:1.3;font-weight:700;color:${SCHOOL_BRAND_NAVY};">${escapeEmailHtml(detail)}</p>`
+    : "";
   return `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 18px;">
     <tr>
-      <td style="background:#f6f3ec;border-radius:12px;padding:18px 20px;text-align:center;">
+      <td style="background:#f6f3ec;border-radius:12px;padding:18px 16px;text-align:center;">
         <p style="margin:0 0 4px;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:${SCHOOL_BRAND_GOLD};font-weight:700;">${escapeEmailHtml(kicker)}</p>
         <p style="margin:0 0 8px;font-size:26px;line-height:1.2;font-weight:800;color:${SCHOOL_BRAND_NAVY};">${escapeEmailHtml(title)}</p>
-        <p style="margin:0;font-size:15px;line-height:1.45;color:#374151;">${escapeEmailHtml(subtitle)}</p>
+        <p style="margin:0;font-size:14px;line-height:1.4;color:#374151;">${escapeEmailHtml(subtitle)}</p>
+        ${detailLine}
       </td>
     </tr>
   </table>`;
@@ -105,7 +110,7 @@ export function wrapSchoolEmail(input: WrapSchoolEmailInput): string {
           <tr>
             <td style="padding:18px 20px;">
               <p style="margin:0 0 6px;font-size:15px;font-weight:700;color:${SCHOOL_BRAND_NAVY};">Porta la scuola nello smartphone</p>
-              <p style="margin:0 0 14px;font-size:14px;line-height:1.5;color:#374151;">Prenota la sala, le lezioni e i crediti dall'app MusicPro School. Gratis su App Store.</p>
+              <p style="margin:0 0 14px;font-size:14px;line-height:1.5;color:#374151;">Prenota sala, lezioni e crediti dallo smartphone.</p>
               <a href="${escapeEmailHtml(SCHOOL_APP_STORE_URL)}" style="display:inline-block;background:${SCHOOL_BRAND_NAVY};color:#ffffff;text-decoration:none;padding:11px 18px;border-radius:8px;font-weight:700;font-size:14px;">Scarica l'app</a>
               <p style="margin:12px 0 0;font-size:12px;line-height:1.45;color:#6b7280;">Oppure apri <a href="${escapeEmailHtml(SCHOOL_APP_URL)}" style="color:${SCHOOL_BRAND_NAVY};font-weight:700;text-decoration:none;">school.musicproeventi.it</a></p>
             </td>

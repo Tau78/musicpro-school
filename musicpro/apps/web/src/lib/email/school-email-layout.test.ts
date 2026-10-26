@@ -33,6 +33,7 @@ describe("wrapSchoolEmail", () => {
     expect(html).toContain(SCHOOL_YOUTUBE_URL);
     expect(html).toContain(SCHOOL_APP_STORE_URL);
     expect(html).toContain("Scarica l'app");
+    expect(html).toContain("Porta la scuola nello smartphone");
   });
 
   it("CTA navy con testo bianco, senza rosso iscrizione", () => {
@@ -53,9 +54,15 @@ describe("wrapSchoolEmail", () => {
 
 describe("schoolEmailHeroHtml", () => {
   it("mostra sala e orario", () => {
-    const hero = schoolEmailHeroHtml("Sala prove", "Arancio", "mercoledì 4 novembre 2026 · 21:00 – 23:00");
+    const hero = schoolEmailHeroHtml(
+      "Sala prove",
+      "Arancio",
+      "mercoledì 4 novembre 2026",
+      "21:00 – 23:00",
+    );
     expect(hero).toContain("Arancio");
     expect(hero).toContain("21:00");
+    expect(hero).toContain("mercoledì 4 novembre 2026");
   });
 });
 

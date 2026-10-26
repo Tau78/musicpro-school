@@ -174,6 +174,7 @@ export async function getMemberCreditAvailable(
   return typeof result?.available === 'number' ? result.available : null;
 }
 
+/** HTML Edge non usato in invio: processBookingEmail passa da Vercel (wrapSchoolEmail). */
 export function buildBookingEmailContent(
   booking: BookingRow,
   template: BookingEmailTemplate,
