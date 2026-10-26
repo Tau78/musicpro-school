@@ -1,5 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import {
+  SCHOOL_APP_URL,
+  schoolEmailBodyFromText,
+  schoolEmailTextFooter,
+  wrapSchoolEmail,
+} from "@musicpro/shared";
+
 import { sendLessonFamilyEmail, sendSingleEmail } from "./messaging";
 import type { Database } from "./types/database";
 
@@ -111,6 +118,32 @@ function staffCopy(input: CourseLifecycleNotifyInput): {
   }
 }
 
+function brandedLessonMail(
+  title: string,
+  body: string,
+  cta?: { href: string; label: string },
+): { html: string; text: string } {
+  const html = wrapSchoolEmail({
+    appOrigin: SCHOOL_APP_URL,
+    title,
+    htmlBody: schoolEmailBodyFromText(body),
+    ctas: cta ? [cta] : undefined,
+  });
+  const text = `${body}${schoolEmailTextFooter()}`;
+  return { html, text };
+}
+
+function familyEmailTitle(kind: LifecycleNotifyKind): string {
+  switch (kind) {
+    case "close":
+      return "Corso chiuso";
+    case "remove_enrollment":
+      return "Uscita dal corso";
+    default:
+      return "Aggiornamento corso";
+  }
+}
+
 function familyCopy(input: CourseLifecycleNotifyInput): {
   subject: string;
   body: string;
@@ -161,10 +194,16 @@ export async function notifyCourseLifecycle(
   const family = familyCopy(input);
   if (!family || !input.familyMemberIds?.length) return;
 
+  const { html, text } = brandedLessonMail(
+    familyEmailTitle(input.kind),
+    family.body,
+    { href: SCHOOL_APP_URL, label: "Apri MusicPro School" },
+  );
   for (const memberId of input.familyMemberIds) {
     await sendLessonFamilyEmail(client, memberId, {
       subject: family.subject,
-      body: family.body,
+      body: text,
+      html,
     });
   }
 }

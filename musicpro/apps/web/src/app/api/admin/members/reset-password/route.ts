@@ -8,6 +8,12 @@ import {
   validateStaffPassword,
 } from "@/lib/admin/staff-auth";
 import { authPublicOrigin } from "@/lib/auth/redirect-url";
+import {
+  SCHOOL_APP_URL,
+  schoolEmailBodyFromText,
+  schoolEmailTextFooter,
+  wrapSchoolEmail,
+} from "@/lib/email/school-email-layout";
 import { sendEnrollmentEmail } from "@/lib/iscrizione/email-transport";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
@@ -33,7 +39,7 @@ function buildPasswordResetEmail(params: {
 }): { subject: string; text: string; html: string } {
   const name = params.firstName.trim() || "Ciao";
   const subject = "Accesso MusicPro School — nuova password";
-  const text = [
+  const memberParagraphs = [
     `${name},`,
     "",
     "l'amministrazione ha impostato la tua password di accesso a MusicPro School (area associati).",
@@ -43,29 +49,30 @@ function buildPasswordResetEmail(params: {
     `Accedi con email e password (non è un link di pagamento): ${params.loginUrl}`,
     "",
     "Ti consigliamo di cambiarla dalle Impostazioni dopo il primo accesso.",
-    "",
-    "— MusicPro School",
   ].join("\n");
 
-  const html = `
-<p>${escapeHtml(name)},</p>
-<p>l'amministrazione ha impostato la tua password di accesso a MusicPro School (area associati).</p>
-<p><strong>Nuova password:</strong> <code style="font-size:1.15em;letter-spacing:0.04em">${escapeHtml(params.password)}</code></p>
-<p>Usa <strong>email + password</strong> nella scheda Password — non è un link di pagamento quota/Stripe.</p>
-<p><a href="${escapeHtml(params.loginUrl)}">Vai al login MusicPro School</a></p>
-<p>Ti consigliamo di cambiarla dalle Impostazioni dopo il primo accesso.</p>
-<p>— MusicPro School</p>
-`.trim();
+  const text = memberParagraphs + schoolEmailTextFooter();
+
+  const htmlBodyParagraphs = [
+    `${name},`,
+    "",
+    "l'amministrazione ha impostato la tua password di accesso a MusicPro School (area associati).",
+    "",
+    `Nuova password: ${params.password}`,
+    "",
+    "Usa email + password nella scheda Password — non è un link di pagamento quota/Stripe.",
+    "",
+    "Ti consigliamo di cambiarla dalle Impostazioni dopo il primo accesso.",
+  ].join("\n");
+
+  const html = wrapSchoolEmail({
+    appOrigin: SCHOOL_APP_URL,
+    title: "Nuova password di accesso",
+    htmlBody: schoolEmailBodyFromText(htmlBodyParagraphs),
+    ctas: [{ href: params.loginUrl, label: "Vai al login MusicPro School" }],
+  });
 
   return { subject, text, html };
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }
 
 export async function POST(request: Request) {

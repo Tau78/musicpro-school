@@ -4,23 +4,21 @@ import type { Database } from "@musicpro/database";
 
 import { authPublicOrigin } from "@/lib/auth/redirect-url";
 import { ensureAssociatoAuthForEmail } from "@/lib/auth/member-login-access";
+import {
+  SCHOOL_APP_URL,
+  schoolEmailBodyFromText,
+  schoolEmailTextFooter,
+  wrapSchoolEmail,
+} from "@/lib/email/school-email-layout";
 import { sendEnrollmentEmail } from "@/lib/iscrizione/email-transport";
 
 type ServiceClient = SupabaseClient<Database>;
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
 
 function buildRecoveryEmail(params: {
   resetUrl: string;
 }): { subject: string; text: string; html: string } {
   const subject = "Reimposta la password — MusicPro School";
-  const text = [
+  const memberParagraphs = [
     "Ciao,",
     "",
     "per scegliere la password del tuo account usa il link qui sotto.",
@@ -29,55 +27,25 @@ function buildRecoveryEmail(params: {
     "",
     "Il link è valido per circa un'ora e si può usare una sola volta.",
     "Se non hai richiesto tu il reset, ignora questa email.",
-    "",
-    "— MusicPro School",
   ].join("\n");
 
-  const html = `<!DOCTYPE html>
-<html lang="it">
-<body style="margin:0;padding:0;background:#f4f6f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1a1a1a;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f6f8;padding:32px 16px;">
-    <tr>
-      <td align="center">
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:480px;background:#ffffff;border-radius:12px;padding:32px 28px;border:1px solid #e5e7eb;">
-          <tr>
-            <td style="font-size:13px;letter-spacing:0.04em;text-transform:uppercase;color:#0b3d5c;font-weight:700;">
-              MusicPro School
-            </td>
-          </tr>
-          <tr>
-            <td style="padding-top:20px;font-size:22px;line-height:1.3;font-weight:700;color:#0b3d5c;">
-              Imposta la password
-            </td>
-          </tr>
-          <tr>
-            <td style="padding-top:12px;font-size:15px;line-height:1.55;color:#374151;">
-              Ciao,<br /><br />
-              per scegliere la password del tuo account usa il pulsante qui sotto.
-            </td>
-          </tr>
-          <tr>
-            <td align="center" style="padding:28px 0 8px;">
-              <a
-                href="${escapeHtml(params.resetUrl)}"
-                style="display:inline-block;background:#0b3d5c;color:#ffffff;text-decoration:none;font-size:15px;font-weight:600;padding:12px 28px;border-radius:8px;"
-              >
-                Imposta password
-              </a>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding-top:20px;font-size:13px;line-height:1.5;color:#6b7280;">
-              Il link è valido per circa un'ora e si può usare una sola volta.
-              Se non hai richiesto tu il reset, ignora questa email.
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`;
+  const text = memberParagraphs + schoolEmailTextFooter();
+
+  const htmlBodyParagraphs = [
+    "Ciao,",
+    "",
+    "per scegliere la password del tuo account usa il pulsante qui sotto.",
+    "",
+    "Il link è valido per circa un'ora e si può usare una sola volta.",
+    "Se non hai richiesto tu il reset, ignora questa email.",
+  ].join("\n");
+
+  const html = wrapSchoolEmail({
+    appOrigin: SCHOOL_APP_URL,
+    title: "Reimposta la password",
+    htmlBody: schoolEmailBodyFromText(htmlBodyParagraphs),
+    ctas: [{ href: params.resetUrl, label: "Imposta password" }],
+  });
 
   return { subject, text, html };
 }

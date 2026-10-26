@@ -1,6 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
+  SCHOOL_APP_URL,
+  schoolEmailBodyFromText,
+  schoolEmailTextFooter,
+  wrapSchoolEmail,
+} from "@musicpro/shared";
+
+import {
   getRomeDayOfWeek,
   getRomeMinutesFromMidnight,
   getRoomById,
@@ -483,6 +490,21 @@ function tokenEmail(member: MemberTrialRow): string | null {
   return emptyToNull(member.email) ?? emptyToNull(member.manual_tutor_email);
 }
 
+function brandedLessonMail(
+  title: string,
+  body: string,
+  cta?: { href: string; label: string },
+): { html: string; text: string } {
+  const html = wrapSchoolEmail({
+    appOrigin: SCHOOL_APP_URL,
+    title,
+    htmlBody: schoolEmailBodyFromText(body),
+    ctas: cta ? [cta] : undefined,
+  });
+  const text = `${body}${schoolEmailTextFooter()}`;
+  return { html, text };
+}
+
 export async function sendTrialWelcomeEmail(
   client: TrialsClient,
   courseId: string,
@@ -580,9 +602,15 @@ export async function sendTrialWelcomeEmail(
     "MusicPro School",
   ].join("\n");
 
+  const { html, text } = brandedLessonMail(
+    "Lezione di prova",
+    body,
+    { href: link, label: "Completa l'iscrizione" },
+  );
   const sent = await sendLessonFamilyEmail(client, member.id, {
     subject,
-    body,
+    body: text,
+    html,
   });
   if (sent.sent > 0) return ok(courseId, sent.warnings);
   return ok(courseId, sent.warnings.length ? sent.warnings : [
