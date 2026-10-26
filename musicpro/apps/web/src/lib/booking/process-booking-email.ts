@@ -352,7 +352,6 @@ function buildUpgradeGratuitoEmail(booking: BookingRow): {
   const html = wrapSchoolEmail({
     appOrigin: origin,
     preheader: `Upgrade gratuito · ${roomName} · ${whenLine}`,
-    kicker: "MusicPro School",
     title: "Upgrade gratuito",
     htmlBody,
     ctas: [{ href: myBookingsUrl, label: "Le tue prenotazioni" }],
@@ -505,7 +504,6 @@ function buildBookingEmailContent(
   const html = wrapSchoolEmail({
     appOrigin: origin,
     preheader: `${roomName} · ${whenLine}`,
-    kicker: "Sala prove",
     title,
     htmlBody,
     ctas,
