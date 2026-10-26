@@ -285,6 +285,7 @@ function drawBox(
 }
 
 async function readLogoFromDisk(relPaths: string[]): Promise<Uint8Array | null> {
+  if (typeof window !== "undefined") return null;
   try {
     const { readFile } = await import("node:fs/promises");
     const { join } = await import("node:path");
