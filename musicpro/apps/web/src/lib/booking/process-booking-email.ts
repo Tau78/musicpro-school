@@ -436,14 +436,17 @@ function buildBookingEmailContent(
 
   const paymentLine = paymentSummaryLine(booking, paymentUrl);
 
-  const rows: Array<[string, string]> = [
-    ["Quando", whenLine],
-    ["Sala", roomName],
-    ["Durata", duration],
-  ];
+  const rows: Array<[string, string]> = [["Durata", duration]];
 
   if (booking.band_id && booking.bands?.name) {
     rows.push(["Band", booking.bands.name]);
+  }
+
+  if (booking.provi_da_solo) {
+    rows.push(["Provi da solo", "Sì"]);
+  }
+  if ((booking.microphone_count ?? 0) > 0) {
+    rows.push(["Microfoni", String(booking.microphone_count)]);
   }
 
   rows.push(["Importo", price]);
@@ -470,6 +473,8 @@ function buildBookingEmailContent(
     "",
     intro,
     "",
+    `Sala: ${roomName}`,
+    `Quando: ${whenLine}`,
     textRows,
     "",
     ...(paymentUrl ? [`Paga online: ${paymentUrl}`, ""] : []),
@@ -482,6 +487,7 @@ function buildBookingEmailContent(
   const htmlBody = `
         <p style="margin:0 0 14px;">Ciao <strong>${escapeHtml(firstName)}</strong>,</p>
         <p style="margin:0 0 16px;">${escapeHtml(intro)}</p>
+        ${schoolEmailHeroHtml("Sala prove", roomName, whenLine)}
         ${detailTableHtml(rows)}
         <p style="margin:16px 0 0;font-size:13px;line-height:1.5;color:#4b5563;">${escapeHtml(policyLine)}</p>`;
 
@@ -489,7 +495,11 @@ function buildBookingEmailContent(
     ...(paymentUrl
       ? [{ href: paymentUrl, label: "Paga ora" as const }]
       : []),
-    { href: myBookingsUrl, label: "Vedi in app" },
+    {
+      href: myBookingsUrl,
+      label: "Le tue prenotazioni",
+      variant: paymentUrl ? ("secondary" as const) : undefined,
+    },
   ];
 
   const html = wrapSchoolEmail({
