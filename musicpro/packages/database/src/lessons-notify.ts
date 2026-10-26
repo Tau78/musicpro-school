@@ -1,5 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import {
+  SCHOOL_APP_URL,
+  schoolEmailBodyFromText,
+  schoolEmailTextFooter,
+  wrapSchoolEmail,
+} from "@musicpro/shared";
+
 import { getLessonSchoolSettings } from "./lessons-settings";
 import { sendLessonFamilyEmail, sendSingleEmail } from "./messaging";
 import type { Database } from "./types/database";
@@ -179,14 +186,31 @@ async function familyMemberIdsForLesson(
   return loadActiveEnrollmentMemberIds(client, lesson.course_id);
 }
 
+function brandedLessonMail(
+  title: string,
+  body: string,
+  cta?: { href: string; label: string },
+): { html: string; text: string } {
+  const html = wrapSchoolEmail({
+    appOrigin: SCHOOL_APP_URL,
+    title,
+    htmlBody: schoolEmailBodyFromText(body),
+    ctas: cta ? [cta] : undefined,
+  });
+  const text = `${body}${schoolEmailTextFooter()}`;
+  return { html, text };
+}
+
 async function notifyFamilies(
   client: NotifyClient,
   memberIds: string[],
   subject: string,
   body: string,
+  mail: { title: string; cta?: { href: string; label: string } },
 ): Promise<void> {
+  const { html, text } = brandedLessonMail(mail.title, body, mail.cta);
   for (const memberId of memberIds) {
-    await sendLessonFamilyEmail(client, memberId, { subject, body });
+    await sendLessonFamilyEmail(client, memberId, { subject, body: text, html });
   }
 }
 
@@ -254,7 +278,10 @@ export async function notifyLessonScheduleChange(
 
   if (input.notifyFamily !== false) {
     const memberIds = await familyMemberIdsForLesson(client, lesson);
-    await notifyFamilies(client, memberIds, subject, familyBody);
+    await notifyFamilies(client, memberIds, subject, familyBody, {
+      title: copy.subjectPrefix,
+      cta: { href: SCHOOL_APP_URL, label: "Apri MusicPro School" },
+    });
   }
 
   if (!input.notifyTeachers) return;
@@ -334,7 +361,11 @@ async function notifyCourseReady(
   ].join("\n");
 
   const memberIds = await loadActiveEnrollmentMemberIds(client, course.id);
-  await notifyFamilies(client, memberIds, input.subject, familyBody);
+  const emailTitle = input.subject.split(" — ")[0]?.trim() || "Corso";
+  await notifyFamilies(client, memberIds, input.subject, familyBody, {
+    title: emailTitle,
+    cta: { href: SCHOOL_APP_URL, label: "Apri MusicPro School" },
+  });
 
   const teacherEmails = await loadTeacherEmails(client, [
     course.titular_member_id,
@@ -408,7 +439,19 @@ export async function notifyPackPaymentLink(
     "",
     "MusicPro School",
   ].join("\n");
-  await sendLessonFamilyEmail(client, input.memberId, { subject, body });
+  const checkoutUrl = input.checkoutUrl.trim();
+  const { html, text } = brandedLessonMail(
+    "Pacchetto da pagare",
+    body,
+    checkoutUrl
+      ? { href: checkoutUrl, label: "Paga il pacchetto" }
+      : undefined,
+  );
+  await sendLessonFamilyEmail(client, input.memberId, {
+    subject,
+    body: text,
+    html,
+  });
 }
 
 export async function sendDueLessonReminders(
@@ -612,9 +655,15 @@ export async function sendDueLessonReminders(
     let emailed = 0;
     for (const memberId of memberIds) {
       try {
+        const { html, text } = brandedLessonMail(
+          "Promemoria lezione",
+          body,
+          { href: SCHOOL_APP_URL, label: "Apri MusicPro School" },
+        );
         const result = await sendLessonFamilyEmail(client, memberId, {
           subject,
-          body,
+          body: text,
+          html,
         });
         emailed += result.sent;
         if (result.warnings.length > 0) {

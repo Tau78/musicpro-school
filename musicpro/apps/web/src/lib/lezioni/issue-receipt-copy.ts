@@ -1,6 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
+  SCHOOL_APP_URL,
+  schoolEmailBodyFromText,
+  schoolEmailTextFooter,
+  wrapSchoolEmail,
+} from "@musicpro/shared";
+
+import {
   emailFiscalReceiptCopy,
   emitFiscalReceiptForCreditPurchase,
   emitFiscalReceiptForPayment,
@@ -267,7 +274,7 @@ export async function issueAndEmailCreditShopPurchase(
   const nome = member?.first_name?.trim() || "associato";
   const paidOn = purchase.paid_on || purchase.created_at;
 
-  const lines = [
+  const bodyLines = [
     `Ciao ${nome},`,
     "",
     "l'acquisto crediti è andato a buon fine.",
@@ -277,19 +284,38 @@ export async function issueAndEmailCreditShopPurchase(
     `Importo: ${formatEuro(amountEur)}`,
     `Crediti caricati: ${formatCreditsCount(Number(purchase.credits_granted))}`,
     `Saldo crediti aggiornato: ${formatCreditsCount(available)}`,
-    "",
   ];
   if (receipt) {
-    lines.push(`In allegato la ricevuta ${receipt.code}.`, "");
+    bodyLines.push("", `In allegato la ricevuta ${receipt.code}.`);
   }
-  lines.push("Grazie,", "MusicPro School");
+  const bodyWithoutSignoff = bodyLines.join("\n");
+  const textBody = [
+    bodyWithoutSignoff,
+    "",
+    "Grazie,",
+    "MusicPro School",
+    schoolEmailTextFooter(),
+  ].join("\n");
+  const emailTitle = receipt ? "Ricevuta crediti" : "Acquisto crediti";
+  const html = wrapSchoolEmail({
+    appOrigin: SCHOOL_APP_URL,
+    title: emailTitle,
+    htmlBody: schoolEmailBodyFromText(bodyWithoutSignoff),
+    ctas: [
+      {
+        href: `${SCHOOL_APP_URL}/dashboard`,
+        label: "Apri l'area personale",
+      },
+    ],
+  });
 
   const pdf = receipt ? await generateFiscalReceiptPdf(receipt) : null;
   const result = await sendLessonFamilyEmail(client, purchase.member_id, {
     subject: receipt
       ? `Ricevuta crediti ${receipt.code} — MusicPro School`
       : "Acquisto crediti — MusicPro School",
-    body: lines.join("\n"),
+    body: textBody,
+    html,
     cc: CREDIT_SHOP_RECEIPT_CC,
     attachments: pdf
       ? [

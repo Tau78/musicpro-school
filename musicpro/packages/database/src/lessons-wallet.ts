@@ -1,5 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import {
+  SCHOOL_APP_URL,
+  schoolEmailBodyFromText,
+  schoolEmailTextFooter,
+  wrapSchoolEmail,
+} from "@musicpro/shared";
+
 import { getMemberRoles } from "./auth";
 import { todayInRome } from "./bookings";
 import type { CourseMutationResult } from "./courses";
@@ -470,6 +477,21 @@ function matchesQuery(row: LessonFeeRow, query: string): boolean {
   ].some((value) => value.toLowerCase().includes(q));
 }
 
+function brandedLessonMail(
+  title: string,
+  body: string,
+  cta?: { href: string; label: string },
+): { html: string; text: string } {
+  const html = wrapSchoolEmail({
+    appOrigin: SCHOOL_APP_URL,
+    title,
+    htmlBody: schoolEmailBodyFromText(body),
+    ctas: cta ? [cta] : undefined,
+  });
+  const text = `${body}${schoolEmailTextFooter()}`;
+  return { html, text };
+}
+
 function dunningEmail(params: {
   kind: LessonFeeKind;
   recipientFirstName: string;
@@ -542,6 +564,7 @@ async function sendFeeReminder(
     "kind" | "remainingEur" | "dueOn" | "studentLabel" | "courseName"
   >,
   member: MemberLabelRow,
+  payUrl?: string | null,
 ): Promise<{ sent: boolean; warning?: string }> {
   const to = dunningRecipient(member);
   if (!to) {
@@ -571,9 +594,20 @@ async function sendFeeReminder(
     };
   }
 
+  const trimmedPayUrl = payUrl?.trim() ?? "";
+  const emailTitle =
+    fee.kind === "quota" ? "Sollecito quota associativa" : "Sollecito retta";
+  const { html, text } = brandedLessonMail(
+    emailTitle,
+    email.body,
+    trimmedPayUrl
+      ? { href: trimmedPayUrl, label: "Paga ora" }
+      : undefined,
+  );
   const sent = await sendLessonFamilyEmail(client, member.id, {
     subject: email.subject,
-    body: email.body,
+    body: text,
+    html,
   });
   if (sent.sent > 0) return { sent: true };
   return {

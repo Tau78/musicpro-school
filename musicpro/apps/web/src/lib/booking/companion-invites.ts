@@ -8,6 +8,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { ensureMemberAuthAccess } from "@/lib/admin/staff-auth";
 import { authPublicOrigin } from "@/lib/auth/redirect-url";
+import {
+  SCHOOL_APP_URL,
+  schoolEmailBodyFromText,
+  schoolEmailTextFooter,
+  wrapSchoolEmail,
+} from "@/lib/email/school-email-layout";
 import { sendEnrollmentEmail } from "@/lib/iscrizione/email-transport";
 import { createIscrizioneMagicLink } from "@/lib/iscrizione/enrollment-service";
 
@@ -44,14 +50,6 @@ type MemberMatch = {
 
 const ENROLLMENT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const DEDUPE_MS = 24 * 60 * 60 * 1000;
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
 
 function bookerLabel(first: string, last: string): string {
   return `${first} ${last}`.trim() || "un associato MusicPro";
@@ -167,7 +165,7 @@ async function sendExistingMemberEmail(params: {
   loginUrl: string;
 }): Promise<{ sent: boolean; error?: string }> {
   const subject = "Quota associativa MusicPro — accedi alla tua area";
-  const text = [
+  const memberParagraphs = [
     `Ciao ${params.firstName},`,
     "",
     `${params.bookerName} ti ha indicato come persona che entra in sala prove.`,
@@ -175,17 +173,23 @@ async function sendExistingMemberEmail(params: {
     params.loginUrl,
     "",
     "Se non ti aspettavi questo messaggio, puoi ignorarlo.",
-    "",
-    "MusicPro School",
   ].join("\n");
-  const html = `<!DOCTYPE html>
-<html lang="it"><body style="font-family:sans-serif;color:#1a1a1a;padding:24px;">
-<p>Ciao ${escapeHtml(params.firstName)},</p>
-<p>${escapeHtml(params.bookerName)} ti ha indicato come persona che entra in sala prove.</p>
-<p>Accedi alla tua area associato per versare la quota (se non è in regola) e controllare che i dati siano aggiornati.</p>
-<p><a href="${escapeHtml(params.loginUrl)}" style="display:inline-block;background:#0b3d5c;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;">Apri area associato</a></p>
-<p style="color:#6b7280;font-size:13px;">Se non ti aspettavi questo messaggio, puoi ignorarlo.</p>
-</body></html>`;
+  const text = memberParagraphs + schoolEmailTextFooter();
+
+  const htmlBodyParagraphs = [
+    `Ciao ${params.firstName},`,
+    "",
+    `${params.bookerName} ti ha indicato come persona che entra in sala prove.`,
+    "Accedi alla tua area associato per versare la quota (se non è in regola) e controllare che i dati siano aggiornati.",
+    "",
+    "Se non ti aspettavi questo messaggio, puoi ignorarlo.",
+  ].join("\n");
+  const html = wrapSchoolEmail({
+    appOrigin: SCHOOL_APP_URL,
+    title: "Quota associativa",
+    htmlBody: schoolEmailBodyFromText(htmlBodyParagraphs),
+    ctas: [{ href: params.loginUrl, label: "Apri area associato" }],
+  });
 
   return sendEnrollmentEmail({
     to: [params.to],
@@ -203,7 +207,7 @@ async function sendEnrollmentRequestEmail(params: {
   enrollUrl: string;
 }): Promise<{ sent: boolean; error?: string }> {
   const subject = "Iscrizione MusicPro — completa i dati";
-  const text = [
+  const memberParagraphs = [
     `Ciao ${params.firstName},`,
     "",
     `${params.bookerName} ti ha indicato per entrare in sala prove.`,
@@ -211,17 +215,23 @@ async function sendEnrollmentRequestEmail(params: {
     params.enrollUrl,
     "",
     "Il link è valido 7 giorni.",
-    "",
-    "MusicPro School",
   ].join("\n");
-  const html = `<!DOCTYPE html>
-<html lang="it"><body style="font-family:sans-serif;color:#1a1a1a;padding:24px;">
-<p>Ciao ${escapeHtml(params.firstName)},</p>
-<p>${escapeHtml(params.bookerName)} ti ha indicato per entrare in sala prove.</p>
-<p>Completa l'iscrizione da questo link (i campi sono precompilati e modificabili).</p>
-<p><a href="${escapeHtml(params.enrollUrl)}" style="display:inline-block;background:#0b3d5c;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;">Completa iscrizione</a></p>
-<p style="color:#6b7280;font-size:13px;">Il link è valido 7 giorni.</p>
-</body></html>`;
+  const text = memberParagraphs + schoolEmailTextFooter();
+
+  const htmlBodyParagraphs = [
+    `Ciao ${params.firstName},`,
+    "",
+    `${params.bookerName} ti ha indicato per entrare in sala prove.`,
+    "Non risulti ancora in anagrafica: completa l'iscrizione da questo link (modulo precompilato, modificabile):",
+    "",
+    "Il link è valido 7 giorni.",
+  ].join("\n");
+  const html = wrapSchoolEmail({
+    appOrigin: SCHOOL_APP_URL,
+    title: "Completa i dati",
+    htmlBody: schoolEmailBodyFromText(htmlBodyParagraphs),
+    ctas: [{ href: params.enrollUrl, label: "Completa iscrizione" }],
+  });
 
   return sendEnrollmentEmail({
     to: [params.to],

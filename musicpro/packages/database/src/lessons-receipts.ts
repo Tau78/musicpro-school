@@ -1,5 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import {
+  SCHOOL_APP_URL,
+  schoolEmailBodyFromText,
+  schoolEmailTextFooter,
+  wrapSchoolEmail,
+} from "@musicpro/shared";
+
 import { formatCreditsCount, todayInRome } from "./bookings";
 import type { CourseMutationResult } from "./courses";
 import {
@@ -1081,16 +1088,34 @@ export async function emailFiscalReceiptCopy(
   const receipt = await getFiscalReceipt(client, input.receiptId);
   if (!receipt) return fail("Ricevuta non trovata.");
 
+  const bodyWithoutSignoff = [
+    "Ciao,",
+    "",
+    `in allegato la copia della ricevuta ${receipt.code} di MusicPro School.`,
+  ].join("\n");
+  const textBody = [
+    bodyWithoutSignoff,
+    "",
+    "Grazie,",
+    "MusicPro School",
+    schoolEmailTextFooter(),
+  ].join("\n");
+  const html = wrapSchoolEmail({
+    appOrigin: SCHOOL_APP_URL,
+    title: "Ricevuta",
+    htmlBody: schoolEmailBodyFromText(bodyWithoutSignoff),
+    ctas: [
+      {
+        href: `${SCHOOL_APP_URL}/dashboard`,
+        label: "Apri l'area personale",
+      },
+    ],
+  });
+
   const result = await sendLessonFamilyEmail(client, receipt.memberId, {
     subject: `Ricevuta ${receipt.code} — MusicPro School`,
-    body: [
-      "Ciao,",
-      "",
-      `in allegato la copia della ricevuta ${receipt.code} di MusicPro School.`,
-      "",
-      "Grazie,",
-      "MusicPro School",
-    ].join("\n"),
+    body: textBody,
+    html,
     attachments: input.attachments,
   });
 

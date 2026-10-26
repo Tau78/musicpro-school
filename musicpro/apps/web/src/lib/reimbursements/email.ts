@@ -3,6 +3,12 @@
  * (stesso trasporto delle iscrizioni).
  */
 import { sendEnrollmentEmail } from "@/lib/iscrizione/email-transport";
+import {
+  escapeEmailHtml,
+  SCHOOL_APP_URL,
+  schoolEmailTextFooter,
+  wrapSchoolEmail,
+} from "@/lib/email/school-email-layout";
 
 export interface ResendAttachment {
   filename: string;
@@ -50,9 +56,12 @@ export function buildNotulaEmailContent(params: {
   associateName: string;
   docLabel: string;
   pdfLink?: string | null;
+  /** false per copie segreteria; default true per associato/docente. */
+  showAppDownload?: boolean;
 }): { subject: string; html: string; text: string } {
   const firstName = params.associateName.trim().split(/\s+/)[0] || "Associato";
   const subject = `Generazione Rimborso: ${params.docLabel}`;
+  const showAppDownload = params.showAppDownload !== false;
   const linkLine = params.pdfLink
     ? `\nPuoi anche aprire il documento originale:\n${params.pdfLink}\n`
     : "";
@@ -62,34 +71,33 @@ export function buildNotulaEmailContent(params: {
     "in allegato trovi il rimborso appena generato.",
     linkLine,
     "Saluti.",
-    "MusicPro School",
   ]
     .filter((line) => line !== "")
-    .join("\n");
+    .join("\n") + schoolEmailTextFooter({ showAppDownload });
 
-  const htmlLink = params.pdfLink
-    ? `<p>Puoi anche aprire il <a href="${escapeHtml(params.pdfLink)}">documento originale</a>.</p>`
-    : "";
+  const htmlBody = `<p style="margin:0 0 14px;font-size:15px;line-height:1.5;color:#1a1a1a;">Ciao <strong>${escapeEmailHtml(firstName)}</strong>,</p>
+<p style="margin:0 0 14px;font-size:15px;line-height:1.5;color:#1a1a1a;">in allegato trovi il rimborso appena generato.</p>`;
 
-  const html = `<!DOCTYPE html>
-<html lang="it">
-<body style="font-family:system-ui,-apple-system,sans-serif;line-height:1.5;color:#1a1a1a;max-width:560px;margin:0 auto;padding:24px;">
-  <p>Ciao <strong>${escapeHtml(firstName)}</strong>,</p>
-  <p>in allegato trovi il rimborso appena generato.</p>
-  ${htmlLink}
-  <p style="margin-top:32px;font-size:12px;color:#888;">MusicPro School</p>
-</body>
-</html>`;
+  const ctas =
+    params.pdfLink?.trim()
+      ? [
+          {
+            href: params.pdfLink.trim(),
+            label: "Apri documento originale",
+          },
+        ]
+      : undefined;
+
+  const html = wrapSchoolEmail({
+    appOrigin: SCHOOL_APP_URL,
+    title: "Rimborso generato",
+    preheader: params.docLabel,
+    htmlBody,
+    ctas,
+    showAppDownload,
+  });
 
   return { subject, html, text };
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }
 
 export function uint8ToBase64(bytes: Uint8Array): string {

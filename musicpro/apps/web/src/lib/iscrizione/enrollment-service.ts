@@ -37,6 +37,12 @@ import {
   startEnrollmentCombinedLessonPayment,
   upsertEnrollmentLessonIntent,
 } from "./enrollment-lesson-intents";
+import {
+  SCHOOL_APP_URL,
+  schoolEmailBodyFromText,
+  schoolEmailTextFooter,
+  wrapSchoolEmail,
+} from "@/lib/email/school-email-layout";
 
 type Db = SupabaseClient<Database>;
 type EnrollmentRow = Database["public"]["Tables"]["enrollments"]["Row"];
@@ -514,6 +520,42 @@ export async function createIscrizioneMagicLink(
   return iscrizioneLinkFromToken(token);
 }
 
+function buildSocioSignedEnrollmentMail(params: {
+  nome: string;
+  pdfUrl?: string | null;
+}): { text: string; html: string } {
+  const htmlBodyParagraphs = [
+    `Ciao ${params.nome},`,
+    "",
+    "in allegato trovi la tua domanda di iscrizione firmata.",
+    "",
+    "Cordiali saluti,",
+    "MusicPro School",
+  ].join("\n");
+
+  const textLines = [
+    `Ciao ${params.nome},`,
+    "",
+    "in allegato trovi la tua domanda di iscrizione firmata.",
+  ];
+  if (params.pdfUrl) {
+    textLines.push("", "Copia online:", params.pdfUrl);
+  }
+  textLines.push("", "Cordiali saluti,", "MusicPro School");
+  const text = textLines.join("\n") + schoolEmailTextFooter();
+
+  const html = wrapSchoolEmail({
+    appOrigin: SCHOOL_APP_URL,
+    title: "Conferma iscrizione",
+    htmlBody: schoolEmailBodyFromText(htmlBodyParagraphs),
+    ctas: params.pdfUrl
+      ? [{ href: params.pdfUrl, label: "Apri copia online" }]
+      : undefined,
+  });
+
+  return { text, html };
+}
+
 async function sendMagicLinkEmail(
   email: string,
   link: string,
@@ -525,7 +567,10 @@ async function sendMagicLinkEmail(
       ? "Completa l'iscrizione MusicPro (quota già versata)"
       : "Il tuo link per l'iscrizione MusicPro";
 
-  const body =
+  const title =
+    variant === "cash" ? "Completa l'iscrizione" : "Il tuo link di iscrizione";
+
+  const textLines =
     variant === "cash"
       ? [
           `Ciao ${nome},`,
@@ -537,9 +582,7 @@ async function sendMagicLinkEmail(
           "Il link è valido 24 ore e può essere usato una sola volta.",
           "",
           "Se non hai richiesto tu questo messaggio, puoi ignorarlo.",
-          "",
-          "MusicPro School",
-        ].join("\n")
+        ]
       : [
           `Ciao ${nome},`,
           "",
@@ -547,14 +590,42 @@ async function sendMagicLinkEmail(
           link,
           "",
           "Se non hai richiesto tu questo messaggio, puoi ignorarlo.",
+        ];
+
+  const text = textLines.join("\n") + schoolEmailTextFooter();
+
+  const htmlBodyParagraphs =
+    variant === "cash"
+      ? [
+          `Ciao ${nome},`,
           "",
-          "MusicPro School",
+          "Hai già versato la quota associativa in sede.",
+          "Usa questo link per inserire i dati mancanti e firmare l'iscrizione:",
+          "",
+          "Il link è valido 24 ore e può essere usato una sola volta.",
+          "",
+          "Se non hai richiesto tu questo messaggio, puoi ignorarlo.",
+        ].join("\n")
+      : [
+          `Ciao ${nome},`,
+          "",
+          "Usa questo link per aggiornare i dati e completare l'iscrizione:",
+          "",
+          "Se non hai richiesto tu questo messaggio, puoi ignorarlo.",
         ].join("\n");
+
+  const html = wrapSchoolEmail({
+    appOrigin: SCHOOL_APP_URL,
+    title,
+    htmlBody: schoolEmailBodyFromText(htmlBodyParagraphs),
+    ctas: [{ href: link, label: "Apri il link" }],
+  });
 
   const result = await sendEnrollmentEmail({
     to: [email],
     subject,
-    text: body,
+    text,
+    html,
     timeoutMs: RESEND_TIMEOUT_MS,
   });
   if (!result.sent) {
@@ -706,19 +777,12 @@ async function finalizeCashEnrollmentDocuments(input: {
   }
 
   if (email) {
+    const socioContent = buildSocioSignedEnrollmentMail({ nome, pdfUrl });
     const socioMail = await sendResendEmail({
       to: [email],
       subject: `Conferma Iscrizione MusicPro - ${nome} ${cognome}`,
-      text: [
-        `Ciao ${nome},`,
-        "",
-        "in allegato trovi la tua domanda di iscrizione firmata.",
-        pdfUrl ? `\nCopia online:\n${pdfUrl}\n` : "",
-        "Cordiali saluti,",
-        "MusicPro Eventi",
-      ]
-        .filter((line) => line !== "")
-        .join("\n"),
+      text: socioContent.text,
+      html: socioContent.html,
       attachments: [attachment],
     });
     if (!socioMail.sent) {
@@ -2335,20 +2399,16 @@ export async function completaInvioIscrizione(idIscrizione: string) {
   const nome = formText(form.nome) || rec.first_name;
   const cognome = formText(form.cognome) || rec.last_name;
 
+  const socioContent = buildSocioSignedEnrollmentMail({
+    nome,
+    pdfUrl: durablePdfUrl,
+  });
   const socioMail = socioEmail
     ? await sendResendEmail({
         to: [socioEmail],
         subject: `Conferma Iscrizione MusicPro - ${nome} ${cognome}`,
-        text: [
-          `Ciao ${nome},`,
-          "",
-          "in allegato trovi la tua domanda di iscrizione firmata.",
-          durablePdfUrl ? `\nCopia online:\n${durablePdfUrl}\n` : "",
-          "Cordiali saluti,",
-          "MusicPro Eventi",
-        ]
-          .filter((line) => line !== "")
-          .join("\n"),
+        text: socioContent.text,
+        html: socioContent.html,
         attachments: quotaAttachments,
       })
     : { sent: false, error: "Email socio mancante" };
