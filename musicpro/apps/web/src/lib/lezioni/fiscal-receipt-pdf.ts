@@ -7,6 +7,8 @@ import {
   type PDFPage,
 } from "pdf-lib";
 
+import { RECEIPT_HEADER_LOGO_PNG_BASE64 } from "./receipt-header-logo-base64";
+
 /** Campi compilati dall'app a ogni emissione. */
 export type FiscalReceiptPdfInput = {
   code: string;
@@ -284,22 +286,14 @@ function drawBox(
   });
 }
 
-async function readLogoFromDisk(relPaths: string[]): Promise<Uint8Array | null> {
-  if (typeof window !== "undefined") return null;
-  try {
-    const { readFile } = await import("node:fs/promises");
-    const { join } = await import("node:path");
-    for (const rel of relPaths) {
-      try {
-        return await readFile(join(process.cwd(), rel));
-      } catch {
-        /* next */
-      }
-    }
-  } catch {
-    /* no fs */
+function bytesFromBase64(b64: string): Uint8Array {
+  if (typeof Buffer !== "undefined") {
+    return Uint8Array.from(Buffer.from(b64, "base64"));
   }
-  return null;
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
 }
 
 async function fetchLogo(urlPath: string): Promise<Uint8Array | null> {
@@ -322,24 +316,14 @@ async function fetchLogo(urlPath: string): Promise<Uint8Array | null> {
 }
 
 async function loadLogoPng(): Promise<Uint8Array | null> {
-  const punchedPaths = [
-    "public/images/receipt-header-logo.png",
-    "musicpro/apps/web/public/images/receipt-header-logo.png",
-  ];
-  const fallbackPaths = [
-    "public/images/receipt-assoc-logo.png",
-    "musicpro/apps/web/public/images/receipt-assoc-logo.png",
-  ];
-
-  const punched = await readLogoFromDisk(punchedPaths);
-  if (punched) return punched;
-
-  const fallbackDisk = await readLogoFromDisk(fallbackPaths);
-  if (fallbackDisk) return fallbackDisk;
-
+  try {
+    const embedded = bytesFromBase64(RECEIPT_HEADER_LOGO_PNG_BASE64);
+    if (embedded.length > 32) return embedded;
+  } catch {
+    /* fetch fallback */
+  }
   const fetched = await fetchLogo(LOGO_URL);
   if (fetched) return fetched;
-
   return fetchLogo(LOGO_FALLBACK_URL);
 }
 
