@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -86,6 +86,7 @@ export function TeacherAbsenceDialog({
   const [notifySegreteria, setNotifySegreteria] = useState(false);
   const [notifyFamily, setNotifyFamily] = useState(false);
   const [busy, setBusy] = useState(false);
+  const submittingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -190,26 +191,32 @@ export function TeacherAbsenceDialog({
       return;
     }
 
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setBusy(true);
-    const result = await listTeacherAbsenceLessons(supabase, {
-      titularMemberId,
-      fromDate,
-      toDate,
-      actorMemberId,
-      isStaff,
-    });
-    setBusy(false);
+    try {
+      const result = await listTeacherAbsenceLessons(supabase, {
+        titularMemberId,
+        fromDate,
+        toDate,
+        actorMemberId,
+        isStaff,
+      });
 
-    if ("errorMessage" in result) {
-      setError(result.errorMessage);
-      setLessons([]);
+      if ("errorMessage" in result) {
+        setError(result.errorMessage);
+        setLessons([]);
+        setSearched(true);
+        return;
+      }
+
+      setLessons(result.lessons);
       setSearched(true);
-      return;
+      initPerLessonTargets(result.lessons);
+    } finally {
+      submittingRef.current = false;
+      setBusy(false);
     }
-
-    setLessons(result.lessons);
-    setSearched(true);
-    initPerLessonTargets(result.lessons);
   }
 
   function roomIdForLesson(
@@ -296,21 +303,27 @@ export function TeacherAbsenceDialog({
       return;
     }
 
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setBusy(true);
-    const result = await previewTeacherAbsenceMove(supabase, {
-      titularMemberId,
-      actorMemberId,
-      isStaff,
-      targets,
-    });
-    setBusy(false);
+    try {
+      const result = await previewTeacherAbsenceMove(supabase, {
+        titularMemberId,
+        actorMemberId,
+        isStaff,
+        targets,
+      });
 
-    if ("errorMessage" in result) {
-      setError(result.errorMessage);
-      setPreview(null);
-      return;
+      if ("errorMessage" in result) {
+        setError(result.errorMessage);
+        setPreview(null);
+        return;
+      }
+      setPreview(result);
+    } finally {
+      submittingRef.current = false;
+      setBusy(false);
     }
-    setPreview(result);
   }
 
   async function handleCancelLessons() {
@@ -329,101 +342,113 @@ export function TeacherAbsenceDialog({
       return;
     }
 
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setBusy(true);
-    const result = await cancelTeacherAbsence(supabase, {
-      titularMemberId,
-      actorMemberId,
-      isStaff,
-      fromDate,
-      toDate,
-      lessonIds: ids,
-      notifySegreteria,
-      notifyFamily,
-    });
-    setBusy(false);
+    try {
+      const result = await cancelTeacherAbsence(supabase, {
+        titularMemberId,
+        actorMemberId,
+        isStaff,
+        fromDate,
+        toDate,
+        lessonIds: ids,
+        notifySegreteria,
+        notifyFamily,
+      });
 
-    if (!result.success) {
-      setError(result.errorMessage ?? "Impossibile annullare le lezioni.");
-      return;
+      if (!result.success) {
+        setError(result.errorMessage ?? "Impossibile annullare le lezioni.");
+        return;
+      }
+      const note =
+        result.warnings.length > 0 ? ` ${result.warnings.join(" ")}` : "";
+      const conflictNote =
+        result.conflicts.length > 0
+          ? ` ${result.conflicts.map((row) => `${row.courseName}: ${row.message}`).join(" ")}`
+          : "";
+      router.refresh();
+      if (result.leftIds.length > 0) {
+        const left = new Set(result.leftIds);
+        const remaining = lessons.filter((lesson) => left.has(lesson.id));
+        setLessons(remaining);
+        initPerLessonTargets(remaining);
+        setSuccess(
+          `Annullate ${result.cancelledIds.length} lezioni. Le altre restano in elenco.${conflictNote}${note}`,
+        );
+        return;
+      }
+      setLessons([]);
+      setPreview(null);
+      setSuccess(`Lezioni annullate.${note}`);
+    } finally {
+      submittingRef.current = false;
+      setBusy(false);
     }
-    const note =
-      result.warnings.length > 0 ? ` ${result.warnings.join(" ")}` : "";
-    const conflictNote =
-      result.conflicts.length > 0
-        ? ` ${result.conflicts.map((row) => `${row.courseName}: ${row.message}`).join(" ")}`
-        : "";
-    router.refresh();
-    if (result.leftIds.length > 0) {
-      const left = new Set(result.leftIds);
-      const remaining = lessons.filter((lesson) => left.has(lesson.id));
-      setLessons(remaining);
-      initPerLessonTargets(remaining);
-      setSuccess(
-        `Annullate ${result.cancelledIds.length} lezioni. Le altre restano in elenco.${conflictNote}${note}`,
-      );
-      return;
-    }
-    setLessons([]);
-    setPreview(null);
-    setSuccess(`Lezioni annullate.${note}`);
   }
 
   async function handleMove(conflictPolicy: "all" | "partial") {
-    setError(null);
-    setSuccess(null);
-    const targets = currentMoveTargets(conflictPolicy === "partial");
-    if (typeof targets === "string") {
-      setError(targets);
-      return;
-    }
-    if (targets.length === 0) {
-      setError("Nessuna lezione da spostare.");
-      return;
-    }
-    if (conflictPolicy === "all" && preview && !preview.ok) {
-      setError("Risolvi i conflitti o usa «Sposta solo le libere».");
-      return;
-    }
-
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setBusy(true);
-    const result = await moveTeacherAbsence(supabase, {
-      titularMemberId,
-      actorMemberId,
-      isStaff,
-      fromDate,
-      toDate,
-      targets,
-      conflictPolicy,
-      notifySegreteria,
-      notifyFamily,
-    });
-    setBusy(false);
+    try {
+      setError(null);
+      setSuccess(null);
+      const targets = currentMoveTargets(conflictPolicy === "partial");
+      if (typeof targets === "string") {
+        setError(targets);
+        return;
+      }
+      if (targets.length === 0) {
+        setError("Nessuna lezione da spostare.");
+        return;
+      }
+      if (conflictPolicy === "all" && preview && !preview.ok) {
+        setError("Risolvi i conflitti o usa «Sposta solo le libere».");
+        return;
+      }
 
-    if (!result.success) {
-      setError(result.errorMessage ?? "Impossibile spostare le lezioni.");
-      return;
-    }
+      const result = await moveTeacherAbsence(supabase, {
+        titularMemberId,
+        actorMemberId,
+        isStaff,
+        fromDate,
+        toDate,
+        targets,
+        conflictPolicy,
+        notifySegreteria,
+        notifyFamily,
+      });
 
-    const warn =
-      result.warnings.length > 0 ? ` ${result.warnings.join(" ")}` : "";
+      if (!result.success) {
+        setError(result.errorMessage ?? "Impossibile spostare le lezioni.");
+        return;
+      }
 
-    router.refresh();
-    if (result.leftIds.length > 0) {
-      const leftSet = new Set(result.leftIds);
-      const remaining = lessons.filter((l) => leftSet.has(l.id));
-      setLessons(remaining);
-      setMode("individual");
+      const warn =
+        result.warnings.length > 0 ? ` ${result.warnings.join(" ")}` : "";
+
+      router.refresh();
+      if (result.leftIds.length > 0) {
+        const leftSet = new Set(result.leftIds);
+        const remaining = lessons.filter((l) => leftSet.has(l.id));
+        setLessons(remaining);
+        setMode("individual");
+        setPreview(null);
+        initPerLessonTargets(remaining);
+        setSuccess(
+          `Spostate ${result.movedIds.length} lezioni. Le altre restano in elenco: spostale una per una o annullale.${warn}`,
+        );
+        return;
+      }
+
+      setLessons([]);
       setPreview(null);
-      initPerLessonTargets(remaining);
-      setSuccess(
-        `Spostate ${result.movedIds.length} lezioni. Le altre restano in elenco: spostale una per una o annullale.${warn}`,
-      );
-      return;
+      setSuccess(`Spostamento completato.${warn}`);
+    } finally {
+      submittingRef.current = false;
+      setBusy(false);
     }
-
-    setLessons([]);
-    setPreview(null);
-    setSuccess(`Spostamento completato.${warn}`);
   }
 
   function handleClose() {

@@ -1,11 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import {
-  bookingOccupiesSlot,
-  getBookingSettings,
-  getRomeDayBoundsUtc,
-  romeLocalInputToUtcIso,
-} from "./bookings";
+import { getRomeDayBoundsUtc, romeLocalInputToUtcIso } from "./bookings";
 import {
   cancelHoldBooking,
   type CourseKind,
@@ -24,6 +19,7 @@ type AbsenceClient = SupabaseClient<Database>;
 const ROME = "Europe/Rome";
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^\d{2}:\d{2}$/;
+const TWELVE_HOURS_MS = 12 * 60 * 60_000;
 
 const LESSON_COLUMNS =
   "id, course_id, sequence_number, starts_at, ends_at, room_id, booking_id, placement, cancelled_at, kind, recovered_from_lesson_id, makeup_member_id, parked_reason, original_starts_at, created_at, updated_at";
@@ -127,6 +123,22 @@ function intervalsOverlap(
   endB: string,
 ): boolean {
   return startA < endB && endA > startB;
+}
+
+function lessonIntervalOverlaps(
+  lessonStartsAt: string,
+  lessonEndsAt: string | null,
+  newStart: string,
+  newEnd: string,
+): boolean {
+  if (lessonEndsAt) {
+    return intervalsOverlap(lessonStartsAt, lessonEndsAt, newStart, newEnd);
+  }
+  const newEndMs = new Date(newEnd).getTime();
+  const startsMs = new Date(lessonStartsAt).getTime();
+  if (startsMs >= newEndMs) return false;
+  if (startsMs < newEndMs - TWELVE_HOURS_MS) return false;
+  return lessonStartsAt < newEnd && newEnd > newStart;
 }
 
 function studentLabel(lastName: string, firstName: string): string {
@@ -236,7 +248,11 @@ async function lessonIdsWithPayroll(
     .from("lesson_payroll_lines")
     .select("lesson_id")
     .in("lesson_id", lessonIds);
-  if (error) return new Set();
+  if (error) {
+    throw new Error(
+      error.message || "Impossibile verificare le notule.",
+    );
+  }
   return new Set(
     (data ?? [])
       .map((row) => row.lesson_id)
@@ -585,16 +601,13 @@ async function findRoomBookingConflict(
     roomId: string;
     startsAt: string;
     endsAt: string;
-    excludeBookingId: string | null;
+    excludeBookingIds: Set<string>;
     roomName: string;
   },
 ): Promise<string | null> {
-  const settings = await getBookingSettings(client).catch(() => undefined);
   const { data, error } = await client
     .from("bookings")
-    .select(
-      "id, start_at, end_at, status, payment_status, credits_held, created_at, cancelled_at",
-    )
+    .select("id, start_at, end_at, status, cancelled_at")
     .eq("room_id", params.roomId)
     .lt("start_at", params.endsAt)
     .gt("end_at", params.startsAt)
@@ -605,21 +618,15 @@ async function findRoomBookingConflict(
     );
   }
   const conflicts = (data ?? []).filter((row) => {
-    if (params.excludeBookingId && row.id === params.excludeBookingId) {
-      return false;
-    }
+    if (params.excludeBookingIds.has(row.id)) return false;
+    if (row.status === "cancelled") return false;
     if (row.cancelled_at) return false;
-    if (
-      !intervalsOverlap(
-        row.start_at,
-        row.end_at,
-        params.startsAt,
-        params.endsAt,
-      )
-    ) {
-      return false;
-    }
-    return bookingOccupiesSlot(row, settings);
+    return intervalsOverlap(
+      row.start_at,
+      row.end_at,
+      params.startsAt,
+      params.endsAt,
+    );
   });
   if (conflicts.length === 0) return null;
   const hit = conflicts[0]!;
@@ -643,7 +650,7 @@ async function findTeacherLessonConflict(
     .eq("placement", "scheduled")
     .is("cancelled_at", null)
     .lt("starts_at", params.endsAt)
-    .gt("ends_at", params.startsAt)
+    .or(`ends_at.gt.${params.startsAt},ends_at.is.null`)
     .neq("id", params.lessonId);
   if (error) {
     throw new Error(
@@ -652,8 +659,8 @@ async function findTeacherLessonConflict(
   }
   const candidates = (overlapping ?? []).filter((row) => {
     if (params.batchLessonIds.has(row.id)) return false;
-    if (!row.starts_at || !row.ends_at) return false;
-    return intervalsOverlap(
+    if (!row.starts_at) return false;
+    return lessonIntervalOverlaps(
       row.starts_at,
       row.ends_at,
       params.startsAt,
@@ -675,6 +682,59 @@ async function findTeacherLessonConflict(
   return (courses ?? []).some(
     (row) => row.titular_member_id === params.titularMemberId,
   );
+}
+
+async function findStudentLessonConflict(
+  client: AbsenceClient,
+  params: {
+    familyMemberIds: string[];
+    startsAt: string;
+    endsAt: string;
+    lessonId: string;
+    excludeLessonIds: Set<string>;
+  },
+): Promise<boolean> {
+  if (params.familyMemberIds.length === 0) return false;
+
+  const { data: overlapping, error } = await client
+    .from("lessons")
+    .select("id, course_id, starts_at, ends_at")
+    .eq("placement", "scheduled")
+    .is("cancelled_at", null)
+    .lt("starts_at", params.endsAt)
+    .or(`ends_at.gt.${params.startsAt},ends_at.is.null`);
+  if (error) {
+    throw new Error(
+      error.message || "Impossibile verificare le sovrapposizioni allievi.",
+    );
+  }
+
+  const candidates = (overlapping ?? []).filter((row) => {
+    if (row.id === params.lessonId) return false;
+    if (params.excludeLessonIds.has(row.id)) return false;
+    if (!row.starts_at) return false;
+    return lessonIntervalOverlaps(
+      row.starts_at,
+      row.ends_at,
+      params.startsAt,
+      params.endsAt,
+    );
+  });
+  if (candidates.length === 0) return false;
+
+  const courseIds = [...new Set(candidates.map((row) => row.course_id))];
+  const { data: enrollments, error: enrollError } = await client
+    .from("course_enrollments")
+    .select("course_id, member_id")
+    .in("course_id", courseIds)
+    .in("member_id", params.familyMemberIds)
+    .is("left_at", null);
+  if (enrollError) {
+    throw new Error(
+      enrollError.message || "Impossibile verificare gli iscritti in conflitto.",
+    );
+  }
+  return (enrollments ?? []).length > 0;
 }
 
 function batchIntervalConflict(
@@ -760,6 +820,13 @@ async function buildMovePreview(
     resolvedByLesson.set(ctx.id, resolved);
   }
 
+  const movableBookingIds = new Set<string>();
+  for (const lessonId of resolvedByLesson.keys()) {
+    const ctx = params.contexts.get(lessonId);
+    if (ctx?.bookingId) movableBookingIds.add(ctx.bookingId);
+  }
+  const movingLessonIds = new Set(resolvedByLesson.keys());
+
   for (const target of params.targets) {
     if (blocked.has(target.lessonId)) continue;
     const ctx = params.contexts.get(target.lessonId)!;
@@ -789,7 +856,7 @@ async function buildMovePreview(
         roomId: resolved.roomId,
         startsAt: resolved.startsAt,
         endsAt: resolved.endsAt,
-        excludeBookingId: ctx.bookingId,
+        excludeBookingIds: movableBookingIds,
         roomName,
       });
       if (roomMsg) {
@@ -808,13 +875,30 @@ async function buildMovePreview(
       startsAt: resolved.startsAt,
       endsAt: resolved.endsAt,
       lessonId: ctx.id,
-      batchLessonIds: batchIds,
+      batchLessonIds: movingLessonIds,
     });
     if (teacherConflict) {
       conflicts.push({
         lessonId: ctx.id,
         courseName: ctx.courseName,
         message: "Il docente ha già una lezione in questo orario.",
+      });
+      blocked.add(ctx.id);
+      continue;
+    }
+
+    const studentConflict = await findStudentLessonConflict(client, {
+      familyMemberIds: ctx.familyMemberIds,
+      startsAt: resolved.startsAt,
+      endsAt: resolved.endsAt,
+      lessonId: ctx.id,
+      excludeLessonIds: movingLessonIds,
+    });
+    if (studentConflict) {
+      conflicts.push({
+        lessonId: ctx.id,
+        courseName: ctx.courseName,
+        message: "Uno o più allievi hanno già una lezione in questo orario.",
       });
       blocked.add(ctx.id);
     }
@@ -861,12 +945,13 @@ async function loadRoomNames(
 
 async function listStaffEmails(
   client: AbsenceClient,
-): Promise<string[]> {
+): Promise<{ emails: string[]; rpcFailed: boolean }> {
   const { data, error } = await client.rpc("list_lesson_staff_emails");
-  if (error) return [];
-  return (data ?? [])
+  if (error) return { emails: [], rpcFailed: true };
+  const emails = (data ?? [])
     .map((row) => row.email?.trim() ?? "")
     .filter(Boolean);
+  return { emails, rpcFailed: false };
 }
 
 async function loadTeacherName(
@@ -926,7 +1011,10 @@ async function sendAbsenceNotifications(
       lessons: lines,
       audience: "staff",
     });
-    const recipients = await listStaffEmails(client);
+    const { emails: recipients, rpcFailed } = await listStaffEmails(client);
+    if (rpcFailed || recipients.length === 0) {
+      warnings.push("Segreteria non avvisata: nessun destinatario.");
+    }
     for (const to of recipients) {
       const result = await sendSingleEmail(client, {
         to,
@@ -1118,6 +1206,7 @@ export async function cancelTeacherAbsence(
     const leftIds: string[] = [];
     const conflicts: TeacherAbsenceConflict[] = [];
     const notifySnapshots: NotifyLessonSnapshot[] = [];
+    const warnings: string[] = [];
 
     for (const lessonId of input.lessonIds) {
       const ctx = byId.get(lessonId);
@@ -1149,33 +1238,18 @@ export async function cancelTeacherAbsence(
         .select("id, booking_id, placement, cancelled_at")
         .eq("id", lessonId)
         .maybeSingle();
-      if (freshError || !fresh || fresh.placement !== "scheduled" || fresh.cancelled_at) {
+      if (freshError || !fresh) {
         leftIds.push(lessonId);
         continue;
       }
 
-      if (fresh.booking_id) {
-        const cancelError = await cancelHoldBooking(client, fresh.booking_id);
-        if (cancelError) {
-          conflicts.push({
-            lessonId,
-            courseName: ctx.courseName,
-            message: cancelError,
-          });
-          leftIds.push(lessonId);
-          continue;
-        }
-      }
-
-      const { error: updateError } = await client
+      const { data: cancelledRows, error: updateError } = await client
         .from("lessons")
-        .update({
-          cancelled_at: new Date().toISOString(),
-          booking_id: null,
-        })
+        .update({ cancelled_at: new Date().toISOString() })
         .eq("id", lessonId)
         .eq("placement", "scheduled")
-        .is("cancelled_at", null);
+        .is("cancelled_at", null)
+        .select("id");
 
       if (updateError) {
         conflicts.push({
@@ -1185,6 +1259,50 @@ export async function cancelTeacherAbsence(
         });
         leftIds.push(lessonId);
         continue;
+      }
+      if (!cancelledRows?.length) {
+        leftIds.push(lessonId);
+        continue;
+      }
+
+      const bookingId = fresh.booking_id;
+      if (bookingId) {
+        const cancelError = await cancelHoldBooking(client, bookingId);
+        if (cancelError) {
+          const { error: rollbackError } = await client
+            .from("lessons")
+            .update({ cancelled_at: null })
+            .eq("id", lessonId)
+            .eq("placement", "scheduled")
+            .not("cancelled_at", "is", null);
+          if (rollbackError) {
+            conflicts.push({
+              lessonId,
+              courseName: ctx.courseName,
+              message:
+                rollbackError.message ||
+                "Annullamento non ripristinato dopo errore sala.",
+            });
+          } else {
+            conflicts.push({
+              lessonId,
+              courseName: ctx.courseName,
+              message: cancelError,
+            });
+          }
+          leftIds.push(lessonId);
+          continue;
+        }
+
+        const { error: clearBookingError } = await client
+          .from("lessons")
+          .update({ booking_id: null })
+          .eq("id", lessonId);
+        if (clearBookingError) {
+          warnings.push(
+            `Lezione annullata ma il riferimento sala non è stato aggiornato (${ctx.courseName}).`,
+          );
+        }
       }
 
       cancelledIds.push(lessonId);
@@ -1200,15 +1318,17 @@ export async function cancelTeacherAbsence(
       });
     }
 
-    const warnings = await sendAbsenceNotifications(client, {
-      kind: "cancelled",
-      fromDate: input.fromDate,
-      toDate: input.toDate,
-      titularMemberId: input.titularMemberId,
-      notifySegreteria: input.notifySegreteria,
-      notifyFamily: input.notifyFamily,
-      lessons: notifySnapshots,
-    });
+    warnings.push(
+      ...(await sendAbsenceNotifications(client, {
+        kind: "cancelled",
+        fromDate: input.fromDate,
+        toDate: input.toDate,
+        titularMemberId: input.titularMemberId,
+        notifySegreteria: input.notifySegreteria,
+        notifyFamily: input.notifyFamily,
+        lessons: notifySnapshots,
+      })),
+    );
 
     if (cancelledIds.length === 0 && input.lessonIds.length > 0) {
       return {
@@ -1237,6 +1357,61 @@ export async function cancelTeacherAbsence(
         err instanceof Error ? err.message : "Impossibile annullare le lezioni.",
     };
   }
+}
+
+type MoveLessonActor = {
+  memberId: string;
+  isStaff: boolean;
+  canReschedule: boolean;
+};
+
+async function rollbackMovedLessons(
+  client: AbsenceClient,
+  snapshots: Array<{
+    lessonId: string;
+    startsAt: string;
+    roomId: string | null;
+  }>,
+  actor: MoveLessonActor,
+  contexts: Map<string, LessonContext>,
+): Promise<{ warnings: string[]; unrestoredCourseNames: string[] }> {
+  const warnings: string[] = [];
+  const unrestoredCourseNames: string[] = [];
+
+  for (const snap of [...snapshots].reverse()) {
+    const undoOnce = () =>
+      moveLesson(client, snap.lessonId, {
+        startsAt: snap.startsAt,
+        roomId: snap.roomId,
+        scope: "this",
+        notifyFamily: false,
+        notifyTeacher: false,
+        actor,
+      });
+
+    let undo = await undoOnce();
+    if (!undo.success) {
+      undo = await undoOnce();
+    }
+    if (!undo.success) {
+      const ctx = contexts.get(snap.lessonId);
+      unrestoredCourseNames.push(ctx?.courseName ?? snap.lessonId);
+      warnings.push(
+        undo.errorMessage ||
+          `Rollback non riuscito per ${ctx?.courseName ?? "la lezione"}.`,
+      );
+    }
+  }
+
+  return { warnings, unrestoredCourseNames };
+}
+
+function rollbackAllPolicyErrorMessage(unrestoredCourseNames: string[]): string {
+  if (unrestoredCourseNames.length === 0) {
+    return "Spostamento annullato per conflitto a metà percorso.";
+  }
+  const names = [...new Set(unrestoredCourseNames)].join(", ");
+  return `Spostamento annullato: impossibile ripristinare ${names}.`;
 }
 
 export async function moveTeacherAbsence(
@@ -1378,20 +1553,17 @@ export async function moveTeacherAbsence(
           message: resolved.error,
         });
         if (input.conflictPolicy === "all") {
-          for (const snap of [...rollbackSnapshots].reverse()) {
-            await moveLesson(client, snap.lessonId, {
-              startsAt: snap.startsAt,
-              roomId: snap.roomId,
-              scope: "this",
-              notifyFamily: false,
-              notifyTeacher: false,
-              actor: {
-                memberId: input.actorMemberId,
-                isStaff: input.isStaff,
-                canReschedule,
-              },
-            });
-          }
+          const rollback = await rollbackMovedLessons(
+            client,
+            rollbackSnapshots,
+            {
+              memberId: input.actorMemberId,
+              isStaff: input.isStaff,
+              canReschedule,
+            },
+            contexts,
+          );
+          warnings.push(...rollback.warnings);
           return {
             success: false,
             cancelledIds: [],
@@ -1399,7 +1571,9 @@ export async function moveTeacherAbsence(
             leftIds: [...new Set([...leftIds, ...toMove])],
             conflicts,
             warnings,
-            errorMessage: "Spostamento interrotto per errore.",
+            errorMessage: rollbackAllPolicyErrorMessage(
+              rollback.unrestoredCourseNames,
+            ),
           };
         }
         warnings.push(`Lezione non spostata: ${resolved.error}`);
@@ -1439,26 +1613,17 @@ export async function moveTeacherAbsence(
         });
 
         if (input.conflictPolicy === "all") {
-          for (const snap of [...rollbackSnapshots].reverse()) {
-            const undo = await moveLesson(client, snap.lessonId, {
-              startsAt: snap.startsAt,
-              roomId: snap.roomId,
-              scope: "this",
-              notifyFamily: false,
-              notifyTeacher: false,
-              actor: {
-                memberId: input.actorMemberId,
-                isStaff: input.isStaff,
-                canReschedule,
-              },
-            });
-            if (!undo.success) {
-              warnings.push(
-                undo.errorMessage ||
-                  `Rollback non riuscito per la lezione ${snap.lessonId}.`,
-              );
-            }
-          }
+          const rollback = await rollbackMovedLessons(
+            client,
+            rollbackSnapshots,
+            {
+              memberId: input.actorMemberId,
+              isStaff: input.isStaff,
+              canReschedule,
+            },
+            contexts,
+          );
+          warnings.push(...rollback.warnings);
           return {
             success: false,
             cancelledIds: [],
@@ -1466,7 +1631,9 @@ export async function moveTeacherAbsence(
             leftIds: [...new Set([...leftIds, ...preview.freeLessonIds])],
             conflicts,
             warnings,
-            errorMessage: "Spostamento annullato per conflitto a metà percorso.",
+            errorMessage: rollbackAllPolicyErrorMessage(
+              rollback.unrestoredCourseNames,
+            ),
           };
         }
         warnings.push(message);
@@ -1495,16 +1662,20 @@ export async function moveTeacherAbsence(
       }
     }
 
-    const emailWarnings = await sendAbsenceNotifications(client, {
-      kind: "moved",
-      fromDate: input.fromDate,
-      toDate: input.toDate,
-      titularMemberId: input.titularMemberId,
-      notifySegreteria: input.notifySegreteria,
-      notifyFamily: input.notifyFamily,
-      lessons: notifySnapshots,
-    });
-    warnings.push(...emailWarnings);
+    const allPlannedMoved =
+      input.conflictPolicy !== "all" || movedIds.length === toMove.length;
+    if (allPlannedMoved && notifySnapshots.length > 0) {
+      const emailWarnings = await sendAbsenceNotifications(client, {
+        kind: "moved",
+        fromDate: input.fromDate,
+        toDate: input.toDate,
+        titularMemberId: input.titularMemberId,
+        notifySegreteria: input.notifySegreteria,
+        notifyFamily: input.notifyFamily,
+        lessons: notifySnapshots,
+      });
+      warnings.push(...emailWarnings);
+    }
 
     const success = movedIds.length > 0;
     return {
