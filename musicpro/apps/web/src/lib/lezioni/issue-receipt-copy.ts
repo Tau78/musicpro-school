@@ -196,6 +196,9 @@ async function spendableCredits(
   return Math.round(sum * 100) / 100;
 }
 
+/** Copia di controllo sulle conferme e ricevute shop, per il primo periodo. */
+const CREDIT_SHOP_RECEIPT_CC = ["musicproeventi@gmail.com"];
+
 /** Emette la ricevuta shop (se l'importo è positivo) e la manda all'associato col saldo. */
 export async function issueAndEmailCreditShopPurchase(
   client: ReceiptsClient,
@@ -287,6 +290,7 @@ export async function issueAndEmailCreditShopPurchase(
       ? `Ricevuta crediti ${receipt.code} — MusicPro School`
       : "Acquisto crediti — MusicPro School",
     body: lines.join("\n"),
+    cc: CREDIT_SHOP_RECEIPT_CC,
     attachments: pdf
       ? [
           {

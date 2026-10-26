@@ -1,6 +1,13 @@
+import { bookingPaymentMethodLabel } from "@musicpro/database";
 import { createClient } from "@supabase/supabase-js";
 
 import { authPublicOrigin } from "@/lib/auth/redirect-url";
+import {
+  escapeEmailHtml,
+  schoolEmailHeroHtml,
+  schoolEmailTextFooter,
+  wrapSchoolEmail,
+} from "@/lib/email/school-email-layout";
 import {
   sendEnrollmentEmail,
   type EnrollmentAttachment,
@@ -68,6 +75,16 @@ function appUrl(): string {
   return authPublicOrigin(process.env);
 }
 
+function formatDateRome(iso: string): string {
+  return new Intl.DateTimeFormat("it-IT", {
+    timeZone: ROME,
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(new Date(iso));
+}
+
 function formatDateTimeRome(iso: string): string {
   return new Intl.DateTimeFormat("it-IT", {
     timeZone: ROME,
@@ -86,6 +103,34 @@ function formatTimeRome(iso: string): string {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(iso));
+}
+
+function formatWhenRange(startIso: string, endIso: string): string {
+  const startDay = formatDateRome(startIso);
+  const endDay = formatDateRome(endIso);
+  if (startDay === endDay) {
+    return `${startDay} · ${formatTimeRome(startIso)} – ${formatTimeRome(endIso)}`;
+  }
+  return `${formatDateTimeRome(startIso)} – ${formatDateTimeRome(endIso)}`;
+}
+
+function paymentSummaryLine(
+  booking: BookingRow,
+  paymentUrl?: string | null,
+): string | null {
+  if (paymentUrl) return "Da completare online";
+  const method = bookingPaymentMethodLabel(booking.payment_method);
+  if (booking.payment_status === "paid") {
+    return method ? `Pagata · ${method}` : "Pagata";
+  }
+  if (booking.payment_status === "not_required") {
+    if (booking.payment_method === "credits") return "Pagata con crediti";
+    return null;
+  }
+  if (booking.payment_status === "unpaid" || booking.payment_status === "link_sent") {
+    return "In attesa di pagamento";
+  }
+  return method;
 }
 
 function formatDuration(minutes: number | null): string {
@@ -127,12 +172,16 @@ function shortBookingId(id: string): string {
   return id.slice(0, 8).toUpperCase();
 }
 
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+const escapeHtml = escapeEmailHtml;
+
+function detailTableHtml(rows: Array<[string, string]>): string {
+  const htmlRows = rows
+    .map(
+      ([label, value], index) =>
+        `<tr><td style="padding:10px 14px;border-bottom:${index === rows.length - 1 ? "0" : "1px solid #eee"};color:#6b7280;width:120px;font-size:14px;">${escapeHtml(label)}</td><td style="padding:10px 14px;border-bottom:${index === rows.length - 1 ? "0" : "1px solid #eee"};font-weight:600;font-size:15px;color:#111827;">${escapeHtml(value)}</td></tr>`,
+    )
+    .join("");
+  return `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;margin:8px 0 4px;background:#faf8f3;border-radius:10px;">${htmlRows}</table>`;
 }
 
 async function loadBookingForEmail(bookingId: string): Promise<BookingRow | null> {
@@ -270,10 +319,11 @@ function buildUpgradeGratuitoEmail(booking: BookingRow): {
 
   const firstName = booking.members?.first_name?.trim() || "associato";
   const roomName = booking.rooms?.name ?? "Sala";
-  const whenLine = `${formatDateTimeRome(booking.start_at)} – ${formatTimeRome(booking.end_at)}`;
+  const whenLine = formatWhenRange(booking.start_at, booking.end_at);
   const duration = formatDuration(booking.duration_minutes);
   const subject = "Upgrade gratuito sulla tua prenotazione — MusicPro School";
-  const myBookingsUrl = `${appUrl()}/prenotazioni/mie`;
+  const origin = appUrl();
+  const myBookingsUrl = `${origin}/prenotazioni/mie`;
 
   const text = [
     `Ciao ${firstName},`,
@@ -287,37 +337,26 @@ function buildUpgradeGratuitoEmail(booking: BookingRow): {
     `Durata: ${duration}`,
     "",
     "Ti aspettiamo in sala.",
-    "MusicPro School",
+    `Le tue prenotazioni: ${myBookingsUrl}`,
+    schoolEmailTextFooter(),
   ].join("\n");
 
-  const html = `<!DOCTYPE html>
-<html lang="it">
-<body style="margin:0;padding:24px;background:#f6f3ec;font-family:system-ui,-apple-system,sans-serif;line-height:1.5;color:#1a1a1a;">
-  <table role="presentation" style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e6dfd0;">
-    <tr>
-      <td style="background:#1e3a5f;padding:20px 24px;">
-        <p style="margin:0;color:#c9a227;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;">MusicPro School</p>
-        <p style="margin:6px 0 0;color:#ffffff;font-size:20px;font-weight:600;">Upgrade gratuito</p>
-      </td>
-    </tr>
-    <tr>
-      <td style="padding:24px;">
+  const htmlBody = `
         <p style="margin:0 0 12px;">Ciao <strong>${escapeHtml(firstName)}</strong>,</p>
         <p style="margin:0 0 12px;">ti abbiamo omaggiato di un upgrade gratuito.</p>
         <p style="margin:0 0 16px;">Abbiamo aggiornato la prenotazione. La differenza di prezzo resta a carico della scuola: non devi pagare nulla in più.</p>
-        <table style="width:100%;border-collapse:collapse;margin:0 0 16px;background:#fafafa;border-radius:8px;">
-          <tr><td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;width:110px;">Sala</td><td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:600;">${escapeHtml(roomName)}</td></tr>
-          <tr><td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;">Quando</td><td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:600;">${escapeHtml(whenLine)}</td></tr>
-          <tr><td style="padding:8px 12px;color:#666;">Durata</td><td style="padding:8px 12px;font-weight:600;">${escapeHtml(duration)}</td></tr>
-        </table>
-        <p style="margin:0 0 20px;">Ti aspettiamo in sala.</p>
-        <a href="${escapeHtml(myBookingsUrl)}" style="display:inline-block;background:#1e3a5f;color:#ffffff;text-decoration:none;padding:10px 18px;border-radius:6px;font-weight:600;">Le tue prenotazioni</a>
-        <p style="margin:24px 0 0;font-size:12px;color:#888;">MusicPro School</p>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`;
+        ${schoolEmailHeroHtml("Sala prove", roomName, whenLine)}
+        ${detailTableHtml([["Durata", duration]])}
+        <p style="margin:16px 0 0;">Ti aspettiamo in sala.</p>`;
+
+  const html = wrapSchoolEmail({
+    appOrigin: origin,
+    preheader: `Upgrade gratuito · ${roomName} · ${whenLine}`,
+    kicker: "MusicPro School",
+    title: "Upgrade gratuito",
+    htmlBody,
+    ctas: [{ href: myBookingsUrl, label: "Le tue prenotazioni" }],
+  });
 
   return { subject, html, text, recipientEmail };
 }
@@ -360,19 +399,14 @@ function buildBookingEmailContent(
   const memberName = booking.members
     ? `${booking.members.first_name} ${booking.members.last_name}`.trim()
     : "Associato";
+  const firstName = booking.members?.first_name?.trim() || memberName;
   const roomName = booking.rooms?.name ?? "Sala";
-  const whenLine = `${formatDateTimeRome(booking.start_at)} – ${formatTimeRome(booking.end_at)}`;
+  const whenLine = formatWhenRange(booking.start_at, booking.end_at);
   const duration = formatDuration(booking.duration_minutes);
-  const proviLabel = booking.provi_da_solo ? "Sì" : "No";
   const price = formatEuro(booking.total_price_eur);
   const paymentUrl = options.paymentUrl?.trim() || null;
-  const status = paymentUrl
-    ? "In attesa pagamento"
-    : statusLabel(booking.status, booking.payment_status);
-  const bookingRef = shortBookingId(booking.id);
-  const base = appUrl();
-  const myBookingsUrl = `${base}/prenotazioni/mie`;
-  const shopUrl = `${base}/dashboard/shop`;
+  const origin = appUrl();
+  const myBookingsUrl = `${origin}/prenotazioni/mie`;
   const cancelPolicy = `Puoi annullare fino a ${options.cancelPolicyHours} ore prima: l'importo torna come crediti sul saldo (meno l'eventuale penale).`;
 
   const subject = paymentUrl
@@ -383,41 +417,45 @@ function buildBookingEmailContent(
         ? "La tua prenotazione MusicPro è stata modificata"
         : "La tua prenotazione MusicPro è stata creata";
 
-  const intro = paymentUrl
-    ? "La prenotazione è stata registrata. Per confermarla, completa il pagamento online:"
-    : template === "cancelled"
-      ? "La prenotazione è stata annullata. Ecco i dettagli:"
+  const title =
+    template === "cancelled"
+      ? "Prenotazione annullata"
       : template === "modified"
-        ? "La prenotazione è stata aggiornata. Ecco i dettagli:"
-        : "La prenotazione è stata creata. Ecco i dettagli:";
+        ? "Prenotazione aggiornata"
+        : paymentUrl
+          ? "Completa il pagamento"
+          : "Prenotazione confermata";
 
-  const creditLine =
-    options.creditBalance != null
-      ? `Saldo crediti residuo: ${options.creditBalance} ${options.creditBalance === 1 ? "credito" : "crediti"}`
-      : null;
+  const intro = paymentUrl
+    ? "La prenotazione è registrata. Per confermarla, completa il pagamento online."
+    : template === "cancelled"
+      ? "La prenotazione è stata annullata."
+      : template === "modified"
+        ? "Abbiamo aggiornato la tua prenotazione in sala."
+        : "Ti aspettiamo in sala. Ecco il riepilogo.";
+
+  const paymentLine = paymentSummaryLine(booking, paymentUrl);
 
   const rows: Array<[string, string]> = [
-    ["Stato", status],
-    ["ID prenotazione", bookingRef],
     ["Quando", whenLine],
     ["Sala", roomName],
     ["Durata", duration],
-    ["Provi da solo?", proviLabel],
-    ["Microfoni", String(booking.microphone_count ?? 0)],
   ];
 
   if (booking.band_id && booking.bands?.name) {
     rows.push(["Band", booking.bands.name]);
   }
 
+  rows.push(["Importo", price]);
+  if (paymentLine) rows.push(["Pagamento", paymentLine]);
+
   if (booking.notes?.trim()) {
     rows.push(["Note", booking.notes.trim()]);
   }
 
-  rows.push(["Prezzo", price]);
-
-  if (creditLine) {
-    rows.push(["Crediti", creditLine.replace("Saldo crediti residuo: ", "")]);
+  if (options.creditBalance != null) {
+    const n = options.creditBalance;
+    rows.push(["Saldo crediti", `${n} ${n === 1 ? "credito" : "crediti"}`]);
   }
 
   const policyLine =
@@ -428,7 +466,7 @@ function buildBookingEmailContent(
   const textRows = rows.map(([label, value]) => `${label}: ${value}`).join("\n");
 
   const text = [
-    `Ciao ${memberName},`,
+    `Ciao ${firstName},`,
     "",
     intro,
     "",
@@ -438,42 +476,30 @@ function buildBookingEmailContent(
     policyLine,
     "",
     `Le tue prenotazioni: ${myBookingsUrl}`,
-    `Acquista crediti (SHOP): ${shopUrl}`,
-    "",
-    "MusicPro School",
+    schoolEmailTextFooter(),
   ].join("\n");
 
-  const htmlRows = rows
-    .map(
-      ([label, value]) =>
-        `<tr><td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;width:140px;">${escapeHtml(label)}</td><td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:500;">${escapeHtml(value)}</td></tr>`,
-    )
-    .join("");
+  const htmlBody = `
+        <p style="margin:0 0 14px;">Ciao <strong>${escapeHtml(firstName)}</strong>,</p>
+        <p style="margin:0 0 16px;">${escapeHtml(intro)}</p>
+        ${detailTableHtml(rows)}
+        <p style="margin:16px 0 0;font-size:13px;line-height:1.5;color:#4b5563;">${escapeHtml(policyLine)}</p>`;
 
-  const html = `<!DOCTYPE html>
-<html lang="it">
-<body style="font-family:system-ui,-apple-system,sans-serif;line-height:1.5;color:#1a1a1a;max-width:560px;margin:0 auto;padding:24px;">
-  <p>Ciao <strong>${escapeHtml(memberName)}</strong>,</p>
-  <p>${escapeHtml(intro)}</p>
-  <table style="width:100%;border-collapse:collapse;margin:20px 0;background:#fafafa;border-radius:8px;">
-    ${htmlRows}
-  </table>
-  <p style="font-size:14px;color:#444;">${escapeHtml(policyLine)}</p>
-  ${
-    paymentUrl
-      ? `<p style="margin-top:24px;">
-    <a href="${escapeHtml(paymentUrl)}" style="display:inline-block;background:#c41e3a;color:#fff;text-decoration:none;padding:12px 22px;border-radius:6px;font-weight:600;">Paga ora</a>
-  </p>`
-      : ""
-  }
-  <p style="margin-top:24px;">
-    <a href="${myBookingsUrl}" style="display:inline-block;background:#c41e3a;color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;font-weight:600;">Le mie prenotazioni</a>
-    &nbsp;
-    <a href="${shopUrl}" style="display:inline-block;border:1px solid #c41e3a;color:#c41e3a;text-decoration:none;padding:10px 18px;border-radius:6px;font-weight:600;">SHOP crediti</a>
-  </p>
-  <p style="margin-top:32px;font-size:12px;color:#888;">MusicPro School</p>
-</body>
-</html>`;
+  const ctas = [
+    ...(paymentUrl
+      ? [{ href: paymentUrl, label: "Paga ora" as const }]
+      : []),
+    { href: myBookingsUrl, label: "Vedi in app" },
+  ];
+
+  const html = wrapSchoolEmail({
+    appOrigin: origin,
+    preheader: `${roomName} · ${whenLine}`,
+    kicker: "Sala prove",
+    title,
+    htmlBody,
+    ctas,
+  });
 
   return { subject, html, text, recipientEmail };
 }
@@ -488,14 +514,16 @@ function buildAdminBookingNotifyContent(
     : "Associato";
   const memberEmail = booking.members?.email?.trim() || "—";
   const roomName = booking.rooms?.name ?? "Sala";
-  const whenLine = `${formatDateTimeRome(booking.start_at)} – ${formatTimeRome(booking.end_at)}`;
+  const whenLine = formatWhenRange(booking.start_at, booking.end_at);
   const price = formatEuro(booking.total_price_eur);
   const bookingRef = shortBookingId(booking.id);
   const paymentUrl = options.paymentUrl?.trim() || null;
   const status = paymentUrl
     ? "In attesa pagamento"
     : statusLabel(booking.status, booking.payment_status);
-  const adminUrl = `${appUrl()}/admin/prenotazioni`;
+  const origin = appUrl();
+  const adminUrl = `${origin}/admin/prenotazioni`;
+  const paymentLine = paymentSummaryLine(booking, paymentUrl);
 
   const subject =
     template === "cancelled"
@@ -511,40 +539,44 @@ function buildAdminBookingNotifyContent(
         ? "Una prenotazione sala è stata modificata."
         : "È stata creata una nuova prenotazione sala.";
 
+  const adminRows: Array<[string, string]> = [
+    ["Associato", `${memberName} <${memberEmail}>`],
+    ["Stato", status],
+    ["Quando", whenLine],
+    ["Sala", roomName],
+    ["Importo", price],
+  ];
+  if (paymentLine) adminRows.push(["Pagamento", paymentLine]);
+  adminRows.push(["Rif.", bookingRef]);
+
   const text = [
     intro,
     "",
-    `Associato: ${memberName} <${memberEmail}>`,
-    `Stato: ${status}`,
-    `ID: ${bookingRef}`,
-    `Quando: ${whenLine}`,
-    `Sala: ${roomName}`,
-    `Prezzo: ${price}`,
-    ...(paymentUrl ? [`Pagamento: ${paymentUrl}`] : []),
+    ...adminRows.map(([label, value]) => `${label}: ${value}`),
+    ...(paymentUrl ? [`Link pagamento: ${paymentUrl}`] : []),
     "",
     `Apri admin: ${adminUrl}`,
-    "",
-    "MusicPro School",
+    schoolEmailTextFooter({ showAppDownload: false }),
   ].join("\n");
 
-  const html = `<!DOCTYPE html>
-<html lang="it">
-<body style="font-family:system-ui,-apple-system,sans-serif;line-height:1.5;color:#1a1a1a;max-width:560px;margin:0 auto;padding:24px;">
-  <p>${escapeHtml(intro)}</p>
-  <table style="width:100%;border-collapse:collapse;margin:20px 0;background:#fafafa;border-radius:8px;">
-    <tr><td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;width:140px;">Associato</td><td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:500;">${escapeHtml(memberName)} &lt;${escapeHtml(memberEmail)}&gt;</td></tr>
-    <tr><td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;">Stato</td><td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:500;">${escapeHtml(status)}</td></tr>
-    <tr><td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;">ID</td><td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:500;">${escapeHtml(bookingRef)}</td></tr>
-    <tr><td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;">Quando</td><td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:500;">${escapeHtml(whenLine)}</td></tr>
-    <tr><td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;">Sala</td><td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:500;">${escapeHtml(roomName)}</td></tr>
-    <tr><td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;">Prezzo</td><td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:500;">${escapeHtml(price)}</td></tr>
-  </table>
-  <p style="margin-top:24px;">
-    <a href="${escapeHtml(adminUrl)}" style="display:inline-block;background:#0b3d5c;color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;font-weight:600;">Apri prenotazioni</a>
-  </p>
-  <p style="margin-top:32px;font-size:12px;color:#888;">MusicPro School — notifica admin</p>
-</body>
-</html>`;
+  const htmlBody = `
+        <p style="margin:0 0 16px;">${escapeHtml(intro)}</p>
+        ${detailTableHtml(adminRows)}`;
+
+  const html = wrapSchoolEmail({
+    appOrigin: origin,
+    preheader: `${memberName} · ${roomName} · ${whenLine}`,
+    kicker: "Notifica staff",
+    title:
+      template === "cancelled"
+        ? "Prenotazione annullata"
+        : template === "modified"
+          ? "Prenotazione modificata"
+          : "Nuova prenotazione",
+    htmlBody,
+    ctas: [{ href: adminUrl, label: "Apri prenotazioni" }],
+    showAppDownload: false,
+  });
 
   return { subject, html, text };
 }
