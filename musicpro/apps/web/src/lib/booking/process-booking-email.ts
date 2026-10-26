@@ -105,13 +105,27 @@ function formatTimeRome(iso: string): string {
   }).format(new Date(iso));
 }
 
-function formatWhenRange(startIso: string, endIso: string): string {
+function formatWhenParts(
+  startIso: string,
+  endIso: string,
+): { dateLine: string; timeLine: string } {
   const startDay = formatDateRome(startIso);
   const endDay = formatDateRome(endIso);
   if (startDay === endDay) {
-    return `${startDay} · ${formatTimeRome(startIso)} – ${formatTimeRome(endIso)}`;
+    return {
+      dateLine: startDay,
+      timeLine: `${formatTimeRome(startIso)} – ${formatTimeRome(endIso)}`,
+    };
   }
-  return `${formatDateTimeRome(startIso)} – ${formatDateTimeRome(endIso)}`;
+  return {
+    dateLine: formatDateTimeRome(startIso),
+    timeLine: formatDateTimeRome(endIso),
+  };
+}
+
+function formatWhenRange(startIso: string, endIso: string): string {
+  const { dateLine, timeLine } = formatWhenParts(startIso, endIso);
+  return `${dateLine} · ${timeLine}`;
 }
 
 function paymentSummaryLine(
@@ -319,7 +333,8 @@ function buildUpgradeGratuitoEmail(booking: BookingRow): {
 
   const firstName = booking.members?.first_name?.trim() || "associato";
   const roomName = booking.rooms?.name ?? "Sala";
-  const whenLine = formatWhenRange(booking.start_at, booking.end_at);
+  const when = formatWhenParts(booking.start_at, booking.end_at);
+  const whenLine = `${when.dateLine} · ${when.timeLine}`;
   const duration = formatDuration(booking.duration_minutes);
   const subject = "Upgrade gratuito sulla tua prenotazione — MusicPro School";
   const origin = appUrl();
@@ -345,7 +360,7 @@ function buildUpgradeGratuitoEmail(booking: BookingRow): {
         <p style="margin:0 0 12px;">Ciao <strong>${escapeHtml(firstName)}</strong>,</p>
         <p style="margin:0 0 12px;">ti abbiamo omaggiato di un upgrade gratuito.</p>
         <p style="margin:0 0 16px;">Abbiamo aggiornato la prenotazione. La differenza di prezzo resta a carico della scuola: non devi pagare nulla in più.</p>
-        ${schoolEmailHeroHtml("Sala prove", roomName, whenLine)}
+        ${schoolEmailHeroHtml("Sala prove", roomName, when.dateLine, when.timeLine)}
         ${detailTableHtml([["Durata", duration]])}
         <p style="margin:16px 0 0;">Ti aspettiamo in sala.</p>`;
 
@@ -400,7 +415,8 @@ function buildBookingEmailContent(
     : "Associato";
   const firstName = booking.members?.first_name?.trim() || memberName;
   const roomName = booking.rooms?.name ?? "Sala";
-  const whenLine = formatWhenRange(booking.start_at, booking.end_at);
+  const when = formatWhenParts(booking.start_at, booking.end_at);
+  const whenLine = `${when.dateLine} · ${when.timeLine}`;
   const duration = formatDuration(booking.duration_minutes);
   const price = formatEuro(booking.total_price_eur);
   const paymentUrl = options.paymentUrl?.trim() || null;
@@ -486,9 +502,9 @@ function buildBookingEmailContent(
   const htmlBody = `
         <p style="margin:0 0 14px;">Ciao <strong>${escapeHtml(firstName)}</strong>,</p>
         <p style="margin:0 0 16px;">${escapeHtml(intro)}</p>
-        ${schoolEmailHeroHtml("Sala prove", roomName, whenLine)}
+        ${schoolEmailHeroHtml("Sala prove", roomName, when.dateLine, when.timeLine)}
         ${detailTableHtml(rows)}
-        <p style="margin:16px 0 0;font-size:13px;line-height:1.5;color:#4b5563;">${escapeHtml(policyLine)}</p>`;
+        <p style="margin:16px 0 0;font-size:13px;line-height:1.5;color:#4b5563;max-width:100%;">${escapeHtml(policyLine)}</p>`;
 
   const ctas = [
     ...(paymentUrl
