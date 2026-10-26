@@ -433,48 +433,6 @@ export async function generateFiscalReceiptPdf(
   drawRight(page, font, formatAmountIt(total), colImpRight, vatDataY, 8, INK);
   drawRight(page, font, "€ 0,00", colTaxRight, vatDataY, 8, INK);
 
-  // Totali documento a destra del box IVA (come FattureInCloud), non sotto la colonna IMPONIBILE
-  const totalsLeft = ML + vatW + 14;
-  if (totalsLeft < RIGHT - 40) {
-    drawRight(
-      page,
-      font,
-      `Imponibile € ${formatAmountIt(total)}`,
-      RIGHT,
-      vatRowTop - 4,
-      8.5,
-      LABEL,
-    );
-    drawRight(
-      page,
-      fontBold,
-      `€ ${formatAmountIt(total)}`,
-      RIGHT,
-      vatRowTop - vatRowH + 2,
-      16,
-      INK,
-    );
-  } else {
-    drawRight(
-      page,
-      font,
-      `Imponibile € ${formatAmountIt(total)}`,
-      RIGHT,
-      vatRowTop - vatRowH - 14,
-      8.5,
-      LABEL,
-    );
-    drawRight(
-      page,
-      fontBold,
-      `€ ${formatAmountIt(total)}`,
-      RIGHT,
-      vatRowTop - vatRowH - 32,
-      16,
-      INK,
-    );
-  }
-
   y = vatRowTop - vatRowH - 10;
 
   const footY = 78;

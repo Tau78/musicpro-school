@@ -165,6 +165,7 @@ export type EmailAttachment = {
 async function sendEmailViaResend(params: {
   from: string;
   to: string;
+  cc?: string[];
   subject: string;
   body: string;
   html?: string;
@@ -188,6 +189,7 @@ async function sendEmailViaResend(params: {
     body: JSON.stringify({
       from: params.from,
       to: [params.to],
+      ...(params.cc?.length ? { cc: params.cc } : {}),
       subject: params.subject,
       text: params.body,
       html: params.html ?? textToHtml(params.body),
@@ -389,6 +391,7 @@ export type SendSingleEmailInput = {
   body: string;
   html?: string;
   attachments?: EmailAttachment[];
+  cc?: string[];
 };
 
 export type SendSingleEmailResult =
@@ -407,9 +410,13 @@ export async function sendSingleEmail(
     return { ok: false, skipped: true, error: "Destinatario email mancante." };
   }
   const from = await resolveEmailFrom(client);
+  const cc = (input.cc ?? [])
+    .map((address) => address.trim().toLowerCase())
+    .filter((address) => address.length > 0 && address !== to.toLowerCase());
   return sendEmailViaResend({
     from,
     to,
+    cc,
     subject: input.subject,
     body: input.body,
     html: input.html,
@@ -426,6 +433,7 @@ export async function sendLessonFamilyEmail(
     body: string;
     html?: string;
     attachments?: EmailAttachment[];
+    cc?: string[];
   },
 ): Promise<{ sent: number; skipped: number; warnings: string[] }> {
   const { data: member, error } = await client
@@ -454,16 +462,22 @@ export async function sendLessonFamilyEmail(
 
   let sent = 0;
   let skipped = 0;
+  let copy = (input.cc ?? [])
+    .map((address) => address.trim().toLowerCase())
+    .filter((address) => address.length > 0 && !addresses.has(address));
   for (const to of addresses) {
     const result = await sendSingleEmail(client, {
       to,
+      cc: copy,
       subject: input.subject,
       body: input.body,
       html: input.html,
       attachments: input.attachments,
     });
-    if (result.ok) sent += 1;
-    else {
+    if (result.ok) {
+      copy = [];
+      sent += 1;
+    } else {
       skipped += 1;
       warnings.push(result.error);
     }

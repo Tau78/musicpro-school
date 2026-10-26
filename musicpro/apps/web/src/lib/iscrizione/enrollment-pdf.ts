@@ -122,13 +122,13 @@ function quotaAmountOnly(quotaLabel: string): string {
 
 const PAGE_W = 595.28;
 const PAGE_H = 841.89;
-/** Margini ≈ Google Doc (2.5 cm). */
-const MARGIN_X = 70;
-const MARGIN_TOP = 52;
-const GREEN_QUOTA = rgb(0.094, 0.502, 0.22);
-const BLUE_LINK = rgb(0.06, 0.28, 0.75);
-const GREY_HINT = rgb(0.55, 0.55, 0.55);
-const BLACK = rgb(0.08, 0.08, 0.08);
+/** Margini stretti dell'export Google Doc storico: il corpo legale sta su 3 righe. */
+const MARGIN_X = 18;
+const RIGHT_X = PAGE_W - 18;
+const GREEN_QUOTA = rgb(0.16, 0.48, 0.26);
+const BLUE_LINK = rgb(0.067, 0.333, 0.8);
+const GREY_HINT = rgb(0.42, 0.42, 0.42);
+const BLACK = rgb(0.07, 0.07, 0.07);
 
 function euroGlyphWidth(size: number): number {
   return size * 0.62;
@@ -159,31 +159,6 @@ function drawEuroGlyph(
     color,
   });
   return Math.max(w, euroGlyphWidth(size));
-}
-
-function drawTextWithEuro(
-  page: PDFPage,
-  font: PDFFont,
-  text: string,
-  x: number,
-  y: number,
-  size: number,
-  color: ReturnType<typeof rgb>,
-): number {
-  const safe = sanitizeWinAnsi(text);
-  let cursor = x;
-  const parts = safe.split("€");
-  parts.forEach((part, index) => {
-    if (index > 0) {
-      cursor += drawEuroGlyph(page, font, cursor, y, size, color);
-      cursor += size * 0.08;
-    }
-    if (part) {
-      page.drawText(part, { x: cursor, y, size, font, color });
-      cursor += font.widthOfTextAtSize(part, size);
-    }
-  });
-  return cursor - x;
 }
 
 function loadPresidentSignaturePng(): Uint8Array | null {
@@ -468,314 +443,302 @@ async function tryGenerateViaGoogleDoc(
   }
 }
 
+
 /* -------------------------------------------------------------------------- */
-/* Layout locale = replica visiva del PDF esportato dal Google Doc GAS        */
-/* (Arial/Helvetica, «Scuola Semplice», € verde, firme socio + presidente).   */
+/* Layout locale = replica del modulo Google Doc «Domanda d'iscrizione».      */
+/* Il service account non apre il template (404): in produzione esce questo.  */
 /* -------------------------------------------------------------------------- */
 
-function wrapText(
-  text: string,
-  font: PDFFont,
+type Ink = ReturnType<typeof rgb>;
+type StyledRun = { text: string; bold?: boolean; link?: boolean };
+
+function wrapStyledRuns(
+  runs: StyledRun[],
+  regular: PDFFont,
+  bold: PDFFont,
   size: number,
   maxWidth: number,
-): string[] {
-  const words = sanitizeWinAnsi(text).split(/\s+/).filter(Boolean);
-  const lines: string[] = [];
-  let current = "";
-  for (const word of words) {
-    const next = current ? `${current} ${word}` : word;
-    if (font.widthOfTextAtSize(next, size) <= maxWidth) {
-      current = next;
-    } else {
-      if (current) lines.push(current);
-      current = word;
+): StyledRun[][] {
+  const lines: StyledRun[][] = [];
+  let line: StyledRun[] = [];
+  let width = 0;
+  const widthOf = (text: string, isBold?: boolean) =>
+    (isBold ? bold : regular).widthOfTextAtSize(sanitizeWinAnsi(text), size);
+
+  const push = (word: string, proto: StyledRun) => {
+    if (!word) return;
+    const wordWidth = widthOf(word, proto.bold);
+    if (line.length > 0 && width + wordWidth > maxWidth && word.trim()) {
+      lines.push(line);
+      line = [];
+      width = 0;
     }
+    if (!word.trim() && line.length === 0) return;
+    const last = line[line.length - 1];
+    if (
+      last &&
+      Boolean(last.bold) === Boolean(proto.bold) &&
+      Boolean(last.link) === Boolean(proto.link)
+    ) {
+      last.text += word;
+    } else {
+      line.push({ text: word, bold: proto.bold, link: proto.link });
+    }
+    width += wordWidth;
+  };
+
+  for (const run of runs) {
+    for (const part of sanitizeWinAnsi(run.text).split(/(\s+)/)) push(part, run);
   }
-  if (current) lines.push(current);
-  return lines.length ? lines : [""];
+  if (line.length) lines.push(line);
+  return lines.length ? lines : [[{ text: "" }]];
 }
 
-async function generateLegacyLayoutPdf(
+/** PDF domanda d'iscrizione, stesse coordinate del modulo storico (export Google Doc). */
+export async function generateLegacyLayoutPdf(
   input: EnrollmentPdfInput,
 ): Promise<GeneratedEnrollmentPdf> {
   const doc = await PDFDocument.create();
   const page = doc.addPage([PAGE_W, PAGE_H]);
-  // Google Doc template usa Arial → Helvetica è il surrogate StandardFonts.
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
   const fontOblique = await doc.embedFont(StandardFonts.HelveticaOblique);
+  const maxW = RIGHT_X - MARGIN_X;
 
-  const maxW = PAGE_W - MARGIN_X * 2;
-  let y = PAGE_H - MARGIN_TOP;
-  const bodySize = 10.5;
-  const lineGap = 14;
-
-  const draw = (
+  const drawAt = (
     text: string,
-    opts?: {
-      bold?: boolean;
-      italic?: boolean;
-      size?: number;
-      gap?: number;
-      color?: ReturnType<typeof rgb>;
-      x?: number;
-    },
-  ) => {
-    const size = opts?.size ?? bodySize;
-    const used = opts?.bold
-      ? fontBold
-      : opts?.italic
-        ? fontOblique
-        : font;
-    const color = opts?.color ?? BLACK;
-    const x = opts?.x ?? MARGIN_X;
-    const lines = wrapText(text, used, size, maxW - (x - MARGIN_X));
-    for (const line of lines) {
-      drawTextWithEuro(page, used, line, x, y, size, color);
-      y -= opts?.gap ?? lineGap;
-    }
+    x: number,
+    yPos: number,
+    size: number,
+    used: PDFFont = font,
+    color: Ink = BLACK,
+  ): number => {
+    const safe = sanitizeWinAnsi(text);
+    if (!safe) return x;
+    page.drawText(safe, { x, y: yPos, size, font: used, color });
+    return x + used.widthOfTextAtSize(safe, size);
   };
 
   const drawCentered = (
     text: string,
-    opts?: { bold?: boolean; size?: number; gap?: number },
+    yPos: number,
+    size: number,
+    used: PDFFont = font,
+    color: Ink = BLACK,
   ) => {
-    const size = opts?.size ?? bodySize;
-    const used = opts?.bold ? fontBold : font;
     const safe = sanitizeWinAnsi(text);
     const w = used.widthOfTextAtSize(safe, size);
-    page.drawText(safe, {
-      x: (PAGE_W - w) / 2,
-      y,
-      size,
-      font: used,
-      color: BLACK,
-    });
-    y -= opts?.gap ?? lineGap;
+    page.drawText(safe, { x: (PAGE_W - w) / 2, y: yPos, size, font: used, color });
+  };
+
+  const drawStyledLine = (runs: StyledRun[], x: number, yPos: number, size: number) => {
+    let cursor = x;
+    for (const run of runs) {
+      const used = run.bold ? fontBold : font;
+      const text = sanitizeWinAnsi(run.text);
+      if (!text) continue;
+      const color = run.link ? BLUE_LINK : BLACK;
+      page.drawText(text, { x: cursor, y: yPos, size, font: used, color });
+      const w = used.widthOfTextAtSize(text, size);
+      if (run.link && text.trim()) {
+        const trimLeft = text.length - text.trimStart().length;
+        const trimRight = text.length - text.trimEnd().length;
+        const leftW = trimLeft
+          ? used.widthOfTextAtSize(text.slice(0, trimLeft), size)
+          : 0;
+        const rightW = trimRight
+          ? used.widthOfTextAtSize(text.slice(text.length - trimRight), size)
+          : 0;
+        page.drawLine({
+          start: { x: cursor + leftW, y: yPos - 1.1 },
+          end: { x: cursor + w - rightW, y: yPos - 1.1 },
+          thickness: 0.45,
+          color: BLUE_LINK,
+        });
+      }
+      cursor += w;
+    }
+  };
+
+  const drawStyled = (runs: StyledRun[], yPos: number, size: number, gap: number) => {
+    const lines = wrapStyledRuns(runs, font, fontBold, size, maxW);
+    let cursor = yPos;
+    for (const line of lines) {
+      drawStyledLine(line, MARGIN_X, cursor, size);
+      cursor -= gap;
+    }
+    return cursor;
+  };
+
+  const drawFlow = (parts: string[], yPos: number, gap = 34) => {
+    const size = 10;
+    let x = MARGIN_X;
+    let cursor = yPos;
+    for (const part of parts) {
+      const safe = sanitizeWinAnsi(part);
+      if (!safe) continue;
+      const w = font.widthOfTextAtSize(safe, size);
+      if (x > MARGIN_X + 1 && x + 14 + w > RIGHT_X) {
+        cursor -= 13;
+        x = MARGIN_X;
+      } else if (x > MARGIN_X + 1) {
+        x += 16;
+      }
+      drawAt(safe, x, cursor, size);
+      x += w;
+    }
+    return cursor - gap;
   };
 
   const nome = String(input.nome || "").trim();
   const cognome = String(input.cognome || "").trim();
-  const numero =
-    input.memberNumber != null ? String(input.memberNumber) : "";
+  const numero = input.memberNumber != null ? String(input.memberNumber) : "";
   const dataNascita = formatDateIt(input.dataNascita);
-  const dataOggi = String(input.dataOggi || "").trim();
-  const tutoreCompleto =
-    `${input.tutoreNome || ""} ${input.tutoreCognome || ""}`.trim();
+  const dataOggi = formatDateIt(String(input.dataOggi || "").trim());
   const nomeCognomeField = [nome, cognome].filter(Boolean).join("_");
+  const nato = [input.luogoNascita || "", (input.provNascita || "").toUpperCase()]
+    .filter(Boolean)
+    .join(" ");
+  const place = [input.citta || "", (input.prov || "").toUpperCase(), input.cap || ""]
+    .filter(Boolean)
+    .join(" ");
 
-  // —— Header: «Scuola Semplice» in alto a destra + riga ——
-  const scuolaLabel = "Scuola Semplice";
-  const scuolaSize = 10;
-  const scuolaW = font.widthOfTextAtSize(scuolaLabel, scuolaSize);
-  const scuolaX = PAGE_W - MARGIN_X - scuolaW;
-  page.drawText(scuolaLabel, {
-    x: scuolaX,
+  let y = PAGE_H - 40;
+
+  drawCentered("Associazione Culturale M.P.", y, 13, fontBold);
+  y -= 14;
+  drawCentered("Zona Loreto, 42, 16042 Carasco (GE)", y, 9);
+  y -= 14;
+  {
+    const site = "www.musicproeventi.it";
+    const sep = " - ";
+    const mail = "musicproeventi@gmail.com";
+    const size = 9;
+    const total =
+      font.widthOfTextAtSize(site, size) +
+      font.widthOfTextAtSize(sep, size) +
+      font.widthOfTextAtSize(mail, size);
+    let x = (PAGE_W - total) / 2;
+    const link = (text: string) => {
+      drawAt(text, x, y, size, font, BLUE_LINK);
+      const w = font.widthOfTextAtSize(text, size);
+      page.drawLine({
+        start: { x, y: y - 1.1 },
+        end: { x: x + w, y: y - 1.1 },
+        thickness: 0.4,
+        color: BLUE_LINK,
+      });
+      x += w;
+    };
+    link(site);
+    x = drawAt(sep, x, y, size, font, BLUE_LINK);
+    link(mail);
+  }
+  y -= 30;
+
+  drawAt("Oggetto: DOMANDA D'ISCRIZIONE", MARGIN_X, y, 11, fontBold);
+  {
+    const libro = numero ? `Libro Soci ${numero}` : "Libro Soci";
+    const w = fontBold.widthOfTextAtSize(libro, 11);
+    drawAt(libro, RIGHT_X - w, y, 11, fontBold);
+  }
+  y -= 34;
+
+  y = drawFlow(
+    [`Il/la sottoscritto/a ${nomeCognomeField} *nato/a ${nato}`.replace(/\s+/g, " ").trim()],
     y,
-    size: scuolaSize,
-    font,
-    color: BLACK,
-  });
-  page.drawLine({
-    start: { x: scuolaX - 8, y: y - 3 },
-    end: { x: PAGE_W - MARGIN_X + 4, y: y - 3 },
-    thickness: 0.8,
-    color: BLACK,
-  });
-  y -= 28;
-
-  // —— Intestazione centrata (come export Google Doc) ——
-  drawCentered("Associazione Culturale M.P.", { bold: true, size: 13, gap: 13 });
-  drawCentered("Zona Loreto, 42, 16042 Carasco (GE)", { size: 10, gap: 12 });
-  // Link blu stile Docs
-  {
-    const link = "www.musicproeventi.it - musicproeventi@gmail.com";
-    const size = 10;
-    const w = font.widthOfTextAtSize(link, size);
-    page.drawText(link, {
-      x: (PAGE_W - w) / 2,
-      y,
-      size,
-      font,
-      color: BLUE_LINK,
-    });
-    y -= 22;
-  }
-
-  // —— Oggetto / Libro Soci ——
-  {
-    const left = "Oggetto: DOMANDA D'ISCRIZIONE";
-    const right = `Libro Soci ${numero}`.trim();
-    page.drawText(left, {
-      x: MARGIN_X,
-      y,
-      size: 11,
-      font: fontBold,
-      color: BLACK,
-    });
-    const rightW = fontBold.widthOfTextAtSize(right, 11);
-    page.drawText(right, {
-      x: PAGE_W - MARGIN_X - rightW,
-      y,
-      size: 11,
-      font: fontBold,
-      color: BLACK,
-    });
-    y -= 20;
-  }
-
-  // —— Anagrafica (underscore NOME_COGNOME come nel template Doc) ——
-  draw(
-    `Il/la sottoscritto/a ${nomeCognomeField} *nato/a ${input.luogoNascita || ""} ${(input.provNascita || "").toUpperCase()}`.trim(),
   );
-  draw(
-    `*il ${dataNascita} *Residente in via ${input.indirizzo || ""} ${input.citta || ""} ${(input.prov || "").toUpperCase()} ${input.cap || ""}`.replace(
-      /\s+/g,
-      " ",
+  y = drawFlow(
+    [`*il ${dataNascita}`, "*Residente in via", String(input.indirizzo || "").trim(), place].filter(
+      Boolean,
     ),
+    y,
   );
-  draw(
-    `*Codice Fiscale ${(input.cf || "").toUpperCase()} Cellulare ${input.telefono || ""}`,
+  y = drawFlow(
+    ["*Codice Fiscale", (input.cf || "").toUpperCase(), "Cellulare", String(input.telefono || "")],
+    y,
   );
-  draw(`*email ${input.email || ""} Corso ${input.corso || "---"}`);
-  y -= 6;
+  y = drawFlow(["*email", String(input.email || ""), "Corso", input.corso || "---"], y);
 
-  // —— Tutore/Genitore (etichette grigie italic come nel Doc; valori se presenti) ——
-  draw("Tutore/Genitore", { bold: true, size: 11, gap: 12 });
-  const tutoreRows: Array<{ label: string; value: string }> = [
-    { label: "Nome e Cognome", value: tutoreCompleto },
-    { label: "Telefono", value: String(input.tutoreTelefono || "").trim() },
-    { label: "Email", value: String(input.tutoreEmail || "").trim() },
+  drawAt("Tutore/Genitore", MARGIN_X, y, 11, fontBold);
+  y -= 14;
+  const tutorCols: Array<{ label: string; value: string; x: number }> = [
     {
-      label: "Codice Fiscale",
-      value: String(input.tutoreCf || "").trim().toUpperCase(),
+      label: "Nome e Cognome",
+      value: `${input.tutoreNome || ""} ${input.tutoreCognome || ""}`.trim(),
+      x: MARGIN_X,
+    },
+    {
+      label: "Telefono",
+      value: String(input.tutoreTelefono || "").trim(),
+      x: 214,
+    },
+    {
+      label: "Email",
+      value: String(input.tutoreEmail || "").trim(),
+      x: 378,
     },
   ];
-  for (const row of tutoreRows) {
-    if (row.value) {
-      page.drawText(sanitizeWinAnsi(row.value), {
-        x: MARGIN_X,
-        y,
-        size: bodySize,
-        font,
-        color: BLACK,
-      });
-      y -= 11;
-      page.drawText(`*${row.label}`, {
-        x: MARGIN_X,
-        y,
-        size: 8.5,
-        font: fontOblique,
-        color: GREY_HINT,
-      });
-      y -= 13;
-    } else {
-      page.drawText(`*${row.label}`, {
-        x: MARGIN_X,
-        y,
-        size: 9,
-        font: fontOblique,
-        color: GREY_HINT,
-      });
-      y -= 14;
+  if (tutorCols.some((col) => col.value)) {
+    for (const col of tutorCols) {
+      if (col.value) drawAt(col.value, col.x, y, 10);
     }
+    y -= 13;
   }
-  y -= 4;
-
-  // —— CHIEDE ——
-  draw("CHIEDE", { bold: true, size: 11, gap: 13 });
-  {
-    const p1 =
-      "a codesta spettabile Associazione, con sede legale in Zona Loreto, 42, 16042 Carasco (GE) di essere iscritto in qualità di Socio Ordinario. Tale iscrizione permette l'accesso alla struttura per l'utilizzo come sala prove/studio/scuola, il coinvolgimento negli Eventi Associativi e l'iscrizione al sito www.musicproeventi.it";
-    const lines = wrapText(p1, font, bodySize, maxW);
-    for (const line of lines) {
-      // colora il pezzo URL se presente nella riga
-      const url = "www.musicproeventi.it";
-      const at = line.indexOf(url);
-      if (at >= 0) {
-        const before = line.slice(0, at);
-        const after = line.slice(at + url.length);
-        let x = MARGIN_X;
-        if (before) {
-          page.drawText(before, { x, y, size: bodySize, font, color: BLACK });
-          x += font.widthOfTextAtSize(before, bodySize);
-        }
-        page.drawText(url, { x, y, size: bodySize, font, color: BLUE_LINK });
-        x += font.widthOfTextAtSize(url, bodySize);
-        if (after) {
-          page.drawText(after, { x, y, size: bodySize, font, color: BLACK });
-        }
-      } else {
-        // grassetto su "Socio Ordinario." se nella riga
-        const boldNeedle = "Socio Ordinario.";
-        const bi = line.indexOf(boldNeedle);
-        if (bi >= 0) {
-          let x = MARGIN_X;
-          const before = line.slice(0, bi);
-          const after = line.slice(bi + boldNeedle.length);
-          if (before) {
-            page.drawText(before, { x, y, size: bodySize, font, color: BLACK });
-            x += font.widthOfTextAtSize(before, bodySize);
-          }
-          page.drawText(boldNeedle, {
-            x,
-            y,
-            size: bodySize,
-            font: fontBold,
-            color: BLACK,
-          });
-          x += fontBold.widthOfTextAtSize(boldNeedle, bodySize);
-          if (after) {
-            page.drawText(after, { x, y, size: bodySize, font, color: BLACK });
-          }
-        } else {
-          page.drawText(line, {
-            x: MARGIN_X,
-            y,
-            size: bodySize,
-            font,
-            color: BLACK,
-          });
-        }
-      }
-      y -= lineGap;
-    }
+  for (const col of tutorCols) {
+    drawAt(col.label, col.x, y, 8.5, fontOblique, GREY_HINT);
   }
+  y -= 14;
+  const tutoreCf = String(input.tutoreCf || "").trim().toUpperCase();
+  if (tutoreCf) {
+    drawAt(tutoreCf, MARGIN_X, y, 10);
+    y -= 12;
+    drawAt("Codice Fiscale", MARGIN_X, y, 8.5, fontOblique, GREY_HINT);
+    y -= 16;
+  }
+  y -= 52;
 
-  // Quota con € verde
+  drawAt("CHIEDE", MARGIN_X, y, 11, fontBold);
+  y -= 15;
+  y = drawStyled(
+    [
+      {
+        text: "a codesta spettabile Associazione, con sede legale in Zona Loreto, 42, 16042 Carasco (GE) di essere iscritto in qualità di ",
+      },
+      { text: "Socio Ordinario.", bold: true },
+      {
+        text: " Tale iscrizione permette l'accesso alla struttura per l'utilizzo come sala prove/studio/scuola, il coinvolgimento negli Eventi Associativi e l'iscrizione al sito ",
+      },
+      { text: "www.musicproeventi.it", link: true },
+    ],
+    y,
+    9,
+    12,
+  );
+  y -= 8;
+
   {
     const prefix = "La quota associativa prevista per l'anno in corso è di: ";
     const amount = quotaAmountOnly(input.quotaLabel);
-    page.drawText(prefix, {
-      x: MARGIN_X,
-      y,
-      size: bodySize,
-      font,
-      color: BLACK,
-    });
-    let x = MARGIN_X + font.widthOfTextAtSize(prefix, bodySize);
-    x += drawEuroGlyph(page, fontBold, x, y, bodySize, GREEN_QUOTA);
-    x += bodySize * 0.12;
-    page.drawText(amount, {
-      x,
-      y,
-      size: bodySize,
-      font: fontBold,
-      color: GREEN_QUOTA,
-    });
-    y -= 18;
+    const size = 10;
+    let x = drawAt(prefix, MARGIN_X, y, size);
+    x += drawEuroGlyph(page, fontBold, x, y, size, GREEN_QUOTA);
+    x += size * 0.2;
+    drawAt(amount, x, y, size, fontBold, GREEN_QUOTA);
   }
+  y -= 36;
 
-  // —— E DICHIARA ——
-  draw("E DICHIARA CONTESTUALMENTE", { bold: true, size: 11, gap: 13 });
-  draw(
+  drawAt("E DICHIARA CONTESTUALMENTE", MARGIN_X, y, 11, fontBold);
+  y -= 16;
+  drawAt(
     "Di voler rispettare lo statuto e i regolamenti che regolano l'associazione; Di autorizzare il tacito rinnovo tramite versamento quota annuale",
+    MARGIN_X,
+    y,
+    9,
   );
-  y -= 2;
+  y -= 36;
 
-  const sigBytes = input.signatureData
-    ? decodeSignaturePng(input.signatureData)
-    : null;
+  const sigBytes = input.signatureData ? decodeSignaturePng(input.signatureData) : null;
   let sigImage: PDFImage | null = null;
   if (sigBytes) {
     try {
@@ -785,166 +748,79 @@ async function generateLegacyLayoutPdf(
     }
   }
 
-  const drawSignatureBlock = () => {
-    // Riga data a sinistra, firma a destra (come Doc)
-    const dateLine = `Carasco , ${dataOggi}`;
-    page.drawText(dateLine, {
-      x: MARGIN_X,
-      y,
-      size: bodySize,
-      font,
-      color: BLACK,
-    });
-    page.drawText("data", {
-      x: MARGIN_X,
-      y: y - 11,
-      size: 8.5,
-      font: fontOblique,
-      color: GREY_HINT,
-    });
-
-    const sigX = MARGIN_X + 220;
+  const drawSignatureBlock = (dateText: string, yPos: number): number => {
+    drawAt(dateText, MARGIN_X, yPos, 10);
+    const captionY = yPos - 12;
+    drawAt("data", MARGIN_X, captionY, 8, fontOblique, GREY_HINT);
+    const sigX = 176;
+    const caption = "firmare qui";
     if (sigImage) {
-      const maxWSig = 130;
-      const maxHSig = 48;
-      const scale = Math.min(
-        maxWSig / sigImage.width,
-        maxHSig / sigImage.height,
-        1,
-      );
+      const maxWSig = 124;
+      const maxHSig = 36;
+      const scale = Math.min(maxWSig / sigImage.width, maxHSig / sigImage.height);
       const w = sigImage.width * scale;
       const h = sigImage.height * scale;
-      page.drawImage(sigImage, {
-        x: sigX,
-        y: y - h + 8,
-        width: w,
-        height: h,
-      });
-      page.drawText("firmare qui", {
-        x: sigX,
-        y: y - h - 2,
-        size: 8.5,
-        font: fontOblique,
-        color: GREY_HINT,
-      });
-      y -= h + 16;
+      page.drawImage(sigImage, { x: sigX, y: yPos + 4, width: w, height: h });
+      const labelW = fontOblique.widthOfTextAtSize(caption, 8);
+      drawAt(caption, sigX + Math.max(0, (w - labelW) / 2), captionY, 8, fontOblique, GREY_HINT);
     } else {
-      page.drawText("firmare qui", {
-        x: sigX,
-        y,
-        size: 9,
-        font: fontOblique,
-        color: GREY_HINT,
-      });
-      y -= 22;
+      drawAt(caption, sigX, captionY, 8, fontOblique, GREY_HINT);
     }
+    return captionY - 14;
   };
 
-  drawSignatureBlock();
+  y -= 36;
+  y = drawSignatureBlock(`Carasco , ${dataOggi}`.trim(), y);
   y -= 4;
+  y = drawStyled(
+    [
+      {
+        text: 'e di essere a conoscenza che il trattamento dei dati personali è gestito, anche elettronicamente, ai soli fini associativi e di autorizzare alla gestione dei dati medesimi, con le garanzie e i diritti previsti dall\'articolo 13 del GDPR 2016/679, n. 196., e di aver letto l\'allegato "ISTRUZIONI OPERATIVE E INFORMATIVA SUL TRATTAMENTO DEI DATI" presente all\'URL ',
+      },
+      { text: "www.musicproeventi.it/gdpr.pdf", link: true },
+      { text: " ." },
+    ],
+    y,
+    6.25,
+    8,
+  );
+  y -= 46;
+  y = drawSignatureBlock(`Carasco , ${dataOggi} ,`, y);
+  y -= 22;
 
-  // GDPR
   {
-    const gdpr =
-      'e di essere a conoscenza che il trattamento dei dati personali è gestito, anche elettronicamente, ai soli fini associativi e di autorizzare alla gestione dei dati medesimi, con le garanzie e i diritti previsti dall\'articolo 13 del GDPR 2016/679, n. 196., e di aver letto l\'allegato "ISTRUZIONI OPERATIVE E INFORMATIVA SUL TRATTAMENTO DEI DATI" presente all\'URL www.musicproeventi.it/gdpr.pdf .';
-    const size = 9;
-    const lines = wrapText(gdpr, font, size, maxW);
-    for (const line of lines) {
-      const url = "www.musicproeventi.it/gdpr.pdf";
-      const at = line.indexOf(url);
-      if (at >= 0) {
-        let x = MARGIN_X;
-        const before = line.slice(0, at);
-        const after = line.slice(at + url.length);
-        if (before) {
-          page.drawText(before, { x, y, size, font, color: BLACK });
-          x += font.widthOfTextAtSize(before, size);
-        }
-        page.drawText(url, { x, y, size, font, color: BLUE_LINK });
-        x += font.widthOfTextAtSize(url, size);
-        if (after) {
-          page.drawText(after, { x, y, size, font, color: BLACK });
-        }
-      } else {
-        page.drawText(line, { x: MARGIN_X, y, size, font, color: BLACK });
-      }
-      y -= 12;
-    }
-  }
-  y -= 6;
-
-  drawSignatureBlock();
-  y -= 10;
-
-  // —— Presidente (blocco destro come Doc) ——
-  {
-    const rightX = PAGE_W - MARGIN_X;
-    const line1 = "per accettazione";
-    const line2 = "IL PRESIDENTE";
-    const name = "Mauro Andreoni";
-    const w1 = font.widthOfTextAtSize(line1, 10);
-    const w2 = fontBold.widthOfTextAtSize(line2, 11);
-    const w3 = fontOblique.widthOfTextAtSize(name, 10);
-    page.drawText(line1, {
-      x: rightX - w1,
-      y,
-      size: 10,
-      font,
-      color: BLACK,
-    });
+    const acc = "per accettazione";
+    const role = "IL PRESIDENTE";
+    const whoName = "Mauro Andreoni";
+    const roleW = fontBold.widthOfTextAtSize(role, 11);
+    const roleX = RIGHT_X - roleW;
+    const accW = font.widthOfTextAtSize(acc, 10);
+    drawAt(acc, roleX - 32 - accW, y, 10);
+    drawAt(role, roleX, y, 11, fontBold);
     y -= 13;
-    page.drawText(line2, {
-      x: rightX - w2,
-      y,
-      size: 11,
-      font: fontBold,
-      color: BLACK,
-    });
-    y -= 13;
-    page.drawText(name, {
-      x: rightX - w3,
-      y,
-      size: 10,
-      font: fontOblique,
-      color: BLACK,
-    });
-
+    const nameW = fontOblique.widthOfTextAtSize(whoName, 10);
+    drawAt(whoName, RIGHT_X - nameW, y, 10, fontOblique);
     const presBytes = loadPresidentSignaturePng();
     if (presBytes) {
       try {
         const png = await doc.embedPng(presBytes);
-        const maxW = 160;
-        const maxH = 55;
-        const scale = Math.min(maxW / png.width, maxH / png.height);
+        const maxWPres = 168;
+        const maxHPres = 50;
+        const scale = Math.min(maxWPres / png.width, maxHPres / png.height);
         const w = png.width * scale;
         const h = png.height * scale;
-        page.drawImage(png, {
-          x: rightX - w,
-          y: y - h - 4,
-          width: w,
-          height: h,
-        });
-        page.drawText("firma", {
-          x: rightX - w,
-          y: y - h - 14,
-          size: 8,
-          font: fontOblique,
-          color: GREY_HINT,
-        });
-        y -= h + 20;
+        page.drawImage(png, { x: RIGHT_X - w, y: y - h - 2, width: w, height: h });
+        y -= h + 8;
       } catch {
         y -= 8;
       }
-    } else {
-      y -= 8;
     }
   }
 
-  // Footer
-  y = Math.min(y, 48);
   drawCentered(
     "Associazione Culturale M.P. - Zona Loreto, 42, 16042 Carasco (GE)",
-    { size: 9, gap: 10 },
+    28,
+    9,
   );
 
   const bytes = await doc.save();
