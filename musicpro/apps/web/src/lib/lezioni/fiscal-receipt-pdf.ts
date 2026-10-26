@@ -37,26 +37,46 @@ const MR = 36;
 const RIGHT = PAGE_W - MR;
 const W = RIGHT - ML;
 
-const INK = rgb(0.11, 0.11, 0.11);
-const LABEL = rgb(0.42, 0.42, 0.42);
-const HEADER_BG = rgb(0.91, 0.91, 0.91);
-const ROW_BG = rgb(0.96, 0.96, 0.96);
-const RULE = rgb(0.78, 0.78, 0.78);
+const NAVY = rgb(30 / 255, 58 / 255, 95 / 255);
+const NAVY_DARK = rgb(12 / 255, 24 / 255, 40 / 255);
+const GOLD = rgb(201 / 255, 162 / 255, 39 / 255);
+const CREAM = rgb(246 / 255, 243 / 255, 236 / 255);
+const BOX_FILL = rgb(255 / 255, 253 / 255, 248 / 255);
+const TABLE_HEAD = rgb(232 / 255, 222 / 255, 198 / 255);
+const ROW_BG = rgb(250 / 255, 248 / 255, 243 / 255);
+const INK = rgb(26 / 255, 26 / 255, 26 / 255);
+const MUTED = rgb(107 / 255, 114 / 255, 128 / 255);
+const MUTED_LIGHT = rgb(122 / 255, 135 / 255, 150 / 255);
+const SIG_INNER_BORDER = rgb(180 / 255, 175 / 255, 165 / 255);
 
 const ISSUER_NAME = "Associazione Culturale M.P.";
-const ISSUER_ADDR = "Zona Loreto, 42 - 16042 - Carasco (GE)";
-const ISSUER_VAT = "P.iva 02535720995 - C.F. 02535720995";
+const ISSUER_ADDR = "Zona Loreto, 42 - 16042 Carasco (GE)";
+const ISSUER_VAT = "P.IVA 02535720995 - C.F. 02535720995";
+const ISSUER_TEL = "Tel. 371 675 2550";
+const ISSUER_WEB = "www.musicproeventi.it";
+
 const DEFAULT_FOOTER = [
-  "www.musicproeventi.it - musicproeventi@gmail.com",
-  "cell: 3282157015",
+  `${ISSUER_NAME} - Zona Loreto 42, Carasco (GE) - ${ISSUER_WEB}`,
+  ISSUER_TEL,
 ];
-const DEFAULT_PAYMENT_EXTRA = [
+
+const DEFAULT_IBAN_LINES = [
   "IBAN: IT98E0310401400000000400177",
   `Intestato a: ${ISSUER_NAME}`,
 ];
 
-const LOGO_URL = "/images/receipt-assoc-logo.png";
-const RECIPIENT_COL = ML + W * 0.52;
+const LOGO_URL = "/images/receipt-header-logo.png";
+const LOGO_FALLBACK_URL = "/images/receipt-assoc-logo.png";
+
+const FOOTER_H = 72;
+const COL_GAP = 9;
+const SECTION_GAP = 10;
+const BOX_STROKE = 1.25;
+const PAD = 12;
+const TOP_BOX_H_MIN = 118;
+const BOTTOM_BOX_H = 72;
+const TABLE_HEAD_H = 22;
+const GOLD_BAR_H = 2.5;
 
 function formatIssuedOn(value: string): string {
   if (/^\d{4}-\d{2}-\d{2}/.test(value)) {
@@ -78,11 +98,30 @@ function formatAmountIt(n: number): string {
   return n.toFixed(2).replace(".", ",");
 }
 
+function isBonifico(method: string): boolean {
+  const m = method.toLowerCase();
+  return m === "bonifico" || m.includes("bonifico");
+}
+
+function paymentDetailExtras(
+  row: FiscalReceiptPdfInput,
+  methodDisplay: string,
+): string[] {
+  if (row.paymentDetailLines?.length) {
+    return row.paymentDetailLines;
+  }
+  if (isBonifico(row.method) || isBonifico(methodDisplay)) {
+    return DEFAULT_IBAN_LINES;
+  }
+  return [];
+}
+
 function sanitize(text: string, font?: PDFFont): string {
   const mapped = text
     .replace(/\u2019|\u2018/g, "'")
     .replace(/\u201c|\u201d/g, '"')
     .replace(/\u2013|\u2014/g, "-")
+    .replace(/\u00B7/g, "-")
     .replace(/\u00A0/g, " ");
   if (!font) return mapped;
   let out = "";
@@ -173,35 +212,96 @@ function drawRight(
   drawText(page, font, text, rightX - measure(text, font, size), y, size, color);
 }
 
-function hLine(page: PDFPage, y: number): void {
-  page.drawLine({
-    start: { x: ML, y },
-    end: { x: RIGHT, y },
-    thickness: 0.6,
-    color: RULE,
+function drawCentered(
+  page: PDFPage,
+  font: PDFFont,
+  text: string,
+  centerX: number,
+  y: number,
+  size: number,
+  color: ReturnType<typeof rgb>,
+): void {
+  drawText(page, font, text, centerX - measure(text, font, size) / 2, y, size, color);
+}
+
+function drawTrackedRight(
+  page: PDFPage,
+  font: PDFFont,
+  text: string,
+  rightX: number,
+  y: number,
+  size: number,
+  color: ReturnType<typeof rgb>,
+  tracking = 1.2,
+): void {
+  const upper = sanitize(text, font).toUpperCase();
+  const total =
+    upper
+      .split("")
+      .reduce((s, ch) => s + font.widthOfTextAtSize(ch, size), 0) +
+    tracking * Math.max(0, upper.length - 1);
+  let x = rightX - total;
+  for (const ch of upper) {
+    page.drawText(ch, { x, y, size, font, color });
+    x += font.widthOfTextAtSize(ch, size) + tracking;
+  }
+}
+
+function drawTrackedLeft(
+  page: PDFPage,
+  font: PDFFont,
+  text: string,
+  leftX: number,
+  y: number,
+  size: number,
+  color: ReturnType<typeof rgb>,
+  tracking = 0.8,
+): void {
+  const upper = sanitize(text, font).toUpperCase();
+  let x = leftX;
+  for (const ch of upper) {
+    page.drawText(ch, { x, y, size, font, color });
+    x += font.widthOfTextAtSize(ch, size) + tracking;
+  }
+}
+
+function drawBox(
+  page: PDFPage,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  fill = BOX_FILL,
+): void {
+  page.drawRectangle({
+    x,
+    y,
+    width,
+    height,
+    color: fill,
+    borderColor: NAVY,
+    borderWidth: BOX_STROKE,
   });
 }
 
-async function loadLogoPng(): Promise<Uint8Array | null> {
-  const paths = [
-    "public/images/receipt-assoc-logo.png",
-    "musicpro/apps/web/public/images/receipt-assoc-logo.png",
-  ];
-  if (typeof window === "undefined") {
-    try {
-      const { readFile } = await import("node:fs/promises");
-      const { join } = await import("node:path");
-      for (const rel of paths) {
-        try {
-          return await readFile(join(process.cwd(), rel));
-        } catch {
-          /* next */
-        }
+async function readLogoFromDisk(relPaths: string[]): Promise<Uint8Array | null> {
+  try {
+    const { readFile } = await import("node:fs/promises");
+    const { join } = await import("node:path");
+    for (const rel of relPaths) {
+      try {
+        return await readFile(join(process.cwd(), rel));
+      } catch {
+        /* next */
       }
-    } catch {
-      /* fetch fallback */
     }
+  } catch {
+    /* no fs */
   }
+  return null;
+}
+
+async function fetchLogo(urlPath: string): Promise<Uint8Array | null> {
   const bases: string[] = [];
   if (typeof window !== "undefined") bases.push(window.location.origin);
   else {
@@ -211,7 +311,7 @@ async function loadLogoPng(): Promise<Uint8Array | null> {
   }
   for (const base of bases) {
     try {
-      const res = await fetch(`${base}${LOGO_URL}`);
+      const res = await fetch(`${base}${urlPath}`);
       if (res.ok) return new Uint8Array(await res.arrayBuffer());
     } catch {
       /* next */
@@ -220,19 +320,26 @@ async function loadLogoPng(): Promise<Uint8Array | null> {
   return null;
 }
 
-function drawInlineField(
-  page: PDFPage,
-  font: PDFFont,
-  fontBold: PDFFont,
-  x: number,
-  y: number,
-  label: string,
-  value: string,
-): number {
-  drawText(page, fontBold, label, x, y, 8, LABEL);
-  const lw = fontBold.widthOfTextAtSize(label, 8);
-  drawText(page, font, value, x + lw + 6, y, 9, INK);
-  return y - 14;
+async function loadLogoPng(): Promise<Uint8Array | null> {
+  const punchedPaths = [
+    "public/images/receipt-header-logo.png",
+    "musicpro/apps/web/public/images/receipt-header-logo.png",
+  ];
+  const fallbackPaths = [
+    "public/images/receipt-assoc-logo.png",
+    "musicpro/apps/web/public/images/receipt-assoc-logo.png",
+  ];
+
+  const punched = await readLogoFromDisk(punchedPaths);
+  if (punched) return punched;
+
+  const fallbackDisk = await readLogoFromDisk(fallbackPaths);
+  if (fallbackDisk) return fallbackDisk;
+
+  const fetched = await fetchLogo(LOGO_URL);
+  if (fetched) return fetched;
+
+  return fetchLogo(LOGO_FALLBACK_URL);
 }
 
 export async function generateFiscalReceiptPdf(
@@ -251,15 +358,18 @@ export async function generateFiscalReceiptPdf(
       : [{ description: "Pacchetto lezioni", amountEur: total }];
   const method =
     row.paymentMethodDisplay?.trim() || methodLabel(row.method);
-  const paymentLines = [
-    method,
-    ...(row.paymentDetailLines?.length
-      ? row.paymentDetailLines
-      : DEFAULT_PAYMENT_EXTRA),
-  ];
+  const paymentExtras = paymentDetailExtras(row, method);
   const footerLines = row.footerContactLines?.length
     ? row.footerContactLines
     : DEFAULT_FOOTER;
+
+  page.drawRectangle({
+    x: 0,
+    y: 0,
+    width: PAGE_W,
+    height: PAGE_H,
+    color: CREAM,
+  });
 
   const logoBytes = await loadLogoPng();
   let logo: PDFImage | null = null;
@@ -271,201 +381,303 @@ export async function generateFiscalReceiptPdf(
     }
   }
 
-  const top = PAGE_H - 32;
+  const logoDisplayH = 46;
+  let logoDisplayW = logo ? (logo.width / logo.height) * logoDisplayH : 0;
+  const assocLineH = 9;
+  const headerPadTop = 12;
+  const headerPadBottom = 10;
+  const headerH =
+    headerPadTop + logoDisplayH + assocLineH + 4 + headerPadBottom;
+
+  page.drawRectangle({
+    x: 0,
+    y: PAGE_H - headerH,
+    width: PAGE_W,
+    height: headerH,
+    color: NAVY,
+  });
+
   if (logo) {
-    const h = 58;
-    const scale = h / logo.height;
     page.drawImage(logo, {
       x: ML,
-      y: top - h,
-      width: logo.width * scale,
-      height: h,
+      y: PAGE_H - headerPadTop - logoDisplayH,
+      width: logoDisplayW,
+      height: logoDisplayH,
     });
+    const assoc = "ASSOCIAZIONE";
+    const assocSize = 7;
+    const assocTrack = 0.8;
+    const assocW =
+      assoc
+        .split("")
+        .reduce((s, ch) => s + fontBold.widthOfTextAtSize(ch, assocSize), 0) +
+      assocTrack * (assoc.length - 1);
+    drawTrackedLeft(
+      page,
+      fontBold,
+      assoc,
+      ML + Math.max(0, (logoDisplayW - assocW) / 2),
+      PAGE_H - headerPadTop - logoDisplayH - assocLineH - 2,
+      assocSize,
+      rgb(1, 1, 1),
+      assocTrack,
+    );
   }
 
-  let ry = top - 4;
-  drawRight(page, font, ISSUER_NAME, RIGHT, ry, 9.5, INK);
-  ry -= 11;
-  drawRight(page, font, ISSUER_ADDR, RIGHT, ry, 9, LABEL);
-  ry -= 10;
-  drawRight(page, font, ISSUER_VAT, RIGHT, ry, 9, LABEL);
-  ry -= 20;
-  drawRight(
+  const schoolY = PAGE_H - headerPadTop - logoDisplayH / 2 - 4;
+  drawTrackedRight(page, fontBold, "SCHOOL", RIGHT, schoolY, 14, GOLD, 1.5);
+
+  const goldY = PAGE_H - headerH - GOLD_BAR_H;
+  page.drawRectangle({
+    x: 0,
+    y: goldY,
+    width: PAGE_W,
+    height: GOLD_BAR_H,
+    color: GOLD,
+  });
+
+  const contentTop = goldY - 12;
+  const bottomBoxesTop = FOOTER_H + BOTTOM_BOX_H;
+  const bottomBoxesBottom = FOOTER_H + 4;
+
+  let topBoxH = TOP_BOX_H_MIN;
+  if (row.payeeTaxCode?.trim()) topBoxH += 11;
+  if (row.payeeEmail?.trim()) topBoxH += 11;
+  if (row.payeeAddressLine1?.trim()) topBoxH += 10;
+  if (row.payeeCityLine?.trim()) topBoxH += 10;
+  topBoxH += paymentExtras.length * 10;
+  topBoxH = Math.min(topBoxH, 168);
+
+  const topBoxesBottom = contentTop - topBoxH;
+  const tableTop = topBoxesBottom - SECTION_GAP;
+  const tableBottom = bottomBoxesTop + SECTION_GAP;
+
+  const leftW = (W - COL_GAP) * 0.44;
+  const rightW = W - COL_GAP - leftW;
+
+  drawBox(page, ML, topBoxesBottom, leftW, topBoxH);
+  drawBox(page, ML + leftW + COL_GAP, topBoxesBottom, rightW, topBoxH);
+
+  let ly = contentTop - PAD - 10;
+  drawText(page, fontBold, ISSUER_NAME, ML + PAD, ly, 11, NAVY);
+  ly -= 13;
+  drawText(page, fontBold, ISSUER_ADDR, ML + PAD, ly, 9, INK);
+  ly -= 11;
+  drawText(page, font, ISSUER_VAT, ML + PAD, ly, 8.5, MUTED);
+  ly -= 11;
+  drawText(page, fontBold, ISSUER_TEL, ML + PAD, ly, 9, INK);
+  ly -= 11;
+  drawText(page, fontBold, ISSUER_WEB, ML + PAD, ly, 9, NAVY);
+
+  const rightX = ML + leftW + COL_GAP;
+  const rightInnerRight = rightX + rightW - PAD;
+  let ry = contentTop - PAD - 8;
+
+  const stampText = "Copia per il socio";
+  const stampSize = 7;
+  const stampPadX = 8;
+  const stampW =
+    fontBold.widthOfTextAtSize(sanitize(stampText, fontBold), stampSize) +
+    stampPadX * 2;
+  const stampH = 16;
+  const stampX = rightInnerRight - stampW;
+  const stampY = contentTop - PAD - stampH + 2;
+  page.drawRectangle({
+    x: stampX,
+    y: stampY,
+    width: stampW,
+    height: stampH,
+    color: ROW_BG,
+    borderColor: GOLD,
+    borderWidth: 1,
+  });
+  drawText(
     page,
     fontBold,
-    `RICEVUTA nr. ${row.code} del ${issued}`,
-    RIGHT,
-    ry,
-    11,
-    INK,
+    stampText,
+    stampX + stampPadX,
+    stampY + 4,
+    stampSize,
+    MUTED,
   );
 
-  let y = Math.min(top - 68, ry) - 14;
-  hLine(page, y);
-  y -= 22;
-
-  let leftY = y;
-  let rightY = y;
+  drawText(
+    page,
+    fontBold,
+    `Ricevuta n. ${row.code}`,
+    rightX + PAD,
+    ry,
+    12,
+    NAVY,
+  );
+  ry -= 16;
+  drawText(page, fontBold, "Data emissione", rightX + PAD, ry, 7.5, MUTED);
+  const dateLabelW = fontBold.widthOfTextAtSize("Data emissione", 7.5);
+  drawText(page, fontBold, issued, rightX + PAD + dateLabelW + 5, ry, 9, INK);
+  ry -= 14;
+  drawText(page, fontBold, "Spett.le", rightX + PAD, ry, 7.5, MUTED);
+  ry -= 12;
+  drawText(page, fontBold, row.payeeName, rightX + PAD, ry, 11, INK);
+  ry -= 13;
   if (row.payeeTaxCode?.trim()) {
-    leftY = drawInlineField(
+    drawText(
       page,
       font,
-      fontBold,
-      ML,
-      leftY,
-      "CF",
-      row.payeeTaxCode.trim(),
+      `C.F. ${row.payeeTaxCode.trim()}`,
+      rightX + PAD,
+      ry,
+      8.5,
+      INK,
     );
+    ry -= 11;
   }
   if (row.payeeEmail?.trim()) {
-    leftY = drawInlineField(
-      page,
-      font,
-      fontBold,
-      ML,
-      leftY,
-      "EMAIL",
-      row.payeeEmail.trim(),
-    );
+    drawText(page, font, row.payeeEmail.trim(), rightX + PAD, ry, 8.5, MUTED);
+    ry -= 11;
   }
-
-  drawText(page, fontBold, "DESTINATARIO", RECIPIENT_COL, rightY, 7.5, LABEL);
-  rightY -= 13;
-  drawText(page, fontBold, row.payeeName, RECIPIENT_COL, rightY, 10, INK);
-  rightY -= 12;
   if (row.payeeAddressLine1?.trim()) {
     drawText(
       page,
       font,
       row.payeeAddressLine1.trim(),
-      RECIPIENT_COL,
-      rightY,
-      9,
+      rightX + PAD,
+      ry,
+      8.5,
       INK,
     );
-    rightY -= 11;
+    ry -= 10;
   }
   if (row.payeeCityLine?.trim()) {
-    drawText(page, font, row.payeeCityLine.trim(), RECIPIENT_COL, rightY, 9, INK);
-    rightY -= 11;
+    drawText(page, font, row.payeeCityLine.trim(), rightX + PAD, ry, 8.5, INK);
+    ry -= 10;
+  }
+  drawText(page, fontBold, `Pagamento: ${method}`, rightX + PAD, ry, 9, INK);
+  ry -= 11;
+  for (const extra of paymentExtras) {
+    drawText(page, font, extra, rightX + PAD, ry, 8, INK);
+    ry -= 10;
   }
 
-  y = Math.min(leftY, rightY) - 18;
+  const tableH = tableTop - tableBottom;
+  drawBox(page, ML, tableBottom, W, tableH);
 
-  const headH = 20;
   page.drawRectangle({
-    x: ML,
-    y: y - headH,
-    width: W,
-    height: headH,
-    color: HEADER_BG,
+    x: ML + BOX_STROKE,
+    y: tableTop - TABLE_HEAD_H,
+    width: W - BOX_STROKE * 2,
+    height: TABLE_HEAD_H - BOX_STROKE,
+    color: TABLE_HEAD,
   });
-  drawText(page, fontBold, "DESCRIZIONE", ML + 8, y - 14, 8.5, INK);
-  drawRight(page, fontBold, "IMPORTO", RIGHT - 8, y - 14, 8.5, INK);
-  y -= headH;
+  const thY = tableTop - TABLE_HEAD_H + 7;
+  drawText(
+    page,
+    fontBold,
+    "PRODOTTI E SERVIZI FORNITI",
+    ML + PAD,
+    thY,
+    7.5,
+    NAVY,
+  );
+  drawRight(page, fontBold, "IMPORTO", RIGHT - PAD, thY, 7.5, NAVY);
 
+  const rowLineH = 20;
+  const dataRowsTop = tableTop - TABLE_HEAD_H - 4;
+  let rowY = dataRowsTop - 12;
   for (const line of lines) {
-    const rowH = 22;
-    page.drawRectangle({
-      x: ML,
-      y: y - rowH,
-      width: W,
-      height: rowH,
-      color: ROW_BG,
-      borderColor: RULE,
-      borderWidth: 0.25,
-    });
-    drawText(page, font, line.description, ML + 8, y - 15, 9.5, INK);
+    drawText(page, fontBold, line.description, ML + PAD, rowY, 9.5, INK);
     drawRight(
       page,
-      font,
-      `€ ${formatAmountIt(line.amountEur)}`,
-      RIGHT - 8,
-      y - 15,
+      fontBold,
+      formatAmountIt(line.amountEur),
+      RIGHT - PAD,
+      rowY,
       9.5,
       INK,
     );
-    y -= rowH;
+    rowY -= rowLineH;
   }
 
-  y -= 28;
-
-  drawText(page, fontBold, "MODALITÀ DI PAGAMENTO", ML, y, 8.5, INK);
-  y -= 13;
-  for (const line of paymentLines) {
-    drawText(page, font, line, ML, y, 9, INK);
-    y -= 11;
-  }
-
-  y -= 16;
-
-  const vatTop = y;
-  const vatHeadH = 18;
-  const vatW = W * 0.62;
-  page.drawRectangle({
-    x: ML,
-    y: vatTop - vatHeadH,
-    width: vatW,
-    height: vatHeadH,
-    color: HEADER_BG,
-    borderColor: RULE,
-    borderWidth: 0.25,
-  });
-  const colImpRight = ML + vatW * 0.72;
-  const colTaxRight = ML + vatW - 8;
-  drawText(page, fontBold, "RIEPILOGO IVA", ML + 6, vatTop - 12, 8, INK);
-  drawRight(page, fontBold, "IMPONIBILE", colImpRight, vatTop - 12, 8, INK);
-  drawRight(page, fontBold, "IMPOSTE", colTaxRight, vatTop - 12, 8, INK);
-
-  const vatRowH = 17;
-  const vatRowTop = vatTop - vatHeadH;
-  const vatDataY = vatRowTop - 12;
-  page.drawRectangle({
-    x: ML,
-    y: vatRowTop - vatRowH,
-    width: vatW,
-    height: vatRowH,
-    color: ROW_BG,
-    borderColor: RULE,
-    borderWidth: 0.25,
-  });
-  drawText(page, font, "0% - Art. 10 Dpr. 633/72", ML + 6, vatDataY, 8, INK);
-  drawRight(page, font, formatAmountIt(total), colImpRight, vatDataY, 8, INK);
-  drawRight(page, font, "€ 0,00", colTaxRight, vatDataY, 8, INK);
-
-  y = vatRowTop - vatRowH - 10;
-
-  const footY = 78;
-  hLine(page, footY + 18);
   drawText(
     page,
-    font,
-    `Ricevuta nr. ${row.code} del ${issued} - 1 / 1`,
-    ML,
-    footY,
-    8,
-    LABEL,
+    fontBold,
+    "IVA 0% - Art. 10 DPR 633/72 - esente",
+    ML + PAD,
+    tableBottom + PAD,
+    7,
+    MUTED,
   );
 
-  let fy = footY + 14;
-  drawRight(page, font, ISSUER_NAME, RIGHT, fy, 9, INK);
-  fy -= 10;
-  for (const line of footerLines) {
-    drawRight(page, font, line, RIGHT, fy, 8, LABEL);
-    fy -= 9;
+  const sigW = (W - COL_GAP) / 2;
+  drawBox(page, ML, bottomBoxesBottom, sigW, BOTTOM_BOX_H);
+  drawBox(page, ML + sigW + COL_GAP, bottomBoxesBottom, sigW, BOTTOM_BOX_H);
+
+  drawText(
+    page,
+    fontBold,
+    "FIRMA PER QUIETANZA",
+    ML + PAD,
+    bottomBoxesTop - PAD - 6,
+    7.5,
+    NAVY,
+  );
+  const sigInnerPad = 8;
+  const sigInnerBottom = bottomBoxesBottom + sigInnerPad;
+  const sigInnerTop = bottomBoxesTop - PAD - 18;
+  page.drawRectangle({
+    x: ML + PAD,
+    y: sigInnerBottom,
+    width: sigW - PAD * 2,
+    height: sigInnerTop - sigInnerBottom,
+    color: CREAM,
+    borderColor: SIG_INNER_BORDER,
+    borderWidth: 0.75,
+  });
+
+  drawText(
+    page,
+    fontBold,
+    "TOTALE RICEVUTA",
+    ML + sigW + COL_GAP + PAD,
+    bottomBoxesTop - PAD - 4,
+    8,
+    MUTED,
+  );
+  const totCenterX = ML + sigW + COL_GAP + sigW / 2;
+  const totY = bottomBoxesBottom + BOTTOM_BOX_H / 2 - 10;
+  drawCentered(
+    page,
+    fontBold,
+    `€ ${formatAmountIt(total)}`,
+    totCenterX,
+    totY,
+    28,
+    NAVY,
+  );
+
+  page.drawRectangle({
+    x: 0,
+    y: 0,
+    width: PAGE_W,
+    height: FOOTER_H,
+    color: NAVY_DARK,
+  });
+
+  let fy = FOOTER_H - 22;
+  if (footerLines.length > 0) {
+    drawCentered(page, fontBold, footerLines[0], PAGE_W / 2, fy, 8.5, rgb(1, 1, 1));
+    fy -= 12;
+  }
+  if (footerLines.length > 1) {
+    drawCentered(page, font, footerLines[1], PAGE_W / 2, fy, 8, MUTED_LIGHT);
+    fy -= 12;
+  }
+  for (let i = 2; i < footerLines.length; i++) {
+    drawCentered(page, font, footerLines[i], PAGE_W / 2, fy, 7.5, MUTED_LIGHT);
+    fy -= 10;
   }
 
-  if (logo) {
-    const h = 26;
-    const scale = h / logo.height;
-    const w = logo.width * scale;
-    page.drawImage(logo, {
-      x: RIGHT - w,
-      y: 28,
-      width: w,
-      height: h,
-    });
-  }
+  const footMeta = `Ricevuta nr. ${row.code} del ${issued} - 1 / 1`;
+  drawCentered(page, font, footMeta, PAGE_W / 2, 10, 6.5, MUTED_LIGHT);
 
   const bytes = await doc.save();
   return {
