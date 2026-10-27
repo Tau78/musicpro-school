@@ -48,6 +48,7 @@ Non copiare Enigma (cubo viola, verde smeraldo, Cinzel) su materiale School. Non
 5. «Tutto lo sfondo» = l'immagine copre il rettangolo fino ai bordi. Niente fascia nera, niente foto incollata a sinistra, niente lati sfocati del poster.
 6. «Solo queste scritte» = via tutto il resto (montepremi, legale, sottotitolo). Non aggiungere righe non chieste.
 7. Lo script di compose legge una **sorgente pulita** (`docs/assets/…` o, in School, `docs/assets/school/` al primo asset), non il jpg di output. Un secondo giro non raddoppia il testo.
+8. **Genova e La Spezia vanno insieme.** Se in grafica c’è `@ilcervellonegenova`, ci va anche `@ilcervellonelaspezia`, e il contrario. Dettaglio in [reference-eventi.md](reference-eventi.md).
 
 ## Card già in un'app
 
