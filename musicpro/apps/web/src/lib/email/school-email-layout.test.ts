@@ -51,6 +51,32 @@ describe("wrapSchoolEmail", () => {
     });
     expect(local).toContain("https://school.musicproeventi.it/images/receipt-assoc-logo.png");
   });
+
+  it("senza lockupLine non mostra la riga gold sotto il logo", () => {
+    expect(html).not.toMatch(/>\s*School\s*<\/p>/i);
+    expect(html).not.toContain(">SCHOOL</p>");
+  });
+
+  it("con lockupLine SCHOOL mostra la riga gold escapata", () => {
+    const withSchool = wrapSchoolEmail({
+      appOrigin: "https://school.musicproeventi.it",
+      title: "Lezione",
+      htmlBody: "<p>ok</p>",
+      lockupLine: "SCHOOL",
+    });
+    expect(withSchool).toContain(">SCHOOL</p>");
+    expect(withSchool).toContain("letter-spacing:0.28em");
+  });
+
+  it("con lockupLine SALA PROVE mostra la riga gold", () => {
+    const withSala = wrapSchoolEmail({
+      appOrigin: "https://school.musicproeventi.it",
+      title: "Prenotazione",
+      htmlBody: "<p>ok</p>",
+      lockupLine: "SALA PROVE",
+    });
+    expect(withSala).toContain(">SALA PROVE</p>");
+  });
 });
 
 describe("wrapSchoolCampaignEmail", () => {
@@ -68,6 +94,8 @@ describe("wrapSchoolCampaignEmail", () => {
     expect(html).toContain("Apri l'app");
     expect(html).not.toContain("#e10600");
     expect(html).not.toContain("#c41e3a");
+    expect(html).not.toMatch(/>\s*School\s*<\/p>/i);
+    expect(html).not.toContain(">SCHOOL</p>");
   });
 
   it("non espande {{nome}} — resta letterale nel corpo", () => {

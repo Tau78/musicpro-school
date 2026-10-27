@@ -116,6 +116,16 @@ function formatCsvDate(isoDate: string): string {
   return `${day}/${month}/${year}`;
 }
 
+function fiscalReceiptEmailLockupLine(
+  sourceType: FiscalReceiptSourceType | null,
+): string | null {
+  if (sourceType === "lesson_pack") return "SCHOOL";
+  if (sourceType === "room_booking" || sourceType === "credit_shop") {
+    return "SALA PROVE";
+  }
+  return null;
+}
+
 function inferSourceType(row: ReceiptRow): FiscalReceiptSourceType | null {
   if (row.source_type === "lesson_pack") return "lesson_pack";
   if (row.source_type === "room_booking") return "room_booking";
@@ -1110,6 +1120,7 @@ export async function emailFiscalReceiptCopy(
         label: "Apri l'area personale",
       },
     ],
+    lockupLine: fiscalReceiptEmailLockupLine(receipt.sourceType),
   });
 
   const result = await sendLessonFamilyEmail(client, receipt.memberId, {

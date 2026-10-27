@@ -189,6 +189,7 @@ async function sendExistingMemberEmail(params: {
     title: "Quota associativa",
     htmlBody: schoolEmailBodyFromText(htmlBodyParagraphs),
     ctas: [{ href: params.loginUrl, label: "Apri area associato" }],
+    lockupLine: "SALA PROVE",
   });
 
   return sendEnrollmentEmail({
@@ -231,6 +232,7 @@ async function sendEnrollmentRequestEmail(params: {
     title: "Completa i dati",
     htmlBody: schoolEmailBodyFromText(htmlBodyParagraphs),
     ctas: [{ href: params.enrollUrl, label: "Completa iscrizione" }],
+    lockupLine: "SALA PROVE",
   });
 
   return sendEnrollmentEmail({

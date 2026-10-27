@@ -94,6 +94,7 @@ ${signInHint}`;
     htmlBody,
     ctas,
     showAppDownload,
+    lockupLine: "SCHOOL",
   });
 
   return { text, html };

@@ -307,6 +307,7 @@ export async function issueAndEmailCreditShopPurchase(
         label: "Apri l'area personale",
       },
     ],
+    lockupLine: "SALA PROVE",
   });
 
   const pdf = receipt ? await generateFiscalReceiptPdf(receipt) : null;
