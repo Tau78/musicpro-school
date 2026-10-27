@@ -12,6 +12,7 @@ import {
   enrollmentFromAddress,
   googleSmtpConfigured,
 } from "@/lib/iscrizione/email-transport";
+import { wrapSchoolCampaignEmail } from "@/lib/email/school-email-layout";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -25,15 +26,6 @@ interface SendBody {
   templateId?: string | null;
   campaignName?: string;
   campaignId?: string | null;
-}
-
-function textToHtml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/\r\n|\r|\n/g, "<br />");
 }
 
 export async function POST(request: Request) {
@@ -106,7 +98,7 @@ export async function POST(request: Request) {
                 to: item.to,
                 subject: item.subject,
                 text: item.body,
-                html: textToHtml(item.body),
+                html: wrapSchoolCampaignEmail(item.subject, item.body),
               });
               return { ok: true as const };
             } catch (err) {

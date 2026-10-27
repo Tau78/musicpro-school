@@ -10,8 +10,32 @@ import { UsageLogProvider } from "@/components/usage/usage-log-provider";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://school.musicproeventi.it"),
   title: APP_NAME,
   description: "Pannello amministrativo MusicPro School",
+  openGraph: {
+    title: "MusicPro School",
+    url: "https://school.musicproeventi.it",
+    siteName: "MusicPro School",
+    locale: "it_IT",
+    type: "website",
+    images: [
+      {
+        url: "/images/og-school.png",
+        width: 1200,
+        height: 630,
+        alt: "MusicPro School",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    images: ["/images/og-school.png"],
+  },
+  icons: {
+    icon: "/icon.png",
+    apple: "/apple-icon.png",
+  },
 };
 
 export const viewport: Viewport = {

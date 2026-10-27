@@ -36,5 +36,6 @@ export {
   schoolEmailTextFooter,
   schoolLogoUrl,
   wrapSchoolEmail,
+  wrapSchoolCampaignEmail,
 } from "./school-email-layout";
 export type { SchoolEmailCta, WrapSchoolEmailInput } from "./school-email-layout";

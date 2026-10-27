@@ -14,5 +14,6 @@ export {
   schoolEmailTextFooter,
   schoolLogoUrl,
   wrapSchoolEmail,
+  wrapSchoolCampaignEmail,
 } from "@musicpro/shared";
 export type { SchoolEmailCta, WrapSchoolEmailInput } from "@musicpro/shared";
