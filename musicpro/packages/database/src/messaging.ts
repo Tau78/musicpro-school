@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { wrapSchoolCampaignEmail } from "@musicpro/shared";
 
 import type { Database } from "./types/database";
 
@@ -289,7 +290,7 @@ async function deliverEmails(
           to: [item.to],
           subject: item.subject,
           text: item.body,
-          html: textToHtml(item.body),
+          html: wrapSchoolCampaignEmail(item.subject, item.body),
         })),
       ),
     });
@@ -313,6 +314,7 @@ async function deliverEmails(
           to: item.to,
           subject: item.subject,
           body: item.body,
+          html: wrapSchoolCampaignEmail(item.subject, item.body),
         }),
       );
     }

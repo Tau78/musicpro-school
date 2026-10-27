@@ -193,6 +193,21 @@ export function wrapSchoolEmail(input: WrapSchoolEmailInput): string {
 </html>`;
 }
 
+export function wrapSchoolCampaignEmail(
+  subject: string,
+  body: string,
+  appOrigin = SCHOOL_APP_URL,
+): string {
+  return wrapSchoolEmail({
+    appOrigin,
+    preheader: subject,
+    kicker: "MusicPro School",
+    title: subject,
+    htmlBody: schoolEmailBodyFromText(body),
+    ctas: [{ href: SCHOOL_APP_URL, label: "Apri l'app" }],
+  });
+}
+
 export function schoolEmailTextFooter(options?: { showAppDownload?: boolean }): string {
   const lines = [
     "",

@@ -12,6 +12,7 @@ import {
   schoolEmailHeroHtml,
   schoolEmailTextFooter,
   wrapSchoolEmail,
+  wrapSchoolCampaignEmail,
 } from "./school-email-layout";
 
 describe("wrapSchoolEmail", () => {
@@ -49,6 +50,30 @@ describe("wrapSchoolEmail", () => {
       htmlBody: "<p>ok</p>",
     });
     expect(local).toContain("https://school.musicproeventi.it/images/receipt-assoc-logo.png");
+  });
+});
+
+describe("wrapSchoolCampaignEmail", () => {
+  it("include oggetto, corpo escapato, logo, CTA navy bianca, senza rosso iscrizione", () => {
+    const subject = "Avviso assemblea";
+    const body = "Ciao soci,\n\nriunione venerdì.\n\n<script>alert(1)</script>";
+    const html = wrapSchoolCampaignEmail(subject, body);
+    expect(html).toContain(subject);
+    expect(html).toContain("riunione venerdì");
+    expect(html).toContain("&lt;script&gt;");
+    expect(html).not.toContain("<script>");
+    expect(html).toContain("/images/receipt-assoc-logo.png");
+    expect(html).toContain(`background:${SCHOOL_BRAND_NAVY}`);
+    expect(html).toContain("color:#ffffff");
+    expect(html).toContain("Apri l'app");
+    expect(html).not.toContain("#e10600");
+    expect(html).not.toContain("#c41e3a");
+  });
+
+  it("non espande {{nome}} — resta letterale nel corpo", () => {
+    const html = wrapSchoolCampaignEmail("Test", "Ciao {{nome}}, benvenuto.");
+    expect(html).toContain("{{nome}}");
+    expect(html).not.toContain("Ciao Mario");
   });
 });
 
