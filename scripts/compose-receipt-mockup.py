@@ -200,6 +200,31 @@ def draw_riquadro(
     draw.rounded_rectangle(box, radius=BOX_RADIUS, fill=fill, outline=outline, width=width)
 
 
+def receipt_header_brand_lockup(code: str) -> str | None:
+    """Gold lockup under ASSOCIAZIONE from `{section}/…` receipt code."""
+    prefix = code.split("/")[0].strip().upper()
+    if prefix in ("SCH", "S", "LE"):
+        return "SCHOOL"
+    if prefix in ("QU", "QUO"):
+        return None
+    if prefix in ("SAL", "SA", "SER"):
+        return "SALA PROVE"
+    return None
+
+
+def parse_lockup_arg(value: str) -> str | None:
+    key = value.strip().lower()
+    return {
+        "none": None,
+        "school": "SCHOOL",
+        "sala": "SALA PROVE",
+        "sala-prove": "SALA PROVE",
+    }.get(key)
+
+
+MOCK_RECEIPT_CODE = "QU/12/2026"
+
+
 def draw_lines(
     draw: ImageDraw.ImageDraw,
     x: int,
@@ -214,7 +239,7 @@ def draw_lines(
     return y
 
 
-def compose(out_path: Path) -> None:
+def compose(out_path: Path, brand_lockup: str | None = None) -> None:
     for p in (FONT_BOLD, FONT_EXTRABOLD):
         if not p.is_file():
             die(f"error: font mancante: {p}")
@@ -223,13 +248,21 @@ def compose(out_path: Path) -> None:
     logo_h = logo_rgba.size[1]
 
     f_assoc = load_font(FONT_BOLD, 13)
-    f_school = load_font(FONT_BOLD, 20)
+    lockup_size = 20 if brand_lockup == "SCHOOL" else 15
+    f_lockup = load_font(FONT_BOLD, lockup_size) if brand_lockup else None
     assoc_h = 18 if need_assoc else 0
+    lockup_h = 0
+    lockup_gap = 0
+    if brand_lockup and f_lockup:
+        lockup_h = int(text_h(ImageDraw.Draw(Image.new("RGB", (8, 8))), brand_lockup, f_lockup)) + 6
+        lockup_gap = 8
     header_pad_top = 22
     header_pad_bottom = 18
     header_h = header_pad_top + logo_h + header_pad_bottom
     if need_assoc:
         header_h += assoc_h + 4
+    if brand_lockup:
+        header_h += lockup_gap + lockup_h
 
     img = Image.new("RGB", (W, H), CREAM)
     draw = ImageDraw.Draw(img)
@@ -252,15 +285,17 @@ def compose(out_path: Path) -> None:
         )
         y_logo_bottom += assoc_h + 4
 
-    draw_tracked(
-        draw,
-        (W - MARGIN_X, header_pad_top + logo_h // 2),
-        "SCHOOL",
-        f_school,
-        GOLD,
-        6.0,
-        anchor="rm",
-    )
+    if brand_lockup and f_lockup:
+        tracking = 6.0 if brand_lockup == "SCHOOL" else 3.5
+        draw_tracked(
+            draw,
+            (logo_x + LOGO_HEADER_W // 2, y_logo_bottom + lockup_h // 2),
+            brand_lockup,
+            f_lockup,
+            GOLD,
+            tracking,
+            anchor="mm",
+        )
 
     gold_y = header_h
     draw.rectangle((0, gold_y, W, gold_y + 3), fill=GOLD)
@@ -321,7 +356,7 @@ def compose(out_path: Path) -> None:
     f_small = load_font(FONT_BOLD, 16)
     f_pay = load_font(FONT_BOLD, 17)
 
-    draw.text((rx, ry), "Ricevuta n. QU/12/2026", font=f_rice_title, fill=NAVY)
+    draw.text((rx, ry), f"Ricevuta n. {MOCK_RECEIPT_CODE}", font=f_rice_title, fill=NAVY)
     ry += 34
     draw.text((rx, ry), "Data emissione", font=f_label, fill=MUTED)
     date_x = rx + text_w(draw, "Data emissione", f_label) + 10
@@ -453,9 +488,18 @@ def compose(out_path: Path) -> None:
 
 def main() -> None:
     out = DEFAULT_OUT
+    brand_lockup: str | None = receipt_header_brand_lockup(MOCK_RECEIPT_CODE)
     if len(sys.argv) > 1:
         out = Path(sys.argv[1]).expanduser().resolve()
-    compose(out)
+    if len(sys.argv) > 2:
+        parsed = parse_lockup_arg(sys.argv[2])
+        if parsed is None and sys.argv[2].strip().lower() not in ("none",):
+            die(
+                "error: lockup deve essere none, school, sala o sala-prove "
+                f"(ricevuto: {sys.argv[2]})"
+            )
+        brand_lockup = parsed
+    compose(out, brand_lockup=brand_lockup)
 
 
 if __name__ == "__main__":

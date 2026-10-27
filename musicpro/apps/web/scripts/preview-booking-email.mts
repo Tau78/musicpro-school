@@ -37,6 +37,7 @@ const html = wrapSchoolEmail({
   preheader: "Sala Arancio · mercoledì 4 novembre 2026 · 21:00 – 23:00",
   title: "Prenotazione confermata",
   htmlBody,
+  lockupLine: "SALA PROVE",
   ctas: [
     {
       href: `${SCHOOL_APP_URL}/prenotazioni/mie`,

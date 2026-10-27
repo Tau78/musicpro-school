@@ -487,6 +487,7 @@ function brandedLessonMail(
     title,
     htmlBody: schoolEmailBodyFromText(body),
     ctas: cta ? [cta] : undefined,
+    lockupLine: "SCHOOL",
   });
   const text = `${body}${schoolEmailTextFooter()}`;
   return { html, text };

@@ -46,6 +46,8 @@ export interface WrapSchoolEmailInput {
   ctas?: SchoolEmailCta[];
   /** Footer app download — default true per mail all'associato. */
   showAppDownload?: boolean;
+  /** Riga gold sotto il logo (es. "SCHOOL" | "SALA PROVE"); omessa se null/undefined/"". */
+  lockupLine?: string | null;
 }
 
 function ctaHtml(cta: SchoolEmailCta): string {
@@ -117,6 +119,11 @@ export function wrapSchoolEmail(input: WrapSchoolEmailInput): string {
           )
           .join("")}</table>`
       : "";
+  const lockupTrimmed = input.lockupLine?.trim() ?? "";
+  const lockupBlock = lockupTrimmed
+    ? `<p style="margin:10px 0 0;color:${SCHOOL_BRAND_GOLD};font-size:11px;letter-spacing:0.28em;text-transform:uppercase;font-weight:700;">${escapeEmailHtml(lockupTrimmed)}</p>`
+    : "";
+
   const appBlock =
     input.showAppDownload === false
       ? ""
@@ -153,7 +160,7 @@ export function wrapSchoolEmail(input: WrapSchoolEmailInput): string {
               <a href="${escapeEmailHtml(SCHOOL_SITE_URL)}" style="text-decoration:none;">
                 <img src="${logo}" width="220" alt="MusicPro School" style="display:block;margin:0 auto;width:220px;max-width:80%;height:auto;border:0;" />
               </a>
-              <p style="margin:10px 0 0;color:${SCHOOL_BRAND_GOLD};font-size:11px;letter-spacing:0.28em;text-transform:uppercase;font-weight:700;">School</p>
+              ${lockupBlock}
             </td>
           </tr>
           <tr>
@@ -205,6 +212,7 @@ export function wrapSchoolCampaignEmail(
     title: subject,
     htmlBody: schoolEmailBodyFromText(body),
     ctas: [{ href: SCHOOL_APP_URL, label: "Apri l'app" }],
+    lockupLine: null,
   });
 }
 

@@ -146,6 +146,7 @@ ${staffNoteHtml}`;
     title: headline,
     htmlBody,
     showAppDownload,
+    lockupLine: "SCHOOL",
   });
 
   return { subject, text, html };

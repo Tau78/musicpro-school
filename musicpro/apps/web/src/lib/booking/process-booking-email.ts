@@ -370,6 +370,7 @@ function buildUpgradeGratuitoEmail(booking: BookingRow): {
     title: "Upgrade gratuito",
     htmlBody,
     ctas: [{ href: myBookingsUrl, label: "Le tue prenotazioni" }],
+    lockupLine: "SALA PROVE",
   });
 
   return { subject, html, text, recipientEmail };
@@ -523,6 +524,7 @@ function buildBookingEmailContent(
     title,
     htmlBody,
     ctas,
+    lockupLine: "SALA PROVE",
   });
 
   return { subject, html, text, recipientEmail };

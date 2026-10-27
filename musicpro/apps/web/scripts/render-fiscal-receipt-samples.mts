@@ -48,6 +48,18 @@ const samples = [
     },
   },
   {
+    out: "/tmp/ricevuta-lezioni.pdf",
+    input: {
+      code: "SCH/2/2026",
+      issuedOn: "2026-10-18",
+      payeeName: "Elena Rossi",
+      payeeTaxCode: null,
+      amountEur: 280,
+      method: "bonifico",
+      lines: [{ description: "Pacchetto lezioni", amountEur: 280 }],
+    },
+  },
+  {
     out: "/tmp/ricevuta-bonifico.pdf",
     input: {
       code: "QUO/4/2026",

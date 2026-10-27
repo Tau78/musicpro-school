@@ -267,6 +267,39 @@ function drawTrackedLeft(
   }
 }
 
+function drawTrackedCenter(
+  page: PDFPage,
+  font: PDFFont,
+  text: string,
+  centerX: number,
+  y: number,
+  size: number,
+  color: ReturnType<typeof rgb>,
+  tracking = 1.2,
+): void {
+  const upper = sanitize(text, font).toUpperCase();
+  const total =
+    upper
+      .split("")
+      .reduce((s, ch) => s + font.widthOfTextAtSize(ch, size), 0) +
+    tracking * Math.max(0, upper.length - 1);
+  let x = centerX - total / 2;
+  for (const ch of upper) {
+    page.drawText(ch, { x, y, size, font, color });
+    x += font.widthOfTextAtSize(ch, size) + tracking;
+  }
+}
+
+/** Gold lockup under ASSOCIAZIONE from `{section}/…` receipt code. */
+function receiptHeaderBrandLockup(code: string): string | null {
+  const slash = code.indexOf("/");
+  const prefix = (slash >= 0 ? code.slice(0, slash) : code).trim().toUpperCase();
+  if (prefix === "SCH" || prefix === "S" || prefix === "LE") return "SCHOOL";
+  if (prefix === "QU" || prefix === "QUO") return null;
+  if (prefix === "SAL" || prefix === "SA" || prefix === "SER") return "SALA PROVE";
+  return null;
+}
+
 function drawBox(
   page: PDFPage,
   x: number,
@@ -368,11 +401,21 @@ export async function generateFiscalReceiptPdf(
 
   const logoDisplayH = 46;
   let logoDisplayW = logo ? (logo.width / logo.height) * logoDisplayH : 0;
+  const brandLockup = receiptHeaderBrandLockup(row.code);
   const assocLineH = 9;
+  const lockupSize = brandLockup === "SALA PROVE" ? 9 : 14;
+  const lockupLineH = brandLockup ? lockupSize + 4 : 0;
+  const lockupGap = brandLockup ? 4 : 0;
   const headerPadTop = 12;
   const headerPadBottom = 10;
   const headerH =
-    headerPadTop + logoDisplayH + assocLineH + 4 + headerPadBottom;
+    headerPadTop +
+    logoDisplayH +
+    assocLineH +
+    4 +
+    lockupGap +
+    lockupLineH +
+    headerPadBottom;
 
   page.drawRectangle({
     x: 0,
@@ -397,20 +440,33 @@ export async function generateFiscalReceiptPdf(
         .split("")
         .reduce((s, ch) => s + fontBold.widthOfTextAtSize(ch, assocSize), 0) +
       assocTrack * (assoc.length - 1);
+    const logoCenterX = ML + logoDisplayW / 2;
+    const assocY = PAGE_H - headerPadTop - logoDisplayH - assocLineH - 2;
     drawTrackedLeft(
       page,
       fontBold,
       assoc,
       ML + Math.max(0, (logoDisplayW - assocW) / 2),
-      PAGE_H - headerPadTop - logoDisplayH - assocLineH - 2,
+      assocY,
       assocSize,
       rgb(1, 1, 1),
       assocTrack,
     );
+    if (brandLockup) {
+      const lockupY = assocY - lockupGap - lockupSize;
+      const lockupTrack = brandLockup === "SCHOOL" ? 1.5 : 0.9;
+      drawTrackedCenter(
+        page,
+        fontBold,
+        brandLockup,
+        logoCenterX,
+        lockupY,
+        lockupSize,
+        GOLD,
+        lockupTrack,
+      );
+    }
   }
-
-  const schoolY = PAGE_H - headerPadTop - logoDisplayH / 2 - 4;
-  drawTrackedRight(page, fontBold, "SCHOOL", RIGHT, schoolY, 14, GOLD, 1.5);
 
   const goldY = PAGE_H - headerH - GOLD_BAR_H;
   page.drawRectangle({
