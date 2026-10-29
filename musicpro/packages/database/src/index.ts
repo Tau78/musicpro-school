@@ -906,6 +906,7 @@ export {
   marketOrderStatusLabel,
   marketPayMethodLabel,
   marketPhotoPublicUrl,
+  marketListingDisplayPhoto,
   normalizeMarketDescription,
   normalizeMarketTitle,
   parseMarketPriceEuros,

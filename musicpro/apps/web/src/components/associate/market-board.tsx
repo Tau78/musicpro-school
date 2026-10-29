@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   formatEuro,
   marketHandoverLabel,
+  marketListingDisplayPhoto,
   marketListingStatusLabel,
   marketPhotoPublicUrl,
   type MarketHandover,
@@ -141,8 +142,9 @@ export function MarketBoard({
             <li className="text-sm text-neutral-500">Nessun annuncio in vendita.</li>
           ) : (
             catalog.map((item) => {
-              const photo = marketPhotoPublicUrl(item.photoPath, supabaseUrl);
+              const photo = marketListingDisplayPhoto(item, supabaseUrl);
               const peer = item.sellerKind === "associato";
+              const desk = item.source === "eventi_desk";
               return (
                 <li key={item.id} className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
                   {photo ? (
@@ -153,13 +155,20 @@ export function MarketBoard({
                   <div className="p-3">
                     <p className="font-medium text-neutral-900">{item.title}</p>
                     <p className="text-sm text-neutral-900">{formatEuro(item.priceCents / 100)}</p>
+                    {item.categoryLabel || item.conditionLabel ? (
+                      <p className="mt-1 text-xs text-neutral-500">
+                        {[item.categoryLabel, item.conditionLabel].filter(Boolean).join(" · ")}
+                      </p>
+                    ) : null}
                     {item.description ? (
                       <p className="mt-1 line-clamp-3 text-sm text-neutral-600">{item.description}</p>
                     ) : null}
                     <p className="mt-2 text-xs text-neutral-500">
                       {peer
                         ? `${item.sellerName || "Associato"} · ${marketHandoverLabel(item.handover)} · vi accordate tra voi`
-                        : "Associazione · ritiro in sede"}
+                        : desk
+                          ? "MusicPro · ritiro in sede · annuncio ufficio"
+                          : "Associazione · ritiro in sede"}
                     </p>
                     {peer ? (
                       <p className="mt-1 text-xs text-neutral-700">

@@ -46,6 +46,8 @@ export type MarketListing = {
   priceCents: number;
   status: MarketListingStatus;
   photoPath: string | null;
+  /** URL assoluto (es. annunci ufficio da piattaforma Eventi). */
+  photoUrl?: string | null;
   createdAt: string;
   sellerKind: MarketSellerKind;
   sellerMemberId: string | null;
@@ -54,6 +56,9 @@ export type MarketListing = {
   sellerEmail: string | null;
   handover: MarketHandover | null;
   fixedAssetId: string | null;
+  categoryLabel?: string | null;
+  conditionLabel?: string | null;
+  source?: "school" | "eventi_desk";
 };
 
 export type MarketOrder = {
@@ -122,6 +127,15 @@ export function marketPhotoPublicUrl(
   const base = supabaseUrl.trim().replace(/\/$/, "");
   if (!path || !base) return null;
   return `${base}/storage/v1/object/public/website/${path}`;
+}
+
+export function marketListingDisplayPhoto(
+  item: Pick<MarketListing, "photoPath" | "photoUrl">,
+  supabaseUrl: string,
+): string | null {
+  const direct = item.photoUrl?.trim();
+  if (direct) return direct;
+  return marketPhotoPublicUrl(item.photoPath, supabaseUrl);
 }
 
 function mapListing(row: ListingRow): MarketListing {

@@ -7,6 +7,7 @@ import { APP_NAME } from "@musicpro/shared";
 import { MarketBoard } from "@/components/associate/market-board";
 import { HeaderSettingsActions } from "@/components/dashboard/header-settings-actions";
 import { isSchoolMarketDeskOnly } from "@/lib/admin/roles";
+import { listEventiUsedMarketListings } from "@/lib/market/eventi-used-catalog";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function DashboardMarketPage() {
@@ -16,12 +17,16 @@ export default async function DashboardMarketPage() {
     redirect("/login?error=member_not_linked");
   }
 
-  const [listings, profile] = await Promise.all([
+  const [listings, profile, eventiDesk] = await Promise.all([
     listMarketListings(supabase),
     supabase.from("members").select("phone").eq("id", member.id).maybeSingle(),
+    listEventiUsedMarketListings(),
   ]);
 
-  const catalog = listings.filter((item) => item.status === "in_vendita");
+  const catalog = [
+    ...eventiDesk,
+    ...listings.filter((item) => item.status === "in_vendita"),
+  ];
   const mine = listings.filter(
     (item) =>
       item.sellerKind === "associato" && item.sellerMemberId === member.id,
