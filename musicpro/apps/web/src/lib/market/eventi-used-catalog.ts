@@ -47,7 +47,7 @@ export async function listEventiUsedMarketRows(): Promise<EventiUsedMarketRow[]>
   }
   const items = Array.isArray(data.items) ? data.items : [];
   return items.filter(
-    (row): row is EventiUsedMarketRow =>
+    (row: unknown): row is EventiUsedMarketRow =>
       Boolean(row && typeof row === "object" && typeof (row as EventiUsedMarketRow).id === "string"),
   );
 }

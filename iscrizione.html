@@ -390,8 +390,8 @@
             <div style="flex:2;"><label>Citt&agrave; *</label><input type="text" name="citta" required></div>
             <div style="flex:0.6;"><label>Prov *</label><input type="text" name="prov" maxlength="2" minlength="2" pattern="[A-Za-z]{2}" style="text-transform:uppercase;" required></div>
         </div>
-        <div class="form-group"><label>Email *</label><input type="email" name="email" required></div>
-        <div class="form-group"><label>Cellulare *</label><input type="tel" name="telefono" required inputmode="tel" minlength="9"></div>
+        <div class="form-group"><label id="label-email">Email *</label><input type="email" name="email" id="field-email" required></div>
+        <div class="form-group"><label id="label-telefono">Cellulare *</label><input type="tel" name="telefono" id="field-telefono" required inputmode="tel" minlength="9"></div>
         <div class="form-group"><label>Corso di interesse</label><input type="text" name="corso" id="corso-interesse" placeholder="Es. Canto, Chitarra..."></div>
 
         <details id="lessons-section" class="lessons-box">
@@ -868,17 +868,31 @@
         if (!/^\d{5}$/.test(cap)) return 'CAP non valido (5 cifre).';
         if (!citta) return 'Città obbligatoria.';
         if (!/^[A-Z]{2}$/.test(prov)) return 'Provincia di residenza: 2 lettere (es. GE).';
-        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Email non valida.';
-        var phoneDigits = telefono.replace(/^\+/, '').replace(/\D/g, '');
-        if (phoneDigits.length < 9 || phoneDigits.length > 15) return 'Cellulare non valido (almeno 9 cifre).';
 
         var ageYears = (today.getTime() - born.getTime()) / (365.25 * 24 * 60 * 60 * 1000);
+        var emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        function phoneOk(raw) {
+            var digits = String(raw || '').replace(/^\+/, '').replace(/\D/g, '');
+            return digits.length >= 9 && digits.length <= 15;
+        }
         if (ageYears < 18) {
             if (!String(data.tutore_nome || '').trim() || !String(data.tutore_cognome || '').trim()) {
                 return 'Per i minorenni servono nome e cognome del genitore/tutore.';
             }
+            var tutoreEmail = String(data.tutore_email || '').toLowerCase().trim();
+            if (!tutoreEmail || !emailRe.test(tutoreEmail)) {
+                return 'Per i minorenni è obbligatoria un\'email del genitore/tutore.';
+            }
+            if (!phoneOk(data.tutore_telefono)) {
+                return 'Per i minorenni è obbligatorio un cellulare del genitore/tutore.';
+            }
             var tutoreCf = String(data.tutore_cf || '').toUpperCase().trim();
             if (tutoreCf && !cfRe.test(tutoreCf)) return 'Codice fiscale del tutore non valido.';
+            if (email && !emailRe.test(email)) return 'Email dello studente non valida.';
+            if (telefono && !phoneOk(telefono)) return 'Cellulare dello studente non valido (almeno 9 cifre).';
+        } else {
+            if (!email || !emailRe.test(email)) return 'Email non valida.';
+            if (!phoneOk(telefono)) return 'Cellulare non valido (almeno 9 cifre).';
         }
         return null;
     }
@@ -1208,13 +1222,41 @@
     resizeCanvas();
     document.getElementById('clear-signature').addEventListener('click', function() { signaturePad.clear(); });
 
-    document.getElementById('data_nascita').addEventListener('change', function() {
-        var age = Math.floor((new Date() - new Date(this.value)) / 31557600000);
+    function syncMinorContactRequirements() {
+        var birthEl = document.getElementById('data_nascita');
+        var birth = birthEl && birthEl.value ? new Date(birthEl.value) : null;
+        var age = birth && !isNaN(birth.getTime())
+            ? Math.floor((new Date() - birth) / 31557600000)
+            : null;
+        var isMinor = age != null && age < 18;
         var sec = document.getElementById('guardian-section');
-        var isMinor = age < 18;
-        sec.open = isMinor;
-        sec.querySelectorAll('input').forEach(function(i) { i.required = isMinor; });
-    });
+        if (sec) {
+            sec.open = isMinor;
+            sec.querySelectorAll('input').forEach(function(i) { i.required = isMinor; });
+        }
+        var emailInput = document.getElementById('field-email');
+        var telInput = document.getElementById('field-telefono');
+        var emailLabel = document.getElementById('label-email');
+        var telLabel = document.getElementById('label-telefono');
+        if (emailInput) {
+            emailInput.required = !isMinor;
+            if (!isMinor) emailInput.setAttribute('minlength', '1');
+            else emailInput.removeAttribute('minlength');
+        }
+        if (telInput) {
+            telInput.required = !isMinor;
+            if (isMinor) telInput.removeAttribute('minlength');
+            else telInput.setAttribute('minlength', '9');
+        }
+        if (emailLabel) {
+            emailLabel.textContent = isMinor ? 'Email (opzionale se c\'è il tutore)' : 'Email *';
+        }
+        if (telLabel) {
+            telLabel.textContent = isMinor ? 'Cellulare (opzionale se c\'è il tutore)' : 'Cellulare *';
+        }
+    }
+    document.getElementById('data_nascita').addEventListener('change', syncMinorContactRequirements);
+    syncMinorContactRequirements();
 
     (function initLessonsSection() {
         var enabled = document.getElementById('lezioni-enabled-check');

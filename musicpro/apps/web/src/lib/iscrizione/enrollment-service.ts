@@ -645,7 +645,8 @@ async function finalizeCashEnrollmentDocuments(input: {
   const db = input.db;
   const nome = formText(input.data.nome);
   const cognome = formText(input.data.cognome);
-  const email = (formText(input.data.email) || "").toLowerCase();
+  const email = enrollmentContactEmail(input.data);
+  const phone = enrollmentContactPhone(input.data);
   const cf = input.cf;
 
   const { data: member, error: memberErr } = await db
@@ -667,9 +668,9 @@ async function finalizeCashEnrollmentDocuments(input: {
       member_id: member.id,
       first_name: nome,
       last_name: cognome,
-      email: email || member.email || "",
+      email: email || member.email || formText(input.data.tutore_email).toLowerCase() || "",
       tax_code: cf,
-      phone: formText(input.data.telefono) || member.phone || null,
+      phone: phone || member.phone || null,
       fiscal_year: anno,
       amount_centesimi: amountCents,
       payment_status: "PAGATO",
@@ -705,7 +706,7 @@ async function finalizeCashEnrollmentDocuments(input: {
     citta: formText(input.data.citta),
     prov: formText(input.data.prov).toUpperCase(),
     cf,
-    email: email || member.email || "",
+    email: formText(input.data.email).toLowerCase() || member.email || "",
     telefono: formText(input.data.telefono) || String(member.phone || ""),
     corso: formText(input.data.corso),
     tutoreNome: formText(input.data.tutore_nome),
@@ -762,7 +763,7 @@ async function finalizeCashEnrollmentDocuments(input: {
     text: [
       "Nuova iscrizione completata (quota già versata in sede).",
       `Nome: ${nome} ${cognome}`,
-      `Email: ${email || member.email || "—"}`,
+      `Email contatto: ${email || member.email || "—"}`,
       `CF: ${cf}`,
       `N. socio: ${member.member_number ?? "—"}`,
       `Member ID: ${member.id}`,
@@ -791,6 +792,31 @@ async function finalizeCashEnrollmentDocuments(input: {
   }
 }
 
+
+function normalizePhoneDigits(raw: string): string {
+  return String(raw || "")
+    .replace(/[\s().-]/g, "")
+    .replace(/^\+/, "")
+    .replace(/\D/g, "");
+}
+
+function isValidPhoneDigits(digits: string): boolean {
+  return digits.length >= 9 && digits.length <= 15;
+}
+
+/** Email di contatto iscrizione: studente, altrimenti tutore (minori senza email). */
+export function enrollmentContactEmail(data: EnrollmentFormData): string {
+  const student = formText(data.email).toLowerCase();
+  if (student) return student;
+  return formText(data.tutore_email).toLowerCase();
+}
+
+/** Telefono di contatto iscrizione: studente, altrimenti tutore. */
+export function enrollmentContactPhone(data: EnrollmentFormData): string {
+  const student = formText(data.telefono).replace(/[\s().-]/g, "");
+  if (student) return student;
+  return formText(data.tutore_telefono).replace(/[\s().-]/g, "");
+}
 
 /** Controlli anagrafici condivisi (form contanti / rinnovo / nuova iscrizione). */
 export function validateEnrollmentAnagrafica(data: EnrollmentFormData): string | null {
@@ -836,17 +862,24 @@ export function validateEnrollmentAnagrafica(data: EnrollmentFormData): string |
   if (!/^[A-Z]{2}$/.test(prov)) {
     return "Provincia di residenza: inserisci 2 lettere (es. GE).";
   }
-  if (!email || !EMAIL_RE.test(email)) return "Email non valida.";
-  const phoneDigits = telefono.replace(/^\+/, "").replace(/\D/g, "");
-  if (phoneDigits.length < 9 || phoneDigits.length > 15) {
-    return "Cellulare non valido (almeno 9 cifre).";
-  }
 
   const ageMs = today.getTime() - born.getTime();
   const ageYears = ageMs / (365.25 * 24 * 60 * 60 * 1000);
-  if (ageYears < 18) {
+  const isMinor = ageYears < 18;
+
+  if (isMinor) {
     if (!formText(data.tutore_nome) || !formText(data.tutore_cognome)) {
       return "Per i minorenni sono obbligatori nome e cognome del genitore/tutore.";
+    }
+    const tutoreEmail = formText(data.tutore_email).toLowerCase();
+    if (!tutoreEmail || !EMAIL_RE.test(tutoreEmail)) {
+      return "Per i minorenni è obbligatoria un'email del genitore/tutore.";
+    }
+    const tutorePhoneDigits = normalizePhoneDigits(
+      formText(data.tutore_telefono),
+    );
+    if (!isValidPhoneDigits(tutorePhoneDigits)) {
+      return "Per i minorenni è obbligatorio un cellulare del genitore/tutore.";
     }
     const tutoreCf = formText(data.tutore_cf).toUpperCase();
     if (
@@ -856,6 +889,20 @@ export function validateEnrollmentAnagrafica(data: EnrollmentFormData): string |
       )
     ) {
       return "Codice fiscale del tutore non valido.";
+    }
+    // Email/cellulare dello studente: opzionali; se presenti devono essere validi.
+    if (email && !EMAIL_RE.test(email)) return "Email dello studente non valida.";
+    if (telefono) {
+      const phoneDigits = normalizePhoneDigits(telefono);
+      if (!isValidPhoneDigits(phoneDigits)) {
+        return "Cellulare dello studente non valido (almeno 9 cifre).";
+      }
+    }
+  } else {
+    if (!email || !EMAIL_RE.test(email)) return "Email non valida.";
+    const phoneDigits = normalizePhoneDigits(telefono);
+    if (!isValidPhoneDigits(phoneDigits)) {
+      return "Cellulare non valido (almeno 9 cifre).";
     }
   }
 
@@ -1524,9 +1571,9 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
       .update({
         first_name: String(data.nome || "").trim(),
         last_name: String(data.cognome || "").trim(),
-        email: String(data.email || "").trim(),
+        email: enrollmentContactEmail(data),
         tax_code: cf,
-        phone: String(data.telefono || "").trim(),
+        phone: enrollmentContactPhone(data) || null,
         fiscal_year: anno,
         amount_centesimi: importoCents,
         member_id: member.id,
@@ -1570,7 +1617,7 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
         intent: intentReuse,
         nome: String(data.nome || ""),
         cognome: String(data.cognome || ""),
-        email: String(data.email || "").trim(),
+        email: enrollmentContactEmail(data),
         importoQuotaCents: importoCents,
         quotaAlreadyPaid,
       });
@@ -1604,7 +1651,7 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
       cognome: String(data.cognome || ""),
       importoCentesimi: importoCents,
       annoSocietario: anno,
-      email: String(data.email || "").trim(),
+      email: enrollmentContactEmail(data),
       idempotencyKey: `iscrizione_retry_${idIscrizione}_${Date.now()}`,
     });
 
@@ -1656,9 +1703,9 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
       member_id: member.id,
       first_name: String(data.nome || "").trim(),
       last_name: String(data.cognome || "").trim(),
-      email: String(data.email || "").trim(),
+      email: enrollmentContactEmail(data),
       tax_code: cf,
-      phone: String(data.telefono || "").trim(),
+      phone: enrollmentContactPhone(data) || null,
       fiscal_year: anno,
       amount_centesimi: importoCents,
       payment_status: "PENDING",
@@ -1687,7 +1734,7 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
         intent: intentNew,
         nome: String(data.nome || ""),
         cognome: String(data.cognome || ""),
-        email: String(data.email || "").trim(),
+        email: enrollmentContactEmail(data),
         importoQuotaCents: importoCents,
         quotaAlreadyPaid,
       });
@@ -1731,7 +1778,7 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
     cognome: String(data.cognome || ""),
     importoCentesimi: importoCents,
     annoSocietario: anno,
-    email: String(data.email || "").trim(),
+    email: enrollmentContactEmail(data),
     idempotencyKey: `iscrizione_${idIscrizione}`,
   });
 
@@ -2039,13 +2086,15 @@ async function promoteMemberAfterPaidEnrollment(
     : null;
 
   if (!member) {
+    // Non usare enrollment.email/phone come fallback: possono essere quelli del tutore
+    // (contatto iscrizione), non l'identità Auth/anagrafica dello studente.
     member = await findOrCreateEnrollmentDraftMember(db, {
       ...form,
       nome: form.nome || enrollment.first_name,
       cognome: form.cognome || enrollment.last_name,
-      email: form.email || enrollment.email,
+      email: form.email || "",
       cf: form.cf || enrollment.tax_code || "",
-      telefono: form.telefono || enrollment.phone || "",
+      telefono: form.telefono || "",
     });
     await db
       .from("enrollments")
@@ -2068,19 +2117,18 @@ async function promoteMemberAfterPaidEnrollment(
     Boolean(resolvedCf.trim()) &&
     (formConsented || Boolean(member.gdpr_consent));
 
-  // Preferisci form → enrollment → member: non azzerare anagrafica con campi vuoti.
+  // Preferisci form → member: non azzerare anagrafica con campi vuoti.
+  // Email/telefono enrollment possono essere del tutore: non copiarli su members.
   const patch: Database["public"]["Tables"]["members"]["Update"] = {
     ...memberPatchFromForm({
       ...form,
       nome: formText(form.nome) || enrollment.first_name || member.first_name,
       cognome:
         formText(form.cognome) || enrollment.last_name || member.last_name,
-      email: formText(form.email) || enrollment.email || member.email || "",
+      email: formText(form.email) || String(member.email || "").trim() || "",
       cf: resolvedCf,
       telefono:
-        formText(form.telefono) ||
-        String(enrollment.phone || "") ||
-        String(member.phone || ""),
+        formText(form.telefono) || String(member.phone || "").trim() || "",
     }),
   };
 
@@ -2395,7 +2443,12 @@ export async function completaInvioIscrizione(idIscrizione: string) {
     );
   }
 
-  const socioEmail = (formText(form.email) || rec.email || "").toLowerCase();
+  const socioEmail = (
+    formText(form.email) ||
+    formText(form.tutore_email) ||
+    rec.email ||
+    ""
+  ).toLowerCase();
   const nome = formText(form.nome) || rec.first_name;
   const cognome = formText(form.cognome) || rec.last_name;
 
