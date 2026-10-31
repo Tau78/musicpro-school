@@ -75,7 +75,8 @@ export function validateProfileAnagrafica(
   return null;
 }
 
-export function listMissingAnagraficaFields(
+/** Campi necessari per sbloccare dashboard (allineato a membership / middleware). */
+export function listBlockingOnboardingFields(
   row: ProfileAnagraficaInput,
   requireTaxCode: boolean,
 ): (keyof ProfileAnagraficaInput)[] {
@@ -86,15 +87,26 @@ export function listMissingAnagraficaFields(
 
   add("firstName", !row.firstName.trim());
   add("lastName", !row.lastName.trim());
-  if (requireTaxCode || !row.taxCode.trim()) add("taxCode", !row.taxCode.trim());
-  add("phone", !row.phone.trim());
-  add("birthDate", !row.birthDate.trim());
-  add("birthPlace", !row.birthPlace.trim());
-  add("birthProvince", !row.birthProvince.trim());
-  add("addressStreet", !row.addressStreet.trim());
-  add("addressPostalCode", !row.addressPostalCode.trim());
-  add("addressCity", !row.addressCity.trim());
-  add("addressProvince", !row.addressProvince.trim());
+  if (requireTaxCode || !row.taxCode.trim()) {
+    add("taxCode", !row.taxCode.trim());
+  }
 
   return missing;
+}
+
+/** Anagrafica consigliata ma non bloccante per l’accesso. */
+export function listRecommendedProfileFields(
+  row: ProfileAnagraficaInput,
+): (keyof ProfileAnagraficaInput)[] {
+  const keys: (keyof ProfileAnagraficaInput)[] = [
+    "phone",
+    "birthDate",
+    "birthPlace",
+    "birthProvince",
+    "addressStreet",
+    "addressPostalCode",
+    "addressCity",
+    "addressProvince",
+  ];
+  return keys.filter((key) => !String(row[key] ?? "").trim());
 }

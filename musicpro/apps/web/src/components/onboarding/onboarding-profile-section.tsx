@@ -59,7 +59,7 @@ export async function OnboardingProfileSection({
       </p>
       <OnboardingAnagraficaForm
         initial={toProfileInitial(memberId, detail, { firstName, lastName })}
-        requireTaxCode={requireTaxCode || requireGdprConsent}
+        requireTaxCode={requireTaxCode}
         requireGdprConsent={requireGdprConsent}
       />
       {showPdfLink && pdfHref ? (

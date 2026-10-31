@@ -7,7 +7,8 @@ import { useRouter } from "next/navigation";
 import { updateOwnProfile } from "@musicpro/database";
 
 import {
-  listMissingAnagraficaFields,
+  listBlockingOnboardingFields,
+  listRecommendedProfileFields,
   validateProfileAnagrafica,
   type ProfileAnagraficaInput,
 } from "@/lib/member-anagrafica-validation";
@@ -66,16 +67,21 @@ export function OnboardingAnagraficaForm({
 }) {
   const router = useRouter();
   const base = useMemo(() => toInput(initial), [initial]);
-  const missingKeys = useMemo(
-    () => listMissingAnagraficaFields(base, requireTaxCode),
+  const blockingKeys = useMemo(
+    () => listBlockingOnboardingFields(base, requireTaxCode),
     [base, requireTaxCode],
   );
+  const recommendedKeys = useMemo(
+    () => listRecommendedProfileFields(base),
+    [base],
+  );
   const visibleKeys = useMemo(() => {
-    const keys = new Set(missingKeys);
+    const keys = new Set(blockingKeys);
     keys.add("firstName");
     keys.add("lastName");
     return keys;
-  }, [missingKeys]);
+  }, [blockingKeys]);
+  const showRecommended = recommendedKeys.length > 0;
 
   const [values, setValues] = useState(base);
   const [gdprAccepted, setGdprAccepted] = useState(false);
@@ -94,9 +100,12 @@ export function OnboardingAnagraficaForm({
     event.preventDefault();
     setError(null);
 
+    const fieldsToValidate = new Set(visibleKeys);
+    for (const key of recommendedKeys) fieldsToValidate.add(key);
+
     const validationError = validateProfileAnagrafica(values, {
       requireTaxCode,
-      fieldsPresent: visibleKeys,
+      fieldsPresent: fieldsToValidate,
     });
     if (validationError) {
       setError(validationError);
@@ -151,7 +160,7 @@ export function OnboardingAnagraficaForm({
             Apri il profilo
           </Link>
           <Link
-            href="/onboarding"
+            href="/dashboard"
             className="inline-flex rounded-lg border border-green-300 bg-white px-5 py-2.5 text-sm font-medium text-green-950 hover:bg-green-100/60"
           >
             Continua
@@ -161,8 +170,11 @@ export function OnboardingAnagraficaForm({
     );
   }
 
-  const renderField = (key: keyof ProfileAnagraficaInput) => {
-    if (!visibleKeys.has(key)) return null;
+  const renderField = (
+    key: keyof ProfileAnagraficaInput,
+    allowed: Set<keyof ProfileAnagraficaInput>,
+  ) => {
+    if (!allowed.has(key)) return null;
     const id = `onboarding-${key}`;
     const label = FIELD_LABELS[key];
     const common = {
@@ -221,9 +233,22 @@ export function OnboardingAnagraficaForm({
     >
       <div className="grid gap-4 sm:grid-cols-2">
         {(Object.keys(FIELD_LABELS) as (keyof ProfileAnagraficaInput)[]).map(
-          renderField,
+          (key) => renderField(key, visibleKeys),
         )}
       </div>
+
+      {showRecommended ? (
+        <details className="rounded-lg border border-neutral-200 bg-neutral-50/80 p-4">
+          <summary className="cursor-pointer text-sm font-medium text-neutral-800">
+            Altri dati consigliati ({recommendedKeys.length})
+          </summary>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            {(Object.keys(FIELD_LABELS) as (keyof ProfileAnagraficaInput)[]).map(
+              (key) => renderField(key, new Set(recommendedKeys)),
+            )}
+          </div>
+        </details>
+      ) : null}
 
       {requireGdprConsent ? (
         <label className="flex min-w-0 max-w-full cursor-pointer items-start gap-2 text-sm text-neutral-700">
