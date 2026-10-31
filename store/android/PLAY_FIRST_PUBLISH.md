@@ -42,10 +42,10 @@ Impossibile via API. Fare in [Play Console](https://play.google.com/console) (Sa
 2. **Utenti e autorizzazioni** → invita  
    `musicpro-play-submit@rewavier-app.iam.gserviceaccount.com`  
    con permesso **Release alle attività di produzione, esclusione e test interni** (o Admin)
-3. **Scheda Store** → testi da `store/android/it-IT/` + upload  
-   - icona 512×512  
-   - feature graphic 1024×500  
-   - almeno 2 screenshot telefono (app in uso: Accedi / Prenotazioni / Area personale)  
+3. **Scheda Store** → testi da `store/android/it-IT/` + upload da `store/android/it-IT/images/`  
+   - icona: `images/icon-512.png`  
+   - feature graphic: `images/feature-graphic-1024x500.png`  
+   - screenshot: `images/phoneScreenshots/` (Accedi / Prenotazioni / Prenota sala)  
    - Paesi: almeno **Italia**
 4. **Data safety** (dati account/auth; niente location/mic) + Privacy policy URL
 5. **Classificazione contenuti** (questionario **IARC**)
