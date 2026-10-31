@@ -556,6 +556,18 @@ function buildSocioSignedEnrollmentMail(params: {
   return { text, html };
 }
 
+/** Email segreteria: con URL pubblico non allegare il PDF iscrizione (Gmail duplica chip link + MIME). */
+function segreteriaEnrollmentMailAttachments(
+  pdfUrl: string | null | undefined,
+  enrollmentAttachment: EnrollmentAttachment,
+  extraAttachments: EnrollmentAttachment[] = [],
+): EnrollmentAttachment[] | undefined {
+  if (pdfUrl?.trim()) {
+    return extraAttachments.length > 0 ? extraAttachments : undefined;
+  }
+  return [enrollmentAttachment, ...extraAttachments];
+}
+
 async function sendMagicLinkEmail(
   email: string,
   link: string,
@@ -754,8 +766,8 @@ async function finalizeCashEnrollmentDocuments(input: {
   const adminPdfLine = pdfUrl
     ? `PDF: ${pdfUrl}`
     : stored.storagePath
-      ? `PDF allegato (path interno: ${stored.storagePath}).`
-      : "PDF allegato (storage/Drive non disponibili).";
+      ? `PDF solo in allegato (link non disponibile). Path interno: ${stored.storagePath}.`
+      : "PDF non disponibile (storage/Drive non configurati).";
 
   const adminMail = await sendResendEmail({
     to: segreteriaRecipients(),
@@ -771,7 +783,7 @@ async function finalizeCashEnrollmentDocuments(input: {
       "",
       "Il socio ha compilato e firmato il modulo online.",
     ].join("\n"),
-    attachments: [attachment],
+    attachments: segreteriaEnrollmentMailAttachments(pdfUrl, attachment),
   });
   if (!adminMail.sent) {
     console.error("[finalizeCashEnrollmentDocuments] email admin:", adminMail.error);
@@ -2420,7 +2432,8 @@ export async function completaInvioIscrizione(idIscrizione: string) {
     content_type: "application/pdf" as const,
   };
 
-  const quotaAttachments: EnrollmentAttachment[] = [attachment];
+  const socioMailAttachments: EnrollmentAttachment[] = [attachment];
+  const adminExtraAttachments: EnrollmentAttachment[] = [];
   let quotaReceiptId: string | null = null;
   const quotaFiscalYear = rec.fiscal_year ?? currentFiscalYear();
   try {
@@ -2431,7 +2444,8 @@ export async function completaInvioIscrizione(idIscrizione: string) {
       }),
     );
     if (quotaReceipt) {
-      quotaAttachments.push(quotaReceipt.attachment);
+      socioMailAttachments.push(quotaReceipt.attachment);
+      adminExtraAttachments.push(quotaReceipt.attachment);
       quotaReceiptId = quotaReceipt.receiptId;
     }
   } catch (quotaReceiptErr) {
@@ -2462,15 +2476,15 @@ export async function completaInvioIscrizione(idIscrizione: string) {
         subject: `Conferma Iscrizione MusicPro - ${nome} ${cognome}`,
         text: socioContent.text,
         html: socioContent.html,
-        attachments: quotaAttachments,
+        attachments: socioMailAttachments,
       })
     : { sent: false, error: "Email socio mancante" };
 
   const adminPdfLine = durablePdfUrl
     ? `PDF: ${durablePdfUrl}`
     : stored.storagePath
-      ? `PDF allegato (path interno: ${stored.storagePath}).`
-      : "PDF allegato (storage/Drive non disponibili).";
+      ? `PDF solo in allegato (link non disponibile). Path interno: ${stored.storagePath}.`
+      : "PDF non disponibile (storage/Drive non configurati).";
 
   const adminMail = await sendResendEmail({
     to: segreteriaRecipients(),
@@ -2484,7 +2498,11 @@ export async function completaInvioIscrizione(idIscrizione: string) {
       `Member ID: ${member.id}`,
       adminPdfLine,
     ].join("\n"),
-    attachments: quotaAttachments,
+    attachments: segreteriaEnrollmentMailAttachments(
+      durablePdfUrl,
+      attachment,
+      adminExtraAttachments,
+    ),
   });
 
   if (socioMail.sent && quotaReceiptId) {
