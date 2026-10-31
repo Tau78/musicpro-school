@@ -91,13 +91,24 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const incompleteWard = tutorWards.find(
     (ward) => ward.isEnrollmentDraft || !String(ward.taxCode || "").trim(),
   );
+  const enrollmentFormUrl =
+    process.env.NEXT_PUBLIC_ENROLLMENT_FORM_URL?.trim() ||
+    "https://iscrizione.musicproeventi.it/";
+
   const anagraficaBanner =
     membershipStatus != null && !membershipStatus.formCompleted ? (
       <NextActionBanner
         title="Anagrafica incompleta, inserisci i dati mancanti"
         description="Serve il codice fiscale (e il modulo firmato) per chiudere l’iscrizione."
-        href="/dashboard/impostazioni#dati-personali"
+        href="/onboarding/form"
         ctaLabel="Completa dati"
+      />
+    ) : membershipStatus?.formalEnrollmentModuleMissing ? (
+      <NextActionBanner
+        title="Modulo iscrizione con firma (consigliato)"
+        description="Hai accesso alla scuola; per l’archivio associativo invia anche il modulo PDF firmato (stessa email dell’account)."
+        href={enrollmentFormUrl}
+        ctaLabel="Apri modulo PDF"
       />
     ) : incompleteWard ? (
       <NextActionBanner

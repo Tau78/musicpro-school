@@ -1,5 +1,9 @@
-const IT_CF_RE =
-  /^[A-Z]{6}[0-9LMNPQRSTUV]{2}[A-EHLMPRST][0-9LMNPQRSTUV]{2}[A-Z][0-9LMNPQRSTUV]{3}[A-Z]$/;
+import {
+  isItalianTaxCodeChecksumValid,
+  isItalianTaxCodeFormatValid,
+  normalizeItalianTaxCode,
+  taxCodeMatchesBirthDate,
+} from "@/lib/italian-tax-code";
 
 export type ProfileAnagraficaInput = {
   firstName: string;
@@ -24,11 +28,20 @@ export function validateProfileAnagrafica(
   const cognome = data.lastName.trim();
   if (!nome || !cognome) return "Nome e cognome obbligatori.";
 
-  const cf = data.taxCode.trim().toUpperCase();
+  const cf = normalizeItalianTaxCode(data.taxCode);
   if (options.requireTaxCode || (options.fieldsPresent.has("taxCode") && cf)) {
     if (!cf) return "Inserisci il codice fiscale.";
-    if (!IT_CF_RE.test(cf)) {
+    if (!isItalianTaxCodeFormatValid(cf)) {
       return "Codice fiscale non valido (16 caratteri, formato italiano).";
+    }
+    if (!isItalianTaxCodeChecksumValid(cf)) {
+      return "Codice fiscale non valido (carattere di controllo errato).";
+    }
+    if (options.fieldsPresent.has("birthDate") && data.birthDate.trim()) {
+      const match = taxCodeMatchesBirthDate(cf, data.birthDate);
+      if (match === false) {
+        return "Codice fiscale e data di nascita non coincidono.";
+      }
     }
   }
 
