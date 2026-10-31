@@ -471,10 +471,10 @@ export function TeacherAbsenceDialog({
   let confirmDisabled = busy;
 
   if (mode === "cancel" && searched && eligibleLessons.length > 0) {
-    confirmLabel = "Annulla lezioni";
+    confirmLabel = "Conferma annullamento";
     confirmAction = () => void handleCancelLessons();
   } else if (canConfirmMoveAll) {
-    confirmLabel = "Sposta";
+    confirmLabel = "Conferma spostamento";
     confirmAction = () => void handleMove("all");
   }
 
@@ -500,9 +500,9 @@ export function TeacherAbsenceDialog({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-          <div className="flex min-w-0 max-w-full flex-wrap items-end gap-2">
+          <div className="space-y-2">
             {showTeacherSelect ? (
-              <label className="flex min-w-0 max-w-full flex-[1_1_100%] flex-col gap-1 text-xs text-neutral-600 sm:flex-[1_1_10rem]">
+              <label className="flex min-w-0 max-w-full flex-col gap-1 text-xs text-neutral-600">
                 Docente
                 <select
                   value={titularMemberId}
@@ -522,39 +522,41 @@ export function TeacherAbsenceDialog({
               </label>
             ) : null}
 
-            <label className="flex min-w-0 max-w-full flex-[1_1_8rem] flex-col gap-1 text-xs text-neutral-600">
-              Dal
-              <input
-                type="date"
-                value={fromDate}
-                disabled={busy}
-                onChange={(event) => {
-                  setFromDate(event.target.value);
-                  setPreview(null);
-                }}
-                className={inputClass}
-              />
-            </label>
-            <label className="flex min-w-0 max-w-full flex-[1_1_8rem] flex-col gap-1 text-xs text-neutral-600">
-              Al
-              <input
-                type="date"
-                value={toDate}
-                disabled={busy}
-                onChange={(event) => {
-                  setToDate(event.target.value);
-                  setPreview(null);
-                }}
-                className={inputClass}
-              />
-            </label>
+            <div className="flex min-w-0 max-w-full flex-wrap gap-2">
+              <label className="flex min-w-0 max-w-full flex-1 basis-[8rem] flex-col gap-1 text-xs text-neutral-600">
+                Dal
+                <input
+                  type="date"
+                  value={fromDate}
+                  disabled={busy}
+                  onChange={(event) => {
+                    setFromDate(event.target.value);
+                    setPreview(null);
+                  }}
+                  className={inputClass}
+                />
+              </label>
+              <label className="flex min-w-0 max-w-full flex-1 basis-[8rem] flex-col gap-1 text-xs text-neutral-600">
+                Al
+                <input
+                  type="date"
+                  value={toDate}
+                  disabled={busy}
+                  onChange={(event) => {
+                    setToDate(event.target.value);
+                    setPreview(null);
+                  }}
+                  className={inputClass}
+                />
+              </label>
+            </div>
             <button
               type="button"
               disabled={busy || !titularMemberId}
               onClick={() => void handleSearch()}
-              className={outlineBtnClass}
+              className={`${outlineBtnClass} w-full min-w-0`}
             >
-              {busy && !searched ? "Cerco…" : "Cerca"}
+              {busy && !searched ? "Cerco lezioni…" : "Cerca lezioni"}
             </button>
           </div>
 
@@ -603,44 +605,49 @@ export function TeacherAbsenceDialog({
 
               {eligibleLessons.length > 0 ? (
                 <>
-                  <div className="flex min-w-0 max-w-full flex-wrap gap-1.5">
-                    <button
-                      type="button"
-                      disabled={busy}
-                      className={modeBtnClass(mode === "cancel")}
-                      onClick={() => {
-                        setMode("cancel");
-                        setPreview(null);
-                      }}
-                    >
-                      Annulla
-                    </button>
-                    {allowMoveModes ? (
-                      <>
-                        <button
-                          type="button"
-                          disabled={busy}
-                          className={modeBtnClass(mode === "bulk")}
-                          onClick={() => {
-                            setMode("bulk");
-                            setPreview(null);
-                          }}
-                        >
-                          Sposta in blocco
-                        </button>
-                        <button
-                          type="button"
-                          disabled={busy}
-                          className={modeBtnClass(mode === "individual")}
-                          onClick={() => {
-                            setMode("individual");
-                            setPreview(null);
-                          }}
-                        >
-                          Una per una
-                        </button>
-                      </>
-                    ) : null}
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium text-neutral-700">
+                      Cosa vuoi fare con queste lezioni?
+                    </p>
+                    <div className="flex min-w-0 max-w-full flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        disabled={busy}
+                        className={modeBtnClass(mode === "cancel")}
+                        onClick={() => {
+                          setMode("cancel");
+                          setPreview(null);
+                        }}
+                      >
+                        Annullarle
+                      </button>
+                      {allowMoveModes ? (
+                        <>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            className={modeBtnClass(mode === "bulk")}
+                            onClick={() => {
+                              setMode("bulk");
+                              setPreview(null);
+                            }}
+                          >
+                            Sposta in blocco
+                          </button>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            className={modeBtnClass(mode === "individual")}
+                            onClick={() => {
+                              setMode("individual");
+                              setPreview(null);
+                            }}
+                          >
+                            Una per una
+                          </button>
+                        </>
+                      ) : null}
+                    </div>
                   </div>
 
                   {!allowMoveModes ? (
@@ -650,59 +657,94 @@ export function TeacherAbsenceDialog({
                   ) : null}
 
                   {mode === "cancel" ? (
-                    <p className="text-sm text-neutral-600">
-                      Le lezioni spariscono dai calendari e non generano
-                      compenso.
-                    </p>
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+                      <p className="font-medium">Opzione scelta: annullarle</p>
+                      <p className="mt-1 text-xs text-amber-900/90">
+                        Non succede ancora nulla. Per eseguirlo premi{" "}
+                        <span className="font-semibold">
+                          Conferma annullamento
+                        </span>{" "}
+                        in basso. Le lezioni spariscono dai calendari e non
+                        generano compenso.
+                      </p>
+                    </div>
                   ) : null}
 
                   {mode === "bulk" ? (
-                    <div className="flex min-w-0 max-w-full flex-wrap items-end gap-2">
-                      <label className="flex min-w-0 max-w-full flex-[1_1_8rem] flex-col gap-1 text-xs text-neutral-600">
-                        Nuova data
-                        <input
-                          type="date"
-                          value={bulkDate}
-                          disabled={busy}
-                          onChange={(event) => {
-                            setBulkDate(event.target.value);
-                            setPreview(null);
-                          }}
-                          className={inputClass}
-                        />
-                      </label>
-                      <label className="flex min-w-0 max-w-full flex-[1_1_10rem] flex-col gap-1 text-xs text-neutral-600">
-                        Sala
-                        <select
-                          value={bulkRoomId}
-                          disabled={busy}
-                          onChange={(event) => {
-                            setBulkRoomId(event.target.value);
-                            setPreview(null);
-                          }}
-                          className={inputClass}
+                    <div className="space-y-2">
+                      <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-950">
+                        <p className="font-medium">
+                          Opzione scelta: sposta in blocco
+                        </p>
+                        <p className="mt-1 text-xs text-sky-900/90">
+                          Scegli nuova data e sala, premi Controlla orari, poi{" "}
+                          <span className="font-semibold">
+                            Conferma spostamento
+                          </span>{" "}
+                          in basso. Finché non confermi, le lezioni restano
+                          dov&apos;erano.
+                        </p>
+                      </div>
+                      <div className="flex min-w-0 max-w-full flex-wrap items-end gap-2">
+                        <label className="flex min-w-0 max-w-full flex-[1_1_8rem] flex-col gap-1 text-xs text-neutral-600">
+                          Nuova data
+                          <input
+                            type="date"
+                            value={bulkDate}
+                            disabled={busy}
+                            onChange={(event) => {
+                              setBulkDate(event.target.value);
+                              setPreview(null);
+                            }}
+                            className={inputClass}
+                          />
+                        </label>
+                        <label className="flex min-w-0 max-w-full flex-[1_1_10rem] flex-col gap-1 text-xs text-neutral-600">
+                          Sala
+                          <select
+                            value={bulkRoomId}
+                            disabled={busy}
+                            onChange={(event) => {
+                              setBulkRoomId(event.target.value);
+                              setPreview(null);
+                            }}
+                            className={inputClass}
+                          >
+                            <option value="">— Sala —</option>
+                            {rooms.map((room) => (
+                              <option key={room.id} value={room.id}>
+                                {room.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <button
+                          type="button"
+                          disabled={busy || !bulkDate}
+                          onClick={() => void handlePreview()}
+                          className={outlineBtnClass}
                         >
-                          <option value="">— Sala —</option>
-                          {rooms.map((room) => (
-                            <option key={room.id} value={room.id}>
-                              {room.name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <button
-                        type="button"
-                        disabled={busy || !bulkDate}
-                        onClick={() => void handlePreview()}
-                        className={outlineBtnClass}
-                      >
-                        Controlla orari
-                      </button>
+                          Controlla orari
+                        </button>
+                      </div>
                     </div>
                   ) : null}
 
                   {mode === "individual" ? (
                     <div className="space-y-2">
+                      <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-950">
+                        <p className="font-medium">
+                          Opzione scelta: una per una
+                        </p>
+                        <p className="mt-1 text-xs text-sky-900/90">
+                          Imposta data, ora e sala per ogni lezione, premi
+                          Controlla orari, poi{" "}
+                          <span className="font-semibold">
+                            Conferma spostamento
+                          </span>{" "}
+                          in basso.
+                        </p>
+                      </div>
                       {eligibleLessons.map((lesson) => {
                         const fields = perLesson[lesson.id] ?? {
                           date: lesson.dateLabel,
@@ -826,34 +868,45 @@ export function TeacherAbsenceDialog({
                     </div>
                   ) : null}
 
-                  <div className="flex min-w-0 max-w-full flex-wrap items-center gap-3 text-sm">
-                    <label
-                      className="inline-flex items-center gap-1.5 text-neutral-700"
-                      title="Se nessuno è attivo non parte nessuna email"
-                    >
+                  <div className="space-y-2 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2">
+                    <p className="text-xs font-medium text-neutral-700">
+                      Notifiche (opzionali)
+                    </p>
+                    <label className="flex min-w-0 items-start gap-2 text-sm text-neutral-800">
                       <input
                         type="checkbox"
+                        className="mt-0.5 shrink-0"
                         checked={notifySegreteria}
                         disabled={busy}
                         onChange={(event) =>
                           setNotifySegreteria(event.target.checked)
                         }
                       />
-                      Segreteria
+                      <span>
+                        <span className="font-medium">Avvisa segreteria</span>
+                        <span className="mt-0.5 block text-xs font-normal text-neutral-600">
+                          Invia email alla segreteria sull’assenza.
+                        </span>
+                      </span>
                     </label>
-                    <label
-                      className="inline-flex items-center gap-1.5 text-neutral-700"
-                      title="Se nessuno è attivo non parte nessuna email"
-                    >
+                    <label className="flex min-w-0 items-start gap-2 text-sm text-neutral-800">
                       <input
                         type="checkbox"
+                        className="mt-0.5 shrink-0"
                         checked={notifyFamily}
                         disabled={busy}
                         onChange={(event) =>
                           setNotifyFamily(event.target.checked)
                         }
                       />
-                      Allievi e tutori
+                      <span>
+                        <span className="font-medium">
+                          Avvisa allievi/tutori
+                        </span>
+                        <span className="mt-0.5 block text-xs font-normal text-neutral-600">
+                          Avvisa le famiglie delle lezioni coinvolte.
+                        </span>
+                      </span>
                     </label>
                   </div>
                 </>
