@@ -377,8 +377,8 @@ export function BookingAdminDetail({ booking, rooms }: BookingAdminDetailProps) 
           </select>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
+        <div className="grid min-w-0 max-w-full gap-4 sm:grid-cols-2">
+          <div className="min-w-0 max-w-full overflow-x-clip">
             <label
               htmlFor="startAt"
               className="block text-sm font-medium text-neutral-700"
@@ -390,7 +390,8 @@ export function BookingAdminDetail({ booking, rooms }: BookingAdminDetailProps) 
               type="datetime-local"
               value={startLocal}
               onChange={(e) => setStartLocal(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
+              className="mt-1 block box-border w-full min-w-0 max-w-full rounded-lg border border-neutral-300 px-2 py-2 text-sm"
+              style={{ width: "100%", maxWidth: "100%", minWidth: 0 }}
             />
           </div>
           <div>
