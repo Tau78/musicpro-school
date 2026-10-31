@@ -1011,7 +1011,7 @@ function DayColumn({
       }}
       onPointerCancel={() => endRangeGesture()}
       onDragOver={(event) => {
-        if (!canDrag || rangeSelect) return;
+        if ((!canDrag && !canDragBookings) || rangeSelect) return;
         event.preventDefault();
         event.dataTransfer.dropEffect = "move";
         const duration = dragDuration ?? 60;
@@ -1030,7 +1030,7 @@ function DayColumn({
         onHover(null);
       }}
       onDrop={(event) => {
-        if (!canDrag) return;
+        if (!canDrag && !canDragBookings) return;
         event.preventDefault();
         const lessonId =
           event.dataTransfer.getData(DRAG_MIME) ||
@@ -1227,13 +1227,16 @@ function LessonCard({
   const isHold = lesson.id.startsWith("hold:");
   const isBooking = isCalendarBooking(lesson);
   const isExternal = isCalendarExternal(lesson);
+  // Prenotazioni: basta canDragBookings (calendario sale ha canDrag=false sulle lezioni).
+  // Lezioni didattiche: serve canDrag + corso attivo senza presenza.
   const draggable =
-    canDrag &&
     !isHold &&
     !isExternal &&
     (isBooking
       ? canDragBookings
-      : !lesson.hasAttendance && lesson.courseStatus === "attivo");
+      : canDrag &&
+        !lesson.hasAttendance &&
+        lesson.courseStatus === "attivo");
 
   useEffect(() => {
     return () => {
@@ -1309,6 +1312,10 @@ function LessonCard({
           endPointerPress();
         }
       }}
+      onContextMenu={(event) => {
+        // Long-press iOS/Android: niente menu Copia/Traduci sulla card.
+        if (draggable) event.preventDefault();
+      }}
       onPointerUp={(event) => {
         const press = pointerDragRef.current;
         if (!press || press.pointerId !== event.pointerId) return;
@@ -1365,35 +1372,43 @@ function LessonCard({
           open();
         }
       }}
-      className={`absolute z-10 overflow-hidden rounded-sm border px-1 py-px text-left leading-tight ${lessonCardClass(lesson)} ${
+      className={`absolute z-10 overflow-hidden rounded-sm border px-1 py-px text-left leading-tight select-none ${lessonCardClass(lesson)} ${
         draggable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
       } ${lesson.hasAttendance && !isHold ? "opacity-80" : ""} ${
         isPointerDragging ? "opacity-40 touch-none z-30" : ""
       }`}
-      style={{ ...style, ...calendarColorCss(lesson) }}
+      style={{
+        ...style,
+        ...calendarColorCss(lesson),
+        WebkitTouchCallout: "none",
+        WebkitUserSelect: "none",
+        userSelect: "none",
+      }}
     >
-      <p className="truncate text-[10px] font-semibold text-neutral-900">
+      <p className="pointer-events-none truncate text-[10px] font-semibold text-neutral-900">
         {title}
       </p>
-      <p className="truncate text-[9px] tabular-nums text-neutral-700">
+      <p className="pointer-events-none truncate text-[9px] tabular-nums text-neutral-700">
         {time}
         {lesson.roomName ? ` · ${lesson.roomName}` : ""}
       </p>
       {showTeacherName && teacher ? (
-        <p className="truncate text-[9px] text-neutral-600">{teacher}</p>
+        <p className="pointer-events-none truncate text-[9px] text-neutral-600">
+          {teacher}
+        </p>
       ) : null}
       {isBooking ? (
-        <p className="truncate text-[9px] font-medium text-neutral-600">
+        <p className="pointer-events-none truncate text-[9px] font-medium text-neutral-600">
           {bookingChipLabel(lesson)}
         </p>
       ) : null}
       {isExternal ? (
-        <p className="truncate text-[9px] font-medium text-neutral-600">
+        <p className="pointer-events-none truncate text-[9px] font-medium text-neutral-600">
           Calendario
         </p>
       ) : null}
       {lesson.hasAttendance && !isHold && !isBooking ? (
-        <p className="truncate text-[9px] font-medium uppercase tracking-wide text-neutral-500">
+        <p className="pointer-events-none truncate text-[9px] font-medium uppercase tracking-wide text-neutral-500">
           Presenze
         </p>
       ) : null}

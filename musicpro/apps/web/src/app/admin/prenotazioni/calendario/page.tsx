@@ -87,8 +87,8 @@ export default async function AdminPrenotazioniCalendarioPage({
   return (
     <div className="space-y-3">
       <p className="text-xs text-neutral-500">
-        Sale e occupazioni esterne — trascina su slot vuoto per creare, clic
-        per modificare.
+        Sale e occupazioni esterne — trascina su slot vuoto per creare; tieni
+        premuta una prenotazione per spostarla; clic per modificare.
       </p>
 
       <LessonsCalendarPage
