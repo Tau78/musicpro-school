@@ -8,6 +8,16 @@ import { SignOutButton } from "@/components/auth/sign-out-button";
 import { getMembershipStatus } from "@/lib/membership";
 import { createClient } from "@/lib/supabase/server";
 
+/** Form pubblico (FTP); evita GET su /api/iscrizione che restituisce solo JSON. */
+const DEFAULT_ENROLLMENT_FORM_URL = "https://iscrizione.musicproeventi.it/";
+
+function enrollmentFormHref(): string {
+  return (
+    process.env.NEXT_PUBLIC_ENROLLMENT_FORM_URL?.trim() ||
+    DEFAULT_ENROLLMENT_FORM_URL
+  );
+}
+
 export default async function OnboardingFormPage() {
   const supabase = await createClient();
   const member = await getCurrentMemberWithRoles(supabase);
@@ -56,10 +66,9 @@ export default async function OnboardingFormPage() {
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
               <a
-                href={
-                  process.env.NEXT_PUBLIC_ENROLLMENT_FORM_URL?.trim() ||
-                  "/api/iscrizione"
-                }
+                href={enrollmentFormHref()}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="inline-flex rounded-lg bg-[var(--brand)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90"
               >
                 Apri modulo iscrizione
@@ -77,8 +86,7 @@ export default async function OnboardingFormPage() {
     );
   }
 
-  const externalFormUrl = process.env.NEXT_PUBLIC_ENROLLMENT_FORM_URL?.trim();
-  const formHref = externalFormUrl || "/api/iscrizione";
+  const formHref = enrollmentFormHref();
   const canSkipToQuota = status.canPayQuota;
 
   return (
@@ -131,8 +139,8 @@ export default async function OnboardingFormPage() {
           <div className="mt-6 flex flex-wrap gap-3">
             <a
               href={formHref}
-              target={externalFormUrl ? "_blank" : undefined}
-              rel={externalFormUrl ? "noopener noreferrer" : undefined}
+              target="_blank"
+              rel="noopener noreferrer"
               className="inline-flex rounded-lg bg-[var(--brand)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90"
             >
               Apri modulo iscrizione
