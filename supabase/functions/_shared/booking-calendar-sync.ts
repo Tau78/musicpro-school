@@ -159,7 +159,7 @@ function buildEventDescription(
     '',
     '🔗 LINK',
     `Le mie prenotazioni: ${schoolUrl}/prenotazioni/mie`,
-    `Admin prenotazioni: ${schoolUrl}/admin/prenotazioni`,
+    `Admin prenotazione: ${schoolUrl}/admin/prenotazioni/${booking.id}`,
     htmlLink ? `Evento Google Calendar: ${htmlLink}` : null,
     '',
     '📆 CALENDARIO',
