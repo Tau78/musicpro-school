@@ -96,7 +96,8 @@ export default async function AdminPrenotazioniCalendarioPage({
         settings={{
           sundayVisible,
           gridOpenMinute: settings?.gridOpenMinute ?? 600,
-          gridCloseMinute: settings?.gridCloseMinute ?? 1380,
+          // Sale: sempre fino a mezzanotte (le impostazioni lezioni possono chiudere prima).
+          gridCloseMinute: Math.max(1440, settings?.gridCloseMinute ?? 0),
           slotGranularityMinutes: settings?.slotGranularityMinutes ?? 15,
         }}
         rooms={roomOptions}

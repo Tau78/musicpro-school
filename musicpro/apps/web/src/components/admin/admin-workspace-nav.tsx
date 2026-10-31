@@ -123,33 +123,37 @@ export function AdminWorkspaceNav({
         </div>
       </div>
 
-      <nav
-        className="flex min-w-0 max-w-full gap-1.5 overflow-x-auto px-2 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        aria-label={activeGroup ? `Azioni ${activeGroup.label}` : "Azioni"}
-      >
-        {(activeGroup?.items ?? []).map((item) => {
-          const active = item.href === optimisticHref;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              prefetch
-              scroll={false}
-              aria-current={active ? "page" : undefined}
-              onPointerEnter={() => router.prefetch(item.href)}
-              onClick={() => {
-                startTransition(() => {
-                  setOptimisticHref(item.href);
-                });
-              }}
-              className={actionClass(active)}
-            >
-              {itemIcons?.[item.label] ?? null}
-              {item.label}
-            </Link>
-          );
-        })}
-      </nav>
+      {(activeGroup?.items.length ?? 0) > 1 ? (
+        <nav
+          className="flex min-w-0 max-w-full gap-1.5 overflow-x-auto px-2 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          aria-label={activeGroup ? `Azioni ${activeGroup.label}` : "Azioni"}
+        >
+          {(activeGroup?.items ?? []).map((item) => {
+            const active = item.href === optimisticHref;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                prefetch
+                scroll={false}
+                aria-current={active ? "page" : undefined}
+                onPointerEnter={() => router.prefetch(item.href)}
+                onClick={() => {
+                  startTransition(() => {
+                    setOptimisticHref(item.href);
+                  });
+                }}
+                className={actionClass(active)}
+              >
+                {itemIcons?.[item.label] ?? null}
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+      ) : (
+        <div className="pb-1.5" aria-hidden />
+      )}
     </header>
   );
 }
