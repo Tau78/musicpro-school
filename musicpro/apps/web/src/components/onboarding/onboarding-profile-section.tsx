@@ -1,10 +1,8 @@
 import { getMemberById, type Database } from "@musicpro/database";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import {
-  ProfileSettingsForm,
-  type ProfileSettingsInitial,
-} from "@/components/dashboard/profile-settings-form";
+import { OnboardingAnagraficaForm } from "@/components/onboarding/onboarding-anagrafica-form";
+import type { ProfileSettingsInitial } from "@/components/dashboard/profile-settings-form";
 
 type ServerClient = SupabaseClient<Database>;
 
@@ -34,32 +32,49 @@ export async function OnboardingProfileSection({
   memberId,
   firstName,
   lastName,
+  showPdfLink = false,
+  pdfHref,
 }: {
   supabase: ServerClient;
   memberId: string;
   firstName: string;
   lastName: string;
+  showPdfLink?: boolean;
+  pdfHref?: string;
 }) {
   const detail = await getMemberById(supabase, memberId);
   const requireGdprConsent = Boolean(
     detail && !detail.gdprConsent && !detail.enrolledAt,
   );
+  const requireTaxCode = !String(detail?.taxCode ?? "").trim();
 
   return (
-    <section className="mt-6 rounded-xl border border-neutral-200 bg-white p-6">
+    <section className="rounded-xl border border-neutral-200 bg-white p-6">
       <h2 className="text-lg font-medium text-[var(--brand)]">
-        Completa i dati qui
+        Per proseguire, abbiamo bisogno di completare la tua anagrafica.
       </h2>
       <p className="mt-2 text-sm text-neutral-600">
-        Salva anagrafica e codice fiscale sul tuo profilo School. Per firma
-        digitale e PDF completo resta disponibile il modulo esterno sotto.
+        Compila i campi sotto (solo quelli ancora mancanti). Controlliamo formato
+        e coerenza prima del salvataggio.
       </p>
-      <ProfileSettingsForm
+      <OnboardingAnagraficaForm
         initial={toProfileInitial(memberId, detail, { firstName, lastName })}
-        requireTaxCode
+        requireTaxCode={requireTaxCode || requireGdprConsent}
         requireGdprConsent={requireGdprConsent}
-        submitLabel="Salva e continua"
       />
+      {showPdfLink && pdfHref ? (
+        <p className="mt-6 border-t border-neutral-100 pt-4 text-sm text-neutral-600">
+          Serve anche il modulo con firma digitale?{" "}
+          <a
+            href={pdfHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-[var(--brand)] underline-offset-2 hover:underline"
+          >
+            Modulo completo (PDF)
+          </a>
+        </p>
+      ) : null}
     </section>
   );
 }
