@@ -165,19 +165,43 @@ function LessonOggiList({
   const [exiting, setExiting] = useState<Record<string, boolean>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const committingRef = useRef<Set<string>>(new Set());
+  const dismissedRef = useRef<Set<string>>(new Set());
   const pendingRef = useRef(pending);
   pendingRef.current = pending;
 
+  // Sync dal server senza azzerare countdown / ripristinare righe già chiuse
+  // (router.refresh crea un nuovo array `rows` a ogni round-trip).
   useEffect(() => {
-    setVisible(rows);
-    setPending({});
-    setExiting({});
-    setErrors({});
-    committingRef.current.clear();
+    setVisible((current) => {
+      const incoming = rows.filter(
+        (row) => !dismissedRef.current.has(row.id),
+      );
+      const incomingIds = new Set(incoming.map((row) => row.id));
+      const busyIds = new Set([
+        ...Object.keys(pendingRef.current),
+        ...committingRef.current,
+      ]);
+      const keptBusy = current.filter(
+        (row) =>
+          !incomingIds.has(row.id) &&
+          busyIds.has(row.id) &&
+          !dismissedRef.current.has(row.id),
+      );
+      return [...incoming, ...keptBusy];
+    });
+    setPending((current) => {
+      if (Object.keys(current).length === 0) return current;
+      const next: Record<string, PendingState> = {};
+      for (const [id, state] of Object.entries(current)) {
+        if (!dismissedRef.current.has(id)) next[id] = state;
+      }
+      return next;
+    });
   }, [rows]);
 
   const dismissLesson = useCallback(
     (lessonId: string) => {
+      dismissedRef.current.add(lessonId);
       setExiting((current) => ({ ...current, [lessonId]: true }));
       window.setTimeout(() => {
         setVisible((current) => current.filter((row) => row.id !== lessonId));
@@ -427,7 +451,7 @@ function LessonOggiRow({
             onClick={onUndo}
             className="shrink-0 rounded-md border border-neutral-300 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-800 hover:bg-neutral-50"
           >
-            Undo
+            Ripristina
           </button>
         ) : canMark ? (
           <div className="flex shrink-0 items-center gap-1">

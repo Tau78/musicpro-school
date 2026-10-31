@@ -48,18 +48,42 @@ export function AttendanceToastStack({
   const [exiting, setExiting] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
   const committingRef = useRef<Set<string>>(new Set());
+  const dismissedRef = useRef<Set<string>>(new Set());
   const pendingRef = useRef(pending);
   pendingRef.current = pending;
 
+  // Sync dal server senza azzerare countdown / ripristinare toast già chiusi.
   useEffect(() => {
-    setVisible(lessons);
-    setPending({});
-    setExiting({});
-    committingRef.current.clear();
+    setVisible((current) => {
+      const incoming = lessons.filter(
+        (row) => !dismissedRef.current.has(row.id),
+      );
+      const incomingIds = new Set(incoming.map((row) => row.id));
+      const busyIds = new Set([
+        ...Object.keys(pendingRef.current),
+        ...committingRef.current,
+      ]);
+      const keptBusy = current.filter(
+        (row) =>
+          !incomingIds.has(row.id) &&
+          busyIds.has(row.id) &&
+          !dismissedRef.current.has(row.id),
+      );
+      return [...incoming, ...keptBusy];
+    });
+    setPending((current) => {
+      if (Object.keys(current).length === 0) return current;
+      const next: Record<string, PendingState> = {};
+      for (const [id, state] of Object.entries(current)) {
+        if (!dismissedRef.current.has(id)) next[id] = state;
+      }
+      return next;
+    });
   }, [lessons]);
 
   const dismissLesson = useCallback(
     (lessonId: string) => {
+      dismissedRef.current.add(lessonId);
       setExiting((current) => ({ ...current, [lessonId]: true }));
       window.setTimeout(() => {
         setVisible((rows) => rows.filter((row) => row.id !== lessonId));
