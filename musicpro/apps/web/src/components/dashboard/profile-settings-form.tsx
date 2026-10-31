@@ -30,13 +30,22 @@ function toDateInput(iso: string | null): string {
   return iso.slice(0, 10);
 }
 
+const PRIVACY_URL = "https://www.musicproeventi.it/privacy";
+
 export function ProfileSettingsForm({
   initial,
   tutorMemberId,
+  requireGdprConsent = false,
+  requireTaxCode = false,
+  submitLabel = "Salva",
 }: {
   initial: ProfileSettingsInitial;
   /** Se valorizzato, salva come tutore sul tutorato `initial.memberId`. */
   tutorMemberId?: string;
+  /** Onboarding: obbliga checkbox privacy prima del salvataggio. */
+  requireGdprConsent?: boolean;
+  requireTaxCode?: boolean;
+  submitLabel?: string;
 }) {
   const router = useRouter();
   const [firstName, setFirstName] = useState(initial.firstName);
@@ -54,6 +63,7 @@ export function ProfileSettingsForm({
   const [birthPlace, setBirthPlace] = useState(initial.birthPlace ?? "");
   const [birthProvince, setBirthProvince] = useState(initial.birthProvince ?? "");
   const [taxCode, setTaxCode] = useState(initial.taxCode ?? "");
+  const [gdprAccepted, setGdprAccepted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
@@ -65,6 +75,16 @@ export function ProfileSettingsForm({
 
     if (!firstName.trim() || !lastName.trim()) {
       setError("Nome e cognome sono obbligatori.");
+      return;
+    }
+
+    if (requireTaxCode && !taxCode.trim()) {
+      setError("Inserisci il codice fiscale.");
+      return;
+    }
+
+    if (requireGdprConsent && !gdprAccepted) {
+      setError("Accetta l’informativa privacy per continuare.");
       return;
     }
 
@@ -82,6 +102,7 @@ export function ProfileSettingsForm({
       birthPlace: birthPlace.trim() || null,
       birthProvince: birthProvince.trim() || null,
       taxCode: taxCode.trim() || null,
+      ...(requireGdprConsent ? { gdprConsent: gdprAccepted } : {}),
     };
     const result = tutorMemberId
       ? await updateWardProfile(
@@ -98,8 +119,11 @@ export function ProfileSettingsForm({
       return;
     }
 
-    setOk("Dati salvati.");
+    setOk(requireTaxCode ? "Dati salvati. Reindirizzamento…" : "Dati salvati.");
     router.refresh();
+    if (requireTaxCode) {
+      router.push("/onboarding");
+    }
   }
 
   return (
@@ -158,6 +182,7 @@ export function ProfileSettingsForm({
             name="taxCode"
             type="text"
             autoComplete="off"
+            required={requireTaxCode}
             value={taxCode}
             onChange={(e) => setTaxCode(e.target.value.toUpperCase())}
             className={inputClass}
@@ -262,6 +287,30 @@ export function ProfileSettingsForm({
         </div>
       </div>
 
+      {requireGdprConsent ? (
+        <label className="flex min-w-0 max-w-full cursor-pointer items-start gap-2 text-sm text-neutral-700">
+          <input
+            type="checkbox"
+            className="mt-0.5 shrink-0"
+            checked={gdprAccepted}
+            onChange={(e) => setGdprAccepted(e.target.checked)}
+          />
+          <span>
+            Ho letto l&apos;{" "}
+            <a
+              href={PRIVACY_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-[var(--brand)] underline-offset-2 hover:underline"
+            >
+              informativa privacy
+            </a>{" "}
+            e acconsento al trattamento dei dati per l&apos;iscrizione
+            associativa.
+          </span>
+        </label>
+      ) : null}
+
       {error ? <p className="text-sm text-red-700">{error}</p> : null}
       {ok ? <p className="text-sm text-green-700">{ok}</p> : null}
 
@@ -270,7 +319,7 @@ export function ProfileSettingsForm({
         disabled={busy}
         className="inline-flex rounded-lg bg-[var(--brand)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-60"
       >
-        {busy ? "Salvataggio…" : "Salva"}
+        {busy ? "Salvataggio…" : submitLabel}
       </button>
     </form>
   );

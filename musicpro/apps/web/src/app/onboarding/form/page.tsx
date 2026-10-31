@@ -5,6 +5,7 @@ import { getCurrentMemberWithRoles } from "@musicpro/database";
 import { APP_NAME } from "@musicpro/shared";
 
 import { SignOutButton } from "@/components/auth/sign-out-button";
+import { OnboardingProfileSection } from "@/components/onboarding/onboarding-profile-section";
 import { getMembershipStatus } from "@/lib/membership";
 import { createClient } from "@/lib/supabase/server";
 
@@ -74,12 +75,19 @@ export default async function OnboardingFormPage() {
                 href={enrollmentFormHref()}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex rounded-lg bg-[var(--brand)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90"
+                className="inline-flex rounded-lg border border-amber-400 bg-white px-5 py-2.5 text-sm font-medium text-amber-950 hover:bg-amber-100/60"
               >
-                Apri modulo iscrizione
+                Modulo completo (firma PDF)
               </a>
             </div>
           </section>
+
+          <OnboardingProfileSection
+            supabase={supabase}
+            memberId={member.id}
+            firstName={member.firstName}
+            lastName={member.lastName}
+          />
         </div>
       </main>
     );
@@ -140,20 +148,27 @@ export default async function OnboardingFormPage() {
               href={formHref}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex rounded-lg bg-[var(--brand)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90"
+              className="inline-flex rounded-lg border border-neutral-300 px-5 py-2.5 text-sm font-medium text-neutral-800 hover:bg-neutral-50"
             >
-              Apri modulo iscrizione
+              Modulo completo (firma PDF)
             </a>
             {canSkipToQuota ? (
               <Link
                 href="/onboarding/quota"
-                className="inline-flex rounded-lg border border-neutral-300 px-5 py-2.5 text-sm font-medium text-neutral-800 hover:bg-neutral-50"
+                className="inline-flex rounded-lg bg-[var(--brand)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90"
               >
                 Vai al pagamento quota
               </Link>
             ) : null}
           </div>
         </section>
+
+        <OnboardingProfileSection
+          supabase={supabase}
+          memberId={member.id}
+          firstName={member.firstName}
+          lastName={member.lastName}
+        />
       </div>
     </main>
   );
