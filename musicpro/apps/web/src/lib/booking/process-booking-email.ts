@@ -548,7 +548,7 @@ function buildAdminBookingNotifyContent(
     ? "In attesa pagamento"
     : statusLabel(booking.status, booking.payment_status);
   const origin = appUrl();
-  const adminUrl = `${origin}/admin/prenotazioni`;
+  const adminUrl = `${origin}/admin/prenotazioni/${booking.id}`;
   const paymentLine = paymentSummaryLine(booking, paymentUrl);
 
   const subject =
@@ -581,7 +581,7 @@ function buildAdminBookingNotifyContent(
     ...adminRows.map(([label, value]) => `${label}: ${value}`),
     ...(paymentUrl ? [`Link pagamento: ${paymentUrl}`] : []),
     "",
-    `Apri admin: ${adminUrl}`,
+    `Apri prenotazione: ${adminUrl}`,
     schoolEmailTextFooter({ showAppDownload: false }),
   ].join("\n");
 
@@ -600,7 +600,7 @@ function buildAdminBookingNotifyContent(
           ? "Prenotazione modificata"
           : "Nuova prenotazione",
     htmlBody,
-    ctas: [{ href: adminUrl, label: "Apri prenotazioni" }],
+    ctas: [{ href: adminUrl, label: "Apri prenotazione" }],
     showAppDownload: false,
   });
 
