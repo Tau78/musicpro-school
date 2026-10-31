@@ -365,6 +365,8 @@ export type OwnProfilePatch = {
   taxCode?: string | null;
   photoConsent?: boolean;
   mailingOptIn?: boolean;
+  /** Solo self-service onboarding / profilo: accettazione informativa privacy. */
+  gdprConsent?: boolean;
 };
 
 function buildOwnProfileRow(patch: OwnProfilePatch): Record<string, unknown> {
@@ -392,6 +394,12 @@ function buildOwnProfileRow(patch: OwnProfilePatch): Record<string, unknown> {
   if (patch.mailingOptIn !== undefined) {
     row.mailing_opt_in = patch.mailingOptIn;
     row.mailing_opt_in_at = new Date().toISOString();
+  }
+  if (patch.gdprConsent !== undefined) {
+    row.gdpr_consent = patch.gdprConsent;
+    row.gdpr_consent_at = patch.gdprConsent
+      ? new Date().toISOString()
+      : null;
   }
 
   return row;

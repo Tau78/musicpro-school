@@ -5,8 +5,19 @@ import { getCurrentMemberWithRoles } from "@musicpro/database";
 import { APP_NAME } from "@musicpro/shared";
 
 import { SignOutButton } from "@/components/auth/sign-out-button";
+import { OnboardingProfileSection } from "@/components/onboarding/onboarding-profile-section";
 import { getMembershipStatus } from "@/lib/membership";
 import { createClient } from "@/lib/supabase/server";
+
+/** Form pubblico (FTP); evita GET su /api/iscrizione che restituisce solo JSON. */
+const DEFAULT_ENROLLMENT_FORM_URL = "https://iscrizione.musicproeventi.it/";
+
+function enrollmentFormHref(): string {
+  return (
+    process.env.NEXT_PUBLIC_ENROLLMENT_FORM_URL?.trim() ||
+    DEFAULT_ENROLLMENT_FORM_URL
+  );
+}
 
 export default async function OnboardingFormPage() {
   const supabase = await createClient();
@@ -54,31 +65,35 @@ export default async function OnboardingFormPage() {
               modulo iscrizione (anagrafica/consensi) non è ancora allineato al
               tuo profilo. Completa il modulo per sbloccare la dashboard.
             </p>
-            <div className="mt-6 flex flex-wrap gap-3">
+            <p className="mt-4 text-sm text-amber-900/90">
+              Usa la stessa email dell&apos;account ({member.email ?? "login"}).
+              Fino al modulo allineato, dashboard e prenotazioni restano
+              bloccate — non è un errore del telefono.
+            </p>
+            <div className="mt-6">
               <a
-                href={
-                  process.env.NEXT_PUBLIC_ENROLLMENT_FORM_URL?.trim() ||
-                  "/api/iscrizione"
-                }
-                className="inline-flex rounded-lg bg-[var(--brand)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90"
+                href={enrollmentFormHref()}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex rounded-lg border border-amber-400 bg-white px-5 py-2.5 text-sm font-medium text-amber-950 hover:bg-amber-100/60"
               >
-                Apri modulo iscrizione
+                Modulo completo (firma PDF)
               </a>
-              <Link
-                href="/dashboard"
-                className="inline-flex rounded-lg border border-amber-300 bg-white px-5 py-2.5 text-sm font-medium text-amber-950 hover:bg-amber-100/60"
-              >
-                Torna alla dashboard
-              </Link>
             </div>
           </section>
+
+          <OnboardingProfileSection
+            supabase={supabase}
+            memberId={member.id}
+            firstName={member.firstName}
+            lastName={member.lastName}
+          />
         </div>
       </main>
     );
   }
 
-  const externalFormUrl = process.env.NEXT_PUBLIC_ENROLLMENT_FORM_URL?.trim();
-  const formHref = externalFormUrl || "/api/iscrizione";
+  const formHref = enrollmentFormHref();
   const canSkipToQuota = status.canPayQuota;
 
   return (
@@ -131,22 +146,29 @@ export default async function OnboardingFormPage() {
           <div className="mt-6 flex flex-wrap gap-3">
             <a
               href={formHref}
-              target={externalFormUrl ? "_blank" : undefined}
-              rel={externalFormUrl ? "noopener noreferrer" : undefined}
-              className="inline-flex rounded-lg bg-[var(--brand)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex rounded-lg border border-neutral-300 px-5 py-2.5 text-sm font-medium text-neutral-800 hover:bg-neutral-50"
             >
-              Apri modulo iscrizione
+              Modulo completo (firma PDF)
             </a>
             {canSkipToQuota ? (
               <Link
                 href="/onboarding/quota"
-                className="inline-flex rounded-lg border border-neutral-300 px-5 py-2.5 text-sm font-medium text-neutral-800 hover:bg-neutral-50"
+                className="inline-flex rounded-lg bg-[var(--brand)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90"
               >
                 Vai al pagamento quota
               </Link>
             ) : null}
           </div>
         </section>
+
+        <OnboardingProfileSection
+          supabase={supabase}
+          memberId={member.id}
+          firstName={member.firstName}
+          lastName={member.lastName}
+        />
       </div>
     </main>
   );
