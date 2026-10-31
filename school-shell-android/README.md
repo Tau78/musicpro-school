@@ -10,9 +10,10 @@ App **nativa** (Kotlin + WebView, niente Expo/EAS). Apre:
 | versionName / versionCode | `1.1.0` / `1` |
 | Service account Play | `musicpro-play-submit@rewavier-app.iam.gserviceaccount.com` |
 | Upload keystore | `~/.config/musicpro-school/upload.p12` (+ `keystore.env`) — **backup** |
+| AAB firmato (stabile) | `~/.config/musicpro-school/dist/musicpro-school-1.1.0-1.aab` |
 | Distribuzione | **Pubblica** su Play (prove + associazione) |
 
-Listing: `store/android/it-IT/` · Playbook primo rilascio: `store/android/PLAY_FIRST_PUBLISH.md`
+Listing: `store/android/it-IT/` · Checklist primo rilascio (DONE vs MANUAL): `store/android/PLAY_FIRST_PUBLISH.md`
 
 ## Build AAB firmato
 
@@ -26,7 +27,8 @@ export PATH="$JAVA_HOME/bin:$PATH"
 npm run android:aab
 ```
 
-AAB: `school-shell-android/app/build/outputs/bundle/release/app-release.aab`
+Output build: `school-shell-android/app/build/outputs/bundle/release/app-release.aab`  
+Copia stabile (già generata): `~/.config/musicpro-school/dist/musicpro-school-1.1.0-1.aab`
 
 ### Nota Mac mini (DNS Java → Google)
 
@@ -34,17 +36,19 @@ Su questo Mac `java` non risolve `dl.google.com` (curl sì). Workaround già usa
 
 ## Upload Play
 
-Dopo che l’app esiste in Play Console e il SA è invitato:
+Dopo che Mauro ha creato l’app in Play Console e invitato il SA (vedi checklist MANUAL in `PLAY_FIRST_PUBLISH.md`):
 
 ```bash
-node scripts/play-submit.mjs                 # dry-run
-PLAY_TRACK=internal node scripts/play-submit.mjs --yes
-PLAY_TRACK=production PLAY_STATUS=draft node scripts/play-submit.mjs --yes
+npm run play:submit                                    # dry-run
+PLAY_TRACK=internal npm run play:submit:yes
+PLAY_TRACK=production PLAY_STATUS=draft npm run play:submit:yes
 ```
 
-## Prima pubblicazione (manuale Console)
+Lo script preferisce l’AAB stabile sotto `~/.config/…` se esiste; override con `PLAY_AAB=…`.
+
+## Prima pubblicazione — solo Console (Mauro)
 
 1. Crea app `it.musicproeventi.school` (pubblica, gratis, IT).
 2. Invita il SA con permesso Release.
-3. Privacy, Data safety, IARC, screenshot, feature graphic.
-4. Carica AAB → Production → Invia per revisione.
+3. Screenshot / feature graphic / icona, Data safety, IARC, privacy.
+4. Poi `npm run play:submit:yes` → Production draft → **Invia per revisione**.
