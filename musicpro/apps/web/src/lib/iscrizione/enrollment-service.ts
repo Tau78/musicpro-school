@@ -556,16 +556,13 @@ function buildSocioSignedEnrollmentMail(params: {
   return { text, html };
 }
 
-/** Email segreteria: con URL pubblico non allegare il PDF iscrizione (Gmail duplica chip link + MIME). */
+/** Email segreteria: con link PDF online nessun allegato (Gmail duplica chip link Drive + MIME). */
 function segreteriaEnrollmentMailAttachments(
   pdfUrl: string | null | undefined,
   enrollmentAttachment: EnrollmentAttachment,
-  extraAttachments: EnrollmentAttachment[] = [],
 ): EnrollmentAttachment[] | undefined {
-  if (pdfUrl?.trim()) {
-    return extraAttachments.length > 0 ? extraAttachments : undefined;
-  }
-  return [enrollmentAttachment, ...extraAttachments];
+  if (pdfUrl?.trim()) return undefined;
+  return [enrollmentAttachment];
 }
 
 async function sendMagicLinkEmail(
@@ -2433,8 +2430,8 @@ export async function completaInvioIscrizione(idIscrizione: string) {
   };
 
   const socioMailAttachments: EnrollmentAttachment[] = [attachment];
-  const adminExtraAttachments: EnrollmentAttachment[] = [];
   let quotaReceiptId: string | null = null;
+  let quotaReceiptNoteForAdmin = "";
   const quotaFiscalYear = rec.fiscal_year ?? currentFiscalYear();
   try {
     const quotaReceipt = await ensureFiscalReceiptAttachment(db, () =>
@@ -2445,8 +2442,9 @@ export async function completaInvioIscrizione(idIscrizione: string) {
     );
     if (quotaReceipt) {
       socioMailAttachments.push(quotaReceipt.attachment);
-      adminExtraAttachments.push(quotaReceipt.attachment);
       quotaReceiptId = quotaReceipt.receiptId;
+      quotaReceiptNoteForAdmin =
+        "Ricevuta fiscale quota: in allegato nella mail al socio.";
     }
   } catch (quotaReceiptErr) {
     console.error(
@@ -2497,11 +2495,13 @@ export async function completaInvioIscrizione(idIscrizione: string) {
       `N. socio: ${member.member_number ?? "—"}`,
       `Member ID: ${member.id}`,
       adminPdfLine,
-    ].join("\n"),
+      quotaReceiptNoteForAdmin,
+    ]
+      .filter(Boolean)
+      .join("\n"),
     attachments: segreteriaEnrollmentMailAttachments(
       durablePdfUrl,
       attachment,
-      adminExtraAttachments,
     ),
   });
 
