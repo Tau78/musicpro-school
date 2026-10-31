@@ -64,7 +64,12 @@ export default async function OnboardingFormPage() {
               modulo iscrizione (anagrafica/consensi) non è ancora allineato al
               tuo profilo. Completa il modulo per sbloccare la dashboard.
             </p>
-            <div className="mt-6 flex flex-wrap gap-3">
+            <p className="mt-4 text-sm text-amber-900/90">
+              Usa la stessa email dell&apos;account ({member.email ?? "login"}).
+              Fino al modulo allineato, dashboard e prenotazioni restano
+              bloccate — non è un errore del telefono.
+            </p>
+            <div className="mt-6">
               <a
                 href={enrollmentFormHref()}
                 target="_blank"
@@ -73,12 +78,6 @@ export default async function OnboardingFormPage() {
               >
                 Apri modulo iscrizione
               </a>
-              <Link
-                href="/dashboard"
-                className="inline-flex rounded-lg border border-amber-300 bg-white px-5 py-2.5 text-sm font-medium text-amber-950 hover:bg-amber-100/60"
-              >
-                Torna alla dashboard
-              </Link>
             </div>
           </section>
         </div>
