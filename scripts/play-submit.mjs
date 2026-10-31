@@ -8,6 +8,11 @@
  *   PLAY_TRACK=internal node scripts/play-submit.mjs --yes
  *   PLAY_TRACK=production node scripts/play-submit.mjs --yes
  *
+ * Exit codes:
+ *   0 = ok
+ *   1 = other failure (SA missing, AAB missing, API error, …)
+ *   2 = package missing in Play Console (create the app first)
+ *
  * Secrets (never commit):
  *   ~/.config/rewavier/play-service-account.json
  *   or PLAY_SERVICE_ACCOUNT_JSON / ./google-play-service-account.json
@@ -22,11 +27,47 @@ const TRACK = process.env.PLAY_TRACK || "internal";
 const STATUS = process.env.PLAY_STATUS || (TRACK === "production" ? "draft" : "completed");
 const DO_UPLOAD = process.argv.includes("--yes") || process.env.PLAY_SUBMIT === "1";
 const ROOT = resolve(import.meta.dirname, "..");
-const DEFAULT_AAB = resolve(
+
+const STABLE_AAB = resolve(
+  homedir(),
+  ".config/musicpro-school/dist/musicpro-school-1.1.0-1.aab",
+);
+const BUILD_AAB = resolve(
   ROOT,
   "school-shell-android/app/build/outputs/bundle/release/app-release.aab",
 );
-const AAB = process.env.PLAY_AAB || DEFAULT_AAB;
+
+function resolveAab() {
+  if (process.env.PLAY_AAB) return process.env.PLAY_AAB;
+  if (existsSync(STABLE_AAB)) return STABLE_AAB;
+  return BUILD_AAB;
+}
+
+const AAB = resolveAab();
+
+/** Exit 2: package not in Play Console yet — short Italian steps from PLAY_FIRST_PUBLISH.md */
+function printPackageMissingSteps() {
+  console.error("\nPackage non trovato in Play Console. Crea l’app (una tantum):");
+  console.error("1. Play Console → Crea app (MusicPro School, IT, App, Gratis)");
+  console.error(
+    "2. Utenti e autorizzazioni → invita musicpro-play-submit@rewavier-app.iam.gserviceaccount.com (Release)",
+  );
+  console.error("3. Impostazioni app → Privacy policy URL + Data safety");
+  console.error("4. Classificazione contenuti (questionario IARC)");
+  console.error("Dettagli: store/android/PLAY_FIRST_PUBLISH.md");
+}
+
+function isPackageMissingError(err) {
+  const msg = (err?.message || String(err)).toLowerCase();
+  const code = err?.code ?? err?.response?.status;
+  if (code === 404) return true;
+  // Android Publisher when the app was never created
+  if (msg.includes("package not found") || msg.includes("app not found")) return true;
+  if (msg.includes("the caller does not have permission") && msg.includes("package")) return true;
+  // Common API wording when packageName has no Play listing yet
+  if (/\b404\b/.test(msg) && (msg.includes("package") || msg.includes("not found"))) return true;
+  return false;
+}
 
 function resolveSaPath() {
   const candidates = [
@@ -65,13 +106,12 @@ async function main() {
     const msg = e?.message || String(e);
     console.error("\nImpossibile aprire un edit su", PACKAGE);
     console.error(msg.slice(0, 500));
-    console.error(
-      "\nSe l’app non esiste ancora: creala in Play Console, invita",
-      "musicpro-play-submit@rewavier-app.iam.gserviceaccount.com",
-      "con permesso Release, poi rilancia.",
-    );
+    if (isPackageMissingError(e)) {
+      printPackageMissingSteps();
+      process.exit(2);
+    }
     console.error("Vedi store/android/PLAY_FIRST_PUBLISH.md");
-    process.exit(2);
+    process.exit(1);
   }
   const editId = edit.data.id;
   console.log("edit:", editId);
