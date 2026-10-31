@@ -446,7 +446,7 @@ export function BookingCalendarDialog({
       <div
         role="dialog"
         aria-modal="true"
-        className="w-full min-w-0 max-w-lg overflow-x-clip overflow-y-auto rounded-xl bg-white p-4 shadow-lg sm:p-6"
+        className="flex max-h-full min-h-0 min-w-0 w-full max-w-full flex-col overflow-x-clip overflow-y-auto rounded-xl bg-white p-4 shadow-lg sm:max-w-lg sm:p-6"
       >
         <div className="flex items-start justify-between gap-3">
           <h3 className="text-lg font-semibold text-[var(--brand)]">{title}</h3>
@@ -475,7 +475,10 @@ export function BookingCalendarDialog({
         ) : loading ? (
           <p className="mt-4 text-sm text-neutral-500">Caricamento…</p>
         ) : (
-          <form onSubmit={(e) => void handleSave(e)} className="mt-4 space-y-4">
+          <form
+            onSubmit={(e) => void handleSave(e)}
+            className="mt-4 min-w-0 max-w-full space-y-4 overflow-x-clip"
+          >
             {mode === "edit" && booking ? (
               <div className="rounded-lg border border-neutral-100 bg-neutral-50 px-3 py-2 text-sm">
                 <p className="font-medium text-neutral-900">
@@ -555,7 +558,7 @@ export function BookingCalendarDialog({
               <select
                 value={roomId}
                 onChange={(e) => setRoomId(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
+                className="mt-1 w-full min-w-0 max-w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
               >
                 {rooms.map((room) => (
                   <option key={room.id} value={room.id}>
@@ -565,8 +568,8 @@ export function BookingCalendarDialog({
               </select>
             </div>
 
-            <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="min-w-0">
+            <div className="grid min-w-0 max-w-full grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="min-w-0 max-w-full overflow-x-clip">
                 <label className="block text-xs font-medium text-neutral-600">
                   Inizio
                 </label>
@@ -574,10 +577,11 @@ export function BookingCalendarDialog({
                   type="datetime-local"
                   value={startLocal}
                   onChange={(e) => setStartLocal(e.target.value)}
-                  className="mt-1 box-border w-full min-w-0 max-w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
+                  className="mt-1 block box-border w-full min-w-0 max-w-full rounded-lg border border-neutral-300 px-2 py-2 text-sm"
+                  style={{ width: "100%", maxWidth: "100%", minWidth: 0 }}
                 />
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 max-w-full">
                 <label className="block text-xs font-medium text-neutral-600">
                   Durata
                 </label>
@@ -586,7 +590,7 @@ export function BookingCalendarDialog({
                   onChange={(e) =>
                     setDurationMinutes(Number(e.target.value))
                   }
-                  className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
+                  className="mt-1 w-full min-w-0 max-w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
                 >
                   {durationOptions.map((minutes) => (
                     <option key={minutes} value={minutes}>
