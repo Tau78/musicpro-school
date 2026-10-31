@@ -77,6 +77,67 @@ export function vibrateLight(): void {
   }
 }
 
+/** Contatore: più gesture (card / range) possono tenere lo scroll bloccato. */
+let pageScrollLockCount = 0;
+let prevHtmlOverflow = "";
+let prevBodyOverflow = "";
+let prevHtmlOverscroll = "";
+let prevBodyOverscroll = "";
+let prevBodyTouchAction = "";
+
+/**
+ * Blocca lo scroll della pagina (e overscroll iOS) mentre si tiene/preme
+ * una card o si crea un range — altrimenti il drag diventa pan della pagina.
+ */
+export function lockCalendarPageScroll(): void {
+  if (typeof document === "undefined") return;
+  const html = document.documentElement;
+  const body = document.body;
+  if (pageScrollLockCount === 0) {
+    prevHtmlOverflow = html.style.overflow;
+    prevBodyOverflow = body.style.overflow;
+    prevHtmlOverscroll = html.style.overscrollBehavior;
+    prevBodyOverscroll = body.style.overscrollBehavior;
+    prevBodyTouchAction = body.style.touchAction;
+    html.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+    html.style.overscrollBehavior = "none";
+    body.style.overscrollBehavior = "none";
+    body.style.touchAction = "none";
+  }
+  pageScrollLockCount += 1;
+}
+
+export function unlockCalendarPageScroll(): void {
+  if (typeof document === "undefined") return;
+  if (pageScrollLockCount === 0) return;
+  pageScrollLockCount -= 1;
+  if (pageScrollLockCount > 0) return;
+  const html = document.documentElement;
+  const body = document.body;
+  html.style.overflow = prevHtmlOverflow;
+  body.style.overflow = prevBodyOverflow;
+  html.style.overscrollBehavior = prevHtmlOverscroll;
+  body.style.overscrollBehavior = prevBodyOverscroll;
+  body.style.touchAction = prevBodyTouchAction;
+}
+
+/**
+ * touchmove non-passive: React onPointerMove spesso non riesce a preventDefault
+ * (listener passivi) e iOS continua a scrollare.
+ */
+export function attachNonPassiveTouchMoveBlock(
+  el: HTMLElement,
+): () => void {
+  const block = (event: TouchEvent) => {
+    event.preventDefault();
+  };
+  el.addEventListener("touchmove", block, { passive: false });
+  return () => {
+    el.removeEventListener("touchmove", block);
+  };
+}
+
 /** Fine evento sul giorno di inizio: mezzanotte / giorno dopo → +1440. */
 export function resolvePlacedEndMinute(
   startMinute: number,

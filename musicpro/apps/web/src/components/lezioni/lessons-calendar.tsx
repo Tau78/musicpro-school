@@ -33,12 +33,15 @@ import {
   PINCH_RATIO,
   SWIPE_MIN_PX,
   SWIPE_RATIO,
+  attachNonPassiveTouchMoveBlock,
   extendGridCloseMinute,
   hitTestDayColumn,
+  lockCalendarPageScroll,
   nextCalendarView,
   prevCalendarView,
   resolvePlacedEndMinute,
   touchHorizontalSpan,
+  unlockCalendarPageScroll,
   vibrateLight,
 } from "@/components/lezioni/calendar-gestures";
 import {
@@ -515,7 +518,9 @@ export function LessonsCalendar({
       />
 
       <div
-        className="overflow-hidden rounded-lg border border-neutral-200 bg-white touch-pan-y"
+        className={`overflow-hidden rounded-lg border border-neutral-200 bg-white ${
+          pointerDragLessonId ? "touch-none" : "touch-pan-y"
+        }`}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
@@ -1219,8 +1224,10 @@ function LessonCard({
     armed: boolean;
     active: boolean;
     timer: number | null;
+    scrollLocked: boolean;
   } | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
+  const detachTouchBlockRef = useRef<(() => void) | null>(null);
   const teacher = teacherLabel(lesson);
   const title = lessonTitle(lesson);
   const time = `${minutesToTimeLabel(lesson.startMinute)}–${minutesToTimeLabel(lesson.endMinute)}`;
@@ -1242,6 +1249,9 @@ function LessonCard({
     return () => {
       const press = pointerDragRef.current;
       if (press?.timer != null) window.clearTimeout(press.timer);
+      detachTouchBlockRef.current?.();
+      detachTouchBlockRef.current = null;
+      if (press?.scrollLocked) unlockCalendarPageScroll();
     };
   }, []);
 
@@ -1253,9 +1263,31 @@ function LessonCard({
     }
   }
 
+  function releaseScrollLock() {
+    const press = pointerDragRef.current;
+    if (press?.scrollLocked) {
+      unlockCalendarPageScroll();
+      press.scrollLocked = false;
+    }
+    detachTouchBlockRef.current?.();
+    detachTouchBlockRef.current = null;
+  }
+
   function endPointerPress() {
     clearPointerDragTimer();
+    releaseScrollLock();
     pointerDragRef.current = null;
+  }
+
+  function armPointerDrag(pointerId: number) {
+    const press = pointerDragRef.current;
+    if (!press || press.pointerId !== pointerId || press.active) return;
+    clearPointerDragTimer();
+    press.armed = true;
+    press.active = true;
+    dragged.current = true;
+    onBeginPointerDrag(lesson);
+    cardRef.current?.setPointerCapture(pointerId);
   }
 
   function open() {
@@ -1277,21 +1309,23 @@ function LessonCard({
         if (event.pointerType === "mouse") return;
         event.stopPropagation();
         clearPointerDragTimer();
+        releaseScrollLock();
         const pointerId = event.pointerId;
+        const card = cardRef.current;
+        // Blocca subito lo scroll pagina: altrimenti il pan ruba il gesto.
+        lockCalendarPageScroll();
+        if (card) {
+          detachTouchBlockRef.current = attachNonPassiveTouchMoveBlock(card);
+        }
         pointerDragRef.current = {
           pointerId,
           x: event.clientX,
           y: event.clientY,
           armed: false,
           active: false,
+          scrollLocked: true,
           timer: window.setTimeout(() => {
-            const press = pointerDragRef.current;
-            if (!press || press.pointerId !== pointerId) return;
-            press.armed = true;
-            press.active = true;
-            dragged.current = true;
-            onBeginPointerDrag(lesson);
-            cardRef.current?.setPointerCapture(pointerId);
+            armPointerDrag(pointerId);
           }, EVENT_DRAG_ARM_MS),
         };
       }}
@@ -1308,8 +1342,9 @@ function LessonCard({
           event.clientY - press.y,
         );
         if (moved > EVENT_DRAG_MOVE_PX) {
-          // Scroll/gesto nav: non armare lo spostamento.
-          endPointerPress();
+          // Sulla card lo scroll è già bloccato: movimento = inizia lo spostamento.
+          armPointerDrag(event.pointerId);
+          onPointerDragMove(event.clientX, event.clientY);
         }
       }}
       onContextMenu={(event) => {
@@ -1373,9 +1408,11 @@ function LessonCard({
         }
       }}
       className={`absolute z-10 overflow-hidden rounded-sm border px-1 py-px text-left leading-tight select-none ${lessonCardClass(lesson)} ${
-        draggable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
+        draggable
+          ? "cursor-grab touch-none active:cursor-grabbing"
+          : "cursor-pointer"
       } ${lesson.hasAttendance && !isHold ? "opacity-80" : ""} ${
-        isPointerDragging ? "opacity-40 touch-none z-30" : ""
+        isPointerDragging ? "opacity-40 z-30" : ""
       }`}
       style={{
         ...style,
@@ -1383,6 +1420,7 @@ function LessonCard({
         WebkitTouchCallout: "none",
         WebkitUserSelect: "none",
         userSelect: "none",
+        touchAction: draggable ? "none" : undefined,
       }}
     >
       <p className="pointer-events-none truncate text-[10px] font-semibold text-neutral-900">
