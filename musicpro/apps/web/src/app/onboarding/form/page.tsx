@@ -80,7 +80,7 @@ export default async function OnboardingFormPage() {
   return (
     <main className="min-h-screen">
       <header className="border-b border-neutral-200 bg-white">
-        <div className="mx-auto flex max-w-3xl min-w-0 max-w-full items-center justify-between px-6 py-4">
+        <div className="mx-auto flex min-w-0 max-w-3xl items-center justify-between px-6 py-4">
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium text-[var(--brand-accent)]">
               {APP_NAME}
