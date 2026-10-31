@@ -19,6 +19,8 @@ export interface MembershipStatus {
   canPayQuota: boolean;
   quotaPaid: boolean;
   isComplete: boolean;
+  /** Iscrizione ok in app ma modulo FTP/PDF non inviato per l'anno in corso. */
+  formalEnrollmentModuleMissing: boolean;
   quotaAmountEur: number | null;
 }
 
@@ -83,7 +85,11 @@ async function loadMembershipFormFlags(
   client: MembershipClient,
   memberId: string,
   fiscalYear: number,
-): Promise<{ formCompleted: boolean; hasMemberAnagrafica: boolean }> {
+): Promise<{
+  formCompleted: boolean;
+  hasMemberAnagrafica: boolean;
+  formalEnrollmentModuleMissing: boolean;
+}> {
   const { data: member } = await client
     .from("members")
     .select(
@@ -96,27 +102,37 @@ async function loadMembershipFormFlags(
     ? memberHasUsableAnagrafica(member)
     : false;
 
-  if (!member || member.is_enrollment_draft) {
-    return { formCompleted: false, hasMemberAnagrafica };
-  }
-
-  const taxCode = String(member.tax_code || "").trim();
-  if (taxCode && (member.gdpr_consent || member.enrolled_at)) {
-    return { formCompleted: true, hasMemberAnagrafica };
-  }
-
-  const { data: enrollment } = await client
+  const { data: enrollmentRow } = await client
     .from("enrollments")
     .select("id, form_payload")
     .eq("member_id", memberId)
     .eq("fiscal_year", fiscalYear)
-    .not("form_payload", "is", null)
     .limit(1)
     .maybeSingle();
 
+  const hasFormalPayload = Boolean(enrollmentRow?.form_payload);
+
+  if (!member || member.is_enrollment_draft) {
+    return {
+      formCompleted: false,
+      hasMemberAnagrafica,
+      formalEnrollmentModuleMissing: false,
+    };
+  }
+
+  const taxCode = String(member.tax_code || "").trim();
+  if (taxCode && (member.gdpr_consent || member.enrolled_at)) {
+    return {
+      formCompleted: true,
+      hasMemberAnagrafica,
+      formalEnrollmentModuleMissing: !hasFormalPayload,
+    };
+  }
+
   return {
-    formCompleted: Boolean(enrollment?.form_payload),
+    formCompleted: hasFormalPayload,
     hasMemberAnagrafica,
+    formalEnrollmentModuleMissing: !hasFormalPayload,
   };
 }
 
@@ -132,7 +148,8 @@ export async function getMembershipStatus(
   ]);
 
   const setting = settings.find((entry) => entry.fiscalYear === fiscalYear);
-  const { formCompleted, hasMemberAnagrafica } = flags;
+  const { formCompleted, hasMemberAnagrafica, formalEnrollmentModuleMissing } =
+    flags;
   // Rinnovo/app: anagrafica su members basta per mint Nexi; modulo formale resta formCompleted.
   const canPayQuota = formCompleted || hasMemberAnagrafica;
 
@@ -145,6 +162,8 @@ export async function getMembershipStatus(
     quotaPaid,
     // Onboarding completo solo con modulo formale + quota (non solo anagrafica minima).
     isComplete: formCompleted && quotaPaid,
+    formalEnrollmentModuleMissing:
+      formCompleted && quotaPaid && formalEnrollmentModuleMissing,
     quotaAmountEur: setting?.amountEur ?? null,
   };
 }
