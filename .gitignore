@@ -57,14 +57,20 @@ docs/scuola-semplice/archivio/*.xlsx
 docs/scuola-semplice/archivio/*.csv
 
 
-# Android local
+# Android / Play local secrets & artifacts (never commit)
+keystore.properties
+**/keystore.properties
 school-shell-android/local.properties
 school-shell-android/keystore.properties
 school-shell-android/**/*.jks
 school-shell-android/**/*.keystore
-school-shell-android/**/*.p12
+*.p12
+*.jks
+*.keystore
+*.aab
 .env.play
 google-play-service-account.json
+# dist/ already ignored above; AAB stable lives under ~/.config/musicpro-school/dist/
 
 school-shell-android/.gradle/
 school-shell-android/build/
