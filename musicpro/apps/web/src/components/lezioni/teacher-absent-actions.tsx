@@ -39,14 +39,19 @@ export function TeacherAbsentActions(props: TeacherAbsentActionsProps) {
 
   return (
     <>
-      <div className="glass-card flex min-w-0 max-w-full flex-wrap items-center justify-between gap-2 px-4 py-3">
-        <h3 className="text-sm font-semibold text-[var(--brand)]">
-          Sarò assente
-        </h3>
+      <div className="glass-card flex min-w-0 max-w-full flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold text-[var(--brand)]">
+            Assenza docente
+          </h3>
+          <p className="text-xs text-neutral-600">
+            Annulla o sposta le lezioni in un periodo
+          </p>
+        </div>
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className={teacherAbsenceButtonClass}
+          className={`${teacherAbsenceButtonClass} w-full shrink-0 sm:w-auto`}
         >
           Sarò assente
         </button>
