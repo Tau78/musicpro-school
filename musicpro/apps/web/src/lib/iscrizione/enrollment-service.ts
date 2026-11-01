@@ -38,8 +38,10 @@ import {
   upsertEnrollmentLessonIntent,
 } from "./enrollment-lesson-intents";
 import {
+  escapeEmailHtml,
   SCHOOL_APP_URL,
   schoolEmailBodyFromText,
+  schoolEmailHeroHtml,
   schoolEmailTextFooter,
   wrapSchoolEmail,
 } from "@/lib/email/school-email-layout";
@@ -556,6 +558,124 @@ function buildSocioSignedEnrollmentMail(params: {
   return { text, html };
 }
 
+function segreteriaEnrollmentDetailTableHtml(
+  rows: Array<[string, string]>,
+): string {
+  const htmlRows = rows
+    .map(
+      ([label, value], index) =>
+        `<tr><td style="padding:10px 14px;border-bottom:${index === rows.length - 1 ? "0" : "1px solid #eee"};color:#6b7280;width:132px;font-size:14px;vertical-align:top;">${escapeEmailHtml(label)}</td><td style="padding:10px 14px;border-bottom:${index === rows.length - 1 ? "0" : "1px solid #eee"};font-weight:600;font-size:15px;color:#111827;">${escapeEmailHtml(value)}</td></tr>`,
+    )
+    .join("");
+  return `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;margin:8px 0 4px;background:#faf8f3;border-radius:10px;">${htmlRows}</table>`;
+}
+
+function buildSegreteriaEnrollmentNotificationMail(input: {
+  variant: "online" | "cash";
+  nome: string;
+  cognome: string;
+  contactEmail: string;
+  cf: string;
+  memberNumber: string | number | null | undefined;
+  memberId: string;
+  pdfUrl?: string | null;
+  pdfFallbackNote?: string;
+  quotaReceiptNote?: string;
+}): { text: string; html: string } {
+  const fullName = `${input.nome} ${input.cognome}`.trim();
+  const memberLabel =
+    input.memberNumber != null && String(input.memberNumber).trim()
+      ? String(input.memberNumber)
+      : "—";
+  const intro =
+    input.variant === "cash"
+      ? "Nuova iscrizione completata (quota già versata in sede)."
+      : "Nuova iscrizione con pagamento online.";
+  const emailLabel =
+    input.variant === "cash" ? "Email contatto" : "Email socio";
+
+  const textLines = [
+    intro,
+    `Nome: ${fullName}`,
+    `${emailLabel}: ${input.contactEmail || "—"}`,
+    `CF: ${input.cf || "—"}`,
+    `N. socio: ${memberLabel}`,
+    `Member ID: ${input.memberId}`,
+  ];
+  if (input.pdfUrl?.trim()) {
+    textLines.push(`PDF: ${input.pdfUrl.trim()}`);
+  } else if (input.pdfFallbackNote) {
+    textLines.push(input.pdfFallbackNote);
+  }
+  if (input.quotaReceiptNote) textLines.push(input.quotaReceiptNote);
+  if (input.variant === "cash") {
+    textLines.push("", "Il socio ha compilato e firmato il modulo online.");
+  }
+  const text = textLines.join("\n") + schoolEmailTextFooter();
+
+  const detailRows: Array<[string, string]> = [
+    [emailLabel, input.contactEmail || "—"],
+    ["Codice fiscale", input.cf || "—"],
+    ["N. socio", memberLabel],
+    ["Member ID", input.memberId],
+  ];
+
+  const pdfNoteHtml = input.pdfUrl?.trim()
+    ? `<p style="margin:14px 0 0;font-size:14px;line-height:1.45;color:#4b5563;">Modulo firmato su Drive — usa il pulsante qui sotto (in Gmail il link può comparire anche come anteprima PDF).</p>`
+    : input.pdfFallbackNote
+      ? `<p style="margin:14px 0 0;font-size:14px;line-height:1.45;color:#4b5563;">${escapeEmailHtml(input.pdfFallbackNote)}</p>`
+      : "";
+
+  const quotaNoteHtml = input.quotaReceiptNote
+    ? `<p style="margin:12px 0 0;font-size:14px;line-height:1.45;color:#4b5563;">${escapeEmailHtml(input.quotaReceiptNote)}</p>`
+    : "";
+
+  const cashNoteHtml =
+    input.variant === "cash"
+      ? `<p style="margin:14px 0 0;font-size:14px;line-height:1.45;color:#1a1a1a;">Il socio ha compilato e firmato il modulo online.</p>`
+      : "";
+
+  const adminMemberUrl = `${SCHOOL_APP_URL}/admin/associati/${encodeURIComponent(input.memberId)}`;
+  const ctas: { href: string; label: string; variant?: "primary" | "secondary" }[] =
+    [];
+  if (input.pdfUrl?.trim()) {
+    ctas.push({ href: input.pdfUrl.trim(), label: "Apri PDF modulo" });
+  }
+  ctas.push({
+    href: adminMemberUrl,
+    label: "Scheda associato",
+    variant: input.pdfUrl?.trim() ? "secondary" : "primary",
+  });
+
+  const htmlBody = [
+    `<p style="margin:0 0 14px;font-size:15px;line-height:1.5;color:#1a1a1a;">${escapeEmailHtml(intro)}</p>`,
+    schoolEmailHeroHtml(
+      input.variant === "cash" ? "Quota in sede" : "Pagamento online",
+      fullName || "Nuovo associato",
+      `N. socio ${memberLabel}`,
+    ),
+    segreteriaEnrollmentDetailTableHtml(detailRows),
+    pdfNoteHtml,
+    quotaNoteHtml,
+    cashNoteHtml,
+  ]
+    .filter(Boolean)
+    .join("");
+
+  const html = wrapSchoolEmail({
+    appOrigin: SCHOOL_APP_URL,
+    preheader: `${fullName} · iscrizione ${input.variant === "cash" ? "contanti" : "online"}`,
+    kicker: "Segreteria",
+    title: "Nuova iscrizione",
+    htmlBody,
+    ctas,
+    showAppDownload: false,
+    lockupLine: "ISCRIZIONE",
+  });
+
+  return { text, html };
+}
+
 /** Email segreteria: con link PDF online nessun allegato (Gmail duplica chip link Drive + MIME). */
 function segreteriaEnrollmentMailAttachments(
   pdfUrl: string | null | undefined,
@@ -760,26 +880,26 @@ async function finalizeCashEnrollmentDocuments(input: {
     content_type: "application/pdf" as const,
   };
 
-  const adminPdfLine = pdfUrl
-    ? `PDF: ${pdfUrl}`
-    : stored.storagePath
-      ? `PDF solo in allegato (link non disponibile). Path interno: ${stored.storagePath}.`
-      : "PDF non disponibile (storage/Drive non configurati).";
+  const adminPdfFallback = stored.storagePath
+    ? `PDF solo in allegato (link non disponibile). Path interno: ${stored.storagePath}.`
+    : "PDF non disponibile (storage/Drive non configurati).";
+  const adminContent = buildSegreteriaEnrollmentNotificationMail({
+    variant: "cash",
+    nome,
+    cognome,
+    contactEmail: email || member.email || "",
+    cf,
+    memberNumber: member.member_number,
+    memberId: member.id,
+    pdfUrl,
+    pdfFallbackNote: pdfUrl ? undefined : adminPdfFallback,
+  });
 
   const adminMail = await sendResendEmail({
     to: segreteriaRecipients(),
     subject: `ISCRIZIONE CONTANTI: ${cognome} ${nome}`,
-    text: [
-      "Nuova iscrizione completata (quota già versata in sede).",
-      `Nome: ${nome} ${cognome}`,
-      `Email contatto: ${email || member.email || "—"}`,
-      `CF: ${cf}`,
-      `N. socio: ${member.member_number ?? "—"}`,
-      `Member ID: ${member.id}`,
-      adminPdfLine,
-      "",
-      "Il socio ha compilato e firmato il modulo online.",
-    ].join("\n"),
+    text: adminContent.text,
+    html: adminContent.html,
     attachments: segreteriaEnrollmentMailAttachments(pdfUrl, attachment),
   });
   if (!adminMail.sent) {
@@ -2478,27 +2598,27 @@ export async function completaInvioIscrizione(idIscrizione: string) {
       })
     : { sent: false, error: "Email socio mancante" };
 
-  const adminPdfLine = durablePdfUrl
-    ? `PDF: ${durablePdfUrl}`
-    : stored.storagePath
-      ? `PDF solo in allegato (link non disponibile). Path interno: ${stored.storagePath}.`
-      : "PDF non disponibile (storage/Drive non configurati).";
+  const adminPdfFallback = stored.storagePath
+    ? `PDF solo in allegato (link non disponibile). Path interno: ${stored.storagePath}.`
+    : "PDF non disponibile (storage/Drive non configurati).";
+  const adminContent = buildSegreteriaEnrollmentNotificationMail({
+    variant: "online",
+    nome,
+    cognome,
+    contactEmail: socioEmail,
+    cf: formText(form.cf || rec.tax_code).toUpperCase(),
+    memberNumber: member.member_number,
+    memberId: member.id,
+    pdfUrl: durablePdfUrl,
+    pdfFallbackNote: durablePdfUrl ? undefined : adminPdfFallback,
+    quotaReceiptNote: quotaReceiptNoteForAdmin || undefined,
+  });
 
   const adminMail = await sendResendEmail({
     to: segreteriaRecipients(),
     subject: `ISCRIZIONE: ${cognome} ${nome}`,
-    text: [
-      "Nuova iscrizione con pagamento online.",
-      `Nome: ${nome} ${cognome}`,
-      `Email socio: ${socioEmail || "—"}`,
-      `CF: ${formText(form.cf || rec.tax_code).toUpperCase() || "—"}`,
-      `N. socio: ${member.member_number ?? "—"}`,
-      `Member ID: ${member.id}`,
-      adminPdfLine,
-      quotaReceiptNoteForAdmin,
-    ]
-      .filter(Boolean)
-      .join("\n"),
+    text: adminContent.text,
+    html: adminContent.html,
     attachments: segreteriaEnrollmentMailAttachments(
       durablePdfUrl,
       attachment,
