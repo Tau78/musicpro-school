@@ -20,13 +20,24 @@ Deno.serve(async (req) => {
   }
 
   const ok = esito === 'OK';
-  const message = ok
-    ? 'Se il pagamento è andato a buon fine, lo stato si aggiorna in pochi secondi. Puoi chiudere questa pagina e tornare al sito.'
-    : esito === 'ANNULLO'
-    ? 'Hai annullato il pagamento. Se serve, chiedi un nuovo link alla segreteria.'
-    : 'Il pagamento non è stato completato. Se il problema continua, contatta la segreteria.';
+  const webBase = (
+    Deno.env.get('PUBLIC_WEB_URL') ??
+    Deno.env.get('NEXT_PUBLIC_APP_URL') ??
+    'https://school.musicproeventi.it'
+  ).replace(/\/$/, '');
 
-  return new Response(htmlPaymentResult(ok, message), {
+  const message = ok
+    ? 'Se il pagamento è andato a buon fine, la prenotazione risulta confermata entro pochi secondi. Apri le tue prenotazioni per lo stato aggiornato e controlla l’email di riepilogo.'
+    : esito === 'ANNULLO'
+    ? 'Hai annullato il pagamento. La prenotazione resta in attesa: puoi pagare di nuovo da «Le mie prenotazioni» o chiedere un nuovo link alla segreteria.'
+    : 'Il pagamento non è stato completato. La prenotazione non risulta pagata: riprova da «Le mie prenotazioni» o contatta la segreteria.';
+
+  const continueHref = ok
+    ? `${webBase}/prenotazioni/mie?dopoPagamento=1`
+    : `${webBase}/prenotazioni/mie`;
+  const continueLabel = ok ? 'Le mie prenotazioni' : 'Torna alle prenotazioni';
+
+  return new Response(htmlPaymentResult(ok, message, { continueHref, continueLabel }), {
     status: 200,
     headers: {
       ...corsHeaders,
