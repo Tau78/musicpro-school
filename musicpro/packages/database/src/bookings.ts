@@ -2581,6 +2581,116 @@ export async function listBookingAuditLog(
   }));
 }
 
+export type BookingEmailLogEntry = {
+  id: string;
+  bookingId: string;
+  recipientEmail: string;
+  subject: string;
+  status: "sent" | "failed" | "skipped";
+  error: string | null;
+  createdAt: string;
+};
+
+export function bookingEmailLogStatusLabel(
+  status: BookingEmailLogEntry["status"],
+): string {
+  switch (status) {
+    case "sent":
+      return "Inviata";
+    case "failed":
+      return "Fallita";
+    case "skipped":
+      return "Saltata";
+    default:
+      return status;
+  }
+}
+
+export async function listBookingEmailLog(
+  client: BookingsClient,
+  bookingId: string,
+): Promise<BookingEmailLogEntry[]> {
+  const { data, error } = await client
+    .from("booking_email_log")
+    .select("id, booking_id, recipient_email, subject, status, error, created_at")
+    .eq("booking_id", bookingId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw new Error(`Impossibile caricare il log email: ${error.message}`);
+  }
+
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    bookingId: row.booking_id,
+    recipientEmail: row.recipient_email,
+    subject: row.subject,
+    status: row.status as BookingEmailLogEntry["status"],
+    error: row.error,
+    createdAt: row.created_at,
+  }));
+}
+
+/** Riga sintetica per admin: ultimo invio al socio (se email nota). */
+export function summarizeMemberBookingEmail(
+  entries: BookingEmailLogEntry[],
+  memberEmail: string | null | undefined,
+): {
+  tone: "ok" | "warn" | "error" | "none";
+  headline: string;
+  detail: string | null;
+} {
+  const member = String(memberEmail ?? "")
+    .trim()
+    .toLowerCase();
+  const memberRows = member
+    ? entries.filter(
+        (row) => row.recipientEmail.trim().toLowerCase() === member,
+      )
+    : entries.filter((row) => !row.subject.startsWith("Nuova prenotazione"));
+
+  if (memberRows.length === 0) {
+    return {
+      tone: "none",
+      headline: "Nessuna email al socio registrata in log",
+      detail:
+        "Dopo pagamento Nexi o conferma dovrebbe comparire una riga «Inviata». Se manca, controlla SMTP o invii saltati (idempotenza).",
+    };
+  }
+
+  const last = memberRows[0]!;
+  const when = new Date(last.createdAt).toLocaleString("it-IT", {
+    timeZone: BOOKING_TIMEZONE,
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  if (last.status === "sent") {
+    return {
+      tone: "ok",
+      headline: "Email al socio inviata",
+      detail: `${when} · «${last.subject}» → ${last.recipientEmail}`,
+    };
+  }
+
+  if (last.status === "failed") {
+    return {
+      tone: "error",
+      headline: "Ultimo invio email al socio fallito",
+      detail: `${when} · ${last.error ?? "Errore non specificato"}`,
+    };
+  }
+
+  return {
+    tone: "warn",
+    headline: "Ultimo invio email al socio saltato",
+    detail: `${when} · ${last.error ?? last.subject}`,
+  };
+}
+
 export function bookingAuditActionLabel(action: string): string {
   switch (action) {
     case "admin_update":

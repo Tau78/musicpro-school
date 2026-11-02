@@ -25,6 +25,7 @@ import {
   utcIsoToRomeLocalInput,
 } from "@musicpro/database";
 
+import { BookingEmailLogPanel } from "@/components/admin/booking-email-log-panel";
 import { SettlementMethodPicker } from "@/components/admin/settlement-method-picker";
 import { requestBookingCalendarSync } from "@/lib/calendar/sync-booking";
 import { requestBookingConfirmationEmail } from "@/lib/booking/send-confirmation-email";
@@ -104,6 +105,7 @@ export function BookingAdminDetail({ booking, rooms }: BookingAdminDetailProps) 
     useState<SettlementMethod | null>(null);
   const [auditLog, setAuditLog] = useState<BookingAuditLogEntry[]>([]);
   const [loadingAudit, setLoadingAudit] = useState(true);
+  const [emailLogRefresh, setEmailLogRefresh] = useState(0);
   const [saving, setSaving] = useState(false);
   const [sendEmail, setSendEmail] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -229,6 +231,7 @@ export function BookingAdminDetail({ booking, rooms }: BookingAdminDetailProps) 
           template: "modified",
           upgradeGratuito: settlementMethod === "upgrade_gratuito",
         });
+        setEmailLogRefresh((n) => n + 1);
       }
 
       setSuccess(
@@ -334,6 +337,16 @@ export function BookingAdminDetail({ booking, rooms }: BookingAdminDetailProps) 
               <dd className="font-medium">{booking.band.name}</dd>
             </div>
           )}
+          <div className="sm:col-span-2">
+            <dt className="text-neutral-500">Email al socio</dt>
+            <dd className="mt-1">
+              <BookingEmailLogPanel
+                bookingId={booking.id}
+                memberEmail={booking.member?.email}
+                refreshKey={emailLogRefresh}
+              />
+            </dd>
+          </div>
           {booking.member_snapshot && booking.member_snapshot.length > 0 && (
             <div className="sm:col-span-2">
               <dt className="text-neutral-500">Membri (snapshot)</dt>

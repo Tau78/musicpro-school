@@ -32,6 +32,7 @@ import {
   type SettlementMethod,
 } from "@musicpro/database";
 
+import { BookingEmailLogPanel } from "@/components/admin/booking-email-log-panel";
 import { SettlementMethodPicker } from "@/components/admin/settlement-method-picker";
 import { requestBookingCalendarSync } from "@/lib/calendar/sync-booking";
 import { requestBookingConfirmationEmail } from "@/lib/booking/send-confirmation-email";
@@ -506,6 +507,14 @@ export function BookingCalendarDialog({
                   </p>
                 )}
               </div>
+            ) : null}
+
+            {mode === "edit" && bookingId ? (
+              <BookingEmailLogPanel
+                bookingId={bookingId}
+                memberEmail={booking?.member?.email}
+                compact
+              />
             ) : null}
 
             {mode === "create" ? (
