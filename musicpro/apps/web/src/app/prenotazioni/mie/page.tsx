@@ -27,6 +27,7 @@ import {
 } from "@musicpro/database";
 import { mapUserFacingError } from "@musicpro/shared";
 
+import { BookingPaymentReturnNotice } from "@/components/prenotazioni/booking-payment-return";
 import { BookingModifyPanel } from "@/components/prenotazioni/booking-modify-panel";
 import { createClient } from "@/lib/supabase/client";
 import { requestBookingCalendarSync } from "@/lib/calendar/sync-booking";
@@ -96,6 +97,9 @@ function MiePrenotazioniContent() {
   );
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [nexiReturnBookingId, setNexiReturnBookingId] = useState<string | null>(
+    null,
+  );
 
   const bookings = bookingsByTab[tab];
 
@@ -199,12 +203,9 @@ function MiePrenotazioniContent() {
 
   useEffect(() => {
     if (searchParams.get("dopoPagamento") !== "1") return;
-
-    const params = new URLSearchParams({ dopoPagamento: "1" });
-    const bookingId = searchParams.get("bookingId")?.trim();
-    if (bookingId) params.set("bookingId", bookingId);
-
-    router.replace(`/dashboard?${params.toString()}`);
+    const id = searchParams.get("bookingId")?.trim() || null;
+    setNexiReturnBookingId(id);
+    router.replace("/prenotazioni/mie", { scroll: false });
   }, [router, searchParams]);
 
   async function handlePay(bookingId: string) {
@@ -326,6 +327,12 @@ function MiePrenotazioniContent() {
       </header>
 
       <div className="mx-auto max-w-3xl px-6 py-8">
+        {nexiReturnBookingId !== null ? (
+          <div className="mb-6">
+            <BookingPaymentReturnNotice bookingId={nexiReturnBookingId} />
+          </div>
+        ) : null}
+
         <p className="text-sm text-neutral-600">
           Dopo il login vedi qui tutte le tue prenotazioni. Puoi spostare l&apos;orario
           online fino a {cancelSettings.modifyMinHours} ore prima dell&apos;inizio,
