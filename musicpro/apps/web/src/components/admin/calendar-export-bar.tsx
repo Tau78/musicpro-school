@@ -10,6 +10,7 @@ import {
   type Room,
 } from "@musicpro/database";
 
+import { settingsPrimaryButtonClass } from "@/components/admin/settings-page-chrome";
 import { createClient } from "@/lib/supabase/client";
 
 interface CalendarExportBarProps {
@@ -46,6 +47,9 @@ function downloadBlob(filename: string, mime: string, content: string) {
   link.click();
   URL.revokeObjectURL(url);
 }
+
+const fieldInputClass =
+  "w-full min-w-0 max-w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm";
 
 export function CalendarExportBar({
   rooms,
@@ -127,33 +131,33 @@ export function CalendarExportBar({
   }
 
   return (
-    <div className="rounded-xl border border-neutral-200 bg-white p-4">
-      <p className="text-sm font-medium text-neutral-800">Scarica il calendario</p>
-      <div className="mt-3 flex flex-wrap items-end gap-3">
-        <label className="text-sm">
+    <div className="min-w-0 max-w-full rounded-xl border border-neutral-200 bg-white p-4">
+      <span className="text-xs font-medium text-neutral-600">Calendario</span>
+      <div className="mt-2 flex min-w-0 max-w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end">
+        <label className="min-w-0 w-full max-w-full text-sm sm:w-auto sm:flex-1 sm:max-w-[10rem]">
           <span className="mb-1 block text-neutral-600">Da</span>
           <input
             type="date"
             value={from}
             onChange={(e) => setFrom(e.target.value)}
-            className="rounded-lg border border-neutral-300 px-3 py-2 text-sm"
+            className={fieldInputClass}
           />
         </label>
-        <label className="text-sm">
+        <label className="min-w-0 w-full max-w-full text-sm sm:w-auto sm:flex-1 sm:max-w-[10rem]">
           <span className="mb-1 block text-neutral-600">Fino a</span>
           <input
             type="date"
             value={to}
             onChange={(e) => setTo(e.target.value)}
-            className="rounded-lg border border-neutral-300 px-3 py-2 text-sm"
+            className={fieldInputClass}
           />
         </label>
-        <label className="text-sm">
+        <label className="min-w-0 w-full max-w-full text-sm sm:w-auto sm:flex-1 sm:max-w-[12rem]">
           <span className="mb-1 block text-neutral-600">Sala</span>
           <select
             value={roomId}
             onChange={(e) => setRoomId(e.target.value)}
-            className="rounded-lg border border-neutral-300 px-3 py-2 text-sm"
+            className={fieldInputClass}
           >
             <option value="">Tutte</option>
             {rooms.map((room) => (
@@ -163,12 +167,12 @@ export function CalendarExportBar({
             ))}
           </select>
         </label>
-        <label className="text-sm">
+        <label className="min-w-0 w-full max-w-full text-sm sm:w-auto sm:flex-1 sm:max-w-[10rem]">
           <span className="mb-1 block text-neutral-600">Formato</span>
           <select
             value={format}
             onChange={(e) => setFormat(e.target.value as "csv" | "html")}
-            className="rounded-lg border border-neutral-300 px-3 py-2 text-sm"
+            className={fieldInputClass}
           >
             <option value="csv">CSV</option>
             <option value="html">HTML stampabile</option>
@@ -178,7 +182,7 @@ export function CalendarExportBar({
           type="button"
           disabled={busy}
           onClick={() => void handleDownload()}
-          className="rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
+          className={`${settingsPrimaryButtonClass} w-full sm:w-auto`}
         >
           {busy ? "Preparazione…" : "Scarica"}
         </button>

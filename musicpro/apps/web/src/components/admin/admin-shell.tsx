@@ -35,7 +35,11 @@ export function AdminShell({
           </div>
           <AdminNav {...nav} placement="inline" />
           <div className="shrink-0">
-            <HeaderSettingsActions variant="onBrand" />
+            <HeaderSettingsActions
+              variant="onBrand"
+              settingsHref={nav.settingsHref}
+              settingsLabel="Impostazioni scuola"
+            />
           </div>
         </div>
       </header>

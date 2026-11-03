@@ -19,6 +19,10 @@ import {
 
 const ROME = "Europe/Rome";
 
+/** Oggetto email conferma socio (template confirm, senza link pagamento). */
+export const MEMBER_BOOKING_CONFIRM_SUBJECT =
+  "La tua prenotazione MusicPro è stata creata";
+
 export type BookingEmailTemplate = "confirm" | "modified" | "cancelled";
 
 type BookingRow = {
@@ -431,7 +435,7 @@ function buildBookingEmailContent(
       ? "La tua prenotazione MusicPro è stata annullata"
       : template === "modified"
         ? "La tua prenotazione MusicPro è stata modificata"
-        : "La tua prenotazione MusicPro è stata creata";
+        : MEMBER_BOOKING_CONFIRM_SUBJECT;
 
   const title =
     template === "cancelled"

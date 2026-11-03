@@ -9,7 +9,6 @@ import {
   todayInRome,
 } from "@musicpro/database";
 
-import { CalendarExportBar } from "@/components/admin/calendar-export-bar";
 import {
   PrenotazioniSettingsWorkspace,
   type PrenotazioniSettingsSection,

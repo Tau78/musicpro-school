@@ -15,6 +15,7 @@ import { CalendarExportBar } from "@/components/admin/calendar-export-bar";
 import { PenaltyRulesPanel } from "@/components/admin/penalty-rules-panel";
 import {
   SettingsPageHeader,
+  SettingsPanel,
   SettingsSectionTabs,
 } from "@/components/admin/settings-page-chrome";
 
@@ -64,7 +65,7 @@ export function PrenotazioniSettingsWorkspace({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 max-w-full space-y-3">
       <SettingsPageHeader
         title="Regole di prenotazione"
         description="Quanto prima si può prenotare o disdire, e cosa succede in caso di annullamento."
@@ -76,11 +77,13 @@ export function PrenotazioniSettingsWorkspace({
       />
 
       {section === "soglie" ? (
-        <BookingSettingsForm
-          settings={settings}
-          operationalSchedule={operationalSchedule}
-          recentLastMinuteCampaigns={recentLastMinuteCampaigns}
-        />
+        <SettingsPanel className="p-4">
+          <BookingSettingsForm
+            settings={settings}
+            operationalSchedule={operationalSchedule}
+            recentLastMinuteCampaigns={recentLastMinuteCampaigns}
+          />
+        </SettingsPanel>
       ) : null}
 
       {section === "penali" ? <PenaltyRulesPanel rules={rules} /> : null}
@@ -106,18 +109,24 @@ function CreditiPrenotazioniSection({
   rules: CancellationPenaltyRule[];
 }) {
   return (
-    <div className="space-y-6">
-      <p className="text-sm text-neutral-600">
-        I crediti restituiti sono il complemento della penale.{" "}
+    <div className="max-w-full overflow-hidden rounded-xl border border-neutral-200 bg-white">
+      <p className="border-b border-neutral-200 px-4 py-3 text-sm text-neutral-600">
+        Crediti = complemento della penale —{" "}
         <Link
           href="/admin/impostazioni?sezione=penali"
           className="text-[var(--brand)] hover:underline"
         >
           Penali
         </Link>
+        {" · "}
+        <Link
+          href="/admin/rimborsi"
+          className="text-[var(--brand)] hover:underline"
+        >
+          Rimborsi
+        </Link>
       </p>
-
-      <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
+      <div className="max-w-full overflow-x-auto">
         <table className="min-w-full divide-y divide-neutral-200 text-sm">
           <thead className="bg-neutral-50">
             <tr>
@@ -172,14 +181,6 @@ function CreditiPrenotazioniSection({
           </tbody>
         </table>
       </div>
-
-      <p className="text-sm text-neutral-500">
-        Notule docenti:{" "}
-        <Link href="/admin/rimborsi" className="text-[var(--brand)] hover:underline">
-          Rimborsi
-        </Link>
-        .
-      </p>
     </div>
   );
 }
