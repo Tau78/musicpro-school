@@ -23,7 +23,7 @@
     },
     {
       "path": "/api/cron/booking-email-retry",
-      "schedule": "*/5 * * * *"
+      "schedule": "15 9 * * *"
     }
   ]
 }
