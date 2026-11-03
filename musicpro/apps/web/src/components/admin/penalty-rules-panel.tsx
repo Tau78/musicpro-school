@@ -16,6 +16,11 @@ import {
   ToggleRow,
   settingsInputClass,
 } from "@/components/admin/settings-chrome";
+import {
+  SettingsPanel,
+  settingsPrimaryButtonClass,
+  settingsSecondaryButtonClass,
+} from "@/components/admin/settings-page-chrome";
 import { createClient } from "@/lib/supabase/client";
 
 interface PenaltyRulesPanelProps {
@@ -115,7 +120,7 @@ export function PenaltyRulesPanel({ rules }: PenaltyRulesPanelProps) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       {error ? (
         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
@@ -127,7 +132,7 @@ export function PenaltyRulesPanel({ rules }: PenaltyRulesPanelProps) {
         </p>
       ) : null}
 
-      <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
+      <div className="max-w-full overflow-x-auto rounded-xl border border-neutral-200 bg-white">
         <table className="min-w-full divide-y divide-neutral-200 text-sm">
           <thead className="bg-neutral-50">
             <tr>
@@ -207,94 +212,96 @@ export function PenaltyRulesPanel({ rules }: PenaltyRulesPanelProps) {
         </table>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <p className="text-sm font-medium text-neutral-800">
-          {editingId ? "Modifica regola" : "Nuova regola"}
-        </p>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <label className="block">
-            <FieldLabel>Da (ore prima)</FieldLabel>
-            <input
-              type="number"
-              min={0}
-              step="0.5"
-              required
-              value={form.fromHours}
-              onChange={(e) =>
-                updateField("fromHours", Number(e.target.value) || 0)
-              }
-              className={settingsInputClass}
-            />
-          </label>
-          <label className="block">
-            <FieldLabel>A (ore prima)</FieldLabel>
-            <input
-              type="number"
-              min={0}
-              step="0.5"
-              required
-              value={form.toHours}
-              onChange={(e) =>
-                updateField("toHours", Number(e.target.value) || 0)
-              }
-              className={settingsInputClass}
-            />
-          </label>
-          <label className="block">
-            <FieldLabel>Penale (%)</FieldLabel>
-            <input
-              type="number"
-              min={0}
-              max={100}
-              required
-              value={form.penaltyPercent}
-              onChange={(e) =>
-                updateField("penaltyPercent", Number(e.target.value) || 0)
-              }
-              className={settingsInputClass}
-            />
-          </label>
-          <label className="block">
-            <FieldLabel>Ordine</FieldLabel>
-            <input
-              type="number"
-              value={form.sortOrder}
-              onChange={(e) =>
-                updateField("sortOrder", Number(e.target.value) || 0)
-              }
-              className={settingsInputClass}
-            />
-          </label>
-        </div>
-        <ToggleRow
-          label="Attiva"
-          checked={form.enabled}
-          onChange={(checked) => updateField("enabled", checked)}
-        />
+      <SettingsPanel className="p-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <p className="text-sm font-medium text-neutral-800">
+            {editingId ? "Modifica regola" : "Nuova regola"}
+          </p>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <label className="block min-w-0">
+              <FieldLabel>Da (ore prima)</FieldLabel>
+              <input
+                type="number"
+                min={0}
+                step="0.5"
+                required
+                value={form.fromHours}
+                onChange={(e) =>
+                  updateField("fromHours", Number(e.target.value) || 0)
+                }
+                className={settingsInputClass}
+              />
+            </label>
+            <label className="block min-w-0">
+              <FieldLabel>A (ore prima)</FieldLabel>
+              <input
+                type="number"
+                min={0}
+                step="0.5"
+                required
+                value={form.toHours}
+                onChange={(e) =>
+                  updateField("toHours", Number(e.target.value) || 0)
+                }
+                className={settingsInputClass}
+              />
+            </label>
+            <label className="block min-w-0">
+              <FieldLabel>Penale (%)</FieldLabel>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                required
+                value={form.penaltyPercent}
+                onChange={(e) =>
+                  updateField("penaltyPercent", Number(e.target.value) || 0)
+                }
+                className={settingsInputClass}
+              />
+            </label>
+            <label className="block min-w-0">
+              <FieldLabel>Ordine</FieldLabel>
+              <input
+                type="number"
+                value={form.sortOrder}
+                onChange={(e) =>
+                  updateField("sortOrder", Number(e.target.value) || 0)
+                }
+                className={settingsInputClass}
+              />
+            </label>
+          </div>
+          <ToggleRow
+            label="Attiva"
+            checked={form.enabled}
+            onChange={(checked) => updateField("enabled", checked)}
+          />
 
-        <div className="flex gap-3">
-          <button
-            type="submit"
-            disabled={saving}
-            className="rounded-lg bg-[var(--brand)] px-6 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
-          >
-            {saving
-              ? "Salvataggio…"
-              : editingId
-                ? "Salva modifiche"
-                : "Aggiungi regola"}
-          </button>
-          {editingId ? (
+          <div className="flex flex-wrap gap-3">
             <button
-              type="button"
-              onClick={cancelEdit}
-              className="rounded-lg border border-neutral-300 px-6 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+              type="submit"
+              disabled={saving}
+              className={settingsPrimaryButtonClass}
             >
-              Annulla modifica
+              {saving
+                ? "Salvataggio…"
+                : editingId
+                  ? "Salva modifiche"
+                  : "Aggiungi regola"}
             </button>
-          ) : null}
-        </div>
-      </form>
+            {editingId ? (
+              <button
+                type="button"
+                onClick={cancelEdit}
+                className={settingsSecondaryButtonClass}
+              >
+                Annulla modifica
+              </button>
+            ) : null}
+          </div>
+        </form>
+      </SettingsPanel>
     </div>
   );
 }

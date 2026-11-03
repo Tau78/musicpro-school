@@ -159,4 +159,4 @@ export function FieldLabel({ children }: { children: string }) {
 }
 
 export const settingsInputClass =
-  "w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)]";
+  "w-full min-w-0 max-w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)]";

@@ -15,10 +15,10 @@ import {
 import { BookingOperationalSettingsSection } from "@/components/admin/booking-operational-settings-section";
 import {
   FieldLabel,
-  SettingsTabs,
   ToggleRow,
   settingsInputClass,
 } from "@/components/admin/settings-chrome";
+import { settingsPrimaryButtonClass } from "@/components/admin/settings-page-chrome";
 import { createClient } from "@/lib/supabase/client";
 
 interface BookingSettingsFormProps {
@@ -26,8 +26,6 @@ interface BookingSettingsFormProps {
   operationalSchedule: OperationalWeekSchedule;
   recentLastMinuteCampaigns: LastMinuteCampaign[];
 }
-
-type BookingTab = "soglie" | "band" | "blocco";
 
 function settingsToInput(settings: BookingSettings): BookingSettingsInput {
   return {
@@ -52,7 +50,6 @@ export function BookingSettingsForm({
   const router = useRouter();
   const supabase = createClient();
 
-  const [tab, setTab] = useState<BookingTab>("soglie");
   const [form, setForm] = useState<BookingSettingsInput>(
     settingsToInput(settings),
   );
@@ -86,7 +83,7 @@ export function BookingSettingsForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-4">
       {error ? (
         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
@@ -98,169 +95,147 @@ export function BookingSettingsForm({
         </p>
       ) : null}
 
-      <SettingsTabs
-        tabs={[
-          { id: "soglie", label: "Soglie" },
-          { id: "band", label: "Band" },
-          { id: "blocco", label: "Blocco" },
-        ]}
-        value={tab}
-        onChange={setTab}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="block min-w-0">
+          <FieldLabel>Conferma automatica</FieldLabel>
+          <input
+            type="number"
+            min={1}
+            required
+            value={form.autoConfirmMinHours}
+            onChange={(e) =>
+              updateField("autoConfirmMinHours", Number(e.target.value) || 0)
+            }
+            className={settingsInputClass}
+          />
+        </label>
+        <label className="block min-w-0">
+          <FieldLabel>Approvazione</FieldLabel>
+          <input
+            type="number"
+            min={1}
+            required
+            value={form.approvalMinHours}
+            onChange={(e) =>
+              updateField("approvalMinHours", Number(e.target.value) || 0)
+            }
+            className={settingsInputClass}
+          />
+        </label>
+        <label className="block min-w-0">
+          <FieldLabel>Annullamento</FieldLabel>
+          <input
+            type="number"
+            min={1}
+            required
+            value={form.cancelMinHours}
+            onChange={(e) =>
+              updateField("cancelMinHours", Number(e.target.value) || 0)
+            }
+            className={settingsInputClass}
+          />
+        </label>
+        <label className="block min-w-0">
+          <FieldLabel>Modifica</FieldLabel>
+          <input
+            type="number"
+            min={1}
+            required
+            value={form.modifyMinHours}
+            onChange={(e) =>
+              updateField("modifyMinHours", Number(e.target.value) || 0)
+            }
+            className={settingsInputClass}
+          />
+        </label>
+        <label className="block min-w-0">
+          <FieldLabel>Sconto collaboratore %</FieldLabel>
+          <input
+            type="number"
+            min={0}
+            max={100}
+            required
+            value={form.collaboratorDiscountPercent}
+            onChange={(e) =>
+              updateField(
+                "collaboratorDiscountPercent",
+                Number(e.target.value) || 0,
+              )
+            }
+            className={settingsInputClass}
+          />
+        </label>
+        <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2 sm:col-span-2">
+          <label className="flex items-center gap-2 text-sm font-medium text-neutral-800">
+            <input
+              type="checkbox"
+              checked={form.pendingBlocksSlot}
+              onChange={(e) =>
+                updateField("pendingBlocksSlot", e.target.checked)
+              }
+              className="h-4 w-4 accent-[var(--brand)]"
+            />
+            Pending blocca lo slot
+          </label>
+          <select
+            aria-label="Durata pending"
+            value={form.pendingHoldHours}
+            disabled={!form.pendingBlocksSlot}
+            onChange={(e) =>
+              updateField("pendingHoldHours", Number(e.target.value) || 4)
+            }
+            className="min-w-0 max-w-full rounded-lg border border-neutral-300 bg-white px-2 py-1.5 text-sm text-neutral-900 disabled:opacity-50"
+          >
+            {PENDING_HOLD_HOUR_OPTIONS.map((hours) => (
+              <option key={hours} value={hours}>
+                {hours === 1 ? "1 ora" : `${hours} ore`}
+              </option>
+            ))}
+          </select>
+        </div>
+        <p className="text-xs text-neutral-500 sm:col-span-2">
+          Ore prima dell&apos;inizio. Lo sconto vale per il ruolo Collaboratore
+          sulla scheda associato.
+        </p>
+      </div>
+
+      <ToggleRow
+        label="Band obbligatoria"
+        checked={form.bandRequired}
+        onChange={(checked) => updateField("bandRequired", checked)}
       />
 
-      {tab === "soglie" ? (
-        <>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="block">
-            <FieldLabel>Conferma automatica</FieldLabel>
-            <input
-              type="number"
-              min={1}
-              required
-              value={form.autoConfirmMinHours}
-              onChange={(e) =>
-                updateField(
-                  "autoConfirmMinHours",
-                  Number(e.target.value) || 0,
-                )
-              }
-              className={settingsInputClass}
-            />
-          </label>
-          <label className="block">
-            <FieldLabel>Approvazione</FieldLabel>
-            <input
-              type="number"
-              min={1}
-              required
-              value={form.approvalMinHours}
-              onChange={(e) =>
-                updateField("approvalMinHours", Number(e.target.value) || 0)
-              }
-              className={settingsInputClass}
-            />
-          </label>
-          <label className="block">
-            <FieldLabel>Annullamento</FieldLabel>
-            <input
-              type="number"
-              min={1}
-              required
-              value={form.cancelMinHours}
-              onChange={(e) =>
-                updateField("cancelMinHours", Number(e.target.value) || 0)
-              }
-              className={settingsInputClass}
-            />
-          </label>
-          <label className="block">
-            <FieldLabel>Modifica</FieldLabel>
-            <input
-              type="number"
-              min={1}
-              required
-              value={form.modifyMinHours}
-              onChange={(e) =>
-                updateField("modifyMinHours", Number(e.target.value) || 0)
-              }
-              className={settingsInputClass}
-            />
-          </label>
-          <label className="block">
-            <FieldLabel>Sconto collaboratore %</FieldLabel>
-            <input
-              type="number"
-              min={0}
-              max={100}
-              required
-              value={form.collaboratorDiscountPercent}
-              onChange={(e) =>
-                updateField(
-                  "collaboratorDiscountPercent",
-                  Number(e.target.value) || 0,
-                )
-              }
-              className={settingsInputClass}
-            />
-          </label>
-          <div className="flex items-center gap-3 sm:col-span-2">
-            <label className="flex items-center gap-2 text-sm font-medium text-neutral-800">
-              <input
-                type="checkbox"
-                checked={form.pendingBlocksSlot}
-                onChange={(e) =>
-                  updateField("pendingBlocksSlot", e.target.checked)
-                }
-                className="h-4 w-4 accent-[var(--brand)]"
-              />
-              Pending blocca lo slot
-            </label>
-            <select
-              aria-label="Durata pending"
-              value={form.pendingHoldHours}
-              disabled={!form.pendingBlocksSlot}
-              onChange={(e) =>
-                updateField("pendingHoldHours", Number(e.target.value) || 4)
-              }
-              className="rounded-lg border border-neutral-300 bg-white px-2 py-1.5 text-sm text-neutral-900 disabled:opacity-50"
-            >
-              {PENDING_HOLD_HOUR_OPTIONS.map((hours) => (
-                <option key={hours} value={hours}>
-                  {hours === 1 ? "1 ora" : `${hours} ore`}
-                </option>
-              ))}
-            </select>
-          </div>
-          <p className="text-xs text-neutral-500 sm:col-span-2">
-            Ore prima dell&apos;inizio. Lo sconto vale per il ruolo Collaboratore
-            sulla scheda associato.
-          </p>
-        </div>
-
-        <BookingOperationalSettingsSection
-          initialSchedule={operationalSchedule}
-          recentCampaigns={recentLastMinuteCampaigns}
-        />
-        </>
-      ) : null}
-
-      {tab === "band" ? (
+      <div className="space-y-3">
         <ToggleRow
-          label="Band obbligatoria"
-          checked={form.bandRequired}
-          onChange={(checked) => updateField("bandRequired", checked)}
+          label="Prenotazioni chiuse"
+          checked={form.locked}
+          onChange={(checked) => updateField("locked", checked)}
         />
-      ) : null}
-
-      {tab === "blocco" ? (
-        <div className="space-y-4">
-          <ToggleRow
-            label="Prenotazioni chiuse"
-            checked={form.locked}
-            onChange={(checked) => updateField("locked", checked)}
+        <p className="text-sm text-neutral-600">
+          Gli associati non possono creare prenotazioni; admin e segreteria
+          possono ancora prenotare dal calendario.
+        </p>
+        <label className="block min-w-0">
+          <FieldLabel>Messaggio per gli associati</FieldLabel>
+          <textarea
+            rows={3}
+            value={form.lockedMessage}
+            onChange={(e) => updateField("lockedMessage", e.target.value)}
+            className={settingsInputClass}
           />
-          <p className="text-sm text-neutral-600">
-            Gli associati non possono creare prenotazioni. Admin e segreteria
-            possono ancora prenotare dal calendario. Le sale si possono
-            spegnere una per una con il toggle Aperta.
-          </p>
-          <label className="block">
-            <FieldLabel>Messaggio per gli associati</FieldLabel>
-            <textarea
-              rows={3}
-              value={form.lockedMessage}
-              onChange={(e) => updateField("lockedMessage", e.target.value)}
-              className={settingsInputClass}
-            />
-          </label>
-        </div>
-      ) : null}
+        </label>
+      </div>
 
-      <div className="flex gap-3">
+      <BookingOperationalSettingsSection
+        initialSchedule={operationalSchedule}
+        recentCampaigns={recentLastMinuteCampaigns}
+      />
+
+      <div className="flex flex-wrap items-center gap-3">
         <button
           type="submit"
           disabled={saving}
-          className="rounded-lg bg-[var(--brand)] px-6 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
+          className={settingsPrimaryButtonClass}
         >
           {saving ? "Salvataggio…" : "Salva impostazioni"}
         </button>

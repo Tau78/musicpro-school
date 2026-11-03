@@ -3,6 +3,17 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+const pillStripClass =
+  "flex gap-1 overflow-x-auto rounded-lg bg-neutral-100 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
+
+function pillTabClass(active: boolean): string {
+  return `shrink-0 rounded-md px-3 py-1.5 text-sm font-medium touch-manipulation ${
+    active
+      ? "bg-white text-[var(--brand)] shadow-sm"
+      : "text-neutral-600"
+  }`;
+}
+
 export function SettingsPageHeader({
   title,
   description,
@@ -13,28 +24,18 @@ export function SettingsPageHeader({
   actions?: ReactNode;
 }) {
   return (
-    <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0">
-        <h2 className="text-xl font-semibold tracking-tight text-neutral-900">
+        <h2 className="text-xl font-semibold text-[var(--brand)] sm:text-2xl">
           {title}
         </h2>
         {description ? (
-          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-neutral-600">
-            {description}
-          </p>
+          <p className="mt-1 text-sm text-neutral-600">{description}</p>
         ) : null}
       </div>
       {actions ? <div className="shrink-0">{actions}</div> : null}
     </div>
   );
-}
-
-function underlineTabClass(active: boolean): string {
-  return `whitespace-nowrap border-b-2 px-0.5 pb-2.5 text-sm font-medium transition-colors ${
-    active
-      ? "border-[var(--brand-accent)] text-[var(--brand)]"
-      : "border-transparent text-neutral-500 hover:border-neutral-300 hover:text-neutral-900"
-  }`;
 }
 
 export function SettingsSectionTabs<T extends string>({
@@ -47,10 +48,7 @@ export function SettingsSectionTabs<T extends string>({
   onChange: (id: T) => void;
 }) {
   return (
-    <div
-      className="-mb-px mb-6 flex gap-5 overflow-x-auto border-b border-neutral-200"
-      role="tablist"
-    >
+    <div className={pillStripClass} role="tablist">
       {tabs.map((tab) => {
         const selected = tab.id === value;
         return (
@@ -60,7 +58,7 @@ export function SettingsSectionTabs<T extends string>({
             role="tab"
             aria-selected={selected}
             onClick={() => onChange(tab.id)}
-            className={underlineTabClass(selected)}
+            className={pillTabClass(selected)}
           >
             {tab.label}
           </button>
@@ -76,10 +74,7 @@ export function SettingsLinkTabs({
   tabs: { href: string; label: string; active: boolean }[];
 }) {
   return (
-    <div
-      className="-mb-px mb-6 flex gap-5 overflow-x-auto border-b border-neutral-200"
-      role="tablist"
-    >
+    <div className={pillStripClass} role="tablist">
       {tabs.map((tab) => (
         <Link
           key={tab.href}
@@ -88,7 +83,7 @@ export function SettingsLinkTabs({
           scroll={false}
           role="tab"
           aria-selected={tab.active}
-          className={underlineTabClass(tab.active)}
+          className={pillTabClass(tab.active)}
         >
           {tab.label}
         </Link>
@@ -122,7 +117,7 @@ export function SettingsPanel({
 }
 
 export const settingsPrimaryButtonClass =
-  "rounded-lg bg-[var(--brand)] px-5 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-60";
+  "btn-brand rounded-lg bg-[var(--brand)] px-5 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-60";
 
 export const settingsSecondaryButtonClass =
   "rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50";

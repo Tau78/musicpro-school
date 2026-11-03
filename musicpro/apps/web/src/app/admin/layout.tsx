@@ -125,7 +125,11 @@ export default async function AdminLayout({
             settingsHref={settingsHref}
           />
           <div className="shrink-0">
-            <HeaderSettingsActions variant="onBrand" />
+            <HeaderSettingsActions
+              variant="onBrand"
+              settingsHref={settingsHref}
+              settingsLabel="Impostazioni scuola"
+            />
           </div>
         </div>
       </header>
