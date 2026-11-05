@@ -7,6 +7,7 @@ import {
 import { gateCompletaInvioIscrizione } from "@/lib/iscrizione/internal-auth";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 120;
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",

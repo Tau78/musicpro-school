@@ -846,20 +846,20 @@
         });
     }
 
-    function gasApiPost(payload) {
+    function gasApiPost(payload, timeoutMs) {
         var body = JSON.stringify(payload);
         var postOpts = {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: body
         };
-        function postOnce(url) {
-            return fetchApi(url, postOpts, 20000).then(parseApiJson);
+        function postOnce(url, timeoutMs) {
+            return fetchApi(url, postOpts, timeoutMs || 20000).then(parseApiJson);
         }
-        return postOnce(API_URL).catch(function(err) {
+        return postOnce(API_URL, timeoutMs).catch(function(err) {
             // Solo rete/timeout su School → proxy FTP; errori business (4xx/message) restano lì.
             if (API_FALLBACK_URL && API_FALLBACK_URL !== API_URL && isNetworkOrTimeoutError(err)) {
-                return postOnce(API_FALLBACK_URL);
+                return postOnce(API_FALLBACK_URL, timeoutMs);
             }
             throw err;
         }).catch(function(err) {
@@ -1462,17 +1462,18 @@
         var btn = document.getElementById('submitBtn');
         btn.disabled = true;
 
-        var loadingTitle = (isRinnovoAssociato && quotaGiaPagata) ? 'Salvataggio in corso...' : 'Preparazione pagamento...';
-        var loadingHtml = (isRinnovoAssociato && quotaGiaPagata)
-            ? 'Stiamo aggiornando i tuoi dati in rubrica.'
+        var saveWithoutPay = isRinnovoAssociato && quotaGiaPagata;
+        var loadingTitle = saveWithoutPay ? 'Salvataggio in corso...' : 'Preparazione pagamento...';
+        var loadingHtml = saveWithoutPay
+            ? 'Stiamo salvando l\'iscrizione e preparando il PDF da inviarti.'
             : 'Attendi, verrai reindirizzato a Stripe.';
         showLoading(loadingTitle, loadingHtml);
 
-        var action = (isRinnovoAssociato && quotaGiaPagata)
+        var action = saveWithoutPay
             ? 'salvaAggiornamentoAssociatoIscrizione'
             : 'inviaIscrizioneConPagamento';
 
-        gasApiPost(Object.assign({ action: action }, data))
+        gasApiPost(Object.assign({ action: action }, data), saveWithoutPay ? 90000 : 20000)
             .then(function(res) {
                 if (res && res.success && res.skipPayment) {
                     clearPendingIscrizione();
@@ -1481,7 +1482,7 @@
                     history.replaceState(null, '', window.location.pathname);
                     Swal.fire({
                         icon: 'success',
-                        title: 'Dati salvati',
+                        title: 'Iscrizione completata',
                         text: res.message || 'Le modifiche sono state registrate.',
                         confirmButtonColor: '#e10600'
                     });
