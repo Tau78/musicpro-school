@@ -21,14 +21,26 @@ export interface CreditPackage {
   enabled: boolean;
   sortOrder: number;
   description: string | null;
+  /** Pezzi messi in vendita ogni 1° gennaio. */
+  annualQuantity: number;
+  /** Anno civile Europe/Rome a cui si riferiscono i pezzi venduti. */
+  stockYear: number;
+  /** Pezzi venduti in stockYear. */
+  stockSold: number;
   createdAt: string;
   updatedAt: string;
 }
 
 export type CreditPackageInput = Omit<
   CreditPackage,
-  "id" | "createdAt" | "updatedAt"
+  "id" | "createdAt" | "updatedAt" | "stockYear" | "stockSold"
 >;
+
+export function creditPackageRemaining(
+  creditPackage: Pick<CreditPackage, "annualQuantity" | "stockSold">,
+): number {
+  return creditPackage.annualQuantity - creditPackage.stockSold;
+}
 
 export interface CreditTransaction {
   id: string;
@@ -97,6 +109,9 @@ type CreditPackageRow = {
   enabled: boolean;
   sort_order: number;
   description: string | null;
+  annual_quantity: number;
+  stock_year: number;
+  stock_sold: number;
   created_at: string;
   updated_at: string;
 };
@@ -129,7 +144,7 @@ type CreditPurchaseRow = {
 };
 
 const CREDIT_PACKAGE_COLUMNS =
-  "id, name, credits, price_eur, enabled, sort_order, description, created_at, updated_at";
+  "id, name, credits, price_eur, enabled, sort_order, description, annual_quantity, stock_year, stock_sold, created_at, updated_at";
 
 const CREDIT_TRANSACTION_COLUMNS =
   "id, member_id, amount, type, booking_id, purchase_id, reason, created_by, created_at";
@@ -172,11 +187,14 @@ function mapCreditPackage(row: CreditPackageRow): CreditPackage {
   return {
     id: row.id,
     name: row.name,
-    credits: row.credits,
+    credits: Number(row.credits),
     priceEur: Number(row.price_eur),
     enabled: row.enabled,
     sortOrder: row.sort_order,
     description: row.description,
+    annualQuantity: Number(row.annual_quantity ?? 0),
+    stockYear: Number(row.stock_year ?? 0),
+    stockSold: Number(row.stock_sold ?? 0),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -233,6 +251,7 @@ function creditPackageInputToRow(
     enabled: input.enabled,
     sort_order: input.sortOrder,
     description: emptyToNull(input.description),
+    annual_quantity: input.annualQuantity,
   };
 }
 
@@ -252,9 +271,24 @@ function mapMemberCreditBalance(
   };
 }
 
+export async function rollCreditPackageStock(
+  client: CreditsClient,
+  packageId?: string | null,
+): Promise<void> {
+  const { error } = await client.rpc("roll_credit_package_stock", {
+    p_package_id: packageId ?? null,
+  });
+  if (error) {
+    throw new Error(
+      `Impossibile aggiornare le quantità dei pacchetti: ${error.message}`,
+    );
+  }
+}
+
 export async function listCreditPackages(
   client: CreditsClient,
 ): Promise<CreditPackage[]> {
+  await rollCreditPackageStock(client);
   const { data, error } = await client
     .from("credit_packages")
     .select(CREDIT_PACKAGE_COLUMNS)
@@ -272,6 +306,7 @@ export async function getCreditPackageById(
   client: CreditsClient,
   id: string,
 ): Promise<CreditPackage | null> {
+  await rollCreditPackageStock(client, id);
   const { data, error } = await client
     .from("credit_packages")
     .select(CREDIT_PACKAGE_COLUMNS)
@@ -290,6 +325,7 @@ export async function getCreditPackageById(
 export async function listActiveCreditPackages(
   client: CreditsClient,
 ): Promise<CreditPackage[]> {
+  await rollCreditPackageStock(client);
   const { data, error } = await client
     .from("credit_packages")
     .select(CREDIT_PACKAGE_COLUMNS)
@@ -303,7 +339,9 @@ export async function listActiveCreditPackages(
     );
   }
 
-  return ((data ?? []) as CreditPackageRow[]).map(mapCreditPackage);
+  return ((data ?? []) as CreditPackageRow[])
+    .map(mapCreditPackage)
+    .filter((creditPackage) => creditPackageRemaining(creditPackage) > 0);
 }
 
 export async function createCreditPackage(
@@ -616,6 +654,7 @@ export async function recordManualCreditPurchase(
     amountEur: number;
     method: "contanti" | "bonifico";
     credits: number;
+    packageId?: string | null;
   },
 ): Promise<{
   success: boolean;
@@ -629,6 +668,7 @@ export async function recordManualCreditPurchase(
     p_amount_eur: input.amountEur,
     p_method: input.method,
     p_credits: input.credits,
+    p_package_id: input.packageId ?? null,
   });
 
   if (error) {

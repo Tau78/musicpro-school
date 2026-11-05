@@ -336,6 +336,7 @@ export type {
 export {
   adminAdjustMemberCredits,
   createCreditPackage,
+  creditPackageRemaining,
   creditsForBookingPrice,
   debitBookingCredits,
   deleteCreditPackage,

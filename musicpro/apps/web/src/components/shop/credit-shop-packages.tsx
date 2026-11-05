@@ -2,7 +2,24 @@
 
 import { useState } from "react";
 
-import { formatEuro, type CreditPackage } from "@musicpro/database";
+import {
+  creditPackageRemaining,
+  formatEuro,
+  type CreditPackage,
+} from "@musicpro/database";
+
+import {
+  discountPercentFromPrice,
+  formatDiscountInput,
+} from "@/components/admin/credit-package-discount";
+
+function formatCreditAmount(value: number): string {
+  const rounded = Math.round(Number(value) * 100) / 100;
+  if (!Number.isFinite(rounded)) return "0";
+  return Number.isInteger(rounded)
+    ? String(rounded)
+    : rounded.toFixed(2).replace(".", ",");
+}
 
 interface CreditShopPackagesProps {
   packages: CreditPackage[];
@@ -61,11 +78,15 @@ export function CreditShopPackages({ packages }: CreditShopPackagesProps) {
       <ul className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {packages.map((pkg) => {
           const isLoading = loadingId === pkg.id;
+          const soldOut = creditPackageRemaining(pkg) <= 0;
+          const discount = formatDiscountInput(
+            discountPercentFromPrice(pkg.priceEur, pkg.credits),
+          );
 
           return (
             <li
               key={pkg.id}
-              className="flex flex-col rounded-xl border border-neutral-200 bg-white p-5 shadow-sm"
+              className="flex min-w-0 max-w-full flex-col rounded-xl border border-neutral-200 bg-white p-5 shadow-sm"
             >
               <h3 className="text-lg font-semibold text-[var(--brand)]">
                 {pkg.name}
@@ -74,24 +95,36 @@ export function CreditShopPackages({ packages }: CreditShopPackagesProps) {
                 <p className="mt-2 text-sm text-neutral-600">{pkg.description}</p>
               ) : null}
               <dl className="mt-4 space-y-2 text-sm">
-                <div className="flex items-center justify-between">
-                  <dt className="text-neutral-500">Crediti</dt>
-                  <dd className="font-medium text-neutral-900">{pkg.credits}</dd>
-                </div>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-3">
                   <dt className="text-neutral-500">Prezzo</dt>
                   <dd className="font-medium text-neutral-900">
                     {formatEuro(pkg.priceEur)}
                   </dd>
                 </div>
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="text-neutral-500">Crediti</dt>
+                  <dd className="font-medium text-neutral-900">
+                    {formatCreditAmount(pkg.credits)}
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="text-neutral-500">Sconto</dt>
+                  <dd className="font-medium text-neutral-900">
+                    {discount ? `${discount}%` : "—"}
+                  </dd>
+                </div>
               </dl>
               <button
                 type="button"
-                disabled={isLoading || loadingId !== null}
+                disabled={soldOut || isLoading || loadingId !== null}
                 onClick={() => handlePurchase(pkg.id)}
                 className="mt-5 inline-flex w-full items-center justify-center rounded-lg bg-[var(--brand)] px-4 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isLoading ? "Reindirizzamento…" : "Acquista"}
+                {soldOut
+                  ? "Esaurito"
+                  : isLoading
+                    ? "Reindirizzamento…"
+                    : "Acquista"}
               </button>
             </li>
           );

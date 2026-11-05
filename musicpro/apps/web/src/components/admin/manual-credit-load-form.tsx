@@ -3,8 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 
 import {
+  creditPackageRemaining,
+  listCreditPackages,
   listMembers,
   recordManualCreditPurchase,
+  type CreditPackage,
   type MemberSummary,
 } from "@musicpro/database";
 
@@ -81,6 +84,8 @@ export function ManualCreditLoadForm({
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState<"contanti" | "bonifico">("contanti");
   const [credits, setCredits] = useState("");
+  const [packages, setPackages] = useState<CreditPackage[]>([]);
+  const [packageId, setPackageId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -100,10 +105,40 @@ export function ManualCreditLoadForm({
           );
         }
       });
+    void listCreditPackages(supabase)
+      .then((list) => {
+        if (!cancelled) setPackages(list.filter((item) => item.enabled));
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setMembersError(
+            err instanceof Error
+              ? err.message
+              : "Impossibile caricare i pacchetti.",
+          );
+        }
+      });
     return () => {
       cancelled = true;
     };
   }, [supabase]);
+
+  const selectedPackage = packages.find((item) => item.id === packageId) ?? null;
+  const selectedRemaining = selectedPackage
+    ? creditPackageRemaining(selectedPackage)
+    : null;
+
+  function choosePackage(nextId: string) {
+    setPackageId(nextId);
+    const next = packages.find((item) => item.id === nextId);
+    if (!next) {
+      setAmount("");
+      setCredits("");
+      return;
+    }
+    setAmount(String(next.priceEur));
+    setCredits(String(next.credits));
+  }
 
   const visibleMembers = useMemo(() => {
     const term = memberQuery.trim().toLowerCase();
@@ -159,6 +194,7 @@ export function ManualCreditLoadForm({
           amountEur,
           method,
           credits: creditsGranted,
+          packageId: packageId || null,
         });
       } catch (err: unknown) {
         setError(
@@ -179,7 +215,11 @@ export function ManualCreditLoadForm({
 
       setAmount("");
       setCredits("");
+      setPackageId("");
       setNotice(nextNotice);
+      void listCreditPackages(supabase)
+        .then((list) => setPackages(list.filter((item) => item.enabled)))
+        .catch(() => undefined);
       await onLoaded();
     } finally {
       setBusy(false);
@@ -197,6 +237,32 @@ export function ManualCreditLoadForm({
       ) : null}
       {error ? <p className="text-sm text-red-700">{error}</p> : null}
       {notice ? <p className="text-sm text-green-800">{notice}</p> : null}
+      <label className="grid min-w-0 max-w-full gap-1 text-sm text-neutral-700">
+        <span>Pacchetto</span>
+        <select
+          value={packageId}
+          onChange={(event) => choosePackage(event.target.value)}
+          aria-label="Pacchetto"
+          className={`${controlClass} w-full`}
+        >
+          <option value="">Senza pacchetto</option>
+          {packages.map((item) => {
+            const remaining = creditPackageRemaining(item);
+            const availability =
+              remaining > 0 ? `${remaining} rimasti` : "esaurito";
+            return (
+              <option key={item.id} value={item.id}>
+                {item.name} · {availability}
+              </option>
+            );
+          })}
+        </select>
+      </label>
+      {selectedRemaining != null && selectedRemaining <= 0 ? (
+        <p className="text-sm text-neutral-600">
+          Pezzi esauriti. Il carico admin registra comunque la vendita.
+        </p>
+      ) : null}
       <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
         <label className="grid min-w-0 max-w-full flex-[1_1_11rem] grid-cols-[auto_minmax(0,1fr)] items-center gap-1.5 text-sm text-neutral-700 sm:w-52 sm:flex-none">
           <span>Data</span>
@@ -240,10 +306,11 @@ export function ManualCreditLoadForm({
             min={0}
             step={0.01}
             value={amount}
+            readOnly={Boolean(packageId)}
             onChange={(event) => setAmount(event.target.value)}
             aria-label="Importo in euro"
             placeholder="0,00"
-            className={dateClass}
+            className={`${dateClass}${packageId ? " bg-neutral-50" : ""}`}
           />
         </label>
         <select
@@ -266,9 +333,10 @@ export function ManualCreditLoadForm({
             min={0.01}
             step={0.01}
             value={credits}
+            readOnly={Boolean(packageId)}
             onChange={(event) => setCredits(event.target.value)}
             aria-label="Crediti"
-            className={dateClass}
+            className={`${dateClass}${packageId ? " bg-neutral-50" : ""}`}
           />
         </label>
         <button
