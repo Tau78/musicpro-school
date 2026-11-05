@@ -1618,9 +1618,33 @@ async function findPendingEnrollmentByCf(
 }
 
 /**
+ * Sportello: quota anno corrente con nota «contanti» e bozza ancora aperta.
+ * Non è un rinnovo online sull'anno successivo.
+ */
+async function memberCashDeskFormStillOpen(
+  db: Db,
+  member: MemberRow,
+): Promise<boolean> {
+  if (!member.is_enrollment_draft) return false;
+  const anno = currentFiscalYear();
+  const { data, error } = await db
+    .from("member_annual_quotas")
+    .select("paid_at, notes")
+    .eq("member_id", member.id)
+    .eq("fiscal_year", anno)
+    .maybeSingle();
+  if (error) {
+    throw new Error(error.message || "Impossibile leggere la quota contanti.");
+  }
+  if (!data?.paid_at) return false;
+  return /contanti/i.test(String(data.notes || ""));
+}
+
+/**
  * Bozza enrollment + Payment Link + member draft (per webhook quota).
  * Non chiude la bozza né invia email finché payment_status !== PAGATO.
  * Riusa bozza non pagata (id o stesso CF) per ritentare senza rifare il form.
+ * Il link contanti non arriva mai al pagamento, nemmeno se il client lo chiede.
  */
 export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
   const anagErr = validateEnrollmentAnagrafica(data);
@@ -1632,9 +1656,14 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
   }
 
   const db = createServiceRoleClient();
-  const tokenMember = await memberFromIscrizioneToken(db, tokenFromForm(data));
+  const token = tokenFromForm(data);
+  const loaded = token ? await loadMagicToken(db, token) : null;
+  const cashToken = Boolean(
+    loaded && isMagicTokenUsable(loaded.info) && loaded.info.cashQuotaPaid,
+  );
+  const tokenMember = await memberFromIscrizioneToken(db, token);
   const dup = await valutaDuplicatoIscrizione(db, data);
-  if (dup.blocked) {
+  if (dup.blocked && !cashToken) {
     return { success: false, code: dup.code, message: dup.message };
   }
 
@@ -1652,6 +1681,18 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
         photoErr.message || "Impossibile aggiornare il consenso foto.",
       );
     }
+  }
+
+  if (cashToken || (await memberCashDeskFormStillOpen(db, member))) {
+    const saveData: EnrollmentFormData = cashToken
+      ? { ...data, rinnovo_associato: true }
+      : {
+          ...data,
+          rinnovo_associato: true,
+          iscrizioneToken: "",
+          token: "",
+        };
+    return salvaAggiornamentoAssociatoIscrizione(saveData, member);
   }
 
   const cf = String(data.cf || "").toUpperCase().trim();
@@ -2735,6 +2776,7 @@ export async function handleGetOp(
 
 export async function salvaAggiornamentoAssociatoIscrizione(
   data: EnrollmentFormData,
+  trustedMember?: MemberRow,
 ) {
   if (!isRinnovo(data)) {
     throw new Error("Operazione riservata agli associati già registrati.");
@@ -2757,12 +2799,18 @@ export async function salvaAggiornamentoAssociatoIscrizione(
   const tokenMember = loaded
     ? await resolveMemberFromTokenInfo(db, loaded.info)
     : null;
-  const member = tokenMember ?? (await findMemberByCf(db, formText(data.cf)));
+  const member =
+    tokenMember ??
+    trustedMember ??
+    (await findMemberByCf(db, formText(data.cf)));
   if (!member) {
     throw new Error("Associato non trovato in rubrica. Contatta la segreteria.");
   }
 
   const cf = formText(data.cf).toUpperCase();
+  const cashDocs =
+    Boolean(loaded?.info.cashQuotaPaid) ||
+    (await memberCashDeskFormStillOpen(db, member));
   // Solo anagrafica senza pagamento: serve almeno la quota dell'anno corrente
   // (o contanti sportello). Il rinnovo anticipato 2027 passa da pagamento.
   const quotaOk =
@@ -2836,7 +2884,7 @@ export async function salvaAggiornamentoAssociatoIscrizione(
   }
 
   // Non bloccare la risposta su PDF/email (spinner infinito in passato).
-  if (loaded?.info.cashQuotaPaid) {
+  if (cashDocs) {
     void finalizeCashEnrollmentDocuments({
       db,
       memberId: member.id,
