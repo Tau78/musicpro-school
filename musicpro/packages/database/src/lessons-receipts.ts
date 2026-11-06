@@ -761,7 +761,7 @@ export async function emitFiscalReceiptForQuotaPayment(
 
   const { data: annualQuota, error: annualError } = await client
     .from("member_annual_quotas")
-    .select("id, member_id, fiscal_year, paid_at, amount_paid_eur")
+    .select("id, member_id, fiscal_year, paid_at, amount_paid_eur, notes")
     .eq("member_id", memberId)
     .eq("fiscal_year", fiscalYear)
     .maybeSingle();
@@ -801,7 +801,9 @@ export async function emitFiscalReceiptForQuotaPayment(
     payeeTaxCode: payee.payeeTaxCode,
     payeeEmail: payee.payeeEmail,
     amountEur,
-    method: "carta",
+    method: /contanti/i.test(String(annualQuota.notes || ""))
+      ? "contanti"
+      : "carta",
     lines: [
       {
         description: `Quota associativa ${fiscalYear}`,

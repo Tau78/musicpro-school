@@ -765,19 +765,75 @@ async function sendMagicLinkEmail(
   return result;
 }
 
+async function findPaidEnrollmentForYear(
+  db: Db,
+  memberId: string,
+  fiscalYear: number,
+): Promise<EnrollmentRow | null> {
+  const { data, error } = await db
+    .from("enrollments")
+    .select("*")
+    .eq("member_id", memberId)
+    .eq("fiscal_year", fiscalYear)
+    .eq("payment_status", "PAGATO")
+    .order("created_at", { ascending: false })
+    .limit(1);
+  if (error) {
+    throw new Error(error.message || "Impossibile leggere l'iscrizione contanti.");
+  }
+  return data?.[0] ?? null;
+}
+
+/** Firma salvata su una bozza precedente (il link contanti a volte non ha creato il PDF). */
+async function signedFormForMemberYear(
+  db: Db,
+  memberId: string,
+  fiscalYear: number,
+): Promise<EnrollmentFormData | null> {
+  const { data, error } = await db
+    .from("enrollments")
+    .select("form_payload")
+    .eq("member_id", memberId)
+    .eq("fiscal_year", fiscalYear)
+    .order("created_at", { ascending: false });
+  if (error) {
+    throw new Error(error.message || "Impossibile leggere il modulo firmato.");
+  }
+  for (const row of data || []) {
+    const form = parseEnrollmentFormPayload(row.form_payload);
+    if (formText(form.signatureData)) return form;
+  }
+  return null;
+}
+
+function mergeCashForm(
+  base: EnrollmentFormData,
+  extra: EnrollmentFormData | null,
+): EnrollmentFormData {
+  if (!extra) return base;
+  const merged: EnrollmentFormData = { ...base };
+  for (const [key, value] of Object.entries(extra)) {
+    if (value == null || value === "") continue;
+    if (merged[key] == null || merged[key] === "") merged[key] = value;
+  }
+  if (!formText(merged.signatureData) && formText(extra.signatureData)) {
+    merged.signatureData = extra.signatureData;
+  }
+  return merged;
+}
+
+/**
+ * PDF modulo + email all'associato e alla segreteria, come l'iscrizione online.
+ * Idempotente: se la mail di conferma è già partita, non reinvia.
+ */
 async function finalizeCashEnrollmentDocuments(input: {
   db: Db;
   memberId: string;
   data: EnrollmentFormData;
   cf: string;
+  fiscalYear?: number;
 }): Promise<void> {
   const db = input.db;
-  const nome = formText(input.data.nome);
-  const cognome = formText(input.data.cognome);
-  const email = enrollmentContactEmail(input.data);
-  const phone = enrollmentContactPhone(input.data);
-  const cf = input.cf;
-
   const { data: member, error: memberErr } = await db
     .from("members")
     .select("*")
@@ -787,34 +843,59 @@ async function finalizeCashEnrollmentDocuments(input: {
     throw new Error(memberErr?.message || "Associato non trovato per PDF contanti.");
   }
 
-  const anno = currentFiscalYear();
-  const nowIso = new Date().toISOString();
-  const amountCents = QUOTA_ASSOCIATIVA_CENTESIMI;
+  const anno = input.fiscalYear ?? currentFiscalYear();
+  const signed = await signedFormForMemberYear(db, member.id, anno);
+  const form = mergeCashForm(input.data, signed);
+  const nome = formText(form.nome) || String(member.first_name || "").trim();
+  const cognome = formText(form.cognome) || String(member.last_name || "").trim();
+  const email = enrollmentContactEmail(form) || String(member.email || "").toLowerCase();
+  const phone = enrollmentContactPhone(form) || String(member.phone || "");
+  const cf = (input.cf || formText(form.cf) || String(member.tax_code || "")).toUpperCase();
 
-  const { data: enrollment, error: insertErr } = await db
-    .from("enrollments")
-    .insert({
-      member_id: member.id,
-      first_name: nome,
-      last_name: cognome,
-      email: email || member.email || formText(input.data.tutore_email).toLowerCase() || "",
-      tax_code: cf,
-      phone: phone || member.phone || null,
-      fiscal_year: anno,
-      amount_centesimi: amountCents,
-      payment_status: "PAGATO",
-      form_payload: input.data as Database["public"]["Tables"]["enrollments"]["Insert"]["form_payload"],
-    })
-    .select("*")
-    .single();
-  if (insertErr || !enrollment) {
-    throw new Error(insertErr?.message || "Impossibile creare enrollment contanti.");
+  let enrollment = await findPaidEnrollmentForYear(db, member.id, anno);
+  if (
+    enrollment?.confirmation_email_sent &&
+    (enrollment.pdf_url || enrollment.pdf_storage_path)
+  ) {
+    return;
   }
 
-  await db
-    .from("enrollments")
-    .update({ paid_at: nowIso } as Database["public"]["Tables"]["enrollments"]["Update"])
-    .eq("id", enrollment.id);
+  const nowIso = new Date().toISOString();
+  const amountCents = QUOTA_ASSOCIATIVA_CENTESIMI;
+  const payload =
+    form as Database["public"]["Tables"]["enrollments"]["Insert"]["form_payload"];
+
+  if (!enrollment) {
+    const { data: inserted, error: insertErr } = await db
+      .from("enrollments")
+      .insert({
+        member_id: member.id,
+        first_name: nome,
+        last_name: cognome,
+        email: email || formText(form.tutore_email).toLowerCase() || "",
+        tax_code: cf,
+        phone: phone || null,
+        fiscal_year: anno,
+        amount_centesimi: amountCents,
+        payment_status: "PAGATO",
+        form_payload: payload,
+      })
+      .select("*")
+      .single();
+    if (insertErr || !inserted) {
+      throw new Error(insertErr?.message || "Impossibile creare enrollment contanti.");
+    }
+    enrollment = inserted;
+    await db
+      .from("enrollments")
+      .update({ paid_at: nowIso } as Database["public"]["Tables"]["enrollments"]["Update"])
+      .eq("id", enrollment.id);
+  } else if (formText(form.signatureData)) {
+    await db
+      .from("enrollments")
+      .update({ form_payload: payload })
+      .eq("id", enrollment.id);
+  }
 
   const oggi = new Date().toLocaleDateString("it-IT", {
     day: "2-digit",
@@ -827,25 +908,25 @@ async function finalizeCashEnrollmentDocuments(input: {
     memberNumber: member.member_number,
     nome,
     cognome,
-    luogoNascita: formText(input.data.luogo_nascita),
-    provNascita: formText(input.data.prov_nascita).toUpperCase(),
-    dataNascita: formText(input.data.data_nascita),
-    indirizzo: formText(input.data.indirizzo),
-    cap: formText(input.data.cap),
-    citta: formText(input.data.citta),
-    prov: formText(input.data.prov).toUpperCase(),
+    luogoNascita: formText(form.luogo_nascita),
+    provNascita: formText(form.prov_nascita).toUpperCase(),
+    dataNascita: formText(form.data_nascita),
+    indirizzo: formText(form.indirizzo),
+    cap: formText(form.cap),
+    citta: formText(form.citta),
+    prov: formText(form.prov).toUpperCase(),
     cf,
-    email: formText(input.data.email).toLowerCase() || member.email || "",
-    telefono: formText(input.data.telefono) || String(member.phone || ""),
-    corso: formText(input.data.corso),
-    tutoreNome: formText(input.data.tutore_nome),
-    tutoreCognome: formText(input.data.tutore_cognome),
-    tutoreTelefono: formText(input.data.tutore_telefono),
-    tutoreEmail: formText(input.data.tutore_email),
-    tutoreCf: formText(input.data.tutore_cf).toUpperCase(),
+    email: formText(form.email).toLowerCase() || member.email || "",
+    telefono: formText(form.telefono) || String(member.phone || ""),
+    corso: formText(form.corso),
+    tutoreNome: formText(form.tutore_nome),
+    tutoreCognome: formText(form.tutore_cognome),
+    tutoreTelefono: formText(form.tutore_telefono),
+    tutoreEmail: formText(form.tutore_email),
+    tutoreCf: formText(form.tutore_cf).toUpperCase(),
     quotaLabel: `EUR ${quotaEuro.toFixed(2).replace(".", ",")}`,
     dataOggi: oggi,
-    signatureData: formText(input.data.signatureData) || null,
+    signatureData: formText(form.signatureData) || null,
   });
 
   const stored = await uploadEnrollmentPdf(
@@ -863,22 +944,48 @@ async function finalizeCashEnrollmentDocuments(input: {
   });
 
   const pdfUrl = drive.pdfUrl || stored.pdfUrl;
-  await db
-    .from("enrollments")
-    .update({
-      pdf_url: pdfUrl,
-      ...(stored.storagePath ? { pdf_storage_path: stored.storagePath } : {}),
-      confirmation_email_sent: true,
-      confirmation_email_sent_at: nowIso,
-    } as Database["public"]["Tables"]["enrollments"]["Update"])
-    .eq("id", enrollment.id);
-
   const pdfBase64 = Buffer.from(pdf.bytes).toString("base64");
   const attachment = {
     filename: pdf.filename,
     content: pdfBase64,
     content_type: "application/pdf" as const,
   };
+
+  const socioMailAttachments: EnrollmentAttachment[] = [attachment];
+  let quotaReceiptId: string | null = null;
+  let quotaReceiptNoteForAdmin = "";
+  try {
+    const quotaReceipt = await ensureFiscalReceiptAttachment(db, () =>
+      emitFiscalReceiptForQuotaPayment(db, {
+        memberId: member.id,
+        fiscalYear: anno,
+      }),
+    );
+    if (quotaReceipt) {
+      socioMailAttachments.push(quotaReceipt.attachment);
+      quotaReceiptId = quotaReceipt.receiptId;
+      quotaReceiptNoteForAdmin =
+        "Ricevuta fiscale quota (contanti): in allegato nella mail al socio.";
+    }
+  } catch (quotaReceiptErr) {
+    console.error(
+      "[finalizeCashEnrollmentDocuments] ricevuta quota:",
+      quotaReceiptErr instanceof Error
+        ? quotaReceiptErr.message
+        : String(quotaReceiptErr),
+    );
+  }
+
+  const socioContent = buildSocioSignedEnrollmentMail({ nome, pdfUrl });
+  const socioMail = email
+    ? await sendResendEmail({
+        to: [email],
+        subject: `Conferma Iscrizione MusicPro - ${nome} ${cognome}`,
+        text: socioContent.text,
+        html: socioContent.html,
+        attachments: socioMailAttachments,
+      })
+    : { sent: false, error: "Email socio mancante" };
 
   const adminPdfFallback = stored.storagePath
     ? `PDF solo in allegato (link non disponibile). Path interno: ${stored.storagePath}.`
@@ -887,14 +994,14 @@ async function finalizeCashEnrollmentDocuments(input: {
     variant: "cash",
     nome,
     cognome,
-    contactEmail: email || member.email || "",
+    contactEmail: email,
     cf,
     memberNumber: member.member_number,
     memberId: member.id,
     pdfUrl,
     pdfFallbackNote: pdfUrl ? undefined : adminPdfFallback,
+    quotaReceiptNote: quotaReceiptNoteForAdmin || undefined,
   });
-
   const adminMail = await sendResendEmail({
     to: segreteriaRecipients(),
     subject: `ISCRIZIONE CONTANTI: ${cognome} ${nome}`,
@@ -902,23 +1009,40 @@ async function finalizeCashEnrollmentDocuments(input: {
     html: adminContent.html,
     attachments: segreteriaEnrollmentMailAttachments(pdfUrl, attachment),
   });
+
+  if (socioMail.sent && quotaReceiptId) {
+    await markFiscalReceiptEmailed(db, quotaReceiptId);
+  }
+
+  if (email && !socioMail.sent) {
+    await db
+      .from("enrollments")
+      .update({
+        pdf_url: pdfUrl,
+        ...(stored.storagePath ? { pdf_storage_path: stored.storagePath } : {}),
+      } as Database["public"]["Tables"]["enrollments"]["Update"])
+      .eq("id", enrollment.id);
+    throw new Error(
+      socioMail.error || "Invio email di conferma all'associato fallito.",
+    );
+  }
   if (!adminMail.sent) {
     console.error("[finalizeCashEnrollmentDocuments] email admin:", adminMail.error);
   }
 
-  if (email) {
-    const socioContent = buildSocioSignedEnrollmentMail({ nome, pdfUrl });
-    const socioMail = await sendResendEmail({
-      to: [email],
-      subject: `Conferma Iscrizione MusicPro - ${nome} ${cognome}`,
-      text: socioContent.text,
-      html: socioContent.html,
-      attachments: [attachment],
-    });
-    if (!socioMail.sent) {
-      console.error("[finalizeCashEnrollmentDocuments] email socio:", socioMail.error);
-    }
-  }
+  await db
+    .from("enrollments")
+    .update({
+      pdf_url: pdfUrl,
+      ...(stored.storagePath ? { pdf_storage_path: stored.storagePath } : {}),
+      confirmation_email_sent: true,
+      confirmation_email_sent_at: nowIso,
+      first_name: nome,
+      last_name: cognome,
+      email: email || enrollment.email,
+      tax_code: cf || enrollment.tax_code,
+    } as Database["public"]["Tables"]["enrollments"]["Update"])
+    .eq("id", enrollment.id);
 }
 
 
@@ -1618,9 +1742,33 @@ async function findPendingEnrollmentByCf(
 }
 
 /**
+ * Sportello: quota anno corrente con nota «contanti» e bozza ancora aperta.
+ * Non è un rinnovo online sull'anno successivo.
+ */
+async function memberCashDeskFormStillOpen(
+  db: Db,
+  member: MemberRow,
+): Promise<boolean> {
+  if (!member.is_enrollment_draft) return false;
+  const anno = currentFiscalYear();
+  const { data, error } = await db
+    .from("member_annual_quotas")
+    .select("paid_at, notes")
+    .eq("member_id", member.id)
+    .eq("fiscal_year", anno)
+    .maybeSingle();
+  if (error) {
+    throw new Error(error.message || "Impossibile leggere la quota contanti.");
+  }
+  if (!data?.paid_at) return false;
+  return /contanti/i.test(String(data.notes || ""));
+}
+
+/**
  * Bozza enrollment + Payment Link + member draft (per webhook quota).
  * Non chiude la bozza né invia email finché payment_status !== PAGATO.
  * Riusa bozza non pagata (id o stesso CF) per ritentare senza rifare il form.
+ * Il link contanti non arriva mai al pagamento, nemmeno se il client lo chiede.
  */
 export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
   const anagErr = validateEnrollmentAnagrafica(data);
@@ -1632,9 +1780,14 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
   }
 
   const db = createServiceRoleClient();
-  const tokenMember = await memberFromIscrizioneToken(db, tokenFromForm(data));
+  const token = tokenFromForm(data);
+  const loaded = token ? await loadMagicToken(db, token) : null;
+  const cashToken = Boolean(
+    loaded && isMagicTokenUsable(loaded.info) && loaded.info.cashQuotaPaid,
+  );
+  const tokenMember = await memberFromIscrizioneToken(db, token);
   const dup = await valutaDuplicatoIscrizione(db, data);
-  if (dup.blocked) {
+  if (dup.blocked && !cashToken) {
     return { success: false, code: dup.code, message: dup.message };
   }
 
@@ -1652,6 +1805,18 @@ export async function inviaIscrizioneConPagamento(data: EnrollmentFormData) {
         photoErr.message || "Impossibile aggiornare il consenso foto.",
       );
     }
+  }
+
+  if (cashToken || (await memberCashDeskFormStillOpen(db, member))) {
+    const saveData: EnrollmentFormData = cashToken
+      ? { ...data, rinnovo_associato: true }
+      : {
+          ...data,
+          rinnovo_associato: true,
+          iscrizioneToken: "",
+          token: "",
+        };
+    return salvaAggiornamentoAssociatoIscrizione(saveData, member);
   }
 
   const cf = String(data.cf || "").toUpperCase().trim();
@@ -2735,6 +2900,7 @@ export async function handleGetOp(
 
 export async function salvaAggiornamentoAssociatoIscrizione(
   data: EnrollmentFormData,
+  trustedMember?: MemberRow,
 ) {
   if (!isRinnovo(data)) {
     throw new Error("Operazione riservata agli associati già registrati.");
@@ -2757,12 +2923,18 @@ export async function salvaAggiornamentoAssociatoIscrizione(
   const tokenMember = loaded
     ? await resolveMemberFromTokenInfo(db, loaded.info)
     : null;
-  const member = tokenMember ?? (await findMemberByCf(db, formText(data.cf)));
+  const member =
+    tokenMember ??
+    trustedMember ??
+    (await findMemberByCf(db, formText(data.cf)));
   if (!member) {
     throw new Error("Associato non trovato in rubrica. Contatta la segreteria.");
   }
 
   const cf = formText(data.cf).toUpperCase();
+  const cashDocs =
+    Boolean(loaded?.info.cashQuotaPaid) ||
+    (await memberCashDeskFormStillOpen(db, member));
   // Solo anagrafica senza pagamento: serve almeno la quota dell'anno corrente
   // (o contanti sportello). Il rinnovo anticipato 2027 passa da pagamento.
   const quotaOk =
@@ -2831,30 +3003,25 @@ export async function salvaAggiornamentoAssociatoIscrizione(
     );
   }
 
-  if (token) {
-    await markMagicTokenUsed(db, token);
-  }
-
-  // Non bloccare la risposta su PDF/email (spinner infinito in passato).
-  if (loaded?.info.cashQuotaPaid) {
-    void finalizeCashEnrollmentDocuments({
+  if (cashDocs) {
+    await finalizeCashEnrollmentDocuments({
       db,
       memberId: member.id,
       data,
       cf,
-    }).catch((finalizeErr) => {
-      console.error(
-        "[salvaAggiornamentoAssociatoIscrizione] finalize PDF contanti:",
-        finalizeErr,
-      );
     });
+  }
+
+  if (token) {
+    await markMagicTokenUsed(db, token);
   }
 
   return {
     success: true,
     skipPayment: true,
-    message:
-      "Dati aggiornati con successo. La quota per quest'anno risulta già pagata.",
+    message: cashDocs
+      ? "Iscrizione completata. Ti abbiamo inviato il modulo PDF via email e avvisato la segreteria."
+      : "Dati aggiornati con successo. La quota per quest'anno risulta già pagata.",
     nome: formText(data.nome),
   };
 }
@@ -3012,6 +3179,102 @@ export async function backfillRecentEnrollmentPdfs(options?: {
     ok: results.length,
     failed,
     results,
+  };
+}
+
+/**
+ * Moduli contanti già firmati a cui non è partita la mail (PDF + segreteria).
+ * Salta chi ha già confirmation_email_sent e il PDF, e i link non ancora usati.
+ */
+export async function backfillMissingCashEnrollmentDocuments(options?: {
+  dryRun?: boolean;
+}): Promise<{
+  success: boolean;
+  total: number;
+  sent: string[];
+  skipped: string[];
+  failed: Array<{ name: string; error: string }>;
+}> {
+  const db = createServiceRoleClient();
+  const dryRun = Boolean(options?.dryRun);
+  const { data: quotas, error: quotaErr } = await db
+    .from("member_annual_quotas")
+    .select("member_id, fiscal_year, notes, paid_at")
+    .ilike("notes", "%contanti%")
+    .not("paid_at", "is", null);
+  if (quotaErr) {
+    throw new Error(quotaErr.message || "Impossibile leggere le quote contanti.");
+  }
+
+  const { data: tokenRows, error: tokenErr } = await db
+    .from("app_settings")
+    .select("value")
+    .like("key", `${TOKEN_KEY_PREFIX}%`);
+  if (tokenErr) {
+    throw new Error(tokenErr.message || "Impossibile leggere i link contanti.");
+  }
+  const usedMemberIds = new Set<string>();
+  for (const row of tokenRows || []) {
+    const info = parseMagicTokenValue(String(row.value || ""));
+    if (info?.cashQuotaPaid && info.usedAt && info.memberId) {
+      usedMemberIds.add(info.memberId);
+    }
+  }
+
+  const sent: string[] = [];
+  const skipped: string[] = [];
+  const failed: Array<{ name: string; error: string }> = [];
+
+  for (const quota of quotas || []) {
+    if (!usedMemberIds.has(quota.member_id)) continue;
+    const member = await findMemberById(db, quota.member_id);
+    const name = member
+      ? `${member.last_name || ""} ${member.first_name || ""}`.trim()
+      : quota.member_id;
+    if (!member?.tax_code) {
+      skipped.push(`${name} (anagrafica incompleta)`);
+      continue;
+    }
+    const existing = await findPaidEnrollmentForYear(
+      db,
+      member.id,
+      quota.fiscal_year,
+    );
+    if (
+      existing?.confirmation_email_sent &&
+      (existing.pdf_url || existing.pdf_storage_path)
+    ) {
+      skipped.push(`${name} (già inviata)`);
+      continue;
+    }
+    if (dryRun) {
+      sent.push(`${name} (dry-run)`);
+      continue;
+    }
+    try {
+      const fields = memberToFormFields(member);
+      await finalizeCashEnrollmentDocuments({
+        db,
+        memberId: member.id,
+        data: fields as EnrollmentFormData,
+        cf: String(member.tax_code || "").toUpperCase(),
+        fiscalYear: quota.fiscal_year,
+      });
+      sent.push(name);
+    } catch (err) {
+      failed.push({
+        name,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  return {
+    success: failed.length === 0,
+    total: sent.length + skipped.length + failed.length,
+    sent,
+    skipped,
+    failed,
   };
 }
 

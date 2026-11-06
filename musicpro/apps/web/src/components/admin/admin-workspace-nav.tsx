@@ -27,13 +27,13 @@ function groupForHref(
 ): string {
   if (!href) return groups[0]?.label ?? "";
   const pathOnly = href.split("?")[0] ?? href;
-  return (
-    groups.find((group) =>
-      group.items.some((item) => hrefMatchesItem(pathOnly, item.href)),
-    )?.label ??
-    groups[0]?.label ??
-    ""
+  const matches = groups.flatMap((group) =>
+    group.items
+      .filter((item) => hrefMatchesItem(pathOnly, item.href))
+      .map((item) => ({ label: group.label, len: item.href.length })),
   );
+  matches.sort((a, b) => b.len - a.len);
+  return matches[0]?.label ?? groups[0]?.label ?? "";
 }
 
 function actionClass(active: boolean): string {
