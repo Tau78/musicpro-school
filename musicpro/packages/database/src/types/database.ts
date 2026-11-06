@@ -858,6 +858,9 @@ export interface Database {
           enabled: boolean;
           sort_order: number;
           description: string | null;
+          annual_quantity: number;
+          stock_year: number;
+          stock_sold: number;
           created_at: string;
           updated_at: string;
         };
@@ -869,6 +872,9 @@ export interface Database {
           enabled?: boolean;
           sort_order?: number;
           description?: string | null;
+          annual_quantity?: number;
+          stock_year?: number;
+          stock_sold?: number;
         };
         Update: Partial<Database["public"]["Tables"]["credit_packages"]["Insert"]>;
         Relationships: [];
@@ -2571,8 +2577,15 @@ export interface Database {
           p_amount_eur: number;
           p_method: string;
           p_credits: number;
+          p_package_id?: string | null;
         };
         Returns: Json;
+      };
+      roll_credit_package_stock: {
+        Args: {
+          p_package_id?: string | null;
+        };
+        Returns: undefined;
       };
       apply_stripe_credit_shop_payment: {
         Args: {

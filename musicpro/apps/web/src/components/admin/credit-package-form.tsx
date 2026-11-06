@@ -41,19 +41,22 @@ function emptyCreditPackageInput(): CreditPackageInput {
     description: null,
     enabled: true,
     sortOrder: 0,
+    annualQuantity: 0,
   };
 }
 
 function creditPackageToInput(
   creditPackage: CreditPackage,
 ): CreditPackageInput {
-  const {
-    id: _id,
-    createdAt: _createdAt,
-    updatedAt: _updatedAt,
-    ...rest
-  } = creditPackage;
-  return rest;
+  return {
+    name: creditPackage.name,
+    credits: creditPackage.credits,
+    priceEur: creditPackage.priceEur,
+    description: creditPackage.description,
+    enabled: creditPackage.enabled,
+    sortOrder: creditPackage.sortOrder,
+    annualQuantity: creditPackage.annualQuantity,
+  };
 }
 
 function parseAmount(raw: string): number {
@@ -162,6 +165,12 @@ export function CreditPackageForm({
 
     if (form.priceEur < 0) {
       setError("Il prezzo non può essere negativo.");
+      setSaving(false);
+      return;
+    }
+
+    if (!Number.isInteger(form.annualQuantity) || form.annualQuantity < 0) {
+      setError("I pezzi per anno sono un numero intero, zero o più.");
       setSaving(false);
       return;
     }
@@ -276,7 +285,21 @@ export function CreditPackageForm({
             />
           </label>
         </div>
-        <label className="block">
+        <label className="block min-w-0 max-w-full">
+          <FieldLabel>Pezzi per anno</FieldLabel>
+          <input
+            type="number"
+            min={0}
+            step={1}
+            required
+            value={form.annualQuantity}
+            onChange={(e) =>
+              updateField("annualQuantity", Number(e.target.value))
+            }
+            className={amountInputClass}
+          />
+        </label>
+        <label className="block min-w-0 max-w-full">
           <FieldLabel>Ordine</FieldLabel>
           <input
             type="number"
@@ -287,6 +310,17 @@ export function CreditPackageForm({
             className={settingsInputClass}
           />
         </label>
+        {isEdit && creditPackage ? (
+          <p className="text-sm text-neutral-600 sm:col-span-2">
+            Anno {creditPackage.stockYear}: venduti {creditPackage.stockSold},{" "}
+            rimasti {creditPackage.annualQuantity - creditPackage.stockSold}. Il
+            1° gennaio i venduti tornano a zero e si ricaricano i pezzi per anno.
+          </p>
+        ) : (
+          <p className="text-sm text-neutral-600 sm:col-span-2">
+            Il 1° gennaio i pezzi in vendita tornano a questo numero.
+          </p>
+        )}
         <label className="block sm:col-span-2">
           <FieldLabel>Descrizione</FieldLabel>
           <textarea

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { getCreditPackageById } from "@musicpro/database";
+import {
+  creditPackageRemaining,
+  getCreditPackageById,
+} from "@musicpro/database";
 
 import { authPublicOrigin, isLocalDevOrigin } from "@/lib/auth/redirect-url";
 import { createNexiCreditShopPaymentLink } from "@/lib/nexi/credit-shop-payment-link";
@@ -62,6 +65,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, message: "Pacchetto crediti non disponibile." },
         { status: 404 },
+      );
+    }
+
+    if (creditPackageRemaining(creditPackage) <= 0) {
+      return NextResponse.json(
+        { success: false, message: "Questo pacchetto è esaurito." },
+        { status: 409 },
       );
     }
 

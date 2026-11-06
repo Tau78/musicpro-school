@@ -3,7 +3,31 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
-import { formatEuro, type CreditPackage } from "@musicpro/database";
+import {
+  creditPackageRemaining,
+  formatEuro,
+  type CreditPackage,
+} from "@musicpro/database";
+
+import {
+  discountPercentFromPrice,
+  formatDiscountInput,
+} from "@/components/admin/credit-package-discount";
+
+function formatCreditAmount(value: number): string {
+  const rounded = Math.round(Number(value) * 100) / 100;
+  if (!Number.isFinite(rounded)) return "0";
+  return Number.isInteger(rounded)
+    ? String(rounded)
+    : rounded.toFixed(2).replace(".", ",");
+}
+
+function stockLabel(creditPackage: CreditPackage): string {
+  const remaining = creditPackageRemaining(creditPackage);
+  if (remaining > 0) return `${remaining} rimasti`;
+  if (remaining === 0) return "esaurito";
+  return `sforamento ${Math.abs(remaining)}`;
+}
 
 interface CreditPackageListProps {
   packages: CreditPackage[];
@@ -54,21 +78,25 @@ export function CreditPackageList({ packages, canAdd }: CreditPackageListProps) 
             Nessun pacchetto trovato.
           </li>
         ) : (
-          filtered.map((pkg) => (
+          filtered.map((pkg) => {
+            const discount = formatDiscountInput(
+              discountPercentFromPrice(pkg.priceEur, pkg.credits),
+            );
+            return (
             <li key={pkg.id}>
               <Link
                 href={`/admin/shop/${pkg.id}`}
-                className="flex items-center gap-4 px-4 py-3 transition-colors hover:bg-neutral-50"
+                className="flex min-w-0 max-w-full items-center gap-4 px-4 py-3 transition-colors hover:bg-neutral-50"
               >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--brand)]/10 text-sm font-semibold text-[var(--brand)]">
-                  {pkg.credits}
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--brand)]/10 text-xs font-semibold text-[var(--brand)]">
+                  {discount ? `${discount}%` : "—"}
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium text-neutral-900">
                     {pkg.name}
                   </p>
                   <p className="truncate text-sm text-neutral-500">
-                    {pkg.description ?? `${pkg.credits} crediti`}
+                    {formatCreditAmount(pkg.credits)} crediti · {stockLabel(pkg)}
                   </p>
                 </div>
                 <div className="shrink-0 text-right">
@@ -81,7 +109,8 @@ export function CreditPackageList({ packages, canAdd }: CreditPackageListProps) 
                 </div>
               </Link>
             </li>
-          ))
+            );
+          })
         )}
       </ul>
     </div>
