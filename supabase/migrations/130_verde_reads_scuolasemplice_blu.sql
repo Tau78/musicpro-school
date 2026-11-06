@@ -1,7 +1,7 @@
 -- Lezioni ScuolaSemplice della ex sala Blu occupano la Verde.
 -- Il cutover SuperSaaS (098) ha spento ogni feed @import.calendar.google.com,
 -- compreso questo calendario lezioni. La sala Blu è spenta: il feed si legge sulla Verde.
--- Rossa e Arancio restano spenti: questo statement non li tocca.
+-- Rossa e Arancio non si spostano: le riaccende la migration 131.
 
 UPDATE public.room_external_calendars AS c
 SET
