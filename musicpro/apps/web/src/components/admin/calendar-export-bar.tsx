@@ -133,8 +133,8 @@ export function CalendarExportBar({
   return (
     <div className="min-w-0 max-w-full rounded-xl border border-neutral-200 bg-white p-4">
       <span className="text-xs font-medium text-neutral-600">Calendario</span>
-      <div className="mt-2 flex min-w-0 max-w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end">
-        <label className="min-w-0 w-full max-w-full text-sm sm:w-auto sm:flex-1 sm:max-w-[10rem]">
+      <div className="mt-2 grid min-w-0 max-w-full grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-[repeat(4,minmax(0,11rem))_auto] lg:items-end">
+        <label className="min-w-0 max-w-full text-sm">
           <span className="mb-1 block text-neutral-600">Da</span>
           <input
             type="date"
@@ -143,7 +143,7 @@ export function CalendarExportBar({
             className={fieldInputClass}
           />
         </label>
-        <label className="min-w-0 w-full max-w-full text-sm sm:w-auto sm:flex-1 sm:max-w-[10rem]">
+        <label className="min-w-0 max-w-full text-sm">
           <span className="mb-1 block text-neutral-600">Fino a</span>
           <input
             type="date"
@@ -152,7 +152,7 @@ export function CalendarExportBar({
             className={fieldInputClass}
           />
         </label>
-        <label className="min-w-0 w-full max-w-full text-sm sm:w-auto sm:flex-1 sm:max-w-[12rem]">
+        <label className="min-w-0 max-w-full text-sm">
           <span className="mb-1 block text-neutral-600">Sala</span>
           <select
             value={roomId}
@@ -167,7 +167,7 @@ export function CalendarExportBar({
             ))}
           </select>
         </label>
-        <label className="min-w-0 w-full max-w-full text-sm sm:w-auto sm:flex-1 sm:max-w-[10rem]">
+        <label className="min-w-0 max-w-full text-sm">
           <span className="mb-1 block text-neutral-600">Formato</span>
           <select
             value={format}
@@ -182,7 +182,7 @@ export function CalendarExportBar({
           type="button"
           disabled={busy}
           onClick={() => void handleDownload()}
-          className={`${settingsPrimaryButtonClass} w-full sm:w-auto`}
+          className={`${settingsPrimaryButtonClass} w-full lg:w-auto`}
         >
           {busy ? "Preparazione…" : "Scarica"}
         </button>

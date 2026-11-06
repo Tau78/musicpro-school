@@ -4,9 +4,9 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
 import {
-  AdminGroupedNav,
-  type AdminNavGroup,
-} from "@/components/admin/admin-grouped-nav";
+  AdminWorkspaceNav,
+  type AdminWorkspaceNavGroup,
+} from "@/components/admin/admin-workspace-nav";
 import { isSettingsPath } from "@/lib/admin/settings-nav";
 
 interface SettingsSubNavProps {
@@ -40,121 +40,83 @@ export function SettingsSubNav({
   const onSale = pathname.startsWith("/admin/sale");
   const onShop = pathname.startsWith("/admin/shop");
   const onMarket = pathname.startsWith("/admin/market");
-  const onImpostazioniRoot =
-    pathname === "/admin/impostazioni" || pathname.startsWith("/admin/penali");
+  const onUtenti = pathname.startsWith("/admin/impostazioni/utenti");
   const onDocumenti =
     pathname.startsWith("/admin/impostazioni/documenti") ||
     pathname.startsWith("/admin/template");
-  const onUtenti = pathname.startsWith("/admin/impostazioni/utenti");
+  const onImpostazioniRoot =
+    (pathname === "/admin/impostazioni" ||
+      pathname.startsWith("/admin/penali")) &&
+    !onDocumenti &&
+    !onUtenti;
 
-  const groups: AdminNavGroup[] = [];
+  const groups: AdminWorkspaceNavGroup[] = [];
 
   const pagamentiItems = [
-    {
-      href: "/admin/quote",
-      label: "Quote associative",
-      description: "Importi annuali e pagamenti",
-      active: onQuote,
-      visible: showQuote,
-    },
-    {
-      href: "/admin/shop",
-      label: "Crediti",
-      description: "Totale, shop, promozioni e storico",
-      active: onShop,
-      visible: showShop,
-    },
-    {
-      href: "/admin/market",
-      label: "Market",
-      description: showShop
-        ? "Oggetti usati, ritiro in sede"
-        : "Solo oggetti della scuola",
-      active: onMarket,
-      visible: showMarket,
-    },
-  ].filter((item) => item.visible);
+    showQuote
+      ? { href: "/admin/quote", label: "Quote associative" }
+      : null,
+    showShop ? { href: "/admin/shop", label: "Crediti" } : null,
+    showMarket ? { href: "/admin/market", label: "Market" } : null,
+  ].filter((item): item is { href: string; label: string } => item != null);
 
   if (pagamentiItems.length > 0) {
-    groups.push({
-      label: "Pagamenti",
-      items: pagamentiItems.map(({ href, label, description, active }) => ({
-        href,
-        label,
-        description,
-        active,
-      })),
-    });
+    groups.push({ label: "Pagamenti", items: pagamentiItems });
   }
 
   const saleItems = [
-    {
-      href: "/admin/sale",
-      label: "Sale",
-      description: "Orari, tariffe e calendari",
-      active: onSale,
-      visible: showSale,
-    },
-    {
-      href: "/admin/impostazioni",
-      label: "Regole di prenotazione",
-      description: "Soglie, penali e crediti",
-      active: onImpostazioniRoot,
-      visible: showPrenotazioniSettings,
-    },
-  ].filter((item) => item.visible);
+    showSale ? { href: "/admin/sale", label: "Sale" } : null,
+    showPrenotazioniSettings
+      ? { href: "/admin/impostazioni", label: "Regole di prenotazione" }
+      : null,
+  ].filter((item): item is { href: string; label: string } => item != null);
 
   if (saleItems.length > 0) {
-    groups.push({
-      label: "Sale e prenotazioni",
-      items: saleItems.map(({ href, label, description, active }) => ({
-        href,
-        label,
-        description,
-        active,
-      })),
-    });
+    groups.push({ label: "Sale e prenotazioni", items: saleItems });
   }
 
   const segreteriaItems = [
-    {
-      href: "/admin/impostazioni/documenti",
-      label: "Documenti",
-      description: "Email, Drive e modelli",
-      active: onDocumenti,
-      visible: showDocumenti,
-    },
-    {
-      href: "/admin/impostazioni/utenti",
-      label: "Utenti",
-      description: "Accesso amministrazione",
-      active: onUtenti,
-      visible: showUtenti,
-    },
-  ].filter((item) => item.visible);
+    showDocumenti
+      ? { href: "/admin/impostazioni/documenti", label: "Documenti" }
+      : null,
+    showUtenti
+      ? { href: "/admin/impostazioni/utenti", label: "Utenti" }
+      : null,
+  ].filter((item): item is { href: string; label: string } => item != null);
 
   if (segreteriaItems.length > 0) {
-    groups.push({
-      label: "Segreteria",
-      items: segreteriaItems.map(({ href, label, description, active }) => ({
-        href,
-        label,
-        description,
-        active,
-      })),
-    });
+    groups.push({ label: "Segreteria", items: segreteriaItems });
   }
 
   if (groups.length === 0) {
     return children;
   }
 
+  const activeHref = onUtenti
+    ? "/admin/impostazioni/utenti"
+    : onDocumenti
+      ? "/admin/impostazioni/documenti"
+      : onImpostazioniRoot
+        ? "/admin/impostazioni"
+        : onSale
+          ? "/admin/sale"
+          : onMarket
+            ? "/admin/market"
+            : onShop
+              ? "/admin/shop"
+              : onQuote
+                ? "/admin/quote"
+                : null;
+
   return (
-    <div className="flex flex-col gap-6 md:flex-row md:items-start">
-      <div className="md:sticky md:top-4 md:self-start">
-        <AdminGroupedNav groups={groups} label="Impostazioni" title="Impostazioni" />
-      </div>
-      <div className="min-w-0 flex-1">{children}</div>
+    <div className="min-w-0 max-w-full space-y-3 sm:space-y-4">
+      <AdminWorkspaceNav
+        title="Impostazioni"
+        groups={groups}
+        activeHref={activeHref}
+        segmentAriaLabel="Sezioni impostazioni"
+      />
+      <div className="min-w-0 max-w-full">{children}</div>
     </div>
   );
 }
