@@ -10,9 +10,55 @@ import {
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
-import { publishSchoolLastMinuteDigestStories } from "@/lib/queue-school-lm-story-to-eventi";
+import { sendLastMinuteCronReportEmail } from "@/lib/last-minute/cron-report-email";
+import {
+  publishSchoolLastMinuteDigestStories,
+  type PublishDigestStoriesResult,
+} from "@/lib/queue-school-lm-story-to-eventi";
 
 export const runtime = "nodejs";
+
+function eventiCredsPresent(): boolean {
+  return Boolean(
+    process.env.EVENTI_SUPABASE_URL?.trim() &&
+      process.env.EVENTI_SUPABASE_SERVICE_ROLE_KEY?.trim(),
+  );
+}
+
+async function maybeSendCronReport(
+  service: SupabaseClient<Database>,
+  payload: Parameters<typeof sendLastMinuteCronReportEmail>[1],
+) {
+  try {
+    const mail = await sendLastMinuteCronReportEmail(service, {
+      ...payload,
+      eventiCredsPresent: eventiCredsPresent(),
+    });
+    if (!mail.sent) {
+      console.warn("[cron/last-minute] report email:", mail.error ?? "not sent");
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn("[cron/last-minute] report email throw:", message.slice(0, 200));
+  }
+}
+
+async function runDigestStories(
+  service: SupabaseClient<Database>,
+): Promise<PublishDigestStoriesResult> {
+  try {
+    return await publishSchoolLastMinuteDigestStories(service);
+  } catch (digestError) {
+    const digestMessage =
+      digestError instanceof Error ? digestError.message : String(digestError);
+    console.warn("[cron/last-minute] digest stories:", digestMessage);
+    return {
+      success: false,
+      reason: "digest_publish_error",
+      days: [],
+    };
+  }
+}
 
 function isAuthorized(request: Request): boolean {
   const cronSecret = process.env.CRON_SECRET?.trim();
@@ -90,6 +136,18 @@ export async function GET(request: Request) {
     }
 
     if (!operationalActive) {
+      const digest = await runDigestStories(service);
+      await maybeSendCronReport(service, {
+        dayRome,
+        success: true,
+        skipped: true,
+        reason: "evening_not_operational",
+        operationalActive: false,
+        phase1Created: 0,
+        phase2Advanced: 0,
+        digest,
+        eventiCredsPresent: eventiCredsPresent(),
+      });
       return NextResponse.json({
         success: true,
         skipped: true,
@@ -97,6 +155,7 @@ export async function GET(request: Request) {
         dayRome,
         phase1Created: 0,
         phase2Advanced: 0,
+        digest,
       });
     }
 
@@ -266,23 +325,19 @@ export async function GET(request: Request) {
       }
     }
 
-    let digest: Awaited<
-      ReturnType<typeof publishSchoolLastMinuteDigestStories>
-    > | null = null;
-    try {
-      digest = await publishSchoolLastMinuteDigestStories(service);
-    } catch (digestError) {
-      const digestMessage =
-        digestError instanceof Error
-          ? digestError.message
-          : String(digestError);
-      console.warn("[cron/last-minute] digest stories:", digestMessage);
-      digest = {
-        success: false,
-        reason: "digest_publish_error",
-        days: [],
-      };
-    }
+    const digest = await runDigestStories(service);
+
+    await maybeSendCronReport(service, {
+      dayRome,
+      success: true,
+      operationalActive: true,
+      roomsScanned: rooms?.length ?? 0,
+      candidates: candidateSlots.length,
+      phase1Created,
+      phase2Advanced,
+      digest,
+      eventiCredsPresent: eventiCredsPresent(),
+    });
 
     return NextResponse.json({
       success: true,
@@ -297,6 +352,12 @@ export async function GET(request: Request) {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Cron last minute fallito";
+    await maybeSendCronReport(service, {
+      dayRome,
+      success: false,
+      message: message.slice(0, 500),
+      eventiCredsPresent: eventiCredsPresent(),
+    });
     return NextResponse.json(
       { success: false, message: message.slice(0, 500) },
       { status: 500 },
