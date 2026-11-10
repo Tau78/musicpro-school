@@ -1,6 +1,8 @@
 import {
   type Database,
   getRoomAvailability,
+  isSlotOpenForLastMinute,
+  sameInstant,
 } from "@musicpro/database";
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -156,7 +158,10 @@ async function slotStillAvailable(
       { prefetchNeighbors: false },
     );
     return availability.slots.some(
-      (s) => s.available && s.startAt === startAt && s.endAt === endAt,
+      (s) =>
+        isSlotOpenForLastMinute(s) &&
+        sameInstant(s.startAt, startAt) &&
+        sameInstant(s.endAt, endAt),
     );
   } catch {
     return true;

@@ -294,6 +294,8 @@ export {
   computeLastMinuteTotalPriceEur,
   isLastMinuteAnchorStart,
   isLastMinuteAnchorSlot,
+  isSlotOpenForLastMinute,
+  sameInstant,
   romeWeekdayKeyForInstant,
   hoursUntilSlotStart,
   isWithinLastMinuteWindow,
