@@ -60,6 +60,38 @@ async function runDigestStories(
   }
 }
 
+type RunProgress = {
+  phase1Created: number;
+  phase2Advanced: number;
+  candidates: number;
+  roomsScanned: number;
+  operationalActive?: boolean;
+};
+
+async function respondMigrationSkip(
+  service: SupabaseClient<Database>,
+  dayRome: string,
+  message: string,
+) {
+  const digest = await runDigestStories(service);
+  await maybeSendCronReport(service, {
+    dayRome,
+    success: true,
+    skipped: true,
+    reason: "migration_not_applied",
+    message: message.slice(0, 500),
+    digest,
+    eventiCredsPresent: eventiCredsPresent(),
+  });
+  return NextResponse.json({
+    success: true,
+    skipped: true,
+    reason: "migration_not_applied",
+    message: message.slice(0, 500),
+    digest,
+  });
+}
+
 function isAuthorized(request: Request): boolean {
   const cronSecret = process.env.CRON_SECRET?.trim();
   if (!cronSecret) return false;
@@ -117,6 +149,13 @@ export async function GET(request: Request) {
   const nowIso = now.toISOString();
   const dayRome = romeToday();
 
+  const progress: RunProgress = {
+    phase1Created: 0,
+    phase2Advanced: 0,
+    candidates: 0,
+    roomsScanned: 0,
+  };
+
   try {
     const { data: operationalActive, error: operationalError } = await service.rpc(
       "booking_evening_operational_active",
@@ -125,15 +164,12 @@ export async function GET(request: Request) {
 
     if (operationalError) {
       if (/booking_evening_operational_active|does not exist/i.test(operationalError.message)) {
-        return NextResponse.json({
-          success: true,
-          skipped: true,
-          reason: "migration_not_applied",
-          message: operationalError.message,
-        });
+        return respondMigrationSkip(service, dayRome, operationalError.message);
       }
       throw new Error(operationalError.message);
     }
+
+    progress.operationalActive = operationalActive === true;
 
     if (!operationalActive) {
       const digest = await runDigestStories(service);
@@ -167,13 +203,23 @@ export async function GET(request: Request) {
       .eq("is_active", true);
 
     if (roomsError) {
+      const digest = await runDigestStories(service);
+      await maybeSendCronReport(service, {
+        dayRome,
+        success: false,
+        message: roomsError.message,
+        operationalActive: progress.operationalActive,
+        digest,
+        eventiCredsPresent: eventiCredsPresent(),
+      });
       return NextResponse.json(
         { success: false, message: roomsError.message },
         { status: 500 },
       );
     }
 
-    let phase1Created = 0;
+    progress.roomsScanned = rooms?.length ?? 0;
+
     const candidateSlots: Array<{ roomId: string; startAt: string; endAt: string }> =
       [];
 
@@ -238,12 +284,7 @@ export async function GET(request: Request) {
 
       if (existingError) {
         if (isMissingLastMinuteSchema(existingError.message)) {
-          return NextResponse.json({
-            success: true,
-            skipped: true,
-            reason: "migration_not_applied",
-            message: existingError.message,
-          });
+          return respondMigrationSkip(service, dayRome, existingError.message);
         }
         throw new Error(existingError.message);
       }
@@ -263,23 +304,18 @@ export async function GET(request: Request) {
           continue;
         }
         if (isMissingLastMinuteSchema(insertError.message)) {
-          return NextResponse.json({
-            success: true,
-            skipped: true,
-            reason: "migration_not_applied",
-            message: insertError.message,
-          });
+          return respondMigrationSkip(service, dayRome, insertError.message);
         }
         throw new Error(insertError.message);
       }
 
-      phase1Created += 1;
+      progress.phase1Created += 1;
       // TODO(email): invio fase 1 urgenza (senza sconto) agli associati storici slot.
       // TODO(meta): bozza/post storia fase 1 su canale Meta School.
       // TODO(telegram): notifica staff — slot libero, campagna phase1 avviata.
     }
 
-    let phase2Advanced = 0;
+    progress.candidates = candidateSlots.length;
 
     const { data: phase1Rows, error: phase1ListError } = await service
       .from("last_minute_campaigns")
@@ -288,12 +324,7 @@ export async function GET(request: Request) {
 
     if (phase1ListError) {
       if (isMissingLastMinuteSchema(phase1ListError.message)) {
-        return NextResponse.json({
-          success: true,
-          skipped: true,
-          reason: "migration_not_applied",
-          message: phase1ListError.message,
-        });
+        return respondMigrationSkip(service, dayRome, phase1ListError.message);
       }
       throw new Error(phase1ListError.message);
     }
@@ -318,7 +349,7 @@ export async function GET(request: Request) {
       }
 
       if (updated?.id) {
-        phase2Advanced += 1;
+        progress.phase2Advanced += 1;
         // TODO(email): re-invio mirato fase 2 con prezzo last minute nel deep link.
         // TODO(meta): aggiornamento storia/post fase 2 (prezzo slot).
         // TODO(telegram): notifica staff — sconto/prezzo LM attivo su slot.
@@ -331,10 +362,10 @@ export async function GET(request: Request) {
       dayRome,
       success: true,
       operationalActive: true,
-      roomsScanned: rooms?.length ?? 0,
-      candidates: candidateSlots.length,
-      phase1Created,
-      phase2Advanced,
+      roomsScanned: progress.roomsScanned,
+      candidates: progress.candidates,
+      phase1Created: progress.phase1Created,
+      phase2Advanced: progress.phase2Advanced,
       digest,
       eventiCredsPresent: eventiCredsPresent(),
     });
@@ -343,19 +374,26 @@ export async function GET(request: Request) {
       success: true,
       dayRome,
       operationalActive: true,
-      roomsScanned: rooms?.length ?? 0,
-      candidates: candidateSlots.length,
-      phase1Created,
-      phase2Advanced,
+      roomsScanned: progress.roomsScanned,
+      candidates: progress.candidates,
+      phase1Created: progress.phase1Created,
+      phase2Advanced: progress.phase2Advanced,
       digest,
     });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Cron last minute fallito";
+    const digest = await runDigestStories(service);
     await maybeSendCronReport(service, {
       dayRome,
       success: false,
       message: message.slice(0, 500),
+      operationalActive: progress.operationalActive,
+      roomsScanned: progress.roomsScanned,
+      candidates: progress.candidates,
+      phase1Created: progress.phase1Created,
+      phase2Advanced: progress.phase2Advanced,
+      digest,
       eventiCredsPresent: eventiCredsPresent(),
     });
     return NextResponse.json(
