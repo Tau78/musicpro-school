@@ -3,7 +3,7 @@ import { sendEnrollmentEmail } from "@/lib/iscrizione/email-transport";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@musicpro/database";
 
-type CronReportPayload = {
+export type CronReportPayload = {
   dayRome: string;
   success: boolean;
   skipped?: boolean;
@@ -46,18 +46,54 @@ function formatDigestLines(
   if (digest.skipped && digest.reason) {
     return [`Digest storie: saltato (${digest.reason}).`];
   }
+  if (!digest.success && digest.reason) {
+    return [`Digest storie: errore (${digest.reason}).`];
+  }
+  const dayErrors = digest.days?.filter((d) => d.action === "error") ?? [];
+  if (dayErrors.length > 0) {
+    const lines = ["Digest storie: errori su alcuni giorni:"];
+    for (const day of dayErrors) {
+      lines.push(
+        `  · ${day.dayRome} | ${day.message?.slice(0, 160) ?? "errore"}`,
+      );
+    }
+    return lines;
+  }
   if (!digest.days?.length) {
     return ["Digest storie: nessun giorno con campagne in finestra 48h."];
   }
-  return digest.days.map((day) => {
-    const parts = [
-      `${day.dayRome}`,
-      day.action,
-      day.planId ? `plan=${day.planId.slice(0, 8)}…` : null,
-      day.message ? day.message.slice(0, 120) : null,
-    ].filter(Boolean);
-    return `  · ${parts.join(" | ")}`;
-  });
+  return [
+    "Digest storie:",
+    ...digest.days.map((day) => {
+      const parts = [
+        `${day.dayRome}`,
+        day.action,
+        day.planId ? `plan=${day.planId.slice(0, 8)}…` : null,
+        day.message ? day.message.slice(0, 120) : null,
+      ].filter(Boolean);
+      return `  · ${parts.join(" | ")}`;
+    }),
+  ];
+}
+
+export function reportEmailSubjectSuffix(payload: CronReportPayload): string {
+  if (payload.skipped) return "saltato";
+  if (!payload.success) return "errore";
+  const digest = payload.digest;
+  if (digest && !digest.success && digest.reason) return "avvisi";
+  if (digest?.skipped && digest.reason) return "avvisi";
+  if (digest?.days?.some((d) => d.action === "error")) return "avvisi";
+  return "ok";
+}
+
+function shouldShowRunStats(payload: CronReportPayload): boolean {
+  if (!payload.skipped && payload.success) return true;
+  return (
+    (payload.phase1Created ?? 0) > 0 ||
+    (payload.phase2Advanced ?? 0) > 0 ||
+    (payload.candidates ?? 0) > 0 ||
+    (payload.roomsScanned ?? 0) > 0
+  );
 }
 
 export async function sendLastMinuteCronReportEmail(
@@ -84,7 +120,11 @@ export async function sendLastMinuteCronReportEmail(
     "",
   ];
 
-  if (!payload.skipped && payload.success) {
+  if (payload.message && (payload.skipped || !payload.success)) {
+    lines.push(`Dettaglio: ${payload.message}`, "");
+  }
+
+  if (shouldShowRunStats(payload)) {
     lines.push(
       `Sale scansionate: ${payload.roomsScanned ?? 0}`,
       `Slot candidati (ancorati in fascia): ${payload.candidates ?? 0}`,
@@ -94,7 +134,6 @@ export async function sendLastMinuteCronReportEmail(
     );
   }
 
-  lines.push("Digest Instagram (coda Eventi):");
   lines.push(...formatDigestLines(payload.digest));
   lines.push(
     "",
@@ -105,10 +144,11 @@ export async function sendLastMinuteCronReportEmail(
 
   const text = lines.join("\n");
   const html = lines.map((line) => escapeHtml(line)).join("<br />\n");
+  const subjectSuffix = reportEmailSubjectSuffix(payload);
 
   const mail = await sendEnrollmentEmail({
     to,
-    subject: `[School LM] ${payload.dayRome} — ${payload.skipped ? "saltato" : payload.success ? "ok" : "errore"}`,
+    subject: `[School LM] ${payload.dayRome} — ${subjectSuffix}`,
     text,
     html,
     preferGoogleSmtp: true,

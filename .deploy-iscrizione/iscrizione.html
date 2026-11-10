@@ -168,6 +168,10 @@
         button.secondary-btn:hover { border-color: var(--ink); }
         button:disabled { opacity: 0.5; cursor: not-allowed; }
         .hidden { display: none; }
+        /* Link personalizzato: niente riquadro quota finché il server non dice che va pagata. */
+        html.token-link #pay-section-title,
+        html.token-link #pay-info-box,
+        html.token-link #pay-first-pack-wrap { display: none !important; }
         .pay-info {
             background: rgba(225, 6, 0, 0.1);
             border: 1px solid rgba(225, 6, 0, 0.35);
@@ -458,13 +462,41 @@
     </form>
 </div>
 </div>
+<script>
+    /* Prima di signature_pad: un refresh non deve rimostrare i 15€ del link contanti. */
+    (function () {
+        var TOKEN_SS = 'mp_iscrizione_token_v1';
+        var q = location.search || '';
+        var match = q.match(/[?&]iscrizioneToken=([^&]+)/);
+        if (!match) {
+            try {
+                var saved = sessionStorage.getItem(TOKEN_SS);
+                if (saved) {
+                    window.__mpTokenRedirect = true;
+                    location.replace(location.pathname + '?iscrizioneToken=' + encodeURIComponent(saved));
+                }
+            } catch (eSs) {}
+            return;
+        }
+        document.documentElement.classList.add('token-link');
+        try { sessionStorage.setItem(TOKEN_SS, decodeURIComponent(match[1])); } catch (eSave) {}
+        var btn = document.getElementById('submitBtn');
+        if (btn) btn.textContent = 'COMPLETA ISCRIZIONE';
+    })();
+</script>
 
-<footer class="site-footer">v1.2.0 &middot; 2026-11-05</footer>
+<footer class="site-footer">v1.2.0 &middot; 2026-11-09</footer>
 
 <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
 <script>
     var canvas = document.getElementById('signature-pad');
-    var signaturePad = new SignaturePad(canvas, { backgroundColor: 'rgba(255, 255, 255, 0)' });
+    var signaturePad = null;
+    try {
+        signaturePad = new SignaturePad(canvas, { backgroundColor: 'rgba(255, 255, 255, 0)' });
+    } catch (ePad) {
+        signaturePad = null;
+    }
+    var TOKEN_SS_KEY = 'mp_iscrizione_token_v1';
     // Preferisci Next diretto (CORS *): il proxy FTP /api.php a volte hangua (0 byte).
     var API_URL = 'https://school.musicproeventi.it/api/iscrizione';
     var API_FALLBACK_URL = '/api.php';
@@ -727,6 +759,7 @@
         var payBox = document.getElementById('pay-info-box');
         var banner = document.getElementById('rinnovo-banner');
         var btn = document.getElementById('submitBtn');
+        document.documentElement.classList.toggle('token-link', !!quotaGiaPagata);
         if (quotaGiaPagata) {
             if (payTitle) payTitle.classList.add('hidden');
             if (payBox) payBox.classList.add('hidden');
@@ -813,20 +846,20 @@
         });
     }
 
-    function gasApiPost(payload) {
+    function gasApiPost(payload, timeoutMs) {
         var body = JSON.stringify(payload);
         var postOpts = {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: body
         };
-        function postOnce(url) {
-            return fetchApi(url, postOpts, 20000).then(parseApiJson);
+        function postOnce(url, timeoutMs) {
+            return fetchApi(url, postOpts, timeoutMs || 20000).then(parseApiJson);
         }
-        return postOnce(API_URL).catch(function(err) {
+        return postOnce(API_URL, timeoutMs).catch(function(err) {
             // Solo rete/timeout su School → proxy FTP; errori business (4xx/message) restano lì.
             if (API_FALLBACK_URL && API_FALLBACK_URL !== API_URL && isNetworkOrTimeoutError(err)) {
-                return postOnce(API_FALLBACK_URL);
+                return postOnce(API_FALLBACK_URL, timeoutMs);
             }
             throw err;
         }).catch(function(err) {
@@ -1220,7 +1253,9 @@
     }
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
-    document.getElementById('clear-signature').addEventListener('click', function() { signaturePad.clear(); });
+    document.getElementById('clear-signature').addEventListener('click', function() {
+        if (signaturePad) signaturePad.clear();
+    });
 
     function syncMinorContactRequirements() {
         var birthEl = document.getElementById('data_nascita');
@@ -1321,20 +1356,29 @@
     }
 
     var iscrizioneToken = qp('iscrizioneToken');
+    if (!iscrizioneToken && !window.__mpTokenRedirect) {
+        try { iscrizioneToken = sessionStorage.getItem(TOKEN_SS_KEY) || ''; } catch (eTok) {}
+    }
     var activeIscrizioneToken = iscrizioneToken || '';
-    if (iscrizioneToken) {
+    if (iscrizioneToken && !window.__mpTokenRedirect) {
         showLoading('Accesso in corso...', 'Caricamento dei tuoi dati.');
         gasApiGet('validateIscrizioneToken', { token: iscrizioneToken })
             .then(function(res) {
                 Swal.close();
                 if (!res || !res.found) {
+                    activeIscrizioneToken = '';
+                    try { sessionStorage.removeItem(TOKEN_SS_KEY); } catch (eClr) {}
+                    document.documentElement.classList.remove('token-link');
+                    var payBtn = document.getElementById('submitBtn');
+                    if (payBtn) payBtn.textContent = 'PROCEDI AL PAGAMENTO';
                     Swal.fire('Link non valido', (res && res.message) ? res.message : 'Richiedi un nuovo link.', 'error');
                     return;
                 }
+                // Il token resta nell'URL: un refresh non deve riaprire il pagamento.
+                try { sessionStorage.setItem(TOKEN_SS_KEY, iscrizioneToken); } catch (eSave) {}
                 // Evita di mischiare una bozza pending di un altro associato.
                 clearPendingIscrizione();
                 populateFormFromToken(res);
-                history.replaceState(null, '', window.location.pathname);
             })
             .catch(function(err) {
                 Swal.fire('Errore', err.message || 'Impossibile validare il link.', 'error');
@@ -1342,9 +1386,9 @@
     }
 
     var returnIdIscrizione = qp('idIscrizione');
-    if (returnIdIscrizione) {
+    if (!window.__mpTokenRedirect && returnIdIscrizione) {
         avviaRitornoPostPagamento(returnIdIscrizione);
-    } else {
+    } else if (!window.__mpTokenRedirect) {
         offerResumePendingIfAny();
     }
 
@@ -1376,6 +1420,10 @@
     document.getElementById('membershipForm').addEventListener('submit', function(e) {
         e.preventDefault();
 
+        if (!signaturePad) {
+            Swal.fire('Firma', 'La firma non è disponibile. Ricarica la pagina.', 'error');
+            return;
+        }
         if (signaturePad.isEmpty()) {
             document.getElementById('sig-error').style.display = 'block';
             return;
@@ -1388,6 +1436,9 @@
         data.privacy_accepted = document.getElementById('privacy-check').checked;
         data.photo_consent = document.getElementById('photo-check').checked;
         data.signatureData = signaturePad.toDataURL();
+        if (!activeIscrizioneToken) {
+            try { activeIscrizioneToken = sessionStorage.getItem(TOKEN_SS_KEY) || ''; } catch (eTok2) {}
+        }
         if (isRinnovoAssociato) data.rinnovo_associato = true;
         if (activeIscrizioneToken) {
             data.iscrizioneToken = activeIscrizioneToken;
@@ -1411,24 +1462,27 @@
         var btn = document.getElementById('submitBtn');
         btn.disabled = true;
 
-        var loadingTitle = (isRinnovoAssociato && quotaGiaPagata) ? 'Salvataggio in corso...' : 'Preparazione pagamento...';
-        var loadingHtml = (isRinnovoAssociato && quotaGiaPagata)
-            ? 'Stiamo aggiornando i tuoi dati in rubrica.'
+        var saveWithoutPay = isRinnovoAssociato && quotaGiaPagata;
+        var loadingTitle = saveWithoutPay ? 'Salvataggio in corso...' : 'Preparazione pagamento...';
+        var loadingHtml = saveWithoutPay
+            ? 'Stiamo salvando l\'iscrizione e preparando il PDF da inviarti.'
             : 'Attendi, verrai reindirizzato a Stripe.';
         showLoading(loadingTitle, loadingHtml);
 
-        var action = (isRinnovoAssociato && quotaGiaPagata)
+        var action = saveWithoutPay
             ? 'salvaAggiornamentoAssociatoIscrizione'
             : 'inviaIscrizioneConPagamento';
 
-        gasApiPost(Object.assign({ action: action }, data))
+        gasApiPost(Object.assign({ action: action }, data), saveWithoutPay ? 90000 : 20000)
             .then(function(res) {
                 if (res && res.success && res.skipPayment) {
                     clearPendingIscrizione();
                     activeIscrizioneToken = '';
+                    try { sessionStorage.removeItem(TOKEN_SS_KEY); } catch (eDone) {}
+                    history.replaceState(null, '', window.location.pathname);
                     Swal.fire({
                         icon: 'success',
-                        title: 'Dati salvati',
+                        title: 'Iscrizione completata',
                         text: res.message || 'Le modifiche sono state registrate.',
                         confirmButtonColor: '#e10600'
                     });
