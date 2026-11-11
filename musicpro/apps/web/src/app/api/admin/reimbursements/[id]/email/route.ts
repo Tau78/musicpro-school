@@ -7,20 +7,33 @@ import {
 import { MemberRole } from "@musicpro/shared";
 
 import { canManageReimbursements } from "@/lib/admin/roles";
-import { sendReimbursementNotulaEmail } from "@/lib/reimbursements/send";
+import {
+  sendReimbursementDigitalSignEmail,
+  sendReimbursementNotulaEmail,
+} from "@/lib/reimbursements/send";
 import { createClient } from "@/lib/supabase/server";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
 };
 
-export async function POST(_request: Request, context: RouteContext) {
+export async function POST(request: Request, context: RouteContext) {
   const { id } = await context.params;
   if (!id) {
     return NextResponse.json(
       { success: false, message: "ID mancante" },
       { status: 400 },
     );
+  }
+
+  let digitalSign = false;
+  try {
+    const body = (await request.json().catch(() => null)) as {
+      digitalSign?: boolean;
+    } | null;
+    digitalSign = Boolean(body?.digitalSign);
+  } catch {
+    digitalSign = false;
   }
 
   const supabase = await createClient();
@@ -62,7 +75,13 @@ export async function POST(_request: Request, context: RouteContext) {
     );
   }
 
-  const result = await sendReimbursementNotulaEmail(supabase, reimbursement);
+  const useDigital =
+    digitalSign || reimbursement.digitalSignRequested;
+
+  const result = useDigital
+    ? await sendReimbursementDigitalSignEmail(supabase, reimbursement)
+    : await sendReimbursementNotulaEmail(supabase, reimbursement);
+
   return NextResponse.json(result, {
     status: result.success ? 200 : 502,
   });

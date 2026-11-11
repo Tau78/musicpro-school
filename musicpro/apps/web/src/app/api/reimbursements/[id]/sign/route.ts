@@ -6,19 +6,31 @@ import {
   signReimbursement,
 } from "@musicpro/database";
 
+import { notifySegreteriaSignedReimbursement } from "@/lib/reimbursements/send";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
 };
 
-export async function POST(_request: Request, context: RouteContext) {
+export async function POST(request: Request, context: RouteContext) {
   const { id } = await context.params;
   if (!id) {
     return NextResponse.json(
       { success: false, message: "ID mancante" },
       { status: 400 },
     );
+  }
+
+  let signaturePngBase64: string | null = null;
+  try {
+    const body = (await request.json().catch(() => null)) as {
+      signaturePngBase64?: string;
+    } | null;
+    signaturePngBase64 = body?.signaturePngBase64?.trim() || null;
+  } catch {
+    signaturePngBase64 = null;
   }
 
   const supabase = await createClient();
@@ -56,12 +68,26 @@ export async function POST(_request: Request, context: RouteContext) {
     );
   }
 
-  const result = await signReimbursement(supabase, id);
+  const result = await signReimbursement(supabase, id, {
+    signaturePngBase64,
+  });
   if (!result.success) {
     return NextResponse.json(
       { success: false, message: result.errorMessage ?? "Firma non riuscita" },
       { status: 400 },
     );
+  }
+
+  if (reimbursement.digitalSignRequested) {
+    try {
+      const admin = createServiceRoleClient();
+      const refreshed = await getReimbursementById(admin, id);
+      if (refreshed) {
+        await notifySegreteriaSignedReimbursement(admin, refreshed);
+      }
+    } catch {
+      /* best-effort notify */
+    }
   }
 
   return NextResponse.json({ success: true, id, signed: true });

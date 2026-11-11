@@ -7,7 +7,10 @@ import {
 import { MemberRole } from "@musicpro/shared";
 
 import { canManageReimbursements } from "@/lib/admin/roles";
-import { sendReimbursementNotulaEmail } from "@/lib/reimbursements/send";
+import {
+  sendReimbursementDigitalSignEmail,
+  sendReimbursementNotulaEmail,
+} from "@/lib/reimbursements/send";
 import { createClient } from "@/lib/supabase/server";
 
 export async function POST(request: Request) {
@@ -70,7 +73,9 @@ export async function POST(request: Request) {
       continue;
     }
 
-    const result = await sendReimbursementNotulaEmail(supabase, reimbursement);
+    const result = reimbursement.digitalSignRequested
+      ? await sendReimbursementDigitalSignEmail(supabase, reimbursement)
+      : await sendReimbursementNotulaEmail(supabase, reimbursement);
     results.push(result);
   }
 

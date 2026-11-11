@@ -55,6 +55,8 @@ interface GenerateCardState {
   paymentDate: string;
   paymentLines: PaymentLineState[];
   sendEmail: boolean;
+  /** Magic link firma invece dell'email notula con allegato. */
+  digitalSign: boolean;
   useSurplus: boolean;
   balanceEur: number | null;
   balanceLoading: boolean;
@@ -96,6 +98,7 @@ function createEmptyCard(memberId = ""): GenerateCardState {
     paymentDate: todayIsoDate(),
     paymentLines: defaultPaymentLines(),
     sendEmail: true,
+    digitalSign: false,
     useSurplus: false,
     balanceEur: null,
     balanceLoading: false,
@@ -281,6 +284,7 @@ export function ReimbursementsPanel({
       paymentDate?: string;
       receiptsAmountEur?: number;
       sendEmail: boolean;
+      digitalSign: boolean;
     }> = [];
 
     for (const card of cards) {
@@ -317,7 +321,8 @@ export function ReimbursementsPanel({
         paymentMethod: formatPaymentMethodString(parts),
         paymentDate: card.paymentDate,
         receiptsAmountEur: receipts,
-        sendEmail: card.sendEmail,
+        sendEmail: card.sendEmail || card.digitalSign,
+        digitalSign: card.digitalSign,
       });
     }
 
@@ -326,7 +331,10 @@ export function ReimbursementsPanel({
     try {
       const batch = await generateReimbursementsBatch(
         supabase,
-        inputs.map(({ sendEmail: _s, ...rest }) => rest),
+        inputs.map(({ sendEmail: _s, digitalSign, ...rest }) => ({
+          ...rest,
+          digitalSignRequested: digitalSign,
+        })),
         currentMemberId,
       );
 
@@ -376,11 +384,15 @@ export function ReimbursementsPanel({
           );
         }
 
-        if (input.sendEmail) {
+        if (input.sendEmail || input.digitalSign) {
           try {
             const emailRes = await fetch(
               `/api/admin/reimbursements/${encodeURIComponent(id)}/email`,
-              { method: "POST" },
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ digitalSign: input.digitalSign }),
+              },
             );
             const payload = (await emailRes.json().catch(() => ({}))) as {
               sent?: boolean;
@@ -396,7 +408,11 @@ export function ReimbursementsPanel({
           } catch (err) {
             emailFailed += 1;
             flowErrors.push(
-              err instanceof Error ? err.message : "Errore invio email docente",
+              err instanceof Error
+                ? err.message
+                : input.digitalSign
+                  ? "Errore invio link firma"
+                  : "Errore invio email docente",
             );
           }
         }
@@ -1188,6 +1204,10 @@ export function ReimbursementsPanel({
                         <span className="inline-flex rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
                           Firmata {formatReimbursementDateItalian(item.signedAt)}
                         </span>
+                      ) : item.digitalSignRequested ? (
+                        <span className="inline-flex rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-800">
+                          Link firma inviato
+                        </span>
                       ) : item.signatureRequired ? (
                         <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
                           Da firmare
@@ -1678,16 +1698,37 @@ function GenerateCard({
           ) : null}
         </div>
 
-        {/* Invia */}
-        <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl bg-neutral-50 px-3 py-2.5 ring-1 ring-neutral-200/80">
-          <span className="text-sm text-neutral-800">Invia email notula</span>
-          <input
-            type="checkbox"
-            checked={card.sendEmail}
-            onChange={(e) => onChange({ sendEmail: e.target.checked })}
-            className="h-4 w-4 accent-[var(--brand)]"
-          />
-        </label>
+        {/* Invia / firma digitale — una riga */}
+        <div className="flex min-w-0 max-w-full flex-wrap items-center gap-x-4 gap-y-2 rounded-xl bg-neutral-50 px-3 py-2.5 ring-1 ring-neutral-200/80">
+          <label className="flex min-w-0 cursor-pointer items-center gap-2">
+            <input
+              type="checkbox"
+              checked={card.digitalSign || card.sendEmail}
+              disabled={card.digitalSign}
+              onChange={(e) => onChange({ sendEmail: e.target.checked })}
+              className="h-4 w-4 shrink-0 accent-[var(--brand)]"
+            />
+            <span className="text-sm text-neutral-800">
+              {card.digitalSign ? "Invia link firma" : "Invia email notula"}
+            </span>
+          </label>
+          <label className="flex min-w-0 cursor-pointer items-center gap-2">
+            <input
+              type="checkbox"
+              checked={card.digitalSign}
+              onChange={(e) =>
+                onChange({
+                  digitalSign: e.target.checked,
+                  sendEmail: e.target.checked ? true : card.sendEmail,
+                })
+              }
+              className="h-4 w-4 shrink-0 accent-[var(--brand)]"
+            />
+            <span className="text-sm text-neutral-800">
+              Fai firmare digitalmente
+            </span>
+          </label>
+        </div>
       </div>
     </div>
   );

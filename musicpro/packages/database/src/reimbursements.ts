@@ -23,6 +23,8 @@ export interface ReimbursementDisplay {
   pdfStoragePath: string | null;
   signatureRequired: boolean;
   signedAt: string | null;
+  digitalSignRequested: boolean;
+  signaturePngBase64: string | null;
 }
 
 export interface ReimbursementListResult {
@@ -59,10 +61,12 @@ type ReimbursementRow = {
   pdf_storage_path: string | null;
   signature_required: boolean;
   signed_at: string | null;
+  digital_sign_requested: boolean | null;
+  signature_png_base64: string | null;
 };
 
 const REIMBURSEMENT_COLUMNS =
-  "id, member_id, fiscal_year, progressive, gross_amount_eur, generated_at, receipts_amount_eur, receipts_notes, receipts_status, payment_method, payment_date, pdf_url, pdf_storage_path, signature_required, signed_at";
+  "id, member_id, fiscal_year, progressive, gross_amount_eur, generated_at, receipts_amount_eur, receipts_notes, receipts_status, payment_method, payment_date, pdf_url, pdf_storage_path, signature_required, signed_at, digital_sign_requested, signature_png_base64";
 
 function mapReimbursement(
   row: ReimbursementRow,
@@ -85,6 +89,8 @@ function mapReimbursement(
     pdfStoragePath: row.pdf_storage_path,
     signatureRequired: row.signature_required,
     signedAt: row.signed_at,
+    digitalSignRequested: Boolean(row.digital_sign_requested),
+    signaturePngBase64: row.signature_png_base64 ?? null,
   };
 }
 
@@ -440,6 +446,8 @@ export interface GenerateReimbursementInput {
   paymentMethod: string;
   paymentDate?: string;
   receiptsAmountEur?: number;
+  /** Magic link firma invece dell'email notula classica. */
+  digitalSignRequested?: boolean;
 }
 
 function parseProgressiveNumber(progressive: string): number {
@@ -569,6 +577,7 @@ export async function generateReimbursement(
         pdf_url: null,
         pdf_storage_path: null,
         signature_required: true,
+        digital_sign_requested: Boolean(input.digitalSignRequested),
       } as never)
       .select("id")
       .single();
@@ -671,6 +680,7 @@ export async function generateReimbursementsBatch(
 export async function signReimbursement(
   client: ReimbursementsClient,
   id: string,
+  options?: { signaturePngBase64?: string | null },
 ): Promise<ReimbursementMutationResult> {
   const current = await getReimbursementById(client, id);
   if (!current) {
@@ -683,9 +693,24 @@ export async function signReimbursement(
     return { success: true, id };
   }
 
+  const png = String(options?.signaturePngBase64 || "")
+    .replace(/^data:image\/png;base64,/i, "")
+    .trim();
+  if (current.digitalSignRequested && !png) {
+    return {
+      success: false,
+      errorMessage: "Firma digitale obbligatoria: disegna la firma e salva.",
+    };
+  }
+
+  const patch: Record<string, unknown> = {
+    signed_at: new Date().toISOString(),
+  };
+  if (png) patch.signature_png_base64 = png;
+
   const { error } = await client
     .from("reimbursements")
-    .update({ signed_at: new Date().toISOString() } as never)
+    .update(patch as never)
     .eq("id", id)
     .is("signed_at", null);
 

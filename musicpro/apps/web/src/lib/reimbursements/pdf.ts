@@ -24,6 +24,8 @@ export interface NotulaPdfInput {
   historicBalanceEur?: number;
   generatedAt?: string | null;
   signedAt?: string | null;
+  /** PNG firma associato (base64, con o senza data: prefix). */
+  associateSignaturePngBase64?: string | null;
 }
 
 export interface GeneratedNotulaPdf {
@@ -158,18 +160,28 @@ function drawPdfText(
   return cursor - x;
 }
 
-function loadPresidentSignaturePng(): Uint8Array | null {
-  const b64 = PRESIDENT_SIGNATURE_PNG_BASE64?.trim();
+function loadPngFromBase64(raw: string | null | undefined): Uint8Array | null {
+  const b64 = String(raw || "")
+    .replace(/^data:image\/png;base64,/i, "")
+    .trim();
   if (!b64) return null;
   if (typeof Buffer !== "undefined") {
     return new Uint8Array(Buffer.from(b64, "base64"));
   }
-  const binary = atob(b64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
+  try {
+    const binary = atob(b64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+  } catch {
+    return null;
   }
-  return bytes;
+}
+
+function loadPresidentSignaturePng(): Uint8Array | null {
+  return loadPngFromBase64(PRESIDENT_SIGNATURE_PNG_BASE64);
 }
 
 function presidentSignatureDataUrl(): string | null {
@@ -305,6 +317,27 @@ export async function generateReimbursementPdf(
     });
   }
 
+  // Firma associato a sinistra (sotto «per accettazione»).
+  const associatePng = loadPngFromBase64(input.associateSignaturePngBase64);
+  if (associatePng) {
+    try {
+      const png = await doc.embedPng(associatePng);
+      const maxW = 160;
+      const maxH = 55;
+      const scale = Math.min(maxW / png.width, maxH / png.height, 1);
+      const w = png.width * scale;
+      const h = png.height * scale;
+      page.drawImage(png, {
+        x: MARGIN,
+        y: footerY - 18 - h - 4,
+        width: w,
+        height: h,
+      });
+    } catch {
+      /* ignore bad PNG */
+    }
+  }
+
   if (input.signedAt) {
     drawLeft(
       `Firmato il ${formatReimbursementDateItalian(input.signedAt)}`,
@@ -348,6 +381,15 @@ export function generateReimbursementHtml(input: NotulaPdfInput): string {
   const sigImg = sigUrl
     ? `<img class="firma" src="${sigUrl}" alt="Firma del presidente" />`
     : `<div class="sign-line"></div>`;
+  const associateRaw = String(input.associateSignaturePngBase64 || "").trim();
+  const associateSrc = associateRaw
+    ? associateRaw.startsWith("data:")
+      ? associateRaw
+      : `data:image/png;base64,${associateRaw}`
+    : "";
+  const associateImg = associateSrc
+    ? `<img class="firma-associato" src="${associateSrc}" alt="Firma associato" />`
+    : "";
 
   return `<!DOCTYPE html>
 <html lang="it">
@@ -361,12 +403,13 @@ export function generateReimbursementHtml(input: NotulaPdfInput): string {
     .who { text-align: left; margin: 0 0 40px; }
     .row { margin: 2px 0; }
     .totale { margin-top: 28px; }
-    .footer { display: flex; justify-content: space-between; align-items: flex-start; margin-top: 96px; }
-    .accept { margin-left: 28%; }
+    .footer { display: flex; justify-content: space-between; align-items: flex-start; margin-top: 96px; gap: 24px; }
+    .accept { margin-left: 0; }
     .presidente { text-align: right; }
     .presidente .title { font-weight: 700; }
     .presidente .name { font-style: italic; }
     .firma { display: block; margin-top: 8px; margin-left: auto; width: 200px; height: auto; }
+    .firma-associato { display: block; margin-top: 8px; width: 160px; height: auto; }
     .sign-line { margin-top: 28px; border-bottom: 1px solid #141414; width: 160px; margin-left: auto; }
     .muted { color: #555; font-size: 0.85rem; margin-top: 8px; }
     @media print { body { margin: 16px; } }
@@ -387,6 +430,7 @@ export function generateReimbursementHtml(input: NotulaPdfInput): string {
   <div class="footer">
     <div>
       <div class="accept">per accettazione</div>
+      ${associateImg}
       ${signed}
     </div>
     <div class="presidente">

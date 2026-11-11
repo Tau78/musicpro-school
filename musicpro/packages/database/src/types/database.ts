@@ -157,6 +157,8 @@ export interface Database {
           signature_required: boolean;
           signed_at: string | null;
           signature_storage_path: string | null;
+          digital_sign_requested: boolean;
+          signature_png_base64: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -179,6 +181,8 @@ export interface Database {
           signature_required?: boolean;
           signed_at?: string | null;
           signature_storage_path?: string | null;
+          digital_sign_requested?: boolean;
+          signature_png_base64?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["reimbursements"]["Insert"]> & {
           receipts_status?: "mancante" | "parziale" | "completo";
