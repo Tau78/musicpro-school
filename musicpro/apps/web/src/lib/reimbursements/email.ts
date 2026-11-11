@@ -100,6 +100,77 @@ export function buildNotulaEmailContent(params: {
   return { subject, html, text };
 }
 
+/** Email magic link: sostituisce l'allegato notula quando «Fai firmare digitalmente». */
+export function buildDigitalSignEmailContent(params: {
+  associateName: string;
+  docLabel: string;
+  signLink: string;
+}): { subject: string; html: string; text: string } {
+  const firstName = params.associateName.trim().split(/\s+/)[0] || "Associato";
+  const subject = `Firma rimborso spese: ${params.docLabel}`;
+  const text =
+    [
+      `Ciao ${firstName},`,
+      "",
+      "accedi al link qui sotto per firmare il rimborso spese.",
+      params.signLink,
+      "",
+      "Saluti.",
+    ].join("\n") + schoolEmailTextFooter({ showAppDownload: true });
+
+  const htmlBody = `<p style="margin:0 0 14px;font-size:15px;line-height:1.5;color:#1a1a1a;">Ciao <strong>${escapeEmailHtml(firstName)}</strong>,</p>
+<p style="margin:0 0 14px;font-size:15px;line-height:1.5;color:#1a1a1a;">accedi al link qui sotto per firmare il rimborso spese.</p>`;
+
+  const html = wrapSchoolEmail({
+    appOrigin: SCHOOL_APP_URL,
+    title: "Firma rimborso spese",
+    preheader: params.docLabel,
+    htmlBody,
+    ctas: [{ href: params.signLink, label: "Firma il rimborso" }],
+    showAppDownload: true,
+  });
+
+  return { subject, html, text };
+}
+
+/** Notifica segreteria dopo firma digitale. */
+export function buildSignedNotulaSegreteriaEmailContent(params: {
+  associateName: string;
+  docLabel: string;
+  pdfLink?: string | null;
+}): { subject: string; html: string; text: string } {
+  const subject = `Rimborso firmato: ${params.docLabel}`;
+  const linkLine = params.pdfLink
+    ? `\nDocumento:\n${params.pdfLink}\n`
+    : "";
+  const text =
+    [
+      "Segreteria,",
+      "",
+      `${params.associateName} ha firmato digitalmente il rimborso ${params.docLabel}.`,
+      "In allegato il PDF firmato.",
+      linkLine,
+    ]
+      .filter((line) => line !== "")
+      .join("\n") + schoolEmailTextFooter({ showAppDownload: false });
+
+  const htmlBody = `<p style="margin:0 0 14px;font-size:15px;line-height:1.5;color:#1a1a1a;"><strong>${escapeEmailHtml(params.associateName)}</strong> ha firmato digitalmente il rimborso <strong>${escapeEmailHtml(params.docLabel)}</strong>.</p>
+<p style="margin:0 0 14px;font-size:15px;line-height:1.5;color:#1a1a1a;">In allegato il PDF firmato.</p>`;
+
+  const html = wrapSchoolEmail({
+    appOrigin: SCHOOL_APP_URL,
+    title: "Rimborso firmato",
+    preheader: params.docLabel,
+    htmlBody,
+    ctas: params.pdfLink?.trim()
+      ? [{ href: params.pdfLink.trim(), label: "Apri documento" }]
+      : undefined,
+    showAppDownload: false,
+  });
+
+  return { subject, html, text };
+}
+
 export function uint8ToBase64(bytes: Uint8Array): string {
   if (typeof Buffer !== "undefined") {
     return Buffer.from(bytes).toString("base64");

@@ -44,6 +44,7 @@ export async function toNotulaPdfInput(
     receiptsNote,
     generatedAt: reimbursement.generatedAt,
     signedAt: reimbursement.signedAt,
+    associateSignaturePngBase64: reimbursement.signaturePngBase64,
   };
 }
 

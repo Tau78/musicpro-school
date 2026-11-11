@@ -4,6 +4,7 @@ import {
   getRoomAvailability,
   hoursUntilSlotStart,
   isLastMinuteAnchorSlot,
+  isSlotOpenForLastMinute,
   LAST_MINUTE_PHASE2_HOURS,
   romeToday,
 } from "@musicpro/database";
@@ -247,8 +248,8 @@ export async function GET(request: Request) {
       }
 
       for (const slot of availability.slots) {
-        if (!slot.available) continue;
         if (Date.parse(slot.startAt) <= now.getTime()) continue;
+        if (!isSlotOpenForLastMinute(slot)) continue;
 
         const inBand = await slotInOperationalBand(service, slot.startAt, dayRome);
         if (!inBand) continue;

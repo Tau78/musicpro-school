@@ -1,23 +1,23 @@
 ---
-description: Decisioni all'utente SEMPRE con strumento AskQuestion (form tappable). Mai elenco in chat.
+description: Decisioni con AskQuestion (form tappable); se assente, elenco numerato in chat.
 alwaysApply: true
 ---
 
-# AskQuestion — sempre form tappable
+# AskQuestion — form tappable (+ fallback elenco)
 
 Quando serve una decisione (prodotto, scope, default, A/B) o l’utente dice `#askquestion`:
 
-1. Chiama lo strumento di sistema **AskQuestion** (form multitap).
-2. **Mai** elenco 1/2/3 o A/B solo in chat, anche se «il tool manca».
-3. Se AskQuestion **non è nel toolset**: una riga che non è disponibile + chiedi modello/runtime con form UI. **Non** elencare le opzioni.
+1. Chiama lo strumento di sistema **AskQuestion** (form multitap) se è disponibile.
+2. Con AskQuestion disponibile: **non** sostituirlo con un elenco 1/2/3 in chat.
+3. Se AskQuestion **non è nel toolset** o l’ambiente/runtime **non supporta** componenti form/tappabili: formula le domande **direttamente come elenco numerato** nel testo della chat (stesse regole sulle opzioni).
 4. Opzioni in italiano, **2–4**; consigliata prima con `(consigliato)`; ultima `Altro (lo scrivo in chat)`.
-5. Un form per tornata; più domande nello stesso form.
-6. Preferisci AskQuestion come unica tool call di quel messaggio.
+5. Un form (o un blocco domande) per tornata; più domande insieme.
+6. Con AskQuestion disponibile: preferiscilo come unica tool call di quel messaggio.
 
 ```
-❌ “Preferisci A o B? Dimmi tu.”
-❌ “AskQuestion assente, scegli: 1) … 2) …”
+❌ “Preferisci A o B? Dimmi tu.” (senza opzioni chiare)
 ✅ strumento AskQuestion → tap
+✅ (solo se form assente) elenco numerato in chat: 1) … 2) … 3) Altro…
 ```
 
 Conferma sì/no operativa unica (es. eseguo VAI?) può restare in chat.
