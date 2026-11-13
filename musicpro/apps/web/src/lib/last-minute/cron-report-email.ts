@@ -10,6 +10,8 @@ export type CronReportPayload = {
   reason?: string;
   message?: string;
   operationalActive?: boolean;
+  /** Fascia del giorno accesa in impostazioni. */
+  dayEnabled?: boolean;
   roomsScanned?: number;
   candidates?: number;
   phase1Created?: number;
@@ -76,6 +78,13 @@ function formatDigestLines(
   ];
 }
 
+function skipReasonLabel(reason: string | undefined): string {
+  if (reason === "weekday_disabled") return "fascia del giorno spenta";
+  if (reason === "evening_not_operational") return "nessuna prenotazione in fascia";
+  if (reason === "migration_not_applied") return "migrazione mancante";
+  return reason ?? "n/d";
+}
+
 export function reportEmailSubjectSuffix(payload: CronReportPayload): string {
   if (payload.skipped) return "saltato";
   if (!payload.success) return "errore";
@@ -110,12 +119,13 @@ export async function sendLastMinuteCronReportEmail(
     "",
     `Giorno (Roma): ${payload.dayRome}`,
     payload.skipped
-      ? `Esito: saltato (${payload.reason ?? "n/d"})`
+      ? `Esito: saltato (${skipReasonLabel(payload.reason)})`
       : payload.success
         ? "Esito: completato"
         : `Esito: errore — ${payload.message ?? "n/d"}`,
     "",
-    `Serata operativa attiva oggi: ${payload.operationalActive === true ? "sì" : payload.operationalActive === false ? "no" : "n/d"}`,
+    `Fascia last minute di oggi: ${payload.dayEnabled === true ? "accesa" : payload.dayEnabled === false ? "spenta" : "n/d"}`,
+    `Prenotazione già in fascia: ${payload.operationalActive === true ? "sì" : payload.operationalActive === false ? "no" : "n/d"}`,
     `Credenziali Eventi su Vercel: ${payload.eventiCredsPresent ? "presenti" : "MANCANTI (digest non accodato)"}`,
     "",
   ];

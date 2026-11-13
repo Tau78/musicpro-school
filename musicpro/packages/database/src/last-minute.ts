@@ -9,7 +9,11 @@ import type { SettingsMutationResult } from "./settings";
 import { upsertAppSetting } from "./settings";
 import type { Database } from "./types/database";
 
-export { isSlotOpenForLastMinute, sameInstant } from "./last-minute-slot";
+export {
+  isLastMinuteDayEnabled,
+  isSlotOpenForLastMinute,
+  sameInstant,
+} from "./last-minute-slot";
 
 export const OPERATIONAL_WEEK_SCHEDULE_KEY = "booking_operational_week_schedule";
 
