@@ -258,12 +258,38 @@ function formatNotuleSheet() {
 
 // --- Funzioni comuni / Helper ---
 
-/** Info deploy mostrata nell'header dell'app (aggiornare a ogni release clasp). v1.2.5 */
+/** Info deploy mostrata nell'header dell'app (aggiornare a ogni release clasp). v1.2.6 */
 var DEPLOY_INFO = {
-  version: '1.2.5',
-  date: '2026-06-26',
-  description: 'Pagina firma documento Estensione Associazione MP'
+  version: '1.2.6',
+  date: '2026-11-13',
+  description: 'Pannello admin GAS reindirizzato a school.musicproeventi.it'
 };
+
+/** Bookmark segreteria (/exec senza ?page=). Non archiviare il deployment: firma e iscrizione usano lo stesso web app. */
+var NEW_ADMIN_URL_ = 'https://school.musicproeventi.it/admin';
+
+function redirectLegacyAdminHtml_() {
+  var url = NEW_ADMIN_URL_;
+  var html = '<!DOCTYPE html><html><head><meta charset="utf-8">'
+    + '<meta name="viewport" content="width=device-width, initial-scale=1">'
+    + '<title>Pannello spostato</title>'
+    + '<style>body{font-family:system-ui,-apple-system,sans-serif;margin:0;padding:32px 20px;background:#f6f4ef;color:#1a1a1a}'
+    + 'main{max-width:28rem;margin:10vh auto 0}'
+    + 'a{display:inline-block;margin-top:16px;background:#1e3a5f;color:#fff;text-decoration:none;font-weight:600;padding:12px 18px;border-radius:8px}</style>'
+    + '</head><body><main>'
+    + '<h1 style="font-size:1.25rem;margin:0 0 8px">Il pannello è stato spostato</h1>'
+    + '<p style="margin:0;line-height:1.45">Rubrica, quote e rimborsi sono su MusicPro School. Questo indirizzo non registra più dati.</p>'
+    + '<a id="go" target="_top" href="' + url + '">Apri il pannello</a>'
+    + '</main><script>'
+    + 'var u=' + JSON.stringify(url) + ';'
+    + 'try{window.top.location.replace(u);}catch(e){}'
+    + 'var a=document.getElementById("go");if(a){a.click();}'
+    + '</script></body></html>';
+  return HtmlService.createHtmlOutput(html)
+    .setTitle('Pannello spostato — MusicPro')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
 
 /** Legge info deploy da Script Properties (se impostate) altrimenti da DEPLOY_INFO. */
 function getDeployInfoForUi_() {
@@ -292,7 +318,7 @@ function registerGasDeployInfo(version, date, description) {
 
 /**
  * @version 2.6 - Funzione doGet Unificata
- * @v_note Gestisce Login, Area Personale, Iscrizione e Dashboard Admin.
+ * @v_note Login, area personale, iscrizione e firma restano. Senza ?page= si va al pannello Next.js.
  */
 function doGet(e) {
   Logger.log("doGet: Richiesta ricevuta con parametri: " + JSON.stringify(e.parameter));
@@ -345,15 +371,8 @@ function doGet(e) {
         .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 
     default:
-      Logger.log("doGet: Servo la pagina di gestione principale (index).");
-      var templateIndex = HtmlService.createTemplateFromFile('index');
-      var deployUi = getDeployInfoForUi_();
-      templateIndex.deployVersion = deployUi.version;
-      templateIndex.deployDate = deployUi.date;
-      templateIndex.deployDescription = deployUi.description;
-      return templateIndex.evaluate()
-        .setTitle('Gestione Associati e Rimborsi')
-        .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+      Logger.log("doGet: pannello admin GAS dismesso, redirect a Next.js.");
+      return redirectLegacyAdminHtml_();
   }
 }
 
