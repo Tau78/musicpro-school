@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { ImageResponse } from "next/og";
 
@@ -19,20 +20,28 @@ const ALERT = "#F2453A";
 const WHITE = "#ffffff";
 const NAVY_PANEL = "rgba(10, 18, 32, 0.92)";
 
+const STORY_BG = "docs/assets/school/lm-digest-bg.jpg";
+
 function resolveSchoolWorkspaceRoot(): string {
-  const cwd = process.cwd();
-  const candidates = [
-    cwd,
-    path.join(cwd, ".."),
-    path.join(cwd, "..", ".."),
-    path.join(cwd, "..", "..", ".."),
-  ];
-  for (const root of candidates) {
-    if (existsSync(path.join(root, "docs/assets/school/lm-digest-bg.jpg"))) {
-      return root;
+  const starts = [process.cwd()];
+  try {
+    starts.push(path.dirname(fileURLToPath(import.meta.url)));
+  } catch {
+    // bundle senza import.meta: resta il cwd
+  }
+  const seen = new Set<string>();
+  for (const start of starts) {
+    let dir = start;
+    for (let i = 0; i < 12; i += 1) {
+      if (seen.has(dir)) break;
+      seen.add(dir);
+      if (existsSync(path.join(dir, STORY_BG))) return dir;
+      const parent = path.dirname(dir);
+      if (parent === dir) break;
+      dir = parent;
     }
   }
-  return path.join(cwd, "..", "..", "..");
+  return process.cwd();
 }
 
 function loadAssetDataUri(relativePath: string): string {
