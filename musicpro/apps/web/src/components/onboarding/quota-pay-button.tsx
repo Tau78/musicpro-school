@@ -6,12 +6,15 @@ interface QuotaPayButtonProps {
   disabled?: boolean;
   label?: string;
   className?: string;
+  /** Path assoluto app dopo Nexi (allowlist API), es. `/prenotazioni`. */
+  returnPath?: string;
 }
 
 export function QuotaPayButton({
   disabled = false,
   label = "Paga quota associativa",
   className = "rounded-lg bg-[var(--brand)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-60",
+  returnPath,
 }: QuotaPayButtonProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,6 +26,12 @@ export function QuotaPayButton({
     try {
       const response = await fetch("/api/onboarding/quota", {
         method: "POST",
+        headers: returnPath
+          ? { "Content-Type": "application/json" }
+          : undefined,
+        body: returnPath
+          ? JSON.stringify({ returnPath })
+          : undefined,
       });
 
       const data = (await response.json()) as {

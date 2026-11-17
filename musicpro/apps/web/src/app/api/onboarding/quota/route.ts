@@ -140,7 +140,22 @@ export async function POST(request: NextRequest) {
       requestOrigin && !isLocalDevOrigin(requestOrigin)
         ? requestOrigin.replace(/\/$/, "")
         : authPublicOrigin(process.env);
-    const returnBase = `${origin.replace(/\/$/, "")}/onboarding/quota`;
+    const allowedReturnPaths = new Set([
+      "/onboarding/quota",
+      "/prenotazioni",
+      "/dashboard",
+    ]);
+    let returnPath = "/onboarding/quota";
+    try {
+      const body = (await request.json()) as { returnPath?: string };
+      const candidate = String(body.returnPath || "").trim();
+      if (allowedReturnPaths.has(candidate)) {
+        returnPath = candidate;
+      }
+    } catch {
+      // body assente o non JSON: default onboarding/quota
+    }
+    const returnBase = `${origin.replace(/\/$/, "")}${returnPath}`;
 
     // Snapshot form_payload: prior enrollment con payload, altrimenti anagrafica members.
     // Così completaInvio post-Nexi non fallisce su enrollment «vuoto».

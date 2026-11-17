@@ -8,7 +8,9 @@ import type { MembershipStatus } from "@/lib/membership";
 type MemberQuotaAlertProps = Pick<
   MembershipStatus,
   "fiscalYear" | "formCompleted" | "canPayQuota" | "quotaPaid" | "quotaAmountEur"
->;
+> & {
+  returnPath?: string;
+};
 
 export function MemberQuotaAlert({
   fiscalYear,
@@ -16,6 +18,7 @@ export function MemberQuotaAlert({
   canPayQuota,
   quotaPaid,
   quotaAmountEur,
+  returnPath,
 }: MemberQuotaAlertProps) {
   if (quotaPaid) {
     return null;
@@ -50,6 +53,7 @@ export function MemberQuotaAlert({
           ) : (
             <QuotaPayButton
               label="Paga quota"
+              returnPath={returnPath}
               className="rounded-lg bg-[var(--brand)] px-3 py-1.5 text-xs font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-60"
             />
           )}
