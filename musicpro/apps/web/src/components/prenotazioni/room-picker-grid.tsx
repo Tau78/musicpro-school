@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 import type { Room } from "@musicpro/database";
-import { formatEuro } from "@musicpro/database";
+import { formatEuro, resolveRoomPhotoUrl } from "@musicpro/database";
 
 import {
   roomCapacityLabel,
@@ -15,13 +15,6 @@ type RoomPickerGridProps = {
   selectedRoomId: string;
   onSelectRoom: (roomId: string) => void;
 };
-
-const ROOM_PHOTOS = {
-  rossa: "https://www.musicproeventi.it/img/sale.jpg",
-  verde: "/rooms/verde.jpg",
-  arancio: "https://www.musicproeventi.it/img/vintage.jpg",
-  default: "https://www.musicproeventi.it/img/sale.jpg",
-} as const;
 
 export function RoomPickerGrid({
   rooms,
@@ -51,9 +44,7 @@ export function RoomPickerGrid({
           const visual = roomVisualFromName(room.name);
           const capacity = roomCapacityLabel(room.name, room.capacity);
           const active = room.id === selectedRoomId;
-          const photo =
-            ROOM_PHOTOS[visual.key as keyof typeof ROOM_PHOTOS] ??
-            ROOM_PHOTOS.default;
+          const photo = resolveRoomPhotoUrl(room);
 
           return (
             <div

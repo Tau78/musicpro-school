@@ -210,6 +210,7 @@ export interface Database {
           google_calendar_color_id: string | null;
           provi_da_solo_enabled: boolean;
           provi_da_solo_discount_eur: number;
+          photo_url: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -233,6 +234,7 @@ export interface Database {
           google_calendar_color_id?: string | null;
           provi_da_solo_enabled?: boolean;
           provi_da_solo_discount_eur?: number;
+          photo_url?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["rooms"]["Insert"]>;
         Relationships: [];

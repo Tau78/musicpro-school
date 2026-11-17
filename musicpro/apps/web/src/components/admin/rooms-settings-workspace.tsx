@@ -47,7 +47,7 @@ export function RoomsSettingsWorkspace({
     <div className="min-w-0">
       <SettingsPageHeader
         title="Sale"
-        description="Orari, tariffe e calendario di ogni sala."
+        description="Foto, orari, tariffe e calendario di ogni sala."
       />
 
       <div
