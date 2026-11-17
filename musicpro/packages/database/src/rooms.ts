@@ -28,7 +28,7 @@ export interface RoomMutationResult {
 }
 
 const ROOM_SELECT =
-  "id, name, slug, description, capacity, is_active, sort_order, hourly_rate_eur, slot_granularity_minutes, default_duration_minutes, min_duration_minutes, max_duration_minutes, open_hour, close_hour, open_minute, close_minute, google_calendar_color_id, provi_da_solo_enabled, provi_da_solo_discount_eur";
+  "id, name, slug, description, capacity, is_active, sort_order, hourly_rate_eur, slot_granularity_minutes, default_duration_minutes, min_duration_minutes, max_duration_minutes, open_hour, close_hour, open_minute, close_minute, google_calendar_color_id, provi_da_solo_enabled, provi_da_solo_discount_eur, photo_url";
 
 const PROVI_SCHEDULE_COLUMNS =
   "id, room_id, day_of_week, start_minute, end_minute, enabled";
@@ -140,6 +140,42 @@ export async function updateRoom(
   }
 
   return { success: true };
+}
+
+export async function updateRoomPhotoUrl(
+  client: RoomsClient,
+  roomId: string,
+  photoUrl: string | null,
+): Promise<RoomMutationResult> {
+  const trimmed = photoUrl?.trim() || null;
+  const { error } = await client
+    .from("rooms")
+    .update({ photo_url: trimmed })
+    .eq("id", roomId);
+
+  if (error) {
+    return {
+      success: false,
+      errorMessage: error.message || "Impossibile aggiornare la foto della sala.",
+    };
+  }
+
+  return { success: true };
+}
+
+/** Foto picker: URL in DB, altrimenti fallback legacy per nome sala. */
+export function resolveRoomPhotoUrl(
+  room: Pick<Room, "name" | "photo_url">,
+): string {
+  const custom = room.photo_url?.trim();
+  if (custom) return custom;
+
+  const key = room.name.trim().toLowerCase();
+  if (key.includes("verde")) return "/rooms/verde.jpg";
+  if (key.includes("arancio") || key.includes("arancione")) {
+    return "https://www.musicproeventi.it/img/vintage.jpg";
+  }
+  return "https://www.musicproeventi.it/img/sale.jpg";
 }
 
 export async function listProviSchedule(

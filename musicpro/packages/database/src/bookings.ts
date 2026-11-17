@@ -158,6 +158,7 @@ export interface Room {
   google_calendar_color_id?: string | null;
   provi_da_solo_enabled: boolean;
   provi_da_solo_discount_eur: number;
+  photo_url?: string | null;
 }
 
 export interface ProviScheduleEntry {
@@ -431,7 +432,7 @@ const BOOKING_ERROR_MESSAGES_IT: Record<BookingErrorCode, string> = {
 };
 
 const ROOM_SELECT =
-  "id, name, slug, description, capacity, is_active, sort_order, hourly_rate_eur, slot_granularity_minutes, default_duration_minutes, min_duration_minutes, max_duration_minutes, open_hour, close_hour, open_minute, close_minute, google_calendar_color_id, provi_da_solo_enabled, provi_da_solo_discount_eur";
+  "id, name, slug, description, capacity, is_active, sort_order, hourly_rate_eur, slot_granularity_minutes, default_duration_minutes, min_duration_minutes, max_duration_minutes, open_hour, close_hour, open_minute, close_minute, google_calendar_color_id, provi_da_solo_enabled, provi_da_solo_discount_eur, photo_url";
 
 const BOOKING_SELECT =
   "id, room_id, member_id, start_at, end_at, status, total_price_eur, duration_minutes, payment_status, payment_method, credits_held, credits_used, provi_da_solo, band_id, member_snapshot, microphone_count, companion_declaration, payment_link_url, payment_link_id, stripe_payment_intent_id, paid_at, title, notes, cancelled_at, cancelled_by, google_calendar_event_id, created_at, updated_at";

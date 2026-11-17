@@ -231,10 +231,12 @@ export {
   listRoomOpeningDays,
   listRoomSpecialDays,
   resolveOpeningWindows,
+  resolveRoomPhotoUrl,
   roomToInput,
   saveProviSchedule,
   saveRoomOpeningDays,
   updateRoom,
+  updateRoomPhotoUrl,
   windowsFromOpening,
 } from "./rooms";
 export type {

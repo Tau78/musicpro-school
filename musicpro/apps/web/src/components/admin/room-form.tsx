@@ -12,6 +12,7 @@ import {
   listRoomOpeningDays,
   minutesToTimeLabel,
   proviDayLabel,
+  resolveRoomPhotoUrl,
   roomToInput,
   saveProviSchedule,
   saveRoomOpeningDays,
@@ -196,8 +197,16 @@ export function RoomForm({ room, tab, otherRooms = [] }: RoomFormProps) {
   const [copyFromId, setCopyFromId] = useState("");
   const [loadingSchedule, setLoadingSchedule] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(
+    () => room.photo_url?.trim() || null,
+  );
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPhotoUrl(room.photo_url?.trim() || null);
+  }, [room.id, room.photo_url]);
 
   useEffect(() => {
     let cancelled = false;
@@ -252,6 +261,65 @@ export function RoomForm({ room, tab, otherRooms = [] }: RoomFormProps) {
 
   function updateField<K extends keyof RoomInput>(key: K, value: RoomInput[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function handlePhotoUpload(file: File | null) {
+    if (!file) return;
+    setPhotoBusy(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const resp = await fetch(`/api/admin/rooms/${room.id}/photo`, {
+        method: "POST",
+        body,
+        credentials: "same-origin",
+      });
+      const data = (await resp.json().catch(() => ({}))) as {
+        success?: boolean;
+        message?: string;
+        photoUrl?: string;
+      };
+      if (!resp.ok || !data.success || !data.photoUrl) {
+        setError(data.message ?? "Caricamento foto non riuscito.");
+        return;
+      }
+      setPhotoUrl(data.photoUrl);
+      setSuccess("Foto sala aggiornata.");
+      router.refresh();
+    } catch {
+      setError("Caricamento foto non riuscito.");
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+
+  async function handlePhotoRemove() {
+    setPhotoBusy(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const resp = await fetch(`/api/admin/rooms/${room.id}/photo`, {
+        method: "DELETE",
+        credentials: "same-origin",
+      });
+      const data = (await resp.json().catch(() => ({}))) as {
+        success?: boolean;
+        message?: string;
+      };
+      if (!resp.ok || !data.success) {
+        setError(data.message ?? "Rimozione foto non riuscita.");
+        return;
+      }
+      setPhotoUrl(null);
+      setSuccess("Foto rimossa: si usa il fallback.");
+      router.refresh();
+    } catch {
+      setError("Rimozione foto non riuscita.");
+    } finally {
+      setPhotoBusy(false);
+    }
   }
 
   async function handleActiveToggle(checked: boolean) {
@@ -369,6 +437,48 @@ export function RoomForm({ room, tab, otherRooms = [] }: RoomFormProps) {
                 onChange={(e) => updateField("name", e.target.value)}
                 className={settingsInputClass}
               />
+            </div>
+
+            <div>
+              <FieldLabel>Foto</FieldLabel>
+              <div className="mt-1 flex min-w-0 max-w-full flex-wrap items-center gap-3">
+                <div className="h-16 w-20 shrink-0 overflow-hidden rounded-lg border border-neutral-200 bg-neutral-100">
+                  <img
+                    src={resolveRoomPhotoUrl({
+                      name: form.name || room.name,
+                      photo_url: photoUrl,
+                    })}
+                    alt={`Foto ${form.name || room.name}`}
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                  <label className="inline-flex cursor-pointer items-center">
+                    <span className="sr-only">Carica foto sala</span>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      className="max-w-full min-w-0 text-sm file:mr-2 file:rounded-md file:border-0 file:bg-[var(--brand)] file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white"
+                      disabled={photoBusy || saving}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] ?? null;
+                        e.target.value = "";
+                        void handlePhotoUpload(file);
+                      }}
+                    />
+                  </label>
+                  {photoUrl ? (
+                    <button
+                      type="button"
+                      disabled={photoBusy || saving}
+                      onClick={() => void handlePhotoRemove()}
+                      className="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+                    >
+                      Rimuovi
+                    </button>
+                  ) : null}
+                </div>
+              </div>
             </div>
 
             <div>
