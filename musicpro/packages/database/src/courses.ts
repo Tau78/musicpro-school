@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { syncBookingCalendarBestEffort } from "./bookings";
 import {
   getCurrentSchoolCourseTerm,
   getLessonSchoolSettings,
@@ -444,6 +445,7 @@ export async function cancelHoldBooking(
     if (updateError) {
       return updateError.message || "Impossibile annullare l'hold della sala.";
     }
+    void syncBookingCalendarBestEffort(bookingId, "delete");
     return null;
   }
 
@@ -451,6 +453,7 @@ export async function cancelHoldBooking(
   if (result && result.success === false && result.error_code !== "ALREADY_CANCELLED") {
     return result.error_message || "Impossibile annullare l'hold della sala.";
   }
+  void syncBookingCalendarBestEffort(bookingId, "delete");
   return null;
 }
 
@@ -542,6 +545,9 @@ export async function createLessonBooking(
     };
   }
 
+  if (result.booking_id) {
+    void syncBookingCalendarBestEffort(result.booking_id, "upsert");
+  }
   return { bookingId: result.booking_id };
 }
 

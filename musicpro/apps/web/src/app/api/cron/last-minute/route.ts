@@ -4,6 +4,7 @@ import {
   getRoomAvailability,
   hoursUntilSlotStart,
   isLastMinuteAnchorSlot,
+  isLastMinuteDayEnabled,
   isSlotOpenForLastMinute,
   LAST_MINUTE_PHASE2_HOURS,
   romeToday,
@@ -156,6 +157,7 @@ export async function GET(request: Request) {
     candidates: 0,
     roomsScanned: 0,
   };
+  let dayEnabled: boolean | undefined;
 
   try {
     const { data: operationalActive, error: operationalError } = await service.rpc(
@@ -172,14 +174,19 @@ export async function GET(request: Request) {
 
     progress.operationalActive = operationalActive === true;
 
-    if (!operationalActive) {
+    const operationalSchedule = await getOperationalWeekSchedule(service);
+    dayEnabled = isLastMinuteDayEnabled(operationalSchedule, dayRome);
+
+    if (!dayEnabled) {
       const digest = await runDigestStories(service);
       await maybeSendCronReport(service, {
         dayRome,
         success: true,
         skipped: true,
-        reason: "evening_not_operational",
-        operationalActive: false,
+        reason: "weekday_disabled",
+        message: "La fascia last minute di questo giorno è spenta.",
+        operationalActive: progress.operationalActive,
+        dayEnabled,
         phase1Created: 0,
         phase2Advanced: 0,
         digest,
@@ -188,15 +195,13 @@ export async function GET(request: Request) {
       return NextResponse.json({
         success: true,
         skipped: true,
-        reason: "evening_not_operational",
+        reason: "weekday_disabled",
         dayRome,
         phase1Created: 0,
         phase2Advanced: 0,
         digest,
       });
     }
-
-    const operationalSchedule = await getOperationalWeekSchedule(service);
 
     const { data: rooms, error: roomsError } = await service
       .from("rooms")
@@ -210,6 +215,7 @@ export async function GET(request: Request) {
         success: false,
         message: roomsError.message,
         operationalActive: progress.operationalActive,
+        dayEnabled,
         digest,
         eventiCredsPresent: eventiCredsPresent(),
       });
@@ -362,7 +368,8 @@ export async function GET(request: Request) {
     await maybeSendCronReport(service, {
       dayRome,
       success: true,
-      operationalActive: true,
+      operationalActive: progress.operationalActive,
+      dayEnabled,
       roomsScanned: progress.roomsScanned,
       candidates: progress.candidates,
       phase1Created: progress.phase1Created,
@@ -374,7 +381,8 @@ export async function GET(request: Request) {
     return NextResponse.json({
       success: true,
       dayRome,
-      operationalActive: true,
+      operationalActive: progress.operationalActive === true,
+      dayEnabled: true,
       roomsScanned: progress.roomsScanned,
       candidates: progress.candidates,
       phase1Created: progress.phase1Created,
@@ -390,6 +398,7 @@ export async function GET(request: Request) {
       success: false,
       message: message.slice(0, 500),
       operationalActive: progress.operationalActive,
+      dayEnabled,
       roomsScanned: progress.roomsScanned,
       candidates: progress.candidates,
       phase1Created: progress.phase1Created,

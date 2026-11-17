@@ -8,8 +8,8 @@
 #
 # Sicurezza:
 #   - usa sempre --safe (salta deployment con alias attivo)
-#   - dopo ogni progetto verifica che l'host prod risponda se mappato
-#   - NON cancella per URL esplicito il deployment corrente
+#   - smoke-check host prod dopo cleanup
+#   - CLI recente: --confirm-name (non --yes)
 set -euo pipefail
 
 SCOPE="${VERCEL_SCOPE:-tau78s-projects}"
@@ -22,12 +22,6 @@ ALL_PROJECTS=(
   musicpro-eventi-web
   web
   regia-musicpro
-)
-
-# Host pubblici da smoke-check dopo cleanup (vuoto = skip)
-declare -A PROD_HOST=(
-  [musicpro-school]=school.musicproeventi.it
-  [musicpro-admin]=admin.musicproeventi.it
 )
 
 aggressive=0
@@ -49,14 +43,23 @@ fi
 note() { printf '→ %s\n' "$*"; }
 warn() { printf 'WARN: %s\n' "$*" >&2; }
 
+prod_host_for() {
+  case "$1" in
+    musicpro-school) echo school.musicproeventi.it ;;
+    musicpro-admin) echo admin.musicproeventi.it ;;
+    *) echo "" ;;
+  esac
+}
+
 smoke_prod() {
   local project="$1"
-  local host="${PROD_HOST[$project]:-}"
+  local host
+  host="$(prod_host_for "$project")"
   [[ -z "$host" ]] && return 0
   local code
   code=$(curl -s -o /dev/null -w "%{http_code}" -L --max-time 20 "https://${host}/" || echo 000)
   if [[ "$code" == "000" || "$code" -ge 500 || "$code" == "404" ]]; then
-    warn "$host → HTTP $code dopo cleanup — rideploy subito: cd musicpro/apps/web && npx vercel deploy --prod --yes"
+    warn "$host → HTTP $code dopo cleanup — rideploy: cd musicpro/apps/web && npx vercel deploy --prod --yes"
     return 1
   fi
   note "smoke https://${host}/ → $code"
@@ -83,9 +86,9 @@ prune_stale_git_aliases() {
 
 remove_safe() {
   local project="$1"
-  note "vercel remove $project --safe --yes (scope=$SCOPE)"
-  # Non fallire lo script se un dpl è già stato rimosso in parallelo
-  npx vercel remove "$project" --safe --yes --scope "$SCOPE" || warn "remove $project: exit $? (spesso race OK)"
+  note "vercel remove $project --safe --confirm-name $project (scope=$SCOPE)"
+  npx vercel remove "$project" --safe --confirm-name "$project" --scope "$SCOPE" \
+    || warn "remove $project: exit $? (spesso race OK)"
 }
 
 for project in "${projects[@]}"; do

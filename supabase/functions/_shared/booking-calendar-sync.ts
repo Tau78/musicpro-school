@@ -19,6 +19,7 @@ type BookingRow = {
   total_price_eur: number | null;
   duration_minutes: number | null;
   payment_status: string | null;
+  title: string | null;
   notes: string | null;
   provi_da_solo: boolean | null;
   microphone_count: number | null;
@@ -108,8 +109,13 @@ export function buildEventTitle(
   roomName: string,
   memberFirst: string,
   memberLast: string,
+  bookingTitle?: string | null,
 ): string {
   const room = roomName.trim().toUpperCase();
+  const custom = bookingTitle?.trim();
+  if (custom) {
+    return `${room} - ${custom.toUpperCase()}`;
+  }
   const member = `${memberFirst} ${memberLast}`.trim().toUpperCase();
   return `${room} - ${member}`;
 }
@@ -202,6 +208,7 @@ async function loadBooking(service: SupabaseClient, bookingId: string): Promise<
       total_price_eur,
       duration_minutes,
       payment_status,
+      title,
       notes,
       provi_da_solo,
       microphone_count,
@@ -309,7 +316,13 @@ export async function syncBookingToGoogleCalendar(
   }
 
   // Preview Google Calendar: riga 1 = titolo, riga 2 = luogo.
-  const summary = buildEventTitle(room.name, member.first_name, member.last_name);
+  // Hold lezione: usa booking.title («Lezione: Cognome»), non il docente.
+  const summary = buildEventTitle(
+    room.name,
+    member.first_name,
+    member.last_name,
+    booking.title,
+  );
   const location = microphoneCountLabel(booking.microphone_count);
 
   const result = await upsertCalendarEvent(token, {

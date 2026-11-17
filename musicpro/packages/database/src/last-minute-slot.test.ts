@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { isSlotOpenForLastMinute, sameInstant } from "./last-minute-slot.ts";
+import {
+  isLastMinuteDayEnabled,
+  isSlotOpenForLastMinute,
+  sameInstant,
+} from "./last-minute-slot.ts";
 
 test("sameInstant accetta Z e +00:00", () => {
   assert.equal(
@@ -23,6 +27,21 @@ test("isSlotOpenForLastMinute tiene il buco sotto le 6 ore", () => {
     isSlotOpenForLastMinute({ available: true, leadTimeCategory: "auto" }),
     true,
   );
+});
+
+test("la fascia accesa basta, anche senza prenotazioni", () => {
+  const schedule = {
+    mon: { enabled: true },
+    tue: { enabled: true },
+    wed: { enabled: true },
+    thu: { enabled: true },
+    fri: { enabled: true },
+    sat: { enabled: false },
+    sun: { enabled: false },
+  };
+  assert.equal(isLastMinuteDayEnabled(schedule, "2026-11-13"), true);
+  assert.equal(isLastMinuteDayEnabled(schedule, "2026-11-14"), false);
+  assert.equal(isLastMinuteDayEnabled(schedule, "ieri"), false);
 });
 
 test("isSlotOpenForLastMinute scarta lo slot occupato", () => {
