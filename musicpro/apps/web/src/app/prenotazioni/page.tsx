@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -39,6 +40,7 @@ import {
   type ProviScheduleEntry,
 } from "@musicpro/database";
 import { mapUserFacingError, MemberRole } from "@musicpro/shared";
+import { MemberQuotaAlert } from "@/components/associate/member-quota-alert";
 import { AuthSignInPanel } from "@/components/auth/auth-sign-in-panel";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { SiteHeader } from "@/components/layout/site-header";
@@ -53,6 +55,11 @@ import {
   BookingCompanionInvite,
   type CompanionDeclaration,
 } from "@/components/prenotazioni/booking-companion-invite";
+import {
+  getMembershipStatus,
+  hasAssociatoOnly,
+  type MembershipStatus,
+} from "@/lib/membership";
 import { createClient } from "@/lib/supabase/client";
 import { requestBookingConfirmationEmail } from "@/lib/booking/send-confirmation-email";
 import { requestBookingCalendarSync } from "@/lib/calendar/sync-booking";
@@ -65,9 +72,11 @@ type WizardStepKey =
   | "slot"
   | "confirm";
 
-export default function PrenotazioniPage() {
+function PrenotazioniPageInner() {
   const supabase = useMemo(() => createClient(), []);
+  const searchParams = useSearchParams();
   const loadRequestId = useRef(0);
+  const dopoPagamentoQuota = searchParams.get("dopoPagamento") === "1";
 
   const [stepIndex, setStepIndex] = useState(0);
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -101,6 +110,8 @@ export default function PrenotazioniPage() {
     useState<CompanionDeclaration>("all_ok");
   const [companionInviteIds, setCompanionInviteIds] = useState<string[]>([]);
   const [companionQuotaOkCount, setCompanionQuotaOkCount] = useState(0);
+  const [quotaStatus, setQuotaStatus] = useState<MembershipStatus | null>(null);
+  const [quotaBlocksBooking, setQuotaBlocksBooking] = useState(false);
 
   const selectedRoom = useMemo(
     () => rooms.find((r) => r.id === selectedRoomId) ?? null,
@@ -321,6 +332,25 @@ export default function PrenotazioniPage() {
           setSelectedBandId(bookable[0].id);
         }
         setMemberId(member?.id ?? null);
+
+        if (member?.id) {
+          const membership = await getMembershipStatus(supabase, member.id).catch(
+            () => null,
+          );
+          if (!cancelled) {
+            setQuotaStatus(membership);
+            setQuotaBlocksBooking(
+              Boolean(
+                membership &&
+                  !membership.quotaPaid &&
+                  hasAssociatoOnly(member.roles),
+              ),
+            );
+          }
+        } else if (!cancelled) {
+          setQuotaStatus(null);
+          setQuotaBlocksBooking(false);
+        }
       } catch (err) {
         if (!cancelled) {
           setError(
@@ -784,7 +814,7 @@ export default function PrenotazioniPage() {
               <AuthSignInPanel
                 defaultRedirect="/prenotazioni"
                 title="Accedi per prenotare"
-                subtitle="Password, magic link via email o recupero password."
+                subtitle="Password, link email o recupero password. Se la quota dell'anno non è in regola, dopo l'accesso potrai versarla subito e prenotare."
               />
             </Suspense>
           </div>
@@ -813,7 +843,43 @@ export default function PrenotazioniPage() {
           </div>
         ) : null}
 
-        {hasSession && memberId && !bookingLocked && (
+        {hasSession &&
+        memberId &&
+        dopoPagamentoQuota &&
+        !loading &&
+        !quotaBlocksBooking ? (
+          <p className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
+            Quota ricevuta. Puoi prenotare la sala.
+          </p>
+        ) : null}
+
+        {hasSession &&
+        memberId &&
+        !bookingLocked &&
+        quotaBlocksBooking &&
+        quotaStatus ? (
+          <div className="rounded-2xl border border-amber-200 bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-medium text-[var(--brand)]">
+              Quota associativa non saldata
+            </h2>
+            <p className="mt-2 text-sm text-neutral-600">
+              Per prenotare le sale prova serve la quota associativa{" "}
+              {quotaStatus.fiscalYear} in regola. Non è un problema di accesso:
+              puoi versarla subito qui sotto e poi tornare a prenotare.
+            </p>
+            {dopoPagamentoQuota ? (
+              <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                Pagamento in elaborazione. Se non si aggiorna, ricarica tra qualche
+                secondo.
+              </p>
+            ) : null}
+            <div className="mt-4">
+              <MemberQuotaAlert {...quotaStatus} returnPath="/prenotazioni" />
+            </div>
+          </div>
+        ) : null}
+
+        {hasSession && memberId && !bookingLocked && !quotaBlocksBooking && (
         <>
         <ol
           className="-mx-1 flex flex-nowrap gap-1 overflow-x-auto px-1 pb-0.5 text-xs sm:text-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
@@ -887,8 +953,8 @@ export default function PrenotazioniPage() {
               Nessuna sala disponibile
             </h2>
             <p className="mt-2 text-sm text-neutral-600">
-              Verifica di aver pagato la quota associativa e di avere il ruolo
-              corretto. Se il problema persiste, scrivi alla segreteria.
+              Non risultano sale prenotabili per il tuo profilo. Controlla di
+              avere il ruolo associato attivo oppure scrivi alla segreteria.
             </p>
             <Link
               href="/dashboard"
@@ -945,6 +1011,7 @@ export default function PrenotazioniPage() {
                 onSelectBand={setSelectedBandId}
                 onContinue={() => goToStepIndex(stepIndex + 1)}
                 onBack={() => goToStepIndex(stepIndex - 1)}
+                quotaStatus={quotaStatus}
               />
             )}
           </div>
@@ -1295,5 +1362,21 @@ export default function PrenotazioniPage() {
       </div>
       )}
     </main>
+  );
+}
+
+export default function PrenotazioniPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="associate-gradient-page min-h-screen">
+          <div className="mx-auto max-w-3xl px-4 py-10 text-sm text-neutral-500">
+            Caricamento…
+          </div>
+        </main>
+      }
+    >
+      <PrenotazioniPageInner />
+    </Suspense>
   );
 }

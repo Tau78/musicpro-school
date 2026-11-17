@@ -38,13 +38,20 @@ export function mapAuthError(message: string): string {
     text.includes("user already registered") ||
     text.includes("already been registered")
   ) {
-    return "Esiste già un account con questa email. Prova ad accedere.";
+    return "Esiste già un account con questa email. Accedi con password o link email: se la quota non è saldata, dopo l'accesso potrai versarla e prenotare.";
   }
   if (
     text.includes("signup is disabled") ||
     text.includes("signups not allowed")
   ) {
-    return "La registrazione non è disponibile. Contatta la segreteria.";
+    return "La registrazione non è disponibile da qui. Se sei già associato, accedi con la stessa email in anagrafica (password o link email).";
+  }
+  if (
+    text.includes("user not found") ||
+    text.includes("unable to validate email address: invalid") ||
+    (text.includes("otp") && text.includes("not allowed"))
+  ) {
+    return "Nessun account trovato per questa email. Usa l'email in anagrafica associati, oppure contatta la segreteria.";
   }
   if (text.includes("rate limit") || text.includes("too many requests")) {
     return "Troppi tentativi. Riprova tra qualche minuto.";
