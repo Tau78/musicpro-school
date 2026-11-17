@@ -662,6 +662,48 @@ export async function requestBookingCalendarSync(
   }
 }
 
+/**
+ * Best-effort sync per hold lezione / server: Edge diretto se c’è service role,
+ * altrimenti API web (browser o SCHOOL_PUBLIC_URL).
+ */
+export async function syncBookingCalendarBestEffort(
+  bookingId: string,
+  action: "upsert" | "delete" = "upsert",
+): Promise<void> {
+  const supabaseUrl = (
+    process.env.SUPABASE_URL ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    ""
+  ).replace(/\/$/, "");
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+
+  if (supabaseUrl && serviceKey) {
+    try {
+      await fetch(`${supabaseUrl}/functions/v1/booking-calendar-sync`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${serviceKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ booking_id: bookingId, action }),
+      });
+    } catch {
+      // best effort
+    }
+    return;
+  }
+
+  const apiBase = (
+    process.env.SCHOOL_PUBLIC_URL ||
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    ""
+  ).replace(/\/$/, "");
+  void requestBookingCalendarSync(bookingId, {
+    action,
+    apiBaseUrl: apiBase || undefined,
+  });
+}
+
 export async function requestBookingConfirmationEmail(
   bookingId: string,
   options?: RequestBookingConfirmationEmailOptions,

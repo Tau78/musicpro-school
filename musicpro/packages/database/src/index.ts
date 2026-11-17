@@ -84,6 +84,7 @@ export {
   requestRoomBookingPaymentUrl,
   requestBookingConfirmationEmail,
   requestBookingCalendarSync,
+  syncBookingCalendarBestEffort,
   adminUpdateBooking,
   bookingAuditActionLabel,
   countPendingApprovalBookings,
