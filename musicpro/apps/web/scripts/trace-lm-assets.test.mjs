@@ -1,41 +1,36 @@
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
-import { createRequire } from "node:module";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 const webRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
-const workspaceRoot = join(webRoot, "../../..");
-const config = readFileSync(join(webRoot, "next.config.ts"), "utf8");
-const glob = createRequire(join(webRoot, "package.json"))(
-  "next/dist/compiled/glob",
+const base64Mod = join(
+  webRoot,
+  "src/lib/last-minute/digest-assets-base64.ts",
 );
-
-const includePattern = "musicpro/apps/web/src/lib/last-minute/assets/**/*";
 const assetsDir = join(webRoot, "src/lib/last-minute/assets");
 
-test("asset LM runtime sotto apps/web (docs/ è in .vercelignore)", () => {
-  assert.ok(config.includes(includePattern), includePattern);
-  assert.ok(
-    existsSync(join(assetsDir, "lm-digest-bg.jpg")),
-    "lm-digest-bg.jpg",
-  );
-  const hits = glob.sync(includePattern, {
-    cwd: workspaceRoot,
-    nodir: true,
-    dot: true,
-  });
-  assert.ok(hits.length >= 4, `glob include: ${hits.length}`);
+test("LM digest runtime usa moduli base64 (no fs su Vercel)", () => {
+  assert.ok(existsSync(base64Mod), "digest-assets-base64.ts");
+  const src = readFileSync(base64Mod, "utf8");
   for (const name of [
-    "Montserrat-Bold.ttf",
-    "Montserrat-ExtraBold.ttf",
-    "BebasNeue-Regular.ttf",
+    "LM_DIGEST_BG_BASE64",
+    "FONT_MONTSERRAT_BOLD_BASE64",
+    "FONT_MONTSERRAT_EXTRABOLD_BASE64",
+    "FONT_BEBAS_NEUE_BASE64",
   ]) {
-    assert.ok(
-      existsSync(join(assetsDir, "fonts", name)),
-      name,
-    );
+    assert.ok(src.includes(`export const ${name}`), name);
   }
+  // Sorgenti binarie tenute per rigenerare il modulo.
+  assert.ok(existsSync(join(assetsDir, "lm-digest-bg.jpg")), "bg jpg");
+});
+
+test("last-minute-digest-image importa i base64", () => {
+  const img = readFileSync(
+    join(webRoot, "src/lib/last-minute-digest-image.tsx"),
+    "utf8",
+  );
+  assert.ok(img.includes("digest-assets-base64"));
+  assert.ok(!img.includes("readFileSync"));
 });

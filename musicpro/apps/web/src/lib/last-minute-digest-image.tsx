@@ -1,9 +1,11 @@
-import { existsSync, readFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-
 import { ImageResponse } from "next/og";
 
+import {
+  FONT_BEBAS_NEUE_BASE64,
+  FONT_MONTSERRAT_BOLD_BASE64,
+  FONT_MONTSERRAT_EXTRABOLD_BASE64,
+  LM_DIGEST_BG_BASE64,
+} from "@/lib/last-minute/digest-assets-base64";
 import {
   type DigestRoomName,
   DIGEST_ROOM_ORDER,
@@ -14,96 +16,33 @@ import {
 const W = 1080;
 const H = 1920;
 const SAFE_X = 65;
-const SAFE_W = 950;
 
 const ALERT = "#F2453A";
 const WHITE = "#ffffff";
 const NAVY_PANEL = "rgba(10, 18, 32, 0.92)";
 
-/**
- * Runtime assets vivono sotto apps/web (non docs/): `.vercelignore` esclude `/docs/`.
- * Marker relativo alla root del package web.
- */
-const ASSETS_REL = "src/lib/last-minute/assets";
-const STORY_BG_REL = `${ASSETS_REL}/lm-digest-bg.jpg`;
-
-function resolveWebAppRoot(): string {
-  const starts: string[] = [process.cwd()];
-  try {
-    starts.push(path.dirname(fileURLToPath(import.meta.url)));
-  } catch {
-    // bundle senza import.meta
-  }
-  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
-    starts.push("/var/task/musicpro/apps/web", "/var/task");
-  }
-
-  const seen = new Set<string>();
-  for (const start of starts) {
-    let dir = path.resolve(start);
-    for (let i = 0; i < 12; i += 1) {
-      if (seen.has(dir)) break;
-      seen.add(dir);
-      if (existsSync(path.join(dir, STORY_BG_REL))) return dir;
-      // NFT layout: /var/task/musicpro/apps/web/...
-      if (existsSync(path.join(dir, "musicpro/apps/web", STORY_BG_REL))) {
-        return path.join(dir, "musicpro/apps/web");
-      }
-      const parent = path.dirname(dir);
-      if (parent === dir) break;
-      dir = parent;
-    }
-  }
-
-  const tried = [...seen]
-    .flatMap((dir) => [
-      path.join(dir, STORY_BG_REL),
-      path.join(dir, "musicpro/apps/web", STORY_BG_REL),
-    ])
-    .join("; ");
-  throw new Error(
-    `Asset last-minute digest non trovato (${STORY_BG_REL}). Provati: ${tried}`,
-  );
-}
-
-function readAsset(relativeFromAssets: string): Buffer {
-  const root = resolveWebAppRoot();
-  const abs = path.join(root, ASSETS_REL, relativeFromAssets);
-  if (!existsSync(abs)) {
-    throw new Error(`Asset last-minute digest mancante: ${abs}`);
-  }
-  return readFileSync(abs);
-}
-
-function loadAssetDataUri(relativeFromAssets: string): string {
-  const buf = readAsset(relativeFromAssets);
-  const ext = path.extname(relativeFromAssets).toLowerCase();
-  const mime =
-    ext === ".jpg" || ext === ".jpeg"
-      ? "image/jpeg"
-      : ext === ".png"
-        ? "image/png"
-        : "application/octet-stream";
-  return `data:${mime};base64,${buf.toString("base64")}`;
+function b64ToArrayBuffer(b64: string): ArrayBuffer {
+  const buf = Buffer.from(b64, "base64");
+  return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
 }
 
 async function loadFonts() {
   return [
     {
       name: "Montserrat",
-      data: readAsset("fonts/Montserrat-Bold.ttf"),
+      data: b64ToArrayBuffer(FONT_MONTSERRAT_BOLD_BASE64),
       weight: 700 as const,
       style: "normal" as const,
     },
     {
       name: "Montserrat",
-      data: readAsset("fonts/Montserrat-ExtraBold.ttf"),
+      data: b64ToArrayBuffer(FONT_MONTSERRAT_EXTRABOLD_BASE64),
       weight: 800 as const,
       style: "normal" as const,
     },
     {
       name: "Bebas Neue",
-      data: readAsset("fonts/BebasNeue-Regular.ttf"),
+      data: b64ToArrayBuffer(FONT_BEBAS_NEUE_BASE64),
       weight: 400 as const,
       style: "normal" as const,
     },
@@ -118,7 +57,7 @@ export interface RenderDigestImageInput {
 export async function renderLastMinuteDigestPng(
   input: RenderDigestImageInput,
 ): Promise<Buffer> {
-  const bgDataUri = loadAssetDataUri("lm-digest-bg.jpg");
+  const bgDataUri = `data:image/jpeg;base64,${LM_DIGEST_BG_BASE64}`;
   const fonts = await loadFonts();
   const dateLabel = formatDigestDateLabel(input.dayRome);
   const activeRooms = DIGEST_ROOM_ORDER.filter(
