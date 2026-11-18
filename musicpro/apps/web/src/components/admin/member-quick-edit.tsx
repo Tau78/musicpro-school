@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   adminAdjustMemberCredits,
@@ -15,8 +15,12 @@ import {
 } from "@musicpro/database";
 import type { MemberRoleValue } from "@musicpro/shared";
 
+import { MemberPasswordReset } from "@/components/admin/member-password-reset";
 import { MemberQuotaInline } from "@/components/admin/member-quota-inline";
-import { MemberQuotaSummary } from "@/components/admin/member-quota-summary";
+import {
+  MemberQuotaSummary,
+  type MemberQuotaSummaryHandle,
+} from "@/components/admin/member-quota-summary";
 import { MemberRolesPanel } from "@/components/admin/member-roles-panel";
 import { ensureMemberAuthClient } from "@/lib/admin/ensure-member-auth-client";
 import { createClient } from "@/lib/supabase/client";
@@ -65,6 +69,7 @@ export function MemberQuickEdit({
 }: MemberQuickEditProps) {
   const router = useRouter();
   const supabase = createClient();
+  const quotaSummaryRef = useRef<MemberQuotaSummaryHandle>(null);
 
   const [firstName, setFirstName] = useState(member.firstName);
   const [lastName, setLastName] = useState(member.lastName);
@@ -130,6 +135,16 @@ export function MemberQuickEdit({
       setSuccess("Crediti aggiornati.");
       onSaved(member, adjust.balance);
       router.refresh();
+      return;
+    }
+
+    const quotaFlush = await quotaSummaryRef.current?.flushIfDirty();
+    if (quotaFlush && !quotaFlush.ok) {
+      setSaving(false);
+      setError(
+        quotaFlush.errorMessage ??
+          "Impossibile salvare le quote associative.",
+      );
       return;
     }
 
@@ -322,6 +337,7 @@ export function MemberQuickEdit({
           />
         ) : (
           <MemberQuotaSummary
+            ref={quotaSummaryRef}
             memberId={member.id}
             quotas={quotas}
             quotaSettings={quotaSettings}
@@ -381,6 +397,14 @@ export function MemberQuickEdit({
               currentStaffRoles={currentStaffRoles}
               onRolesChange={onRolesChange}
             />
+
+            <MemberPasswordReset
+              embedded
+              compact
+              memberId={member.id}
+              memberEmail={email.trim() || member.email}
+              memberFirstName={firstName.trim() || member.firstName}
+            />
           </>
         )}
       </div>
@@ -390,7 +414,7 @@ export function MemberQuickEdit({
           <button
             type="button"
             onClick={onOpenFull}
-            className="mb-2 w-full text-center text-xs font-medium text-[var(--brand)] hover:underline sm:mb-3 sm:w-auto sm:text-left sm:text-sm"
+            className="mb-2 min-h-11 w-full touch-manipulation py-2 text-center text-sm font-medium text-[var(--brand)] hover:underline sm:mb-3 sm:min-h-0 sm:w-auto sm:py-0 sm:text-left"
           >
             Anagrafica completa
           </button>

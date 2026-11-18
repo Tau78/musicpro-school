@@ -52,9 +52,9 @@ const nextConfig: NextConfig = {
       "musicpro/node_modules/next/dist/compiled/**/*",
       "musicpro/node_modules/next/dist/server/**/*",
       "musicpro/apps/web/src/lib/reimbursements/assets/**/*",
-      // Relativi a apps/web: il glob di Next non vede `docs/` del repo.
-      "../../../docs/assets/school/fonts/**/*",
-      "../../../docs/assets/school/lm-digest-bg.jpg",
+      // Relativi a outputFileTracingRoot (repo School), come gli altri include.
+      "docs/assets/school/fonts/**/*",
+      "docs/assets/school/lm-digest-bg.jpg",
     ],
   },
   serverExternalPackages: ["nodemailer"],

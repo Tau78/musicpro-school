@@ -26,14 +26,17 @@ export async function POST(request: Request, context: RouteContext) {
     );
   }
 
-  let digitalSign = false;
+  /** undefined = usa il flag sul rimborso; true/false = forzato dal client */
+  let digitalSignOverride: boolean | undefined;
   try {
     const body = (await request.json().catch(() => null)) as {
       digitalSign?: boolean;
     } | null;
-    digitalSign = Boolean(body?.digitalSign);
+    if (body && typeof body.digitalSign === "boolean") {
+      digitalSignOverride = body.digitalSign;
+    }
   } catch {
-    digitalSign = false;
+    digitalSignOverride = undefined;
   }
 
   const supabase = await createClient();
@@ -75,10 +78,14 @@ export async function POST(request: Request, context: RouteContext) {
     );
   }
 
-  const useDigital =
-    digitalSign || reimbursement.digitalSignRequested;
+  // Override esplicito, altrimenti il flag sul rimborso; se già firmata → notula PDF.
+  const wantDigital =
+    digitalSignOverride !== undefined
+      ? digitalSignOverride
+      : reimbursement.digitalSignRequested;
+  const sendDigital = wantDigital && !reimbursement.signedAt;
 
-  const result = useDigital
+  const result = sendDigital
     ? await sendReimbursementDigitalSignEmail(supabase, reimbursement)
     : await sendReimbursementNotulaEmail(supabase, reimbursement);
 

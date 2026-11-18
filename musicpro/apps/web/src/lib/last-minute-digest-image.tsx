@@ -22,16 +22,22 @@ const NAVY_PANEL = "rgba(10, 18, 32, 0.92)";
 
 const STORY_BG = "docs/assets/school/lm-digest-bg.jpg";
 
+/** Marker file used to locate the School repo root (local + Vercel /var/task). */
 function resolveSchoolWorkspaceRoot(): string {
-  const starts = [process.cwd()];
+  const starts: string[] = [process.cwd()];
   try {
     starts.push(path.dirname(fileURLToPath(import.meta.url)));
   } catch {
     // bundle senza import.meta: resta il cwd
   }
+  // Vercel NFT: cwd ≈ /var/task/musicpro/apps/web, asset in /var/task/docs/...
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    starts.push("/var/task");
+  }
+
   const seen = new Set<string>();
   for (const start of starts) {
-    let dir = start;
+    let dir = path.resolve(start);
     for (let i = 0; i < 12; i += 1) {
       if (seen.has(dir)) break;
       seen.add(dir);
@@ -41,14 +47,25 @@ function resolveSchoolWorkspaceRoot(): string {
       dir = parent;
     }
   }
-  return process.cwd();
+
+  const tried = [...seen].map((dir) => path.join(dir, STORY_BG)).join("; ");
+  throw new Error(
+    `Asset last-minute digest non trovato (${STORY_BG}). Provati: ${tried}`,
+  );
+}
+
+function readWorkspaceAsset(relativePath: string): Buffer {
+  const root = resolveSchoolWorkspaceRoot();
+  const abs = path.join(root, relativePath);
+  if (!existsSync(abs)) {
+    throw new Error(`Asset last-minute digest mancante: ${abs}`);
+  }
+  return readFileSync(abs);
 }
 
 function loadAssetDataUri(relativePath: string): string {
-  const root = resolveSchoolWorkspaceRoot();
-  const abs = path.join(root, relativePath);
-  const buf = readFileSync(abs);
-  const ext = path.extname(abs).toLowerCase();
+  const buf = readWorkspaceAsset(relativePath);
+  const ext = path.extname(relativePath).toLowerCase();
   const mime =
     ext === ".jpg" || ext === ".jpeg"
       ? "image/jpeg"
@@ -59,24 +76,24 @@ function loadAssetDataUri(relativePath: string): string {
 }
 
 async function loadFonts() {
-  const root = resolveSchoolWorkspaceRoot();
-  const read = (rel: string) => readFileSync(path.join(root, rel));
   return [
     {
       name: "Montserrat",
-      data: read("docs/assets/school/fonts/Montserrat-Bold.ttf"),
+      data: readWorkspaceAsset("docs/assets/school/fonts/Montserrat-Bold.ttf"),
       weight: 700 as const,
       style: "normal" as const,
     },
     {
       name: "Montserrat",
-      data: read("docs/assets/school/fonts/Montserrat-ExtraBold.ttf"),
+      data: readWorkspaceAsset(
+        "docs/assets/school/fonts/Montserrat-ExtraBold.ttf",
+      ),
       weight: 800 as const,
       style: "normal" as const,
     },
     {
       name: "Bebas Neue",
-      data: read("docs/assets/school/fonts/BebasNeue-Regular.ttf"),
+      data: readWorkspaceAsset("docs/assets/school/fonts/BebasNeue-Regular.ttf"),
       weight: 400 as const,
       style: "normal" as const,
     },

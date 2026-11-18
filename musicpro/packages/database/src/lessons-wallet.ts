@@ -1750,6 +1750,20 @@ async function familyMemberIds(
   memberId: string,
 ): Promise<string[]> {
   const ids = new Set<string>([memberId]);
+
+  // Tutorati collegati in `tutor_links` (canale ufficiale tutore → minore).
+  const untyped = client as unknown as SupabaseClient;
+  const { data: links, error: linkError } = await untyped
+    .from("tutor_links")
+    .select("ward_member_id")
+    .eq("tutor_member_id", memberId);
+  if (linkError) {
+    throw new Error(linkError.message || "Impossibile caricare i tutorati.");
+  }
+  for (const row of (links ?? []) as { ward_member_id: string }[]) {
+    ids.add(row.ward_member_id);
+  }
+
   const { data: member, error } = await client
     .from("members")
     .select("id, manual_tutor_email")
