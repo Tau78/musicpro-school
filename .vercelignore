@@ -2,6 +2,8 @@
 /apps/
 
 # Not needed for @musicpro/web build (Root Directory: musicpro/apps/web)
+# Nota: `/docs/` resta escluso — asset runtime LM in
+# musicpro/apps/web/src/lib/last-minute/assets/ (non in docs/).
 /store/
 /docs/
 /assets/

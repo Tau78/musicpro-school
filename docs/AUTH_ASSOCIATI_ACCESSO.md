@@ -1,5 +1,17 @@
 # Accesso associati — diagnosi e backfill Auth
 
+## Pino Solari (n. 407) — 2026-11-18
+
+| Campo | Valore |
+|-------|--------|
+| Email anagrafica | `solari.pino@gmail.com` |
+| Auth Supabase | Presente, collegato (`user_id` ok); `last_sign_in_at` mai |
+| Quota 2026 | Pagata |
+| Blocco | Modulo incompleto (CF + GDPR/firma assenti) → `/onboarding/form` |
+
+Conflitto email con **Edoardo Solari** (n. 954): email rimossa dalla scheda di Edoardo (resta `manual_tutor_email`).  
+**Azione Pino:** [Recupera password](https://school.musicproeventi.it/forgot-password) con `solari.pino@gmail.com`, poi completa CF + privacy.
+
 ## Pierpaolo Romairone (n. 22)
 
 | Campo | Valore |

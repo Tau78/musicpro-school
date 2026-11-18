@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -12,32 +13,28 @@ const glob = createRequire(join(webRoot, "package.json"))(
   "next/dist/compiled/glob",
 );
 
-const patterns = [
-  "docs/assets/school/lm-digest-bg.jpg",
-  "docs/assets/school/fonts/**/*",
-];
+const includePattern = "musicpro/apps/web/src/lib/last-minute/assets/**/*";
+const assetsDir = join(webRoot, "src/lib/last-minute/assets");
 
-test("next.config include gli asset LM dalla tracing root del repo", () => {
-  for (const pattern of patterns) {
-    assert.ok(config.includes(pattern), pattern);
-    const hits = glob.sync(pattern, {
-      cwd: workspaceRoot,
-      nodir: true,
-      dot: true,
-    });
-    assert.ok(hits.length >= 1, `${pattern} non risolve dalla repo root`);
-  }
-  const fonts = glob.sync("docs/assets/school/fonts/**/*.ttf", {
+test("asset LM runtime sotto apps/web (docs/ è in .vercelignore)", () => {
+  assert.ok(config.includes(includePattern), includePattern);
+  assert.ok(
+    existsSync(join(assetsDir, "lm-digest-bg.jpg")),
+    "lm-digest-bg.jpg",
+  );
+  const hits = glob.sync(includePattern, {
     cwd: workspaceRoot,
     nodir: true,
+    dot: true,
   });
+  assert.ok(hits.length >= 4, `glob include: ${hits.length}`);
   for (const name of [
     "Montserrat-Bold.ttf",
     "Montserrat-ExtraBold.ttf",
     "BebasNeue-Regular.ttf",
   ]) {
     assert.ok(
-      fonts.some((file) => file.endsWith(name)),
+      existsSync(join(assetsDir, "fonts", name)),
       name,
     );
   }
