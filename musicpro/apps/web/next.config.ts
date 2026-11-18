@@ -52,8 +52,6 @@ const nextConfig: NextConfig = {
       "musicpro/node_modules/next/dist/compiled/**/*",
       "musicpro/node_modules/next/dist/server/**/*",
       "musicpro/apps/web/src/lib/reimbursements/assets/**/*",
-      // Dentro apps/web: `.vercelignore` esclude `/docs/` dalla upload.
-      "musicpro/apps/web/src/lib/last-minute/assets/**/*",
     ],
   },
   serverExternalPackages: ["nodemailer"],
