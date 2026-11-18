@@ -52,9 +52,8 @@ const nextConfig: NextConfig = {
       "musicpro/node_modules/next/dist/compiled/**/*",
       "musicpro/node_modules/next/dist/server/**/*",
       "musicpro/apps/web/src/lib/reimbursements/assets/**/*",
-      // Relativi a outputFileTracingRoot (repo School), come gli altri include.
-      "docs/assets/school/fonts/**/*",
-      "docs/assets/school/lm-digest-bg.jpg",
+      // Dentro apps/web: `.vercelignore` esclude `/docs/` dalla upload.
+      "musicpro/apps/web/src/lib/last-minute/assets/**/*",
     ],
   },
   serverExternalPackages: ["nodemailer"],
