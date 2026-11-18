@@ -743,14 +743,43 @@ async function resolveTeacherCourseIds(
   return [...ids];
 }
 
+/** Ward collegati in `tutor_links` (il tutore vede i corsi anche senza quota del minore). */
+async function resolveTutorWardIds(
+  client: CalendarClient,
+  tutorMemberId: string,
+): Promise<string[]> {
+  const untyped = client as unknown as SupabaseClient;
+  const { data, error } = await untyped
+    .from("tutor_links")
+    .select("ward_member_id")
+    .eq("tutor_member_id", tutorMemberId);
+  if (error) {
+    throw new Error(
+      `Impossibile caricare i tutorati: ${error.message}`,
+    );
+  }
+  return [
+    ...new Set(
+      ((data ?? []) as { ward_member_id: string }[]).map(
+        (row) => row.ward_member_id,
+      ),
+    ),
+  ];
+}
+
 async function resolveStudentCourseIds(
   client: CalendarClient,
   studentMemberId: string,
 ): Promise<string[]> {
+  // Propri iscrizioni + eventuali tutorati (commento su studentMemberId).
+  const memberIds = [
+    studentMemberId,
+    ...(await resolveTutorWardIds(client, studentMemberId)),
+  ];
   const { data, error } = await client
     .from("course_enrollments")
     .select("course_id")
-    .eq("member_id", studentMemberId)
+    .in("member_id", memberIds)
     .is("left_at", null);
   if (error) {
     throw new Error(
@@ -760,7 +789,11 @@ async function resolveStudentCourseIds(
   return [...new Set((data ?? []).map((row) => row.course_id))];
 }
 
-/** True se il membro ha almeno un'iscrizione corso attiva (è allievo). */
+/**
+ * True se il membro (o un suo tutorato via `tutor_links`) ha almeno
+ * un'iscrizione corso attiva. La quota annuale del minore non conta:
+ * il tutore deve comunque vedere i corsi.
+ */
 export async function hasActiveCourseEnrollment(
   client: CalendarClient,
   memberId: string,

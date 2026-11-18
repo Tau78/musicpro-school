@@ -48,11 +48,16 @@ export async function createReimbursementSignMagicLink(
     expiresAt,
     usedAt: null,
   };
-  await db.from("app_settings").upsert({
+  const { error } = await db.from("app_settings").upsert({
     key: `${TOKEN_KEY_PREFIX}${token}`,
     value: JSON.stringify(payload),
     description: "Magic link firma notula rimborso",
   });
+  if (error) {
+    throw new Error(
+      `Impossibile creare il link firma: ${error.message || "errore DB"}`,
+    );
+  }
   return `${appBaseUrl()}/rimborsi/firma?token=${encodeURIComponent(token)}`;
 }
 

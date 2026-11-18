@@ -43,13 +43,23 @@ function jsonError(message: string, status: number) {
   return NextResponse.json({ success: false, message }, { status });
 }
 
-/** Allievo o tutore (email famiglia, come incasso famiglia in wallet). */
+/** Allievo o tutore (`tutor_links` oppure email famiglia). */
 async function canActorPayLessonFeesForMember(
   client: UserClient,
   actorMemberId: string,
   studentMemberId: string,
 ): Promise<boolean> {
   if (actorMemberId === studentMemberId) return true;
+
+  // tutor_links non è ancora nei tipi generati.
+  const untyped = client as unknown as SupabaseClient;
+  const { data: link } = await untyped
+    .from("tutor_links")
+    .select("ward_member_id")
+    .eq("tutor_member_id", actorMemberId)
+    .eq("ward_member_id", studentMemberId)
+    .maybeSingle();
+  if (link) return true;
 
   const { data: student, error: studentError } = await client
     .from("members")

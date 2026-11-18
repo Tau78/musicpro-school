@@ -133,6 +133,8 @@ export async function updateSession(request: NextRequest) {
       const skipCheck = shouldSkipOnboardingCheck(roles);
 
       // Associati puri: form (CF+firma) + quota. Staff/docenti non bloccati.
+      // Tutore con tutorati: entra in dashboard anche senza quota propria, così
+      // può vedere i corsi del minore (la quota del minore non blocca la lettura).
       if (isAssociato && !skipCheck) {
         const fiscalYear = new Date().getFullYear();
         const { data: quotaOk } = await supabase.rpc("member_quota_ok", {
@@ -146,7 +148,16 @@ export async function updateSession(request: NextRequest) {
           Boolean(taxCode) &&
           Boolean(member.gdpr_consent || member.enrolled_at);
 
-        if (!quotaOk || !formOk) {
+        let hasTutorWards = false;
+        if (!quotaOk && formOk) {
+          const { count } = await supabase
+            .from("tutor_links")
+            .select("id", { count: "exact", head: true })
+            .eq("tutor_member_id", member.id);
+          hasTutorWards = (count ?? 0) > 0;
+        }
+
+        if ((!quotaOk && !hasTutorWards) || !formOk) {
           const onboardingUrl = request.nextUrl.clone();
           onboardingUrl.pathname = "/onboarding";
           onboardingUrl.search = "";

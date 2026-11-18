@@ -6,6 +6,9 @@ interface MemberPasswordResetProps {
   memberId: string;
   memberEmail: string | null;
   memberFirstName: string;
+  /** Dentro un altro <form> (es. modifica rapida): niente form annidato. */
+  embedded?: boolean;
+  compact?: boolean;
 }
 
 function generatePassword(): string {
@@ -25,6 +28,8 @@ export function MemberPasswordReset({
   memberId,
   memberEmail,
   memberFirstName,
+  embedded = false,
+  compact = false,
 }: MemberPasswordResetProps) {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -34,8 +39,8 @@ export function MemberPasswordReset({
 
   const emailOk = Boolean(memberEmail?.trim());
 
-  async function handleSubmit(event: React.FormEvent) {
-    event.preventDefault();
+  async function handleSubmit(event?: React.FormEvent) {
+    event?.preventDefault();
     setError(null);
     setSuccess(null);
 
@@ -96,102 +101,155 @@ export function MemberPasswordReset({
     }
   }
 
-  return (
-    <fieldset className="space-y-3 rounded-xl border border-neutral-200 bg-white p-4 sm:p-6">
-      <legend className="px-1 text-sm font-semibold text-[var(--brand)]">
-        Accesso / password
-      </legend>
-      <p className="text-xs text-neutral-600">
-        Imposta la password di login su{" "}
-        <span className="font-medium">school.musicproeventi.it</span>
-        {emailOk ? (
-          <>
-            {" "}
-            e invia un&apos;email con la nuova password a{" "}
-            <span className="font-medium break-all">{memberEmail}</span>
-            . Se l&apos;email nel form non è ancora salvata, viene scritta in
-            anagrafica insieme all&apos;accesso Auth
-          </>
-        ) : (
-          " · manca l'email nel form: compilala sopra (anche senza Salva) oppure Salva prima l'anagrafica"
-        )}
-        . Non è il link Stripe della quota (sezione Quote sopra).
-      </p>
+  function onPasswordKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    void handleSubmit();
+  }
 
-      {error ? (
-        <p className="text-sm text-red-700">{error}</p>
-      ) : null}
-      {success ? (
-        <p className="text-sm text-green-700">{success}</p>
-      ) : null}
-
-      <form
-        onSubmit={(e) => void handleSubmit(e)}
-        className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end"
-      >
-        <label className="min-w-0 flex-1 text-sm sm:max-w-[11rem]">
-          <span className="mb-1 block text-neutral-600">Nuova password</span>
-          <input
-            type="text"
-            autoComplete="new-password"
-            value={password}
-            onChange={(e) => {
-              setPassword(e.target.value);
-              setError(null);
-              setSuccess(null);
-            }}
-            disabled={busy || !emailOk}
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)] disabled:opacity-50"
-            placeholder="min. 8 caratteri"
-          />
-        </label>
-        <label className="min-w-0 flex-1 text-sm sm:max-w-[11rem]">
-          <span className="mb-1 block text-neutral-600">Conferma</span>
-          <input
-            type="text"
-            autoComplete="new-password"
-            value={confirm}
-            onChange={(e) => {
-              setConfirm(e.target.value);
-              setError(null);
-              setSuccess(null);
-            }}
-            disabled={busy || !emailOk}
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)] disabled:opacity-50"
-          />
-        </label>
-        <button
-          type="button"
-          disabled={busy || !emailOk}
-          onClick={() => {
-            const next = generatePassword();
-            setPassword(next);
-            setConfirm(next);
+  const fields = (
+    <div className="flex min-w-0 max-w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end">
+      <label className="min-w-0 flex-1 text-sm sm:max-w-[11rem]">
+        <span className="mb-1 block text-neutral-600">Nuova password</span>
+        <input
+          type="text"
+          autoComplete="new-password"
+          value={password}
+          onChange={(e) => {
+            setPassword(e.target.value);
             setError(null);
             setSuccess(null);
           }}
-          className="min-h-10 shrink-0 rounded-lg border border-neutral-300 px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
-        >
-          Genera
-        </button>
-        <button
-          type="submit"
+          onKeyDown={onPasswordKeyDown}
           disabled={busy || !emailOk}
-          className="min-h-10 shrink-0 rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
-          title={
-            emailOk
-              ? `Imposta password e invia email a ${memberEmail}`
-              : "Salva prima un'email sull'anagrafica"
-          }
+          className="w-full min-w-0 max-w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)] disabled:opacity-50"
+          placeholder="min. 8 caratteri"
+        />
+      </label>
+      <label className="min-w-0 flex-1 text-sm sm:max-w-[11rem]">
+        <span className="mb-1 block text-neutral-600">Conferma</span>
+        <input
+          type="text"
+          autoComplete="new-password"
+          value={confirm}
+          onChange={(e) => {
+            setConfirm(e.target.value);
+            setError(null);
+            setSuccess(null);
+          }}
+          onKeyDown={onPasswordKeyDown}
+          disabled={busy || !emailOk}
+          className="w-full min-w-0 max-w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-[var(--brand)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)] disabled:opacity-50"
+        />
+      </label>
+      <button
+        type="button"
+        disabled={busy || !emailOk}
+        onClick={() => {
+          const next = generatePassword();
+          setPassword(next);
+          setConfirm(next);
+          setError(null);
+          setSuccess(null);
+        }}
+        className="min-h-10 shrink-0 rounded-lg border border-neutral-300 px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+      >
+        Genera
+      </button>
+      <button
+        type="button"
+        disabled={busy || !emailOk}
+        onClick={() => void handleSubmit()}
+        className="min-h-10 shrink-0 rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-50"
+        title={
+          emailOk
+            ? `Imposta password e invia email a ${memberEmail}`
+            : "Salva prima un'email sull'anagrafica"
+        }
+      >
+        {busy ? "Invio…" : "Imposta e invia email"}
+      </button>
+    </div>
+  );
+
+  return (
+    <fieldset
+      className={
+        compact
+          ? "min-w-0 max-w-full space-y-2 rounded-lg border border-neutral-200 bg-neutral-50 px-2.5 py-2 sm:px-3"
+          : "space-y-3 rounded-xl border border-neutral-200 bg-white p-4 sm:p-6"
+      }
+    >
+      <legend
+        className={
+          compact
+            ? "px-1 text-xs font-medium text-neutral-800"
+            : "px-1 text-sm font-semibold text-[var(--brand)]"
+        }
+      >
+        Accesso / password
+      </legend>
+      {compact ? (
+        <p className="text-[11px] leading-snug text-neutral-600">
+          Login su school.musicproeventi.it
+          {emailOk ? (
+            <>
+              {" "}
+              · invia password a{" "}
+              <span className="break-all font-medium">{memberEmail}</span>
+            </>
+          ) : (
+            " · manca l'email"
+          )}
+          .
+        </p>
+      ) : (
+        <p className="text-xs text-neutral-600">
+          Imposta la password di login su{" "}
+          <span className="font-medium">school.musicproeventi.it</span>
+          {emailOk ? (
+            <>
+              {" "}
+              e invia un&apos;email con la nuova password a{" "}
+              <span className="font-medium break-all">{memberEmail}</span>
+              . Se l&apos;email nel form non è ancora salvata, viene scritta in
+              anagrafica insieme all&apos;accesso Auth
+            </>
+          ) : (
+            " · manca l'email nel form: compilala sopra (anche senza Salva) oppure Salva prima l'anagrafica"
+          )}
+          . Non è il link di pagamento della quota (sezione Quote sopra).
+        </p>
+      )}
+
+      {error ? (
+        <p className={`text-red-700 ${compact ? "text-[11px]" : "text-sm"}`}>
+          {error}
+        </p>
+      ) : null}
+      {success ? (
+        <p className={`text-green-700 ${compact ? "text-[11px]" : "text-sm"}`}>
+          {success}
+        </p>
+      ) : null}
+
+      {embedded ? (
+        fields
+      ) : (
+        <form
+          onSubmit={(e) => void handleSubmit(e)}
+          className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end"
         >
-          {busy ? "Invio…" : "Imposta e invia email"}
-        </button>
-      </form>
-      <p className="text-xs text-neutral-500">
-        Testo email: «l&apos;amministrazione ha resettato la tua password… ecco
-        la nuova» (+ link di accesso)
-        {memberFirstName ? ` · saluto a ${memberFirstName}` : ""}.
-      </p>
+          {fields}
+        </form>
+      )}
+      {compact ? null : (
+        <p className="text-xs text-neutral-500">
+          Testo email: «l&apos;amministrazione ha resettato la tua password…
+          ecco la nuova» (+ link di accesso)
+          {memberFirstName ? ` · saluto a ${memberFirstName}` : ""}.
+        </p>
+      )}
     </fieldset>
   );
 }

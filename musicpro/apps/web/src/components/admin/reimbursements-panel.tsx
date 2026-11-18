@@ -146,6 +146,7 @@ export function ReimbursementsPanel({
   const [reportLoading, setReportLoading] = useState(false);
   const [reportExporting, setReportExporting] = useState(false);
   const [pdfBusyId, setPdfBusyId] = useState<string | null>(null);
+  const [emailBusyId, setEmailBusyId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -498,6 +499,53 @@ export function ReimbursementsPanel({
     } finally {
       setBulkBusy(false);
     }
+  }
+
+  async function handleSendEmail(item: ReimbursementDisplay) {
+    setEmailBusyId(item.id);
+    setError(null);
+    try {
+      // Se già firmata, reinvia la notula con allegato (non un nuovo link firma).
+      const digitalSign =
+        item.digitalSignRequested && !item.signedAt;
+      const res = await fetch(
+        `/api/admin/reimbursements/${encodeURIComponent(item.id)}/email`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ digitalSign }),
+        },
+      );
+      const payload = (await res.json().catch(() => ({}))) as {
+        sent?: boolean;
+        skipped?: boolean;
+        success?: boolean;
+        message?: string;
+        recipient?: string;
+      };
+      if (payload.sent) {
+        setGenerateMessage(payload.message ?? "Email inviata");
+      } else if (payload.skipped) {
+        setGenerateMessage(
+          payload.message ?? "Invio saltato: email associato mancante",
+        );
+      } else {
+        setError(
+          payload.message ??
+            "Email non inviata. Controlla RESEND_API_KEY / GOOGLE_SMTP_* e l'indirizzo associato.",
+        );
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Errore invio email");
+    } finally {
+      setEmailBusyId(null);
+    }
+  }
+
+  function emailActionLabel(item: ReimbursementDisplay): string {
+    if (item.signedAt) return "Reinvia notula";
+    if (item.digitalSignRequested) return "Reinvia link firma";
+    return "Invia email";
   }
 
   function openInPreview(
@@ -1068,7 +1116,7 @@ export function ReimbursementsPanel({
               onClick={() => void handleBulkEmail()}
               className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm hover:bg-neutral-50 disabled:opacity-50"
             >
-              Invia email
+              Invia / Reinvia
             </button>
             {canDelete ? (
               <button
@@ -1122,9 +1170,7 @@ export function ReimbursementsPanel({
                   <th className="px-4 py-3 font-medium">Stato</th>
                   <th className="px-4 py-3 font-medium">Firma</th>
                   <th className="px-4 py-3 font-medium">PDF</th>
-                  {canDelete ? (
-                    <th className="px-4 py-3 font-medium">Azioni</th>
-                  ) : null}
+                  <th className="px-4 py-3 font-medium">Azioni</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-100">
@@ -1205,8 +1251,8 @@ export function ReimbursementsPanel({
                           Firmata {formatReimbursementDateItalian(item.signedAt)}
                         </span>
                       ) : item.digitalSignRequested ? (
-                        <span className="inline-flex rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-800">
-                          Link firma inviato
+                        <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                          In attesa firma
                         </span>
                       ) : item.signatureRequired ? (
                         <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
@@ -1217,7 +1263,7 @@ export function ReimbursementsPanel({
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex flex-col items-start gap-1 sm:flex-row sm:gap-3">
+                      <div className="flex min-w-0 max-w-full flex-wrap items-start gap-x-3 gap-y-1">
                         <button
                           type="button"
                           disabled={pdfBusyId === item.id}
@@ -1240,20 +1286,37 @@ export function ReimbursementsPanel({
                         </button>
                       </div>
                     </td>
-                    {canDelete ? (
-                      <td className="px-4 py-3">
+                    <td className="px-4 py-3">
+                      <div className="flex min-w-0 max-w-full flex-wrap items-center gap-x-3 gap-y-1">
                         <button
                           type="button"
-                          onClick={() => {
-                            setSelectedIds(new Set([item.id]));
-                            setDeleteConfirm(true);
-                          }}
-                          className="text-red-600 hover:underline"
+                          disabled={emailBusyId === item.id || bulkBusy}
+                          onClick={() => void handleSendEmail(item)}
+                          className="font-medium text-[var(--brand)] hover:underline disabled:opacity-50"
+                          title={
+                            item.digitalSignRequested && !item.signedAt
+                              ? "Invia o reinvia il link per firmare via email"
+                              : "Invia o reinvia la notula via email"
+                          }
                         >
-                          Elimina
+                          {emailBusyId === item.id
+                            ? "Invio…"
+                            : emailActionLabel(item)}
                         </button>
-                      </td>
-                    ) : null}
+                        {canDelete ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedIds(new Set([item.id]));
+                              setDeleteConfirm(true);
+                            }}
+                            className="text-red-600 hover:underline"
+                          >
+                            Elimina
+                          </button>
+                        ) : null}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>

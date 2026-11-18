@@ -90,7 +90,7 @@ export async function sendReimbursementNotulaEmail(
   if (!result.ok) {
     return {
       success: false,
-      message: result.error,
+      message: `${result.error} (destinatario: ${recipient})`,
       id: reimbursement.id,
       recipient,
     };
@@ -99,7 +99,7 @@ export async function sendReimbursementNotulaEmail(
   return {
     success: true,
     sent: true,
-    message: "Email inviata",
+    message: `Email inviata a ${recipient}`,
     id: reimbursement.id,
     recipient,
   };
@@ -121,11 +121,24 @@ export async function sendReimbursementDigitalSignEmail(
     };
   }
 
-  const signLink = await createReimbursementSignMagicLink(supabase, {
-    reimbursementId: reimbursement.id,
-    memberId: reimbursement.memberId,
-    email: recipient,
-  });
+  let signLink: string;
+  try {
+    signLink = await createReimbursementSignMagicLink(supabase, {
+      reimbursementId: reimbursement.id,
+      memberId: reimbursement.memberId,
+      email: recipient,
+    });
+  } catch (err) {
+    return {
+      success: false,
+      message:
+        err instanceof Error
+          ? err.message
+          : "Impossibile creare il link firma",
+      id: reimbursement.id,
+      recipient,
+    };
+  }
 
   const docLabel = `${reimbursement.progressive}-${reimbursement.fiscalYear} - ${reimbursement.associateName}`;
   const content = buildDigitalSignEmailContent({
@@ -144,7 +157,7 @@ export async function sendReimbursementDigitalSignEmail(
   if (!result.ok) {
     return {
       success: false,
-      message: result.error,
+      message: `${result.error} (destinatario: ${recipient})`,
       id: reimbursement.id,
       recipient,
     };
@@ -153,7 +166,7 @@ export async function sendReimbursementDigitalSignEmail(
   return {
     success: true,
     sent: true,
-    message: "Link firma inviato",
+    message: `Link firma inviato a ${recipient}`,
     id: reimbursement.id,
     recipient,
   };

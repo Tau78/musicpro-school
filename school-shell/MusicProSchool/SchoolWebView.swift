@@ -25,6 +25,10 @@ struct SchoolWebView: UIViewRepresentable {
     webView.scrollView.contentInsetAdjustmentBehavior = .never
     webView.scrollView.alwaysBounceHorizontal = false
     webView.scrollView.showsHorizontalScrollIndicator = false
+    // Pinch zoom → pezzi di UI fuori schermo (es. «Anagrafica completa»).
+    webView.scrollView.minimumZoomScale = 1
+    webView.scrollView.maximumZoomScale = 1
+    webView.scrollView.bouncesZoom = false
     webView.isOpaque = false
     webView.backgroundColor = UIColor(red: 0.12, green: 0.23, blue: 0.37, alpha: 1)
     context.coordinator.webView = webView

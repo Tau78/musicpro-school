@@ -73,7 +73,9 @@ export async function POST(request: Request) {
       continue;
     }
 
-    const result = reimbursement.digitalSignRequested
+    const sendDigital =
+      reimbursement.digitalSignRequested && !reimbursement.signedAt;
+    const result = sendDigital
       ? await sendReimbursementDigitalSignEmail(supabase, reimbursement)
       : await sendReimbursementNotulaEmail(supabase, reimbursement);
     results.push(result);

@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -17,6 +23,11 @@ import {
 } from "@musicpro/database";
 
 import { createClient } from "@/lib/supabase/client";
+
+export type MemberQuotaSummaryHandle = {
+  /** Persiste le quote in bozza se modificate (usato da «Aggiorna associato»). */
+  flushIfDirty: () => Promise<{ ok: boolean; errorMessage?: string }>;
+};
 
 interface MemberQuotaSummaryProps {
   memberId?: string;
@@ -65,14 +76,20 @@ function draftsDiffer(
   });
 }
 
-export function MemberQuotaSummary({
-  memberId,
-  quotas: initialQuotas,
-  quotaSettings,
-  enrolledAt,
-  maxYears = 5,
-  onQuotasChange,
-}: MemberQuotaSummaryProps) {
+export const MemberQuotaSummary = forwardRef<
+  MemberQuotaSummaryHandle,
+  MemberQuotaSummaryProps
+>(function MemberQuotaSummary(
+  {
+    memberId,
+    quotas: initialQuotas,
+    quotaSettings,
+    enrolledAt,
+    maxYears = 5,
+    onQuotasChange,
+  },
+  ref,
+) {
   const router = useRouter();
   const supabase = createClient();
   const [quotas, setQuotas] = useState(initialQuotas);
@@ -115,8 +132,13 @@ export function MemberQuotaSummary({
     setError(null);
   }
 
-  async function save() {
-    if (!memberId || saving) return;
+  async function save(): Promise<{ ok: boolean; errorMessage?: string }> {
+    if (!memberId) {
+      return { ok: false, errorMessage: "Associato non disponibile." };
+    }
+    if (saving) {
+      return { ok: false, errorMessage: "Salvataggio quote già in corso." };
+    }
     setSaving(true);
     setError(null);
 
@@ -144,11 +166,10 @@ export function MemberQuotaSummary({
 
       const amount = row.amountEur;
       if (amount == null) {
+        const msg = `Manca l'importo per il ${row.fiscalYear}. Impostalo in Quote → Importi.`;
         setSaving(false);
-        setError(
-          `Manca l'importo per il ${row.fiscalYear}. Impostalo in Quote → Importi.`,
-        );
-        return;
+        setError(msg);
+        return { ok: false, errorMessage: msg };
       }
       const existing = quotas.find((q) => q.fiscalYear === row.fiscalYear);
       toUpsert.push({
@@ -164,18 +185,21 @@ export function MemberQuotaSummary({
     for (const year of toClear) {
       const result = await clearMemberAnnualQuota(supabase, memberId, year);
       if (!result.success) {
+        const msg =
+          result.errorMessage ?? "Impossibile annullare il versamento.";
         setSaving(false);
-        setError(result.errorMessage ?? "Impossibile annullare il versamento.");
-        return;
+        setError(msg);
+        return { ok: false, errorMessage: msg };
       }
     }
 
     if (toUpsert.length) {
       const result = await upsertMemberAnnualQuotas(supabase, toUpsert);
       if (!result.success) {
+        const msg = result.errorMessage ?? "Impossibile salvare le quote.";
         setSaving(false);
-        setError(result.errorMessage ?? "Impossibile salvare le quote.");
-        return;
+        setError(msg);
+        return { ok: false, errorMessage: msg };
       }
     }
 
@@ -186,16 +210,27 @@ export function MemberQuotaSummary({
       setEditing(false);
       setDrafts({});
       router.refresh();
+      return { ok: true };
     } catch (e) {
-      setError(
+      const msg =
         e instanceof Error
           ? e.message
-          : "Salvate, ma ricarica per vedere l'elenco aggiornato.",
-      );
+          : "Salvate, ma ricarica per vedere l'elenco aggiornato.";
+      setError(msg);
+      return { ok: false, errorMessage: msg };
     } finally {
       setSaving(false);
     }
   }
+
+  useImperativeHandle(ref, () => ({
+    flushIfDirty: async () => {
+      if (!editing || !draftsDiffer(history, drafts)) {
+        return { ok: true };
+      }
+      return save();
+    },
+  }));
 
   function onToolClick() {
     if (dirty) {
@@ -357,7 +392,7 @@ export function MemberQuotaSummary({
       )}
     </div>
   );
-}
+});
 
 function PencilIcon() {
   return (
