@@ -264,7 +264,7 @@ export default async function DashboardImpostazioniPage() {
             </div>
           </div>
           <div className="mt-6 border-t border-neutral-100 pt-5">
-            <h3 className="text-sm font-medium text-neutral-800">Passkey</h3>
+            <h3 className="text-sm font-medium text-neutral-800">Accesso rapido</h3>
             <div className="mt-3">
               <PasskeySettings />
             </div>

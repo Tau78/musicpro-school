@@ -19,6 +19,61 @@ function feeTitle(fee: LessonFeeRow): string {
   return fee.courseName || "Pacchetto lezioni";
 }
 
+export type PrepaidPackRow = {
+  enrollmentId: string;
+  memberId: string;
+  courseName: string;
+  balance: number;
+  studentLabel?: string;
+};
+
+function PrepaidPackPayButton({ enrollmentId }: { enrollmentId: string }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handlePay() {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/lezioni/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enrollmentId, allowPrepaid: true }),
+      });
+      const data = (await response.json()) as {
+        success?: boolean;
+        url?: string;
+        message?: string;
+      };
+      if (!response.ok || !data.url) {
+        throw new Error(data.message ?? "Impossibile avviare il pagamento.");
+      }
+      window.location.href = data.url;
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Impossibile avviare il pagamento.",
+      );
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      {error ? (
+        <p className="max-w-[14rem] text-right text-xs text-red-700">{error}</p>
+      ) : null}
+      <button
+        type="button"
+        disabled={loading}
+        onClick={() => void handlePay()}
+        className="btn-brand shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
+      >
+        {loading ? "…" : "Paga in anticipo il prossimo pacchetto"}
+      </button>
+    </div>
+  );
+}
+
 function LessonFeePayButton({
   fee,
   label = "Paga",
@@ -34,7 +89,14 @@ function LessonFeePayButton({
     setError(null);
     try {
       if (fee.kind === "quota") {
-        const response = await fetch("/api/onboarding/quota", { method: "POST" });
+        const response = await fetch("/api/onboarding/quota", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            memberId: fee.memberId,
+            returnPath: "/dashboard/rette",
+          }),
+        });
         const data = (await response.json()) as {
           success?: boolean;
           url?: string;
@@ -93,16 +155,21 @@ function LessonFeePayButton({
 
 export function MyLessonFeesPanel({
   fees,
+  prepaidPacks = [],
   paymentComplete = false,
 }: {
   fees: LessonFeeRow[];
+  prepaidPacks?: PrepaidPackRow[];
   paymentComplete?: boolean;
 }) {
   const today = todayInRome();
   const showStudent = useMemo(() => {
-    const ids = new Set(fees.map((f) => f.memberId));
+    const ids = new Set([
+      ...fees.map((f) => f.memberId),
+      ...prepaidPacks.map((p) => p.memberId),
+    ]);
     return ids.size > 1;
-  }, [fees]);
+  }, [fees, prepaidPacks]);
 
   return (
     <div className="space-y-4">
@@ -115,7 +182,7 @@ export function MyLessonFeesPanel({
         </div>
       ) : null}
 
-      {fees.length === 0 ? (
+      {fees.length === 0 && prepaidPacks.length === 0 ? (
         <div className="glass-card px-5 py-8 text-center">
           <p className="font-medium text-[var(--brand)]">Nessuna retta da saldare</p>
           <p className="mt-1 text-sm text-neutral-600">
@@ -124,6 +191,33 @@ export function MyLessonFeesPanel({
         </div>
       ) : (
         <ul className="glass-card divide-y divide-neutral-200/80 overflow-hidden p-0">
+          {prepaidPacks.map((pack) => (
+            <li
+              key={pack.enrollmentId}
+              className="flex items-center gap-3 bg-neutral-50/60 px-4 py-3 sm:px-5"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-[var(--brand)]">
+                  {pack.courseName || "Corso"}
+                  {showStudent && pack.studentLabel ? (
+                    <span className="font-normal text-neutral-600">
+                      {" "}
+                      · {pack.studentLabel}
+                    </span>
+                  ) : null}
+                </p>
+                <p className="mt-0.5 text-xs text-neutral-600">
+                  {pack.balance === 1
+                    ? "1 lezione ancora disponibile"
+                    : `${pack.balance} lezioni ancora disponibili`}
+                </p>
+              </div>
+              <p className="hidden shrink-0 text-xs text-neutral-500 sm:block">
+                Prossimo pacchetto
+              </p>
+              <PrepaidPackPayButton enrollmentId={pack.enrollmentId} />
+            </li>
+          ))}
           {fees.map((fee) => {
             const overdue = fee.dueOn < today;
             return (

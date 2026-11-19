@@ -6,12 +6,21 @@ import { ensureMemberAuthAccess } from "@/lib/admin/staff-auth";
 
 type ServiceClient = SupabaseClient<Database>;
 
+/** Ruoli che possono entrare con email password / link di accesso. */
+const MEMBER_LOGIN_ROLES = new Set(["associato", "tutore"]);
+
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
+function memberHasLoginRole(
+  roles: { role: string }[] | null | undefined,
+): boolean {
+  return (roles ?? []).some((entry) => MEMBER_LOGIN_ROLES.has(entry.role));
+}
+
 /**
- * Primo associato in anagrafica con questa email (case-insensitive).
+ * Primo associato o tutore in anagrafica con questa email (case-insensitive).
  * Allineato al trigger link_member_on_auth_signup (created_at ASC).
  */
 export async function findPrimaryAssociatoMemberIdByEmail(
@@ -45,7 +54,7 @@ export async function findPrimaryAssociatoMemberIdByEmail(
     if (rolesError) {
       throw new Error(rolesError.message);
     }
-    if ((roles ?? []).some((entry) => entry.role === "associato")) {
+    if (memberHasLoginRole(roles)) {
       return row.id;
     }
   }
@@ -53,7 +62,7 @@ export async function findPrimaryAssociatoMemberIdByEmail(
   return null;
 }
 
-/** Crea/collega Auth se l'email è in rubrica associati (idempotente). */
+/** Crea/collega Auth se l'email è in rubrica (associato o tutore, idempotente). */
 export async function ensureAssociatoAuthForEmail(
   service: ServiceClient,
   rawEmail: string,

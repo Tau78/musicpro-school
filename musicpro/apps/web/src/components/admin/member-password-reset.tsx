@@ -36,8 +36,60 @@ export function MemberPasswordReset({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [linkBusy, setLinkBusy] = useState(false);
+  const [linkStatus, setLinkStatus] = useState<{
+    kind: "ok" | "err";
+    text: string;
+  } | null>(null);
 
   const emailOk = Boolean(memberEmail?.trim());
+
+  async function handleSendAccessLink() {
+    setLinkStatus(null);
+    if (!emailOk) {
+      setLinkStatus({
+        kind: "err",
+        text: "Manca l'email sull'anagrafica.",
+      });
+      return;
+    }
+
+    setLinkBusy(true);
+    try {
+      const response = await fetch("/api/admin/members/send-access-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ memberId }),
+      });
+      const payload = (await response.json()) as {
+        success?: boolean;
+        message?: string;
+      };
+
+      if (!response.ok || !payload.success) {
+        setLinkStatus({
+          kind: "err",
+          text: payload.message ?? "Invio non riuscito. Riprova.",
+        });
+        return;
+      }
+
+      setLinkStatus({
+        kind: "ok",
+        text:
+          payload.message ??
+          "Link di accesso inviato via email. Controlla anche lo spam.",
+      });
+    } catch {
+      setLinkStatus({
+        kind: "err",
+        text: "Impossibile inviare il link. Riprova.",
+      });
+    } finally {
+      setLinkBusy(false);
+    }
+  }
 
   async function handleSubmit(event?: React.FormEvent) {
     event?.preventDefault();
@@ -221,6 +273,35 @@ export function MemberPasswordReset({
           . Non è il link di pagamento della quota (sezione Quote sopra).
         </p>
       )}
+
+      <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
+        <button
+          type="button"
+          disabled={linkBusy || busy || !emailOk}
+          onClick={() => void handleSendAccessLink()}
+          className={`shrink-0 rounded-lg border border-neutral-300 bg-white font-medium text-neutral-800 hover:bg-neutral-50 disabled:opacity-50 ${
+            compact
+              ? "min-h-8 px-2.5 py-1 text-[11px]"
+              : "min-h-10 px-3 py-2 text-sm"
+          }`}
+          title={
+            emailOk
+              ? `Invia link di accesso a ${memberEmail}`
+              : "Salva prima un'email sull'anagrafica"
+          }
+        >
+          {linkBusy ? "Invio…" : "Invia link di accesso"}
+        </button>
+        {linkStatus ? (
+          <p
+            className={`min-w-0 flex-1 leading-snug ${
+              linkStatus.kind === "ok" ? "text-green-700" : "text-red-700"
+            } ${compact ? "text-[11px]" : "text-sm"}`}
+          >
+            {linkStatus.text}
+          </p>
+        ) : null}
+      </div>
 
       {error ? (
         <p className={`text-red-700 ${compact ? "text-[11px]" : "text-sm"}`}>

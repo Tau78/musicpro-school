@@ -162,7 +162,7 @@ export function AuthSignInPanel({
         signInWithPasskey?: () => Promise<{ error: Error | null }>;
       };
       if (!auth.signInWithPasskey) {
-        setError("Passkey non disponibili in questa versione.");
+        setError("L’accesso rapido non è disponibile in questa versione.");
         return;
       }
       const { error: passkeyError } = await auth.signInWithPasskey();
@@ -188,7 +188,7 @@ export function AuthSignInPanel({
           [
             ["password", "Password"],
             ["magic", "Link email"],
-            ["passkey", "Passkey"],
+            ["passkey", "Accesso rapido"],
           ] as const
         ).map(([id, label]) => (
           <button
@@ -305,14 +305,14 @@ export function AuthSignInPanel({
             disabled={isLoading}
             className="w-full rounded-lg bg-[var(--brand)] px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-[var(--brand)]/90 disabled:opacity-60"
           >
-            {isLoading ? "Invio in corso…" : "Invia magic link"}
+            {isLoading ? "Invio in corso…" : "Invia link di accesso"}
           </button>
         </form>
       ) : mode === "passkey" ? (
         <div className="mt-6 space-y-4">
           <p className="text-sm text-neutral-600">
             Face ID, impronta o chiave del computer. La prima volta entra con la
-            password e aggiungi la passkey dalla Dashboard.
+            password e attiva l&apos;accesso rapido dalle Impostazioni.
           </p>
           {error ? (
             <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
@@ -325,7 +325,7 @@ export function AuthSignInPanel({
             onClick={() => void handlePasskeySignIn()}
             className="w-full rounded-lg bg-[var(--brand)] px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-[var(--brand)]/90 disabled:opacity-60"
           >
-            {isLoading ? "Accesso in corso…" : "Accedi con passkey"}
+            {isLoading ? "Accesso in corso…" : "Accedi con Face ID o impronta"}
           </button>
         </div>
       ) : null}

@@ -49,7 +49,7 @@ export function PasskeySettings() {
       const supabase = createClient();
       const auth = supabase.auth as typeof supabase.auth & PasskeyAuth;
       if (!auth.registerPasskey) {
-        setError("Passkey non disponibili in questa versione.");
+        setError("L’accesso rapido non è disponibile in questa versione.");
         return;
       }
       const { error: registerError } = await auth.registerPasskey();
@@ -57,7 +57,7 @@ export function PasskeySettings() {
         setError(passkeyErrorMessage(registerError));
         return;
       }
-      setOk("Passkey aggiunta. La prossima volta puoi entrare senza password.");
+      setOk("Accesso rapido attivato. La prossima volta puoi entrare senza password.");
       await reload();
     } catch (err) {
       setError(passkeyErrorMessage(err));
@@ -75,12 +75,12 @@ export function PasskeySettings() {
       const auth = supabase.auth as typeof supabase.auth & PasskeyAuth;
       const { error: deleteError } = (await auth.passkey?.delete({
         passkeyId: id,
-      })) ?? { error: new Error("Passkey non disponibili.") };
+      })) ?? { error: new Error("L’accesso rapido non è disponibile.") };
       if (deleteError) {
         setError(passkeyErrorMessage(deleteError));
         return;
       }
-      setOk("Passkey rimossa.");
+      setOk("Accesso rapido rimosso da questo dispositivo.");
       await reload();
     } catch (err) {
       setError(passkeyErrorMessage(err));
@@ -103,7 +103,7 @@ export function PasskeySettings() {
               className="flex items-center justify-between gap-3 rounded-lg border border-neutral-200 px-3 py-2 text-sm"
             >
               <span className="font-medium text-neutral-800">
-                {item.friendly_name?.trim() || "Passkey"}
+                {item.friendly_name?.trim() || "Face ID o impronta"}
               </span>
               <button
                 type="button"
@@ -117,7 +117,7 @@ export function PasskeySettings() {
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-neutral-500">Nessuna passkey salvata.</p>
+        <p className="text-sm text-neutral-500">Nessun accesso rapido salvato.</p>
       )}
       {error ? (
         <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
@@ -135,7 +135,7 @@ export function PasskeySettings() {
         onClick={() => void addPasskey()}
         className="rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--brand)]/90 disabled:opacity-60"
       >
-        {busy ? "Attendi…" : "Aggiungi passkey"}
+        {busy ? "Attendi…" : "Attiva accesso rapido"}
       </button>
     </div>
   );
