@@ -8,7 +8,6 @@ import { ensureMemberLinked } from "@musicpro/database";
 import { mapAuthError, mapLoginQueryError } from "@musicpro/shared";
 
 import { passkeyErrorMessage } from "@/lib/auth/passkey-errors";
-import { authEmailRedirectTo } from "@/lib/auth/redirect-url";
 import { createClient } from "@/lib/supabase/client";
 
 type AuthMode = "password" | "magic" | "passkey";
@@ -116,14 +115,6 @@ export function AuthSignInPanel({
     }
   }
 
-  async function prepareLoginEmail(trimmedEmail: string) {
-    await fetch("/api/auth/prepare-login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: trimmedEmail }),
-    }).catch(() => null);
-  }
-
   async function handleMagicLinkSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
@@ -132,24 +123,30 @@ export function AuthSignInPanel({
 
     try {
       const trimmedEmail = email.trim();
-      await prepareLoginEmail(trimmedEmail);
-      const supabase = createClient();
-      const { error: otpError } = await supabase.auth.signInWithOtp({
-        email: trimmedEmail,
-        options: {
-          emailRedirectTo: authEmailRedirectTo(redirectTo),
-          shouldCreateUser: false,
-        },
+      const response = await fetch("/api/auth/magic-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: trimmedEmail, redirect: redirectTo }),
       });
+      const payload = (await response.json()) as {
+        success?: boolean;
+        message?: string;
+      };
 
-      if (otpError) {
-        setError(mapAuthError(otpError.message));
+      if (!response.ok || !payload.success) {
+        setError(
+          payload.message ??
+            "Impossibile inviare il link. Riprova tra poco o usa Recupera password.",
+        );
         return;
       }
 
       setMessage(
-        "Ti abbiamo inviato un link di accesso. Controlla la posta (anche spam) e clicca entro pochi minuti.",
+        payload.message ??
+          "Ti abbiamo inviato un link di accesso. Controlla la posta (anche spam) e clicca entro pochi minuti.",
       );
+    } catch {
+      setError("Impossibile contattare il server. Riprova.");
     } finally {
       setIsLoading(false);
     }
