@@ -21,9 +21,9 @@ async function findAuthUserByEmail(
   // auth.admin.getUserByEmail non esiste in @supabase/auth-js 2.112.3 (solo listUsers / getUserById).
   const target = email.trim().toLowerCase();
   let page = 1;
-  const perPage = 200;
+  const perPage = 1000;
 
-  while (page <= 20) {
+  while (page <= 10) {
     const { data, error } = await service.auth.admin.listUsers({
       page,
       perPage,
@@ -64,11 +64,16 @@ async function loadMemberAuth(
   };
 }
 
-/** Auth trigger `link_member_on_auth_signup` may set user_id before we link manually. */
+/**
+ * Collega `members.user_id` all'Auth usato al login (email anagrafica).
+ * Con `allowRelink` corregge un user_id obsoleto (reset admin altrimenti falliva
+ * e la password «nuova» andava sul conto sbagliato: restava valida la vecchia).
+ */
 async function ensureMemberUserLink(
   service: ServiceClient,
   memberId: string,
   userId: string,
+  options?: { allowRelink?: boolean },
 ): Promise<void> {
   const { data, error } = await service
     .from("members")
@@ -87,10 +92,41 @@ async function ensureMemberUserLink(
     return;
   }
 
-  if (data.user_id && data.user_id !== userId) {
+  if (data.user_id && data.user_id !== userId && !options?.allowRelink) {
     throw new Error(
       "Questo associato è già collegato a un altro account di accesso.",
     );
+  }
+
+  if (data.user_id && data.user_id !== userId && options?.allowRelink) {
+    const { data: conflict, error: conflictError } = await service
+      .from("members")
+      .select("id")
+      .eq("user_id", userId)
+      .neq("id", memberId)
+      .maybeSingle();
+    if (conflictError) {
+      throw new Error(conflictError.message);
+    }
+    if (conflict) {
+      throw new Error(
+        "Questo account di accesso è già collegato a un altro associato.",
+      );
+    }
+
+    const { error: relinkError } = await service
+      .from("members")
+      .update({ user_id: userId })
+      .eq("id", memberId);
+    if (relinkError) {
+      if (relinkError.code === "23505") {
+        throw new Error(
+          "Questo account di accesso è già collegato a un altro associato.",
+        );
+      }
+      throw new Error(relinkError.message);
+    }
+    return;
   }
 
   const { error: updateError } = await service
@@ -197,18 +233,19 @@ export async function ensureMemberAuthAccess(
       if (authEmail === email) {
         return { status: "ok", userId: authUser.id };
       }
+      // Preferisci l'Auth con l'email di anagrafica (quello del login).
+      const byEmail = await findAuthUserByEmail(service, email);
+      if (byEmail && byEmail.id !== authUser.id) {
+        await ensureMemberUserLink(service, memberId, byEmail.id, {
+          allowRelink: true,
+        });
+        return { status: "linked", userId: byEmail.id };
+      }
       const { error: syncError } = await service.auth.admin.updateUserById(
         authUser.id,
         { email, email_confirm: true },
       );
       if (syncError) {
-        // Email già presa da altro Auth: prova a collegare quello e lascia user_id aggiornato.
-        const other = await findAuthUserByEmail(service, email);
-        if (other && other.id !== authUser.id) {
-          throw new Error(
-            "Questa email è già usata da un altro account di accesso. Controlla i duplicati.",
-          );
-        }
         throw new Error(syncError.message);
       }
       return { status: "synced_email", userId: authUser.id };
@@ -255,17 +292,13 @@ export async function ensureMemberAuthAccess(
   return { status: "linked", userId: authUser.id };
 }
 
-export async function setStaffMemberPassword(
+/**
+ * Auth user used at login (email in anagrafica), non un user_id obsoleto.
+ */
+async function resolveMemberAuthUser(
   service: ServiceClient,
   memberId: string,
-  password: string,
-): Promise<void> {
-  const invalid = validateStaffPassword(password);
-  if (invalid) {
-    throw new Error(invalid);
-  }
-
-  // Crea/collega Auth se manca, poi imposta la password scelta.
+): Promise<{ authUser: User; email: string }> {
   await ensureMemberAuthAccess(service, memberId);
 
   const member = await loadMemberAuth(service, memberId);
@@ -277,7 +310,9 @@ export async function setStaffMemberPassword(
     );
   }
 
-  let authUser: User | null = null;
+  const byEmail = await findAuthUserByEmail(service, email);
+  let authUser: User | null = byEmail;
+  let allowRelink = false;
 
   if (member.userId) {
     const { data: byId, error: byIdError } =
@@ -285,16 +320,51 @@ export async function setStaffMemberPassword(
     if (byIdError) {
       throw new Error(byIdError.message);
     }
-    authUser = byId.user ?? null;
-  }
-
-  if (!authUser) {
-    authUser = await findAuthUserByEmail(service, email);
+    const linked = byId.user ?? null;
+    if (linked) {
+      const linkedEmail = linked.email?.trim().toLowerCase() ?? "";
+      if (linkedEmail === email) {
+        authUser = linked;
+      } else if (byEmail && byEmail.id !== linked.id) {
+        console.warn(
+          `[staff-auth] member ${memberId}: user_id punta a ${linked.id} (${linkedEmail}) ma login è ${email} → aggiorno su ${byEmail.id}`,
+        );
+        authUser = byEmail;
+        allowRelink = true;
+      } else if (!byEmail) {
+        const { error: syncError } = await service.auth.admin.updateUserById(
+          linked.id,
+          { email, email_confirm: true },
+        );
+        if (syncError) {
+          throw new Error(syncError.message);
+        }
+        authUser = linked;
+      }
+    }
   }
 
   if (!authUser) {
     throw new Error("Impossibile trovare o creare l'account di accesso.");
   }
+
+  await ensureMemberUserLink(service, memberId, authUser.id, {
+    allowRelink,
+  });
+  return { authUser, email };
+}
+
+export async function setStaffMemberPassword(
+  service: ServiceClient,
+  memberId: string,
+  password: string,
+): Promise<void> {
+  const invalid = validateStaffPassword(password);
+  if (invalid) {
+    throw new Error(invalid);
+  }
+
+  const { authUser, email } = await resolveMemberAuthUser(service, memberId);
 
   const { error: updateError } = await service.auth.admin.updateUserById(
     authUser.id,
@@ -307,19 +377,15 @@ export async function setStaffMemberPassword(
   if (updateError) {
     throw new Error(updateError.message);
   }
-  await ensureMemberUserLink(service, memberId, authUser.id);
 }
 
 export async function removeStaffMemberPassword(
   service: ServiceClient,
   memberId: string,
 ): Promise<void> {
-  const member = await loadMemberAuth(service, memberId);
-  if (!member.userId) {
-    throw new Error("Questo associato non ha ancora un account di accesso.");
-  }
+  const { authUser } = await resolveMemberAuthUser(service, memberId);
 
-  const { error } = await service.auth.admin.updateUserById(member.userId, {
+  const { error } = await service.auth.admin.updateUserById(authUser.id, {
     password: randomBytes(32).toString("base64url"),
   });
   if (error) {

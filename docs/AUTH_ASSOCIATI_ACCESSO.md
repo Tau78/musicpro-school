@@ -51,6 +51,12 @@ Script singolo: `node scripts/backfill-associate-auth.mjs --email nome@dominio.i
 2. Nessun Auth (prima del backfill) → recupero non inviava mail (fix: ensure Auth in `/api/auth/forgot-password`).
 3. Email ≠ anagrafica → login ok ma «Profilo non collegato».
 4. Email condivisa tra più soci → solo un profilo collegato.
+5. **Tab «Link email» sul login** (pre-2026-11-19) usava `signInWithOtp` = mailer Supabase → link spesso non arrivava. Ora `POST /api/auth/magic-link` (Resend/SMTP come recovery).
+6. **Reset password da admin** su `user_id` obsoleto (email Auth ≠ anagrafica) → aggiornava il conto sbagliato; login email teneva la password vecchia. Fix: risoluzione Auth **email-first** + relink in `staff-auth.ts`.
+
+### Pino Solari / Hilary Peruzzo (2026-11-19)
+
+Profili Auth collegati, niente duplicati. Sintomo «password admin non va / magic link assente / poi entra con la vecchia» = punti 5–6 + SMTP locale/Gmail 535. In produzione serve `RESEND_API_KEY` e/o `GOOGLE_SMTP_*` su Vercel.
 
 ## Log utili
 
