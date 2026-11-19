@@ -78,7 +78,7 @@ export async function POST(request: Request) {
       userId: result.userId ?? null,
       message:
         result.status === "created"
-          ? "Account di accesso creato (magic link / recupera password)."
+          ? "Account di accesso creato (link di accesso / recupera password)."
           : result.status === "linked"
             ? "Account di accesso collegato."
             : result.status === "synced_email"

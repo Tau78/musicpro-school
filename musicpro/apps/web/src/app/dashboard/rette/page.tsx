@@ -4,8 +4,11 @@ import { redirect } from "next/navigation";
 import {
   getCurrentMemberWithRoles,
   hasActiveCourseEnrollment,
+  listMyEnrollmentWallets,
   listMyOpenLessonFees,
 } from "@musicpro/database";
+
+import type { PrepaidPackRow } from "@/components/associate/my-lesson-fees-panel";
 
 import { AssociatePageShell } from "@/components/associate/associate-page-shell";
 import { MyLessonFeesPanel } from "@/components/associate/my-lesson-fees-panel";
@@ -36,11 +39,80 @@ export default async function DashboardRettePage({ searchParams }: PageProps) {
   const paymentComplete = params.pagato === "1";
 
   let fees: Awaited<ReturnType<typeof listMyOpenLessonFees>> = [];
+  let prepaidPacks: PrepaidPackRow[] = [];
   let loadError: string | null = null;
 
   if (lessonsEnabled && isAllievo) {
     try {
       fees = await listMyOpenLessonFees(supabase, member.id);
+
+      const wallets = await listMyEnrollmentWallets(supabase);
+      const courseIds = [...new Set(wallets.map((w) => w.courseId))];
+      const memberIds = [...new Set(wallets.map((w) => w.memberId))];
+      const openPackEnrollmentIds = new Set(
+        fees
+          .filter((f) => f.kind === "pack" && f.courseEnrollmentId)
+          .map((f) => f.courseEnrollmentId as string),
+      );
+
+      const [coursesRes, membersRes] = await Promise.all([
+        courseIds.length > 0
+          ? supabase
+              .from("courses")
+              .select("id, is_trial, price_eur, status")
+              .in("id", courseIds)
+          : Promise.resolve({ data: [], error: null }),
+        memberIds.length > 0
+          ? supabase
+              .from("members")
+              .select("id, first_name, last_name")
+              .in("id", memberIds)
+          : Promise.resolve({ data: [], error: null }),
+      ]);
+
+      if (coursesRes.error) {
+        throw new Error(
+          coursesRes.error.message || "Impossibile caricare i corsi.",
+        );
+      }
+      if (membersRes.error) {
+        throw new Error(
+          membersRes.error.message || "Impossibile caricare gli allievi.",
+        );
+      }
+
+      const courseById = new Map(
+        (coursesRes.data ?? []).map((row) => [row.id, row]),
+      );
+      const memberLabelById = new Map(
+        (membersRes.data ?? []).map((row) => [
+          row.id,
+          `${row.last_name ?? ""} ${row.first_name ?? ""}`.trim(),
+        ]),
+      );
+      const multiStudent = memberIds.length > 1;
+
+      prepaidPacks = wallets
+        .filter((w) => {
+          const course = courseById.get(w.courseId);
+          if (!course || course.is_trial || course.status !== "attivo") {
+            return false;
+          }
+          const price = Number(course.price_eur ?? 0);
+          if (!Number.isFinite(price) || price <= 0) return false;
+          if (w.balance <= 0) return false;
+          if (openPackEnrollmentIds.has(w.enrollmentId)) return false;
+          return true;
+        })
+        .map((w) => ({
+          enrollmentId: w.enrollmentId,
+          memberId: w.memberId,
+          courseName: w.courseName,
+          balance: w.balance,
+          studentLabel: multiStudent
+            ? memberLabelById.get(w.memberId) || undefined
+            : undefined,
+        }));
     } catch (err) {
       loadError =
         err instanceof Error ? err.message : "Impossibile caricare le rette.";
@@ -82,7 +154,11 @@ export default async function DashboardRettePage({ searchParams }: PageProps) {
         ) : null}
 
         {lessonsEnabled && isAllievo && !loadError ? (
-          <MyLessonFeesPanel fees={fees} paymentComplete={paymentComplete} />
+          <MyLessonFeesPanel
+            fees={fees}
+            prepaidPacks={prepaidPacks}
+            paymentComplete={paymentComplete}
+          />
         ) : null}
       </div>
   );

@@ -19,12 +19,15 @@ import {
   isLessonsModuleEnabled,
   lessonsModuleApiDisabledBody,
 } from "@/lib/lessons-module";
+import { canActorPayLessonFeesForMember } from "@/lib/lezioni/can-actor-pay-lesson-fees";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
 interface CheckoutBody {
   enrollmentId?: string;
+  /** Apre la retta del prossimo pack anche con crediti lezione ancora disponibili. */
+  allowPrepaid?: boolean;
 }
 
 type UserClient = Awaited<ReturnType<typeof createClient>>;
@@ -41,48 +44,6 @@ function writeClient(fallback: UserClient): DbClient {
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ success: false, message }, { status });
-}
-
-/** Allievo o tutore (`tutor_links` oppure email famiglia). */
-async function canActorPayLessonFeesForMember(
-  client: UserClient,
-  actorMemberId: string,
-  studentMemberId: string,
-): Promise<boolean> {
-  if (actorMemberId === studentMemberId) return true;
-
-  // tutor_links non è ancora nei tipi generati.
-  const untyped = client as unknown as SupabaseClient;
-  const { data: link } = await untyped
-    .from("tutor_links")
-    .select("ward_member_id")
-    .eq("tutor_member_id", actorMemberId)
-    .eq("ward_member_id", studentMemberId)
-    .maybeSingle();
-  if (link) return true;
-
-  const { data: student, error: studentError } = await client
-    .from("members")
-    .select("manual_tutor_email")
-    .eq("id", studentMemberId)
-    .maybeSingle();
-  if (studentError || !student?.manual_tutor_email?.trim()) {
-    return false;
-  }
-
-  const { data: actor, error: actorError } = await client
-    .from("members")
-    .select("email")
-    .eq("id", actorMemberId)
-    .maybeSingle();
-  if (actorError || !actor?.email?.trim()) {
-    return false;
-  }
-
-  return (
-    actor.email.trim().toLowerCase() ===
-    student.manual_tutor_email.trim().toLowerCase()
-  );
 }
 
 async function ensureOpenQuotaFee(
@@ -151,6 +112,7 @@ export async function POST(request: NextRequest) {
     }
 
     const enrollmentId = String(body.enrollmentId || "").trim();
+    const allowPrepaid = body.allowPrepaid === true;
     if (!enrollmentId) {
       return jsonError("Iscrizione corso mancante.", 400);
     }
@@ -227,12 +189,45 @@ export async function POST(request: NextRequest) {
     const dueOn = todayInRome();
     const writer = writeClient(supabase);
 
-    const packFee = await ensureOpenPackFee(writer, enrollment.id);
+    const packFee = await ensureOpenPackFee(writer, enrollment.id, {
+      allowPrepaid,
+    });
     if (!packFee.success) {
       return jsonError(
         packFee.errorMessage ?? "Impossibile aprire la retta del pacchetto.",
         500,
       );
+    }
+
+    if (allowPrepaid) {
+      let openPackCount = 0;
+      try {
+        const { count, error: countError } = await writer
+          .from("lesson_fees")
+          .select("id", { count: "exact", head: true })
+          .eq("course_enrollment_id", enrollment.id)
+          .eq("kind", "pack")
+          .in("status", ["aperta", "parziale"]);
+        if (countError) {
+          return jsonError(
+            countError.message ||
+              "Impossibile verificare la retta del pacchetto.",
+            500,
+          );
+        }
+        openPackCount = count ?? 0;
+      } catch {
+        return jsonError(
+          "Impossibile verificare la retta del pacchetto.",
+          500,
+        );
+      }
+      if (openPackCount === 0) {
+        return jsonError(
+          "Non è possibile aprire il prossimo pacchetto in anticipo.",
+          400,
+        );
+      }
     }
 
     const quotaAmountCents = QUOTA_ASSOCIATIVA_CENTESIMI;

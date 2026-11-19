@@ -262,6 +262,7 @@ async function insertPackFee(
     memberId: string;
     courseId: string;
     amountEur: number;
+    note?: string;
   },
 ): Promise<string | { errorMessage: string }> {
   const { data, error } = await client
@@ -275,6 +276,7 @@ async function insertPackFee(
       amount_eur: params.amountEur,
       remaining_eur: params.amountEur,
       due_on: todayInRome(),
+      ...(params.note ? { note: params.note } : {}),
     })
     .select("id")
     .single();
@@ -981,6 +983,8 @@ export async function seedOpeningPrepaidCredits(
 }
 
 const RECONCILE_PACK_FEE_NOTE = "consumo annullato / saldo ripristinato";
+/** Retta aperta a richiesta associato/tutore con crediti ancora disponibili. */
+export const PREPAID_PACK_FEE_NOTE = "Anticipo prossimo pacchetto";
 
 /**
  * Abbuona rette pack aperte/parziali senza allocazioni quando il saldo
@@ -992,7 +996,7 @@ export async function reconcilePackFeesForEnrollment(
 ): Promise<number> {
   const { data: openFees, error: loadError } = await client
     .from("lesson_fees")
-    .select("id")
+    .select("id, note")
     .eq("course_enrollment_id", enrollmentId)
     .eq("kind", "pack")
     .in("status", OPEN_FEE_STATUSES);
@@ -1003,7 +1007,11 @@ export async function reconcilePackFeesForEnrollment(
   }
   if (!openFees || openFees.length === 0) return 0;
 
-  const feeIds = openFees.map((row) => row.id);
+  // Non toccare rette aperte come anticipo volontario (saldo ancora > 0).
+  const feeIds = openFees
+    .filter((row) => String(row.note ?? "").trim() !== PREPAID_PACK_FEE_NOTE)
+    .map((row) => row.id);
+  if (feeIds.length === 0) return 0;
   const { data: allocated, error: allocError } = await client
     .from("lesson_fee_allocations")
     .select("fee_id")
@@ -1036,6 +1044,7 @@ export async function reconcilePackFeesForEnrollment(
 export async function ensureOpenPackFee(
   client: WalletClient,
   enrollmentId: string,
+  opts?: { allowPrepaid?: boolean },
 ): Promise<CourseMutationResult> {
   const enrollment = await loadEnrollment(client, enrollmentId);
   if (!enrollment) return fail("Iscrizione al corso non trovata.");
@@ -1064,7 +1073,9 @@ export async function ensureOpenPackFee(
           : "Impossibile riconciliare le rette pack.",
       );
     }
-    return ok(enrollmentId);
+    if (!opts?.allowPrepaid) {
+      return ok(enrollmentId);
+    }
   }
 
   if (course.status !== "attivo") {
@@ -1082,6 +1093,12 @@ export async function ensureOpenPackFee(
   if (balance <= 0 && openCount === 0 && needed === 0) {
     needed = 1;
   }
+  if (opts?.allowPrepaid && balance > 0 && openCount === 0 && needed === 0) {
+    needed = 1;
+  }
+
+  const prepaidNote =
+    opts?.allowPrepaid && balance > 0 ? PREPAID_PACK_FEE_NOTE : undefined;
 
   let lastId: string | undefined;
   while (openCount < needed) {
@@ -1090,6 +1107,7 @@ export async function ensureOpenPackFee(
       memberId: enrollment.member_id,
       courseId: enrollment.course_id,
       amountEur: priceEur,
+      note: prepaidNote,
     });
     if (typeof inserted !== "string") return fail(inserted.errorMessage);
     lastId = inserted;

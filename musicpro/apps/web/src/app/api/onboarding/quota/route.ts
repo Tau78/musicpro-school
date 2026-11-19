@@ -17,6 +17,7 @@ import {
   getMembershipStatus,
   memberHasUsableAnagrafica,
 } from "@/lib/membership";
+import { canActorPayLessonFeesForMember } from "@/lib/lezioni/can-actor-pay-lesson-fees";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -100,8 +101,66 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    let returnPath = "/onboarding/quota";
+    let payMemberId = member.id;
+    try {
+      const body = (await request.json()) as {
+        returnPath?: string;
+        memberId?: string;
+      };
+      const candidate = String(body.returnPath || "").trim();
+      const allowedReturnPaths = new Set([
+        "/onboarding/quota",
+        "/prenotazioni",
+        "/dashboard",
+        "/dashboard/rette",
+      ]);
+      if (allowedReturnPaths.has(candidate)) {
+        returnPath = candidate;
+      }
+      const requestedMemberId = String(body.memberId || "").trim();
+      if (requestedMemberId) {
+        payMemberId = requestedMemberId;
+      }
+    } catch {
+      // body assente o non JSON: default self
+    }
+
+    if (payMemberId !== member.id) {
+      const allowed = await canActorPayLessonFeesForMember(
+        supabase,
+        member.id,
+        payMemberId,
+      );
+      if (!allowed) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Non autorizzato a pagare la quota per questo allievo.",
+          },
+          { status: 403 },
+        );
+      }
+    }
+
     const service = createServiceRoleClient();
-    const membership = await getMembershipStatus(service, member.id);
+
+    const { data: payMember, error: payMemberError } = await service
+      .from("members")
+      .select(
+        "id, user_id, first_name, last_name, email, tax_code, phone, birth_place, birth_province, birth_date, address_street, address_postal_code, address_city, address_province, manual_tutor_first_name, manual_tutor_last_name, manual_tutor_phone, manual_tutor_email, manual_tutor_tax_code, photo_consent, enrolled_at, gdpr_consent",
+      )
+      .eq("id", payMemberId)
+      .maybeSingle();
+
+    if (payMemberError || !payMember) {
+      return NextResponse.json(
+        { success: false, message: "Allievo non trovato." },
+        { status: 404 },
+      );
+    }
+
+    const membership = await getMembershipStatus(service, payMember.id);
 
     if (!membership.canPayQuota) {
       return NextResponse.json(
@@ -115,7 +174,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const target = await resolveOnlineQuotaFiscalYear(service, member.id);
+    const target = await resolveOnlineQuotaFiscalYear(service, payMember.id);
     if (target.alreadyPaid) {
       return NextResponse.json(
         {
@@ -140,21 +199,6 @@ export async function POST(request: NextRequest) {
       requestOrigin && !isLocalDevOrigin(requestOrigin)
         ? requestOrigin.replace(/\/$/, "")
         : authPublicOrigin(process.env);
-    const allowedReturnPaths = new Set([
-      "/onboarding/quota",
-      "/prenotazioni",
-      "/dashboard",
-    ]);
-    let returnPath = "/onboarding/quota";
-    try {
-      const body = (await request.json()) as { returnPath?: string };
-      const candidate = String(body.returnPath || "").trim();
-      if (allowedReturnPaths.has(candidate)) {
-        returnPath = candidate;
-      }
-    } catch {
-      // body assente o non JSON: default onboarding/quota
-    }
     const returnBase = `${origin.replace(/\/$/, "")}${returnPath}`;
 
     // Snapshot form_payload: prior enrollment con payload, altrimenti anagrafica members.
@@ -163,7 +207,7 @@ export async function POST(request: NextRequest) {
     const { data: priorEnrollment } = await service
       .from("enrollments")
       .select("form_payload")
-      .eq("member_id", member.id)
+      .eq("member_id", payMember.id)
       .not("form_payload", "is", null)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -178,8 +222,8 @@ export async function POST(request: NextRequest) {
         ...(priorEnrollment.form_payload as FormPayload),
         source: "onboarding_quota_prior",
       };
-    } else if (memberHasUsableAnagrafica(member)) {
-      formPayload = formPayloadFromMember(member);
+    } else if (memberHasUsableAnagrafica(payMember)) {
+      formPayload = formPayloadFromMember(payMember);
     }
 
     // L'associato è già stato autenticato e collegato al proprio member sopra.
@@ -188,12 +232,12 @@ export async function POST(request: NextRequest) {
     const { error: enrollmentError } = await service.from("enrollments").insert({
       id: idIscrizione,
       legacy_enrollment_id: idIscrizione,
-      member_id: member.id,
-      first_name: member.first_name,
-      last_name: member.last_name,
-      email: member.email ?? user.email ?? "",
-      tax_code: member.tax_code || null,
-      phone: member.phone || null,
+      member_id: payMember.id,
+      first_name: payMember.first_name,
+      last_name: payMember.last_name,
+      email: payMember.email ?? user.email ?? "",
+      tax_code: payMember.tax_code || null,
+      phone: payMember.phone || null,
       fiscal_year: fiscalYear,
       amount_centesimi: importoCentesimi,
       payment_status: "PENDING",
@@ -215,14 +259,14 @@ export async function POST(request: NextRequest) {
 
     const linkRes = await createNexiQuotaAssociativaPaymentLink({
       idIscrizione,
-      memberId: member.id,
-      nome: member.first_name,
-      cognome: member.last_name,
+      memberId: payMember.id,
+      nome: payMember.first_name,
+      cognome: payMember.last_name,
       importoCentesimi: importoCentesimi,
       annoSocietario: fiscalYear,
       returnBaseUrl: returnBase,
-      email: member.email ?? user.email,
-      idempotencyKey: `onboarding_quota_${member.id}_${fiscalYear}`,
+      email: payMember.email ?? user.email,
+      idempotencyKey: `onboarding_quota_${payMember.id}_${fiscalYear}`,
     });
 
     if (!linkRes.success || !linkRes.url) {

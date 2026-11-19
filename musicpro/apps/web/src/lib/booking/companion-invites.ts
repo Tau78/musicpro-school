@@ -258,7 +258,7 @@ async function magicLinkToAssociateArea(
     },
   });
   if (error || !data) {
-    throw new Error(error?.message || "Impossibile generare il magic link.");
+    throw new Error(error?.message || "Impossibile generare il link di accesso.");
   }
 
   const hashedToken =
@@ -270,7 +270,7 @@ async function magicLinkToAssociateArea(
   }
   const action = data.properties?.action_link?.trim();
   if (!action) {
-    throw new Error("Magic link associato non disponibile.");
+    throw new Error("Link di accesso all'area associato non disponibile.");
   }
   return action;
 }
@@ -379,7 +379,7 @@ export async function sendCompanionInvites(params: {
           sent: mail.sent,
           inviteId,
           message: mail.sent
-            ? "Inviato magic link all'area associato."
+            ? "Inviato link di accesso all'area associato."
             : mail.error ?? "Invio email fallito.",
         });
         continue;

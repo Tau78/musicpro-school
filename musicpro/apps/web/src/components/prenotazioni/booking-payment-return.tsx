@@ -75,7 +75,7 @@ export function BookingPaymentReturnNotice({
         setState("checking");
         setDetail(
           attempts < 3
-            ? "Stiamo verificando il pagamento con Nexi…"
+            ? "Stiamo verificando il pagamento con carta…"
             : "Ancora in elaborazione. Di solito bastano pochi secondi.",
         );
 
