@@ -17,6 +17,7 @@
     "@musicpro/database": "*",
     "@musicpro/shared": "*",
     "@supabase/ssr": "^0.6.1",
+    "google-auth-library": "^11.3.4",
     "next": "^15.3.6",
     "nodemailer": "^6.9.16",
     "pdf-lib": "^1.17.1",
