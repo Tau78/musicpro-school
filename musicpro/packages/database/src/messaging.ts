@@ -49,10 +49,18 @@ function publicDbError(
 }
 
 export function googleSmtpEnvConfigured(): boolean {
-  return Boolean(
+  const oauth = Boolean(
+    process.env.GOOGLE_SMTP_USER?.trim() &&
+      process.env.GOOGLE_OAUTH_CLIENT_ID?.trim() &&
+      process.env.GOOGLE_OAUTH_CLIENT_SECRET?.trim() &&
+      (process.env.GOOGLE_SMTP_REFRESH_TOKEN?.trim() ||
+        process.env.GOOGLE_GMAIL_REFRESH_TOKEN?.trim()),
+  );
+  const appPassword = Boolean(
     process.env.GOOGLE_SMTP_USER?.trim() &&
       process.env.GOOGLE_SMTP_APP_PASSWORD?.trim(),
   );
+  return oauth || appPassword;
 }
 
 export function resendConfigured(): boolean {

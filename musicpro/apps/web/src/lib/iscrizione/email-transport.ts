@@ -1,15 +1,23 @@
 /**
  * Trasporto email iscrizione: Resend se presente, altrimenti SMTP Google Workspace
- * (stesso stack di APP Eventi: mauro@www.musicproeventi.it).
+ * (stesso stack di APP Eventi + OAuth2 quando configurato).
  */
 import nodemailer from "nodemailer";
 
-export function googleSmtpConfigured(): boolean {
-  return Boolean(
-    process.env.GOOGLE_SMTP_USER?.trim() &&
-      process.env.GOOGLE_SMTP_APP_PASSWORD?.trim(),
-  );
-}
+import {
+  closeGoogleWorkspaceSmtpPool,
+  googleSmtpAppPasswordConfigured,
+  googleSmtpConfigured,
+  googleSmtpOAuthConfigured,
+  sendGoogleWorkspaceSmtpMail,
+} from "./google-workspace-smtp";
+
+export {
+  googleSmtpConfigured,
+  googleSmtpOAuthConfigured,
+  googleSmtpAppPasswordConfigured,
+  closeGoogleWorkspaceSmtpPool,
+} from "./google-workspace-smtp";
 
 export function enrollmentFromAddress(): string {
   return (
@@ -97,30 +105,19 @@ async function sendViaGoogleSmtp(params: {
   text: string;
   html?: string;
   attachments?: EnrollmentAttachment[];
-}): Promise<{ sent: boolean; error?: string }> {
+}): Promise<{ sent: boolean; error?: string; smtpMode?: "oauth" | "password" }> {
   if (!googleSmtpConfigured()) {
     return {
       sent: false,
-      error: "GOOGLE_SMTP_USER/APP_PASSWORD assenti",
+      error: "GOOGLE_SMTP_* (OAuth o App Password) assenti",
     };
   }
 
   try {
-    const transporter = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 587,
-      secure: false,
-      requireTLS: true,
-      auth: {
-        user: process.env.GOOGLE_SMTP_USER!.trim(),
-        pass: process.env.GOOGLE_SMTP_APP_PASSWORD!.trim(),
-      },
-    });
-
-    await transporter.sendMail({
+    const { via } = await sendGoogleWorkspaceSmtpMail({
       from: enrollmentFromAddress(),
-      to: params.to.join(", "),
-      cc: params.cc?.length ? params.cc.join(", ") : undefined,
+      to: params.to,
+      cc: params.cc?.length ? params.cc : undefined,
       subject: params.subject,
       text: params.text,
       html: params.html || escapeHtml(params.text),
@@ -130,7 +127,7 @@ async function sendViaGoogleSmtp(params: {
         contentType: a.content_type || "application/octet-stream",
       })),
     });
-    return { sent: true };
+    return { sent: true, smtpMode: via };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[iscrizione] Google SMTP:", message);
@@ -152,7 +149,12 @@ export async function sendEnrollmentEmail(params: {
    * Auth / recupero password: omettere → Resend (se RESEND_API_KEY) poi Google.
    */
   preferGoogleSmtp?: boolean;
-}): Promise<{ sent: boolean; error?: string; via?: "resend" | "smtp" }> {
+}): Promise<{
+  sent: boolean;
+  error?: string;
+  via?: "resend" | "smtp";
+  smtpMode?: "oauth" | "password";
+}> {
   if (!params.to.length) {
     return { sent: false, error: "Nessun destinatario" };
   }
@@ -160,16 +162,19 @@ export async function sendEnrollmentEmail(params: {
   const timeoutMs = params.timeoutMs ?? 8000;
   if (params.preferGoogleSmtp && googleSmtpConfigured()) {
     const smtp = await sendViaGoogleSmtp(params);
-    return smtp.sent ? { ...smtp, via: "smtp" } : smtp;
+    return smtp.sent
+      ? { ...smtp, via: "smtp", smtpMode: smtp.smtpMode }
+      : smtp;
   }
 
   if (process.env.RESEND_API_KEY?.trim()) {
     const resend = await sendViaResend({ ...params, timeoutMs });
     if (resend.sent) return { ...resend, via: "resend" };
-    // Se Resend fallisce ma SMTP c’è, prova fallback.
     if (googleSmtpConfigured()) {
       const smtp = await sendViaGoogleSmtp(params);
-      if (smtp.sent) return { ...smtp, via: "smtp" };
+      if (smtp.sent) {
+        return { ...smtp, via: "smtp", smtpMode: smtp.smtpMode };
+      }
       return {
         sent: false,
         error: `${resend.error || "Resend fail"}; ${smtp.error || "SMTP fail"}`,
@@ -180,7 +185,9 @@ export async function sendEnrollmentEmail(params: {
 
   if (googleSmtpConfigured()) {
     const smtp = await sendViaGoogleSmtp(params);
-    return smtp.sent ? { ...smtp, via: "smtp" } : smtp;
+    return smtp.sent
+      ? { ...smtp, via: "smtp", smtpMode: smtp.smtpMode }
+      : smtp;
   }
 
   return {
@@ -191,7 +198,11 @@ export async function sendEnrollmentEmail(params: {
 
 /** Connessione SMTP riutilizzabile per invii massivi (pool). */
 export function createGoogleSmtpTransport() {
-  if (!googleSmtpConfigured()) return null;
+  if (!googleSmtpAppPasswordConfigured()) return null;
+  const creds = {
+    user: process.env.GOOGLE_SMTP_USER!.trim(),
+    pass: process.env.GOOGLE_SMTP_APP_PASSWORD!.trim().replace(/\s+/g, ""),
+  };
   return nodemailer.createTransport({
     host: "smtp.gmail.com",
     port: 587,
@@ -199,9 +210,6 @@ export function createGoogleSmtpTransport() {
     requireTLS: true,
     pool: true,
     maxConnections: 1,
-    auth: {
-      user: process.env.GOOGLE_SMTP_USER!.trim(),
-      pass: process.env.GOOGLE_SMTP_APP_PASSWORD!.trim(),
-    },
+    auth: creds,
   });
 }
