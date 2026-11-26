@@ -447,3 +447,6 @@ verify_jwt = false
 
 [functions.external-calendar-sync]
 verify_jwt = false
+
+[functions.last-minute-on-booking]
+verify_jwt = false

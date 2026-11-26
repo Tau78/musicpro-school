@@ -16,6 +16,7 @@ import {
 } from "@musicpro/database";
 
 import { BookingWhatsAppLink } from "@/components/admin/booking-whatsapp-link";
+import { requestLastMinuteSyncAfterConfirm } from "@/lib/booking/request-lm-sync-after-confirm";
 import { requestBookingConfirmationEmail } from "@/lib/booking/send-confirmation-email";
 import { requestBookingCalendarSync } from "@/lib/calendar/sync-booking";
 import { createClient } from "@/lib/supabase/client";
@@ -123,6 +124,7 @@ export function BookingsAdminPanel({
       if (result.status === "confirmed") {
         void requestBookingCalendarSync(booking.id);
         void requestBookingConfirmationEmail(booking.id, { template: "confirm" });
+        requestLastMinuteSyncAfterConfirm(booking.id);
         setMessage(
           booking.payment_method === "credits"
             ? "Prenotazione approvata e confermata. Crediti addebitati."
