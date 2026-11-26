@@ -29,7 +29,7 @@ test("isSlotOpenForLastMinute tiene il buco sotto le 6 ore", () => {
   );
 });
 
-test("la fascia accesa basta, anche senza prenotazioni", () => {
+test("isLastMinuteDayEnabled segue la fascia weekday in impostazioni", () => {
   const schedule = {
     mon: { enabled: true },
     tue: { enabled: true },

@@ -1,18 +1,9 @@
-import {
-  type Database,
-  getOperationalWeekSchedule,
-  getRoomAvailability,
-  hoursUntilSlotStart,
-  isLastMinuteAnchorSlot,
-  isLastMinuteDayEnabled,
-  isSlotOpenForLastMinute,
-  LAST_MINUTE_PHASE2_HOURS,
-  romeToday,
-} from "@musicpro/database";
+import { type Database, romeToday } from "@musicpro/database";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
 import { sendLastMinuteCronReportEmail } from "@/lib/last-minute/cron-report-email";
+import { syncLastMinuteForDay } from "@/lib/last-minute/sync-last-minute-day";
 import {
   publishSchoolLastMinuteDigestStories,
   type PublishDigestStoriesResult,
@@ -62,14 +53,6 @@ async function runDigestStories(
   }
 }
 
-type RunProgress = {
-  phase1Created: number;
-  phase2Advanced: number;
-  candidates: number;
-  roomsScanned: number;
-  operationalActive?: boolean;
-};
-
 async function respondMigrationSkip(
   service: SupabaseClient<Database>,
   dayRome: string,
@@ -102,29 +85,6 @@ function isAuthorized(request: Request): boolean {
   return authHeader === `Bearer ${cronSecret}`;
 }
 
-function isMissingLastMinuteSchema(message: string): boolean {
-  return /last_minute_campaigns|schema cache|does not exist|Could not find|PGRST205/i.test(
-    message,
-  );
-}
-
-async function slotInOperationalBand(
-  service: SupabaseClient<Database>,
-  startAt: string,
-  dayRome: string,
-): Promise<boolean> {
-  const { data, error } = await service.rpc("booking_start_in_operational_band", {
-    p_start_at: startAt,
-    p_day: dayRome,
-  });
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return data === true;
-}
-
 export async function GET(request: Request) {
   if (!isAuthorized(request)) {
     return NextResponse.json(
@@ -148,232 +108,44 @@ export async function GET(request: Request) {
   });
 
   const now = new Date();
-  const nowIso = now.toISOString();
   const dayRome = romeToday();
 
-  const progress: RunProgress = {
-    phase1Created: 0,
-    phase2Advanced: 0,
-    candidates: 0,
-    roomsScanned: 0,
-  };
-  let dayEnabled: boolean | undefined;
-
   try {
-    const { data: operationalActive, error: operationalError } = await service.rpc(
-      "booking_evening_operational_active",
-      { p_day: dayRome },
-    );
+    const result = await syncLastMinuteForDay(service, dayRome, {
+      runDigest: true,
+      cancelIfNotOperational: true,
+      now,
+    });
 
-    if (operationalError) {
-      if (/booking_evening_operational_active|does not exist/i.test(operationalError.message)) {
-        return respondMigrationSkip(service, dayRome, operationalError.message);
-      }
-      throw new Error(operationalError.message);
+    if (result.reason === "migration_not_applied") {
+      return respondMigrationSkip(service, dayRome, result.reason);
     }
 
-    progress.operationalActive = operationalActive === true;
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const { count: lmSalesCount, error: lmSalesError } = await service
+      .from("bookings")
+      .select("id", { count: "exact", head: true })
+      .not("last_minute_campaign_id", "is", null)
+      .gte("created_at", sevenDaysAgo)
+      .neq("status", "cancelled");
+    const lmSalesLast7d =
+      !lmSalesError && typeof lmSalesCount === "number" ? lmSalesCount : undefined;
 
-    const operationalSchedule = await getOperationalWeekSchedule(service);
-    dayEnabled = isLastMinuteDayEnabled(operationalSchedule, dayRome);
-
-    if (!dayEnabled) {
-      const digest = await runDigestStories(service);
-      await maybeSendCronReport(service, {
-        dayRome,
-        success: true,
-        skipped: true,
-        reason: "weekday_disabled",
-        message: "La fascia last minute di questo giorno è spenta.",
-        operationalActive: progress.operationalActive,
-        dayEnabled,
-        phase1Created: 0,
-        phase2Advanced: 0,
-        digest,
-        eventiCredsPresent: eventiCredsPresent(),
-      });
-      return NextResponse.json({
-        success: true,
-        skipped: true,
-        reason: "weekday_disabled",
-        dayRome,
-        phase1Created: 0,
-        phase2Advanced: 0,
-        digest,
-      });
-    }
-
-    const { data: rooms, error: roomsError } = await service
-      .from("rooms")
-      .select("id, default_duration_minutes")
-      .eq("is_active", true);
-
-    if (roomsError) {
-      const digest = await runDigestStories(service);
-      await maybeSendCronReport(service, {
-        dayRome,
-        success: false,
-        message: roomsError.message,
-        operationalActive: progress.operationalActive,
-        dayEnabled,
-        digest,
-        eventiCredsPresent: eventiCredsPresent(),
-      });
-      return NextResponse.json(
-        { success: false, message: roomsError.message },
-        { status: 500 },
-      );
-    }
-
-    progress.roomsScanned = rooms?.length ?? 0;
-
-    const candidateSlots: Array<{ roomId: string; startAt: string; endAt: string }> =
-      [];
-
-    for (const room of rooms ?? []) {
-      const roomId = room.id as string;
-      const durationMinutes =
-        typeof room.default_duration_minutes === "number" &&
-        room.default_duration_minutes > 0
-          ? room.default_duration_minutes
-          : 60;
-
-      let availability;
-      try {
-        availability = await getRoomAvailability(
-          service,
-          roomId,
-          dayRome,
-          durationMinutes,
-          { prefetchNeighbors: false },
-        );
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        console.warn(`[cron/last-minute] availability skip room ${roomId}:`, message);
-        continue;
-      }
-
-      for (const slot of availability.slots) {
-        if (Date.parse(slot.startAt) <= now.getTime()) continue;
-        if (!isSlotOpenForLastMinute(slot)) continue;
-
-        const inBand = await slotInOperationalBand(service, slot.startAt, dayRome);
-        if (!inBand) continue;
-
-        if (
-          !isLastMinuteAnchorSlot(
-            slot.startAt,
-            slot.endAt,
-            operationalSchedule,
-            durationMinutes,
-          )
-        ) {
-          continue;
-        }
-
-        candidateSlots.push({
-          roomId,
-          startAt: slot.startAt,
-          endAt: slot.endAt,
-        });
-      }
-    }
-
-    for (const slot of candidateSlots) {
-      const { data: existing, error: existingError } = await service
-        .from("last_minute_campaigns")
-        .select("id")
-        .eq("room_id", slot.roomId)
-        .eq("start_at", slot.startAt)
-        .eq("end_at", slot.endAt)
-        .in("phase", ["phase1", "phase2"])
-        .maybeSingle();
-
-      if (existingError) {
-        if (isMissingLastMinuteSchema(existingError.message)) {
-          return respondMigrationSkip(service, dayRome, existingError.message);
-        }
-        throw new Error(existingError.message);
-      }
-
-      if (existing?.id) continue;
-
-      const { error: insertError } = await service.from("last_minute_campaigns").insert({
-        room_id: slot.roomId,
-        start_at: slot.startAt,
-        end_at: slot.endAt,
-        phase: "phase1",
-        phase1_started_at: nowIso,
-      });
-
-      if (insertError) {
-        if (/duplicate key|last_minute_campaigns_no_active_overlap/i.test(insertError.message)) {
-          continue;
-        }
-        if (isMissingLastMinuteSchema(insertError.message)) {
-          return respondMigrationSkip(service, dayRome, insertError.message);
-        }
-        throw new Error(insertError.message);
-      }
-
-      progress.phase1Created += 1;
-      // TODO(email): invio fase 1 urgenza (senza sconto) agli associati storici slot.
-      // TODO(meta): bozza/post storia fase 1 su canale Meta School.
-      // TODO(telegram): notifica staff — slot libero, campagna phase1 avviata.
-    }
-
-    progress.candidates = candidateSlots.length;
-
-    const { data: phase1Rows, error: phase1ListError } = await service
-      .from("last_minute_campaigns")
-      .select("id, start_at")
-      .eq("phase", "phase1");
-
-    if (phase1ListError) {
-      if (isMissingLastMinuteSchema(phase1ListError.message)) {
-        return respondMigrationSkip(service, dayRome, phase1ListError.message);
-      }
-      throw new Error(phase1ListError.message);
-    }
-
-    for (const row of phase1Rows ?? []) {
-      const hours = hoursUntilSlotStart(row.start_at as string, now);
-      if (hours <= 0 || hours > LAST_MINUTE_PHASE2_HOURS) continue;
-
-      const { data: updated, error: advanceError } = await service
-        .from("last_minute_campaigns")
-        .update({
-          phase: "phase2",
-          phase2_started_at: nowIso,
-        })
-        .eq("id", row.id)
-        .eq("phase", "phase1")
-        .select("id")
-        .maybeSingle();
-
-      if (advanceError) {
-        throw new Error(advanceError.message);
-      }
-
-      if (updated?.id) {
-        progress.phase2Advanced += 1;
-        // TODO(email): re-invio mirato fase 2 con prezzo last minute nel deep link.
-        // TODO(meta): aggiornamento storia/post fase 2 (prezzo slot).
-        // TODO(telegram): notifica staff — sconto/prezzo LM attivo su slot.
-      }
-    }
-
-    const digest = await runDigestStories(service);
+    const digest = result.digest ?? (await runDigestStories(service));
 
     await maybeSendCronReport(service, {
       dayRome,
       success: true,
-      operationalActive: progress.operationalActive,
-      dayEnabled,
-      roomsScanned: progress.roomsScanned,
-      candidates: progress.candidates,
-      phase1Created: progress.phase1Created,
-      phase2Advanced: progress.phase2Advanced,
+      skipped: result.skipped,
+      reason: result.reason,
+      operationalActive: result.operationalActive,
+      dayEnabled: result.dayEnabled,
+      roomsScanned: result.roomsScanned,
+      candidates: result.candidates,
+      phase1Created: result.phase1Created,
+      phase2Advanced: result.phase2Advanced,
+      campaignsCancelled: result.campaignsCancelled,
+      lmSalesLast7d,
       digest,
       eventiCredsPresent: eventiCredsPresent(),
     });
@@ -381,28 +153,29 @@ export async function GET(request: Request) {
     return NextResponse.json({
       success: true,
       dayRome,
-      operationalActive: progress.operationalActive === true,
-      dayEnabled: true,
-      roomsScanned: progress.roomsScanned,
-      candidates: progress.candidates,
-      phase1Created: progress.phase1Created,
-      phase2Advanced: progress.phase2Advanced,
+      skipped: result.skipped,
+      reason: result.reason,
+      operationalActive: result.operationalActive,
+      eveningGated: !result.operationalActive,
+      dayEnabled: result.dayEnabled,
+      roomsScanned: result.roomsScanned,
+      candidates: result.candidates,
+      phase1Created: result.phase1Created,
+      phase2Advanced: result.phase2Advanced,
+      campaignsCancelled: result.campaignsCancelled,
       digest,
     });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Cron last minute fallito";
+    if (/booking_evening_operational_active|does not exist/i.test(message)) {
+      return respondMigrationSkip(service, dayRome, message);
+    }
     const digest = await runDigestStories(service);
     await maybeSendCronReport(service, {
       dayRome,
       success: false,
       message: message.slice(0, 500),
-      operationalActive: progress.operationalActive,
-      dayEnabled,
-      roomsScanned: progress.roomsScanned,
-      candidates: progress.candidates,
-      phase1Created: progress.phase1Created,
-      phase2Advanced: progress.phase2Advanced,
       digest,
       eventiCredsPresent: eventiCredsPresent(),
     });

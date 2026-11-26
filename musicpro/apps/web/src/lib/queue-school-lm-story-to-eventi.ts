@@ -36,7 +36,13 @@ export interface PublishDigestStoriesResult {
   reason?: string;
   days?: Array<{
     dayRome: string;
-    action: "skipped_unchanged" | "skipped_no_slots" | "queued" | "error";
+    action:
+      | "skipped_unchanged"
+      | "skipped_no_slots"
+      | "skipped_evening_not_operational"
+      | "cancelled_no_slots"
+      | "queued"
+      | "error";
     hash?: string;
     planId?: string;
     slotId?: string;
@@ -357,6 +363,40 @@ export async function publishSchoolLastMinuteDigestStories(
   }
 
   const dayResults: PublishDigestStoriesResult["days"] = [];
+  const bundleByDay = new Map(bundles.map((b) => [b.dayRome, b]));
+  let settingDirty = false;
+
+  for (const dayRome of Object.keys(setting.days)) {
+    if (bundleByDay.has(dayRome)) continue;
+    try {
+      const cancelled = await cancelPendingSchoolLmForDigestDay(
+        eventi,
+        dayRome,
+        setting.days[dayRome]?.planId,
+      );
+      delete setting.days[dayRome];
+      settingDirty = true;
+      dayResults.push({
+        dayRome,
+        action: "cancelled_no_slots",
+        message:
+          cancelled > 0
+            ? `Annullate ${cancelled} storie in coda`
+            : "Nessuno slot LM — digest rimossa",
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      dayResults.push({
+        dayRome,
+        action: "error",
+        message: message.slice(0, 300),
+      });
+    }
+  }
+
+  if (settingDirty) {
+    await persistDigestSetting(school, setting);
+  }
 
   if (bundles.length === 0) {
     return { success: true, days: dayResults };
@@ -378,30 +418,6 @@ export async function publishSchoolLastMinuteDigestStories(
         slotId: previous.slotId,
       });
       continue;
-    }
-
-    if (!previous) {
-      const alreadyLive = await findPublishedSchoolLmForDay(
-        eventi,
-        bundle.dayRome,
-      );
-      if (alreadyLive) {
-        setting.days[bundle.dayRome] = {
-          hash: bundle.hash,
-          queuedAt: new Date().toISOString(),
-          planId: alreadyLive.planId,
-          slotId: alreadyLive.slotId,
-        };
-        await persistDigestSetting(school, setting);
-        dayResults.push({
-          dayRome: bundle.dayRome,
-          action: "skipped_unchanged",
-          hash: bundle.hash,
-          planId: alreadyLive.planId,
-          slotId: alreadyLive.slotId,
-        });
-        continue;
-      }
     }
 
     try {

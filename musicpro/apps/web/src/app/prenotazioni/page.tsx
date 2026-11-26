@@ -61,6 +61,7 @@ import {
   type MembershipStatus,
 } from "@/lib/membership";
 import { createClient } from "@/lib/supabase/client";
+import { requestLastMinuteSyncAfterConfirm } from "@/lib/booking/request-lm-sync-after-confirm";
 import { requestBookingConfirmationEmail } from "@/lib/booking/send-confirmation-email";
 import { requestBookingCalendarSync } from "@/lib/calendar/sync-booking";
 
@@ -564,6 +565,9 @@ function PrenotazioniPageInner() {
         result.status === "pending_approval"
       ) {
         void requestBookingConfirmationEmail(result.bookingId, { template: "confirm" });
+      }
+      if (result.status === "confirmed") {
+        requestLastMinuteSyncAfterConfirm(result.bookingId);
       }
     }
 

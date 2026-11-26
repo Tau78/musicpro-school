@@ -7,6 +7,8 @@ import {
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { isEveningOperationalForDay } from "@/lib/last-minute/evening-operational";
+
 /** Allineato a `LAST_MINUTE_PHASE1_HOURS` in @musicpro/database. */
 const LAST_MINUTE_WINDOW_HOURS = 48;
 
@@ -283,6 +285,8 @@ export async function loadLastMinuteDigestDays(
   for (const [dayRome, daySlots] of byDay) {
     const sorted = sortSlots(daySlots);
     if (sorted.length === 0) continue;
+    const eveningOpen = await isEveningOperationalForDay(service, dayRome);
+    if (!eveningOpen) continue;
     bundles.push({
       dayRome,
       slots: sorted,

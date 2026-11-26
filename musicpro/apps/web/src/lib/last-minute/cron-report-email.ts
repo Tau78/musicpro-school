@@ -16,6 +16,8 @@ export type CronReportPayload = {
   candidates?: number;
   phase1Created?: number;
   phase2Advanced?: number;
+  campaignsCancelled?: number;
+  lmSalesLast7d?: number;
   digest?: PublishDigestStoriesResult | null;
   eventiCredsPresent: boolean;
 };
@@ -125,8 +127,11 @@ export async function sendLastMinuteCronReportEmail(
         : `Esito: errore — ${payload.message ?? "n/d"}`,
     "",
     `Fascia last minute di oggi: ${payload.dayEnabled === true ? "accesa" : payload.dayEnabled === false ? "spenta" : "n/d"}`,
-    `Prenotazione già in fascia: ${payload.operationalActive === true ? "sì" : payload.operationalActive === false ? "no" : "n/d"}`,
+    `Prenotazione già in fascia: ${payload.operationalActive === true ? "sì" : payload.operationalActive === false ? "no (gate: niente nuove campagne/storie)" : "n/d"}`,
     `Credenziali Eventi su Vercel: ${payload.eventiCredsPresent ? "presenti" : "MANCANTI (digest non accodato)"}`,
+    typeof payload.lmSalesLast7d === "number"
+      ? `Prenotazioni attribuite LM (ultimi 7 gg): ${payload.lmSalesLast7d}`
+      : "Prenotazioni attribuite LM (ultimi 7 gg): n/d",
     "",
   ];
 
@@ -140,6 +145,10 @@ export async function sendLastMinuteCronReportEmail(
       `Slot candidati (ancorati in fascia): ${payload.candidates ?? 0}`,
       `Campagne phase1 create: ${payload.phase1Created ?? 0}`,
       `Avanzamenti a phase2: ${payload.phase2Advanced ?? 0}`,
+      ...(typeof payload.campaignsCancelled === "number" &&
+      payload.campaignsCancelled > 0
+        ? [`Campagne annullate (sera non operativa): ${payload.campaignsCancelled}`]
+        : []),
       "",
     );
   }
