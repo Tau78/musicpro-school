@@ -27,6 +27,10 @@ export const ADMIN_PRENOTAZIONI_NAV: readonly PrenotazioniNavGroup[] = [
       { href: "/admin/prenotazioni/lista?lista=cestino", label: "Cestino" },
     ],
   },
+  {
+    label: "Promo",
+    items: [{ href: "/admin/prenotazioni/last-minute", label: "Last minute" }],
+  },
 ] as const;
 
 function IconCalendar({ className = "h-3.5 w-3.5" }: { className?: string }) {
@@ -121,6 +125,9 @@ function resolvePrenotazioniActiveHref(
   if (pathname === "/admin/prenotazioni/lista") {
     if (lista === "da-approvare") return "/admin/prenotazioni/lista";
     return `/admin/prenotazioni/lista?lista=${lista}`;
+  }
+  if (pathname === "/admin/prenotazioni/last-minute") {
+    return "/admin/prenotazioni/last-minute";
   }
   return null;
 }

@@ -369,6 +369,7 @@ export interface Database {
           microphone_count: number;
           companion_declaration: "all_ok" | "need_quota" | null;
           source: "booking" | "calendar" | "lesson";
+          last_minute_campaign_id: string | null;
           external_source: "supersaas" | null;
           external_id: string | null;
           created_at: string;
@@ -411,6 +412,7 @@ export interface Database {
           google_calendar_synced_at?: string | null;
           google_calendar_sync_error?: string | null;
           source?: "booking" | "calendar" | "lesson";
+          last_minute_campaign_id?: string | null;
           external_source?: "supersaas" | null;
           external_id?: string | null;
         };
@@ -2761,6 +2763,19 @@ export interface Database {
       booking_evening_operational_active: {
         Args: { p_day: string };
         Returns: boolean;
+      };
+      last_minute_cancel_active_for_local_day: {
+        Args: { p_day: string };
+        Returns: number;
+      };
+      booking_resolve_last_minute_campaign_id: {
+        Args: {
+          p_room_id: string;
+          p_start_at: string;
+          p_end_at: string;
+          p_member_id: string;
+        };
+        Returns: string | null;
       };
       booking_start_in_operational_band: {
         Args: { p_start_at: string; p_day: string };

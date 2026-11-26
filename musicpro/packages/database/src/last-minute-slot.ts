@@ -25,8 +25,9 @@ const ROME_WEEKDAY_TO_KEY: Record<string, string> = {
 };
 
 /**
- * Il cron last minute gira se quel giorno ha la fascia accesa in impostazioni.
- * Non serve che ci sia già una prenotazione: quella accende solo il preavviso a zero.
+ * Il cron last minute usa la fascia accesa (weekday) come prerequisito.
+ * Le campagne e le storie partono solo se la sera è già «operativa»
+ * (booking_evening_operational_active): almeno una confirmed in fascia.
  */
 export function isLastMinuteDayEnabled(
   schedule: Record<string, { enabled?: boolean } | undefined>,

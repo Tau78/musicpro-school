@@ -36,7 +36,12 @@ export interface PublishDigestStoriesResult {
   reason?: string;
   days?: Array<{
     dayRome: string;
-    action: "skipped_unchanged" | "skipped_no_slots" | "queued" | "error";
+    action:
+      | "skipped_unchanged"
+      | "skipped_no_slots"
+      | "skipped_evening_not_operational"
+      | "queued"
+      | "error";
     hash?: string;
     planId?: string;
     slotId?: string;

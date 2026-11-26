@@ -306,6 +306,8 @@ export {
   enrichAvailabilitySlots,
   LAST_MINUTE_ANCHOR_DURATION_MINUTES,
 } from "./last-minute";
+export { listLastMinuteAttributedBookings } from "./last-minute-sales";
+export type { LastMinuteSaleRow } from "./last-minute-sales";
 export type {
   LastMinuteCampaignPhase,
   WeekdayKey,

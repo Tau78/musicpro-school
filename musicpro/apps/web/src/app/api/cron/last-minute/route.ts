@@ -13,6 +13,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
 import { sendLastMinuteCronReportEmail } from "@/lib/last-minute/cron-report-email";
+import { isEveningOperationalForDay } from "@/lib/last-minute/evening-operational";
 import {
   publishSchoolLastMinuteDigestStories,
   type PublishDigestStoriesResult,
@@ -68,6 +69,8 @@ type RunProgress = {
   candidates: number;
   roomsScanned: number;
   operationalActive?: boolean;
+  campaignsCancelled?: number;
+  lmSalesLast7d?: number;
 };
 
 async function respondMigrationSkip(
@@ -227,10 +230,44 @@ export async function GET(request: Request) {
 
     progress.roomsScanned = rooms?.length ?? 0;
 
+    if (!progress.operationalActive) {
+      const { data: cancelledCount, error: cancelError } = await service.rpc(
+        "last_minute_cancel_active_for_local_day",
+        { p_day: dayRome },
+      );
+      if (cancelError) {
+        if (/last_minute_cancel_active_for_local_day|does not exist/i.test(
+          cancelError.message,
+        )) {
+          console.warn(
+            "[cron/last-minute] cancel active campaigns:",
+            cancelError.message,
+          );
+        } else {
+          throw new Error(cancelError.message);
+        }
+      } else if (typeof cancelledCount === "number") {
+        progress.campaignsCancelled = cancelledCount;
+      }
+    }
+
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const { count: lmSalesCount, error: lmSalesError } = await service
+      .from("bookings")
+      .select("id", { count: "exact", head: true })
+      .not("last_minute_campaign_id", "is", null)
+      .gte("created_at", sevenDaysAgo)
+      .neq("status", "cancelled");
+    if (!lmSalesError && typeof lmSalesCount === "number") {
+      progress.lmSalesLast7d = lmSalesCount;
+    }
+
     const candidateSlots: Array<{ roomId: string; startAt: string; endAt: string }> =
       [];
 
-    for (const room of rooms ?? []) {
+    if (!progress.operationalActive) {
+      progress.candidates = 0;
+    } else for (const room of rooms ?? []) {
       const roomId = room.id as string;
       const durationMinutes =
         typeof room.default_duration_minutes === "number" &&
@@ -279,7 +316,7 @@ export async function GET(request: Request) {
       }
     }
 
-    for (const slot of candidateSlots) {
+    if (progress.operationalActive) for (const slot of candidateSlots) {
       const { data: existing, error: existingError } = await service
         .from("last_minute_campaigns")
         .select("id")
@@ -374,6 +411,8 @@ export async function GET(request: Request) {
       candidates: progress.candidates,
       phase1Created: progress.phase1Created,
       phase2Advanced: progress.phase2Advanced,
+      campaignsCancelled: progress.campaignsCancelled,
+      lmSalesLast7d: progress.lmSalesLast7d,
       digest,
       eventiCredsPresent: eventiCredsPresent(),
     });
@@ -382,6 +421,7 @@ export async function GET(request: Request) {
       success: true,
       dayRome,
       operationalActive: progress.operationalActive === true,
+      eveningGated: !progress.operationalActive,
       dayEnabled: true,
       roomsScanned: progress.roomsScanned,
       candidates: progress.candidates,
