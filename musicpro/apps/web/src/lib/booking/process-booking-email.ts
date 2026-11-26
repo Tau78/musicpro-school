@@ -16,6 +16,7 @@ import {
   fiscalReceiptAttachmentForRoomBooking,
   markReceiptEmailedIfSent,
 } from "@/lib/lezioni/issue-receipt-copy";
+import { triggerLastMinuteSyncAfterBookingConfirm } from "@/lib/last-minute/trigger-sync-after-confirm";
 
 const ROME = "Europe/Rome";
 
@@ -709,6 +710,10 @@ export async function processBookingEmail(params: {
       message: "La prenotazione non risulta annullata",
       booking_id: bookingId,
     };
+  }
+
+  if (template === "confirm" && booking.status === "confirmed") {
+    triggerLastMinuteSyncAfterBookingConfirm(bookingId);
   }
 
   const cancelPolicyHours = await getCancelPolicyHours();
