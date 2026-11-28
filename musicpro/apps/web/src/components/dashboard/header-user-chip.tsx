@@ -6,6 +6,9 @@ import {
   type MemberRoleValue,
 } from "@musicpro/shared";
 
+import { RoleUiSwitch } from "@/components/dashboard/role-ui-switch";
+import type { UiSwitchOption, UiView } from "@/lib/admin/ui-view";
+
 /** Ordine di visualizzazione privilegi (più rilevanti prima). */
 const ROLE_ORDER: MemberRoleValue[] = [
   MemberRole.Admin,
@@ -35,31 +38,53 @@ export function HeaderIdentity({
   title,
   roles,
   profileHref = "/dashboard/impostazioni",
+  uiSwitch = null,
 }: {
   eyebrow: string;
   title: string;
   roles?: MemberRoleValue[];
   /** Profilo associato (anagrafica, band, tutorati). */
   profileHref?: string;
+  /** Click sul ruolo: cambia UI. Se presente, i ruoli non sono più testo fisso. */
+  uiSwitch?: {
+    active: UiView;
+    options: UiSwitchOption[];
+  } | null;
 }) {
   const privileges = roles?.length ? formatRoleLabels(roles) : "";
   const full = privileges ? `${title} (${privileges})` : title;
+  const linkClass =
+    "min-w-0 truncate rounded-md text-sm font-semibold leading-tight text-white hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-white/80";
 
   return (
     <div className="min-w-0">
       <p className="text-[10px] font-medium uppercase leading-none tracking-wide text-[var(--brand-accent)]">
         {eyebrow}
       </p>
-      <Link
-        href={profileHref}
-        className="mt-0.5 block min-w-0 truncate rounded-md text-sm font-semibold leading-tight text-white hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-white/80"
-        title={`${full} — profilo personale`}
-      >
-        {title}
-        {privileges ? (
-          <span className="font-normal text-white/75"> ({privileges})</span>
+      <div className="mt-0.5 flex min-w-0 max-w-full flex-wrap items-baseline gap-x-1">
+        <Link
+          href={profileHref}
+          className={linkClass}
+          title={`${full} — profilo personale`}
+        >
+          {title}
+        </Link>
+        {uiSwitch ? (
+          <RoleUiSwitch
+            active={uiSwitch.active}
+            options={uiSwitch.options}
+            tone="onBrand"
+          />
+        ) : privileges ? (
+          <Link
+            href={profileHref}
+            className="min-w-0 truncate text-sm font-normal leading-tight text-white/75 hover:text-white"
+            title={`${full} — profilo personale`}
+          >
+            ({privileges})
+          </Link>
         ) : null}
-      </Link>
+      </div>
     </div>
   );
 }

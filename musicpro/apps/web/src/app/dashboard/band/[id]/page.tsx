@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
 
 import {
@@ -18,6 +19,7 @@ import {
   type BandMemberQuotaOption,
 } from "@/components/band/quota-pay-for-members";
 import { SignOutButton } from "@/components/auth/sign-out-button";
+import { UiRoleSwitchSlot } from "@/components/dashboard/ui-role-switch-slot";
 import { createClient } from "@/lib/supabase/server";
 
 interface BandDetailPageProps {
@@ -81,16 +83,21 @@ export default async function BandDetailPage({ params }: BandDetailPageProps) {
   return (
     <main className="min-h-screen">
       <header className="border-b border-neutral-200 bg-white">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-          <div>
+        <div className="mx-auto flex min-w-0 max-w-5xl flex-wrap items-center justify-between gap-2 px-4 py-4 sm:px-6">
+          <div className="min-w-0">
             <p className="text-sm font-medium text-[var(--brand-accent)]">
               {APP_NAME}
             </p>
-            <h1 className="text-xl font-semibold text-[var(--brand)]">
+            <h1 className="truncate text-xl font-semibold text-[var(--brand)]">
               {band.name}
             </h1>
           </div>
-          <SignOutButton />
+          <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+            <Suspense fallback={null}>
+              <UiRoleSwitchSlot tone="onLight" when="associato" />
+            </Suspense>
+            <SignOutButton />
+          </div>
         </div>
       </header>
 

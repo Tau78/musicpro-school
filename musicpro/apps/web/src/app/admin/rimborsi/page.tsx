@@ -12,6 +12,7 @@ import {
   canManageReimbursements,
 } from "@/lib/admin/roles";
 import { createClient } from "@/lib/supabase/server";
+import { getUiContext } from "@/lib/admin/ui-view.server";
 
 export default async function RimborsiPage() {
   const supabase = await createClient();
@@ -21,11 +22,12 @@ export default async function RimborsiPage() {
     redirect("/admin/associati");
   }
 
+  const ui = await getUiContext(member.roles);
   const members = await listMembers(supabase);
   const currentYear = new Date().getFullYear();
   const isDocenteOnly =
-    member.roles.includes(MemberRole.Docente) &&
-    !member.roles.includes(MemberRole.Admin);
+    ui.roles.includes(MemberRole.Docente) &&
+    !ui.roles.includes(MemberRole.Admin);
 
   return (
     <div>
@@ -39,7 +41,7 @@ export default async function RimborsiPage() {
       <ReimbursementsPanel
         initialYear={currentYear}
         members={members}
-        canDelete={canDeleteReimbursements(member.roles)}
+        canDelete={canDeleteReimbursements(ui.roles)}
         isDocenteOnly={isDocenteOnly}
       />
     </div>

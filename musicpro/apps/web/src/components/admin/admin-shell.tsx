@@ -7,6 +7,7 @@ import { HeaderSettingsActions } from "@/components/dashboard/header-settings-ac
 import { HeaderIdentity } from "@/components/dashboard/header-user-chip";
 import { BlurActiveOnNavigate } from "@/components/navigation/blur-active-on-navigate";
 import type { AdminShellNavConfig } from "@/lib/admin/shell-config";
+import type { UiSwitchOption, UiView } from "@/lib/admin/ui-view";
 
 export function AdminShell({
   nav,
@@ -14,12 +15,19 @@ export function AdminShell({
   children,
   wide = false,
   userRoles,
+  uiSwitch = null,
+  settingsLabel = "Impostazioni scuola",
 }: {
   nav: AdminShellNavConfig;
   title?: string;
   children: React.ReactNode;
   wide?: boolean;
   userRoles?: MemberRoleValue[];
+  uiSwitch?: {
+    active: UiView;
+    options: UiSwitchOption[];
+  } | null;
+  settingsLabel?: string;
 }) {
   return (
     <div className="min-h-screen min-w-0 max-w-full overflow-x-clip bg-[var(--background)] pb-[calc(4.25rem+max(0.625rem,env(safe-area-inset-bottom,0.625rem)))] md:pb-0">
@@ -30,7 +38,8 @@ export function AdminShell({
             <HeaderIdentity
               eyebrow={APP_NAME}
               title={title}
-              roles={userRoles}
+              roles={uiSwitch ? undefined : userRoles}
+              uiSwitch={uiSwitch}
             />
           </div>
           <AdminNav {...nav} placement="inline" />
@@ -38,7 +47,7 @@ export function AdminShell({
             <HeaderSettingsActions
               variant="onBrand"
               settingsHref={nav.settingsHref}
-              settingsLabel="Impostazioni scuola"
+              settingsLabel={settingsLabel}
             />
           </div>
         </div>

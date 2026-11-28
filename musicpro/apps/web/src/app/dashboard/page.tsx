@@ -30,6 +30,7 @@ import {
   canManageBookings,
   canManageMembers,
 } from "@/lib/admin/roles";
+import { getUiContext } from "@/lib/admin/ui-view.server";
 import { getMembershipStatus } from "@/lib/membership";
 import { createClient } from "@/lib/supabase/server";
 import { formatBookingWhen } from "@/lib/ui/associate-theme";
@@ -60,16 +61,18 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const today = todayInRome();
   const paymentComplete = params.dopoPagamento === "1";
   const paymentBookingId = params.bookingId?.trim() || null;
-  const inAdminShell = canAccessAdmin(member.roles);
+  const ui = await getUiContext(member.roles);
+  const uiRoles = ui.roles;
+  const inAdminShell = canAccessAdmin(uiRoles);
 
   const lessonsEnabled = isLessonsModuleEnabled();
-  const isDocente = member.roles.includes(MemberRole.Docente);
-  const showBookingsCalendar = canManageBookings(member.roles);
-  const showStaffLessons = lessonsEnabled && canManageMembers(member.roles);
+  const isDocente = uiRoles.includes(MemberRole.Docente);
+  const showBookingsCalendar = canManageBookings(uiRoles);
+  const showStaffLessons = lessonsEnabled && canManageMembers(uiRoles);
   const showTeacherLessons = lessonsEnabled && isDocente;
   const showLessonsOffNotice =
     !lessonsEnabled &&
-    (canManageMembers(member.roles) || isDocente);
+    (canManageMembers(uiRoles) || isDocente);
   const lessonsOffNotice =
     !lessonsEnabled &&
     (showLessonsOffNotice || params.info === "lessons_sandbox") ? (
@@ -96,6 +99,9 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     "https://iscrizione.musicproeventi.it/";
 
   const anagraficaBanner =
+    ui.view === "admin"
+      ? null
+      :
     membershipStatus != null && !membershipStatus.formCompleted ? (
       <NextActionBanner
         title="Anagrafica incompleta, inserisci i dati mancanti"
@@ -224,7 +230,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       <Suspense fallback={<StaffDashboardLoading />}>
         <StaffDashboardLoader
           memberId={member.id}
-          roles={member.roles}
+          roles={uiRoles}
           searchParams={calendarParams}
           showBookingsCalendar={showBookingsCalendar}
           showStaffLessons={showStaffLessons}
