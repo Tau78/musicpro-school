@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 
 import { getCurrentMemberWithRoles, listMarketListings } from "@musicpro/database";
@@ -6,6 +7,7 @@ import { APP_NAME } from "@musicpro/shared";
 
 import { MarketBoard } from "@/components/associate/market-board";
 import { HeaderSettingsActions } from "@/components/dashboard/header-settings-actions";
+import { UiRoleSwitchSlot } from "@/components/dashboard/ui-role-switch-slot";
 import { isSchoolMarketDeskOnly } from "@/lib/admin/roles";
 import { listEventiUsedMarketListings } from "@/lib/market/eventi-used-catalog";
 import { createClient } from "@/lib/supabase/server";
@@ -35,12 +37,15 @@ export default async function DashboardMarketPage() {
   return (
     <main className="min-h-screen">
       <header className="border-b border-neutral-200 bg-white">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-          <div>
+        <div className="mx-auto flex min-w-0 max-w-5xl flex-wrap items-center justify-between gap-2 px-4 py-4 sm:px-6">
+          <div className="min-w-0">
             <p className="text-sm font-medium text-[var(--brand-accent)]">{APP_NAME}</p>
-            <h1 className="text-xl font-semibold text-[var(--brand)]">Market</h1>
+            <h1 className="truncate text-xl font-semibold text-[var(--brand)]">Market</h1>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+            <Suspense fallback={null}>
+              <UiRoleSwitchSlot tone="onLight" when="associato" />
+            </Suspense>
             <Link
               href="/dashboard/impostazioni"
               className="text-sm text-neutral-600 hover:text-[var(--brand)]"

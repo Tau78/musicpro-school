@@ -1,14 +1,18 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 
 import { getCurrentMemberWithRoles } from "@musicpro/database";
 import { APP_NAME, MemberRole } from "@musicpro/shared";
 
 import { HeaderSettingsActions } from "@/components/dashboard/header-settings-actions";
+import { UiRoleSwitchSlot } from "@/components/dashboard/ui-role-switch-slot";
 import { LessonsSandboxBanner } from "@/components/lezioni/lessons-sandbox-banner";
 import { LezioniSubNav } from "@/components/lezioni/lezioni-sub-nav";
 import { isLessonsModuleEnabled } from "@/lib/lessons-module";
 import { canManageMembers } from "@/lib/admin/roles";
+import { landingPath } from "@/lib/admin/ui-view";
+import { getUiContext } from "@/lib/admin/ui-view.server";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -29,8 +33,12 @@ export default async function LezioniLayout({
     redirect("/login?error=member_not_linked&redirect=/lezioni");
   }
 
-  const isDocente = member.roles.includes(MemberRole.Docente);
-  const isStaff = canManageMembers(member.roles);
+  const ui = await getUiContext(member.roles);
+  const dest = ui.view ? landingPath(ui.view, "/lezioni") : null;
+  if (dest) redirect(dest);
+
+  const isDocente = ui.roles.includes(MemberRole.Docente);
+  const isStaff = canManageMembers(ui.roles);
 
   if (!isDocente && !isStaff) {
     redirect("/dashboard?error=unauthorized");
@@ -49,8 +57,11 @@ export default async function LezioniLayout({
               {APP_NAME}
             </p>
             <h1 className="truncate text-xl font-semibold">Lezioni</h1>
+            <Suspense fallback={null}>
+              <UiRoleSwitchSlot tone="onBrand" />
+            </Suspense>
           </div>
-          <div className="flex min-w-0 items-center gap-3">
+          <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
             <Link
               href="/dashboard"
               className="text-sm text-white/80 hover:text-white"

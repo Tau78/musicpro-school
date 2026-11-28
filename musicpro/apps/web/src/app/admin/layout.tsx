@@ -35,6 +35,11 @@ import {
 } from "@/lib/admin/documenti-permissions";
 import { firstSettingsHref } from "@/lib/admin/settings-nav";
 import { isLessonsModuleEnabled } from "@/lib/lessons-module";
+import { landingPath, uiSwitchOptions } from "@/lib/admin/ui-view";
+import {
+  getRequestPathname,
+  getUiContext,
+} from "@/lib/admin/ui-view.server";
 
 import { AdminPageLoading } from "@/components/admin/admin-page-loading";
 import { BlurActiveOnNavigate } from "@/components/navigation/blur-active-on-navigate";
@@ -56,18 +61,26 @@ export default async function AdminLayout({
     redirect("/dashboard?error=unauthorized");
   }
 
-  const showRubrica = canAccessMemberDesk(member.roles);
-  const showQuote = canManageQuotas(member.roles);
-  const showRimborsi = canManageReimbursements(member.roles);
-  const showPrenotazioni = canManageBookings(member.roles);
-  const showSale = canManageRooms(member.roles);
-  const showShop = canManageShop(member.roles);
-  const showMarket = canManageSchoolMarket(member.roles);
+  const ui = await getUiContext(member.roles);
+  const path = await getRequestPathname();
+  if (ui.view && path) {
+    const dest = landingPath(ui.view, path);
+    if (dest) redirect(dest);
+  }
+  const uiRoles = ui.roles;
+
+  const showRubrica = canAccessMemberDesk(uiRoles);
+  const showQuote = canManageQuotas(uiRoles);
+  const showRimborsi = canManageReimbursements(uiRoles);
+  const showPrenotazioni = canManageBookings(uiRoles);
+  const showSale = canManageRooms(uiRoles);
+  const showShop = canManageShop(uiRoles);
+  const showMarket = canManageSchoolMarket(uiRoles);
   const showPrenotazioniSettings =
-    canManageSettings(member.roles) || canManagePenalties(member.roles);
+    canManageSettings(uiRoles) || canManagePenalties(uiRoles);
   const showDocumentiSettings =
-    canManageSettings(member.roles) || canManageTemplates(member.roles);
-  const showUtenti = canManageStaffUsers(member.roles);
+    canManageSettings(uiRoles) || canManageTemplates(uiRoles);
+  const showUtenti = canManageStaffUsers(uiRoles);
   const showImpostazioni =
     showQuote ||
     showSale ||
@@ -75,23 +88,29 @@ export default async function AdminLayout({
     showPrenotazioniSettings ||
     showDocumentiSettings ||
     showUtenti;
-  const settingsHref = firstSettingsHref({
-    showQuote,
-    showSale,
-    showShop,
-    showPrenotazioniSettings,
-    showDocumenti: showDocumentiSettings,
-    showUtenti,
-  });
+  const settingsHref =
+    ui.view === "docente"
+      ? "/dashboard/impostazioni"
+      : firstSettingsHref({
+          showQuote,
+          showSale,
+          showShop,
+          showPrenotazioniSettings,
+          showDocumenti: showDocumentiSettings,
+          showUtenti,
+        });
 
   const documentiFlags = await getDocumentiSegreteriaFlags();
   const showDocumentiSection = hasAnyDocumentiSubsection(
-    member.roles,
+    uiRoles,
     documentiFlags,
   );
   const documentiHref = firstDocumentiHref(
-    buildDocumentiNavFlags(member.roles, documentiFlags),
+    buildDocumentiNavFlags(uiRoles, documentiFlags),
   );
+  const uiSwitch = ui.view
+    ? { active: ui.view, options: uiSwitchOptions(member.roles) }
+    : null;
 
   return (
     <div className="min-h-screen min-w-0 max-w-full overflow-x-clip bg-[var(--background)] pb-[calc(4.25rem+max(0.625rem,env(safe-area-inset-bottom,0.625rem)))] md:pb-0">
@@ -106,21 +125,22 @@ export default async function AdminLayout({
                   ? `Ciao ${member.firstName.trim()}`
                   : "Amministrazione"
               }
-              roles={member.roles}
+              roles={uiSwitch ? undefined : member.roles}
+              uiSwitch={uiSwitch}
             />
           </div>
           <AdminNav
             placement="inline"
             showRubrica={showRubrica}
             showLezioni={
-              canManageMembers(member.roles) && isLessonsModuleEnabled()
+              canManageMembers(uiRoles) && isLessonsModuleEnabled()
             }
             showPrenotazioni={showPrenotazioni}
             showDocumenti={showDocumentiSection}
-            showSchoolMarket={isSchoolMarketDeskOnly(member.roles)}
+            showSchoolMarket={isSchoolMarketDeskOnly(uiRoles)}
             showRimborsi={showRimborsi}
             showImpostazioni={showImpostazioni}
-            showWebsite={canManageSettings(member.roles)}
+            showWebsite={canManageSettings(uiRoles)}
             documentiHref={documentiHref}
             settingsHref={settingsHref}
           />
@@ -128,7 +148,9 @@ export default async function AdminLayout({
             <HeaderSettingsActions
               variant="onBrand"
               settingsHref={settingsHref}
-              settingsLabel="Impostazioni scuola"
+              settingsLabel={
+                ui.view === "docente" ? "Impostazioni" : "Impostazioni scuola"
+              }
             />
           </div>
         </div>

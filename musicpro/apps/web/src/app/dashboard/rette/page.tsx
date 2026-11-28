@@ -15,6 +15,7 @@ import { MyLessonFeesPanel } from "@/components/associate/my-lesson-fees-panel";
 import { HeaderSettingsActions } from "@/components/dashboard/header-settings-actions";
 import { LessonsUnavailableNotice } from "@/components/lezioni/lessons-unavailable-notice";
 import { canAccessAdmin } from "@/lib/admin/roles";
+import { redirectForUiView } from "@/lib/admin/ui-view.server";
 import { isLessonsModuleEnabled } from "@/lib/lessons-module";
 import { createClient } from "@/lib/supabase/server";
 
@@ -29,6 +30,8 @@ export default async function DashboardRettePage({ searchParams }: PageProps) {
   if (!member) {
     redirect("/login?error=member_not_linked");
   }
+
+  const ui = await redirectForUiView(member.roles, "/dashboard/rette");
 
   const lessonsEnabled = isLessonsModuleEnabled();
   const isAllievo = lessonsEnabled
@@ -119,7 +122,7 @@ export default async function DashboardRettePage({ searchParams }: PageProps) {
     }
   }
 
-  const inAdminShell = canAccessAdmin(member.roles);
+  const inAdminShell = canAccessAdmin(ui.roles);
 
   const body = (
       <div className={`space-y-5 ${inAdminShell ? "mx-auto max-w-3xl" : ""}`}>
